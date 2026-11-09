@@ -9,14 +9,17 @@
                GET  /admin/production-requests?state=todo|waiting|done   { ready, state, items[] }
                POST /admin/production-requests/:id/review                검토 시작 (접수 → 본사 검토 중)
                GET  /admin/production-requests/:id/suggestions           추천 후보 — 상담 분배 점수 그대로 (본사만)
-               POST /admin/production-requests/:id/recommend             { company_ids[1~5], note?, notes? }
+               POST /admin/production-requests/:id/recommend             { company_ids[1~5], note?, notes?, estimates? }
    화면      할 일(접수 · 검토 중 · 못 받음 · 답 없음) · 답 기다림(추천 도착 · 팩토리 답 기다림) · 끝(받음 · 거둠) 탭 →
              의뢰 줄 → 누르면 그 자리에 의뢰 내용 · 지금 추천 · 고른 기록(못 받음 사유 — 본사만 본다) · 거친 팩토리 ·
              「추천 후보 보기」(접수 상태면 검토 시작을 먼저 보낸다) → 순위(점수 내역)에서 미리 3곳을 골라 둔다 ·
-             1~5곳 · 팩토리마다 소개(Manager 에게 보인다) · Manager 에게 남길 말 → 「N곳 추천」.
+             1~5곳 · 팩토리마다 소개 · 예상 가격대 최소 · 최대(만 원) · 제작 기간(일) (모두 Manager 에게 보인다, 비워 둘 수 있다)
+             · Manager 에게 남길 말 → 「N곳 추천」.
              지역 · 품목 · 한도 · 기간 · 서류로 걸러진 팩토리는 그 이유를 적고 고를 수 있게 둔다 (막지 않는다 —
              워커 production-requests/admin.js 머리말). 등급 밖 · 활동 안 함 · 이 의뢰를 돌려보낸 곳만 고를 수 없다.
-             Manager 에게 보이는 추천 카드에는 가격대 · 제작 기간 칸이 아직 없다 — 소개에 적어 둘 수 있다.
+             가격대는 만 원으로 받아 원(만 원 × 10,000)으로 보낸다 — estimates { company_id: { price_min?, price_max?, lead_days? } }
+             (워커 production-requests/admin.js parseEstimate · DB 0055). 0 이상 정수 · 최소 ≤ 최대 · 제작 기간 1일 이상만 본다.
+             Manager 추천 카드에는 「가격대 1,200만~1,500만 원 · 제작 기간 약 20일」처럼 적은 값만 (segan/production-requests.js).
    이름      거르기 이유 · 점수 묶음 = segan/admin-consults.js (상담 배정과 같은 점수 — 그 모듈이 있으면 점수 내역을 빌려 쓴다)
    못 읽으면  목록 · 후보 자리에 한 줄 안내. 추천을 못 하면 서버 글을 그 자리에.
    본사 알림  새 의뢰 · 못 받음 · 답 없음은 회사 Slack 으로만 온다 (워커 common.js notifyHq — 앱 알림 없음).
@@ -29,6 +32,7 @@
   var RECOMMEND_MAX = 5; // 워커 RECOMMEND_MAX
   var HQ_NOTE_MAX = 500; // 워커 HQ_NOTE_MAX
   var PROFILE_NOTE_MAX = 200; // 워커 PROFILE_NOTE_MAX
+  var MAN_WON = 10000; // 가격대 칸은 만 원으로 받는다 — 서버에는 원 (만 원 × 10,000)
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   var STATUS_LABEL = {
@@ -90,7 +94,15 @@
     pickRange: '1~' + RECOMMEND_MAX + '곳을 골라 주세요.',
     noteLong: 'Manager 에게 남길 말은 ' + HQ_NOTE_MAX + '자까지입니다.',
     profileLong: '소개는 ' + PROFILE_NOTE_MAX + '자까지입니다.',
-    profilePh: '소개 (Manager 에게 보입니다) — 예: 가격대 · 제작 기간 · 잘하는 품목',
+    profilePh: '소개 (Manager 에게 보입니다) — 예: 잘하는 품목',
+    estMin: '가격대 최소 (만 원)',
+    estMax: '가격대 최대 (만 원)',
+    estLead: '제작 기간 (일)',
+    estNote:
+      '고른 팩토리마다 적은 가격대(만 원) · 제작 기간(일)은 Manager 추천 카드에 보입니다. 모르는 값은 비워 두세요.',
+    priceBad: '가격대는 0 이상 정수(만 원)로 적어 주세요.',
+    priceRange: '가격대 최소가 최대보다 큽니다.',
+    leadBad: '제작 기간은 1일 이상 정수(일)로 적어 주세요.',
     hqNotePh: 'Manager 에게 남길 말 (없어도 됩니다)',
     stale: '그사이 의뢰가 바뀌었습니다. 목록을 다시 불러왔습니다.',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
@@ -216,9 +228,58 @@
       .join(' · ');
   }
 
+  /** 칸 글 → 0 이상 정수 | null(비움) | NaN(모양이 틀림). 쉼표 · 빈칸은 빼고 읽는다 (「1,200」 = 1200) */
+  function wholeOf(s) {
+    var t = String(s == null ? '' : s).replace(/[,\s]/g, '');
+    if (!t) return null;
+    if (!/^\d+$/.test(t)) return NaN;
+    var n = Number(t);
+    return Number.isSafeInteger(n) ? n : NaN;
+  }
+
+  /** 만 원 칸 글 → 원 | null | NaN */
+  function wonOf(s) {
+    var man = wholeOf(s);
+    if (man === null || Number.isNaN(man)) return man;
+    var won = man * MAN_WON;
+    return Number.isSafeInteger(won) ? won : NaN;
+  }
+
+  /** 원 → 「1,200만」(만 원으로 떨어질 때) · 「12,345,678」 — segan/production-requests.js 와 같다 */
+  function wonText(n) {
+    return n > 0 && n % 10000 === 0
+      ? (n / 10000).toLocaleString('ko-KR') + '만'
+      : n.toLocaleString('ko-KR');
+  }
+
+  /** 「1,200만 원」 · 「12,345,678원」 — 만 원으로 떨어지면 띄어 쓴다 */
+  function wonUnit(n) {
+    return n > 0 && n % 10000 === 0 ? ' 원' : '원';
+  }
+
+  /** 예상 가격대 · 제작 기간 한 줄 — Manager 추천 카드와 같은 글 (segan/production-requests.js estimateText) */
+  function estimateText(f) {
+    var won = function (v) {
+      return typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null;
+    };
+    var lo = won(f && f.price_min);
+    var hi = won(f && f.price_max);
+    var lead = f && Number.isSafeInteger(f.lead_days) && f.lead_days >= 1 ? f.lead_days : null;
+    var out = [];
+    if (lo !== null && hi !== null)
+      out.push(
+        '가격대 ' + (lo === hi ? wonText(lo) : wonText(lo) + '~' + wonText(hi)) + wonUnit(hi)
+      );
+    else if (lo !== null) out.push('가격대 ' + wonText(lo) + wonUnit(lo) + '부터');
+    else if (hi !== null) out.push('가격대 ' + wonText(hi) + wonUnit(hi) + '까지');
+    if (lead !== null) out.push('제작 기간 약 ' + lead + '일');
+    return out.join(' · ');
+  }
+
   /**
-   * 추천 본문 — 고른 차례 그대로 · 소개는 적은 것만 · 남길 말은 있으면. 아니면 { error }
-   * v = { ids, note, notes: { company_id: 글 } }
+   * 추천 본문 — 고른 차례 그대로 · 소개 · 가격대 · 제작 기간은 적은 것만 · 남길 말은 있으면. 아니면 { error, company? }
+   * v = { ids, note, notes: { company_id: 글 }, estimates: { company_id: { price_min, price_max, lead_days } } }
+   *   가격대는 만 원 글 → 원 (만 원 × 10,000), 제작 기간은 일 글 → 정수. 비운 칸은 보내지 않는다.
    */
   function recommendBodyOf(v, max) {
     var ids = arr(v.ids).filter(function (id) {
@@ -240,6 +301,27 @@
       any = true;
     }
     if (any) body.notes = notes;
+    var estimates = {};
+    var anyEst = false;
+    for (var j = 0; j < ids.length; j++) {
+      var e = (v.estimates && v.estimates[ids[j]]) || {};
+      var lo = wonOf(e.price_min);
+      var hi = wonOf(e.price_max);
+      var lead = wholeOf(e.lead_days);
+      if (Number.isNaN(lo) || Number.isNaN(hi)) return { error: TEXT.priceBad, company: ids[j] };
+      if (lo !== null && hi !== null && lo > hi) return { error: TEXT.priceRange, company: ids[j] };
+      if (Number.isNaN(lead) || (lead !== null && lead < 1))
+        return { error: TEXT.leadBad, company: ids[j] };
+      var one = {};
+      if (lo !== null) one.price_min = lo;
+      if (hi !== null) one.price_max = hi;
+      if (lead !== null) one.lead_days = lead;
+      if (Object.keys(one).length) {
+        estimates[ids[j]] = one;
+        anyEst = true;
+      }
+    }
+    if (anyEst) body.estimates = estimates;
     return { body: body };
   }
 
@@ -310,6 +392,7 @@
                 [
                   (x.rank ? x.rank + '. ' : '') + (x.name || '-'),
                   x.chosen ? '고름 · ' + label(OFFER_LABEL, x.state, '-') : '',
+                  estimateText(x),
                   x.note ? '소개: ' + x.note : '',
                 ]
                   .filter(Boolean)
@@ -397,6 +480,23 @@
     );
   }
 
+  /** 예상 가격대 · 제작 기간 칸 하나 — 글자 칸(숫자 자판)이라 「1,200」처럼 쉼표를 넣어도 읽는다 */
+  function estInputHtml(id, key, text) {
+    return (
+      '<label class="mk-input"><span>' +
+      esc(text) +
+      '</span><input type="text" inputmode="numeric" name="' +
+      key +
+      '-' +
+      esc(id) +
+      '" data-est-for="' +
+      esc(id) +
+      '" data-est="' +
+      key +
+      '" autocomplete="off" /></label>'
+    );
+  }
+
   function pickRowHtml(x, head, hint, max) {
     var on = A.picked.indexOf(x.company_id) >= 0;
     var full = !on && A.picked.length >= max;
@@ -424,7 +524,12 @@
           PROFILE_NOTE_MAX +
           '" placeholder="' +
           esc(TEXT.profilePh) +
-          '" autocomplete="off" /></label>'
+          '" autocomplete="off" /></label>' +
+          '<div class="ad-est">' +
+          estInputHtml(x.company_id, 'price_min', TEXT.estMin) +
+          estInputHtml(x.company_id, 'price_max', TEXT.estMax) +
+          estInputHtml(x.company_id, 'lead_days', TEXT.estLead) +
+          '</div>'
         : '') +
       '</li>'
     );
@@ -487,6 +592,9 @@
           '곳까지 고를 수 있습니다. 걸러진 팩토리는 이유를 보고 골라도 됩니다.'
       ) +
       '</p>' +
+      '<p class="mk-note" data-est-note>' +
+      esc(TEXT.estNote) +
+      '</p>' +
       (rows
         ? '<ol class="ad-cands">' + rows + '</ol>'
         : '<p class="me-pt-msg">' + esc(TEXT.noCand) + '</p>') +
@@ -540,16 +648,21 @@
     );
   }
 
-  /** 다시 그려도 적던 소개 · 남길 말이 남게 */
+  /** 다시 그려도 적던 소개 · 가격대 · 제작 기간 · 남길 말이 남게 */
   function typed() {
     var box = $('adProductionBody');
-    var out = { note: '', notes: {} };
+    var out = { note: '', notes: {}, estimates: {} };
     var form = box && box.querySelector('form[data-form="recommend"]');
     if (!form) return out;
     var ta = form.querySelector('[name="hq_note"]');
     out.note = ta ? ta.value : '';
     form.querySelectorAll('[data-note-for]').forEach(function (el) {
       out.notes[el.getAttribute('data-note-for')] = el.value;
+    });
+    form.querySelectorAll('[data-est-for]').forEach(function (el) {
+      var k = el.getAttribute('data-est-for');
+      if (!has(out.estimates, k)) out.estimates[k] = {};
+      out.estimates[k][el.getAttribute('data-est')] = el.value;
     });
     return out;
   }
@@ -563,6 +676,14 @@
     form.querySelectorAll('[data-note-for]').forEach(function (el) {
       var k = el.getAttribute('data-note-for');
       if (has(v.notes, k)) el.value = v.notes[k];
+    });
+    form.querySelectorAll('[data-est-for]').forEach(function (el) {
+      var e =
+        v.estimates && has(v.estimates, el.getAttribute('data-est-for'))
+          ? v.estimates[el.getAttribute('data-est-for')]
+          : null;
+      var key = el.getAttribute('data-est');
+      if (e && has(e, key)) el.value = e[key];
     });
   }
 
@@ -712,7 +833,10 @@
     var id = form.getAttribute('data-id') || '';
     var s = A.sug && typeof A.sug === 'object' ? A.sug : null;
     var v = typed();
-    var got = recommendBodyOf({ ids: A.picked, note: v.note, notes: v.notes }, s ? s.max : 0);
+    var got = recommendBodyOf(
+      { ids: A.picked, note: v.note, notes: v.notes, estimates: v.estimates },
+      s ? s.max : 0
+    );
     if (got.error) {
       A.err = got.error;
       render();
@@ -823,6 +947,8 @@
     RECOMMEND_MAX: RECOMMEND_MAX,
     HQ_NOTE_MAX: HQ_NOTE_MAX,
     PROFILE_NOTE_MAX: PROFILE_NOTE_MAX,
+    MAN_WON: MAN_WON,
+    TEXT: TEXT,
     STATUS_LABEL: STATUS_LABEL,
     OFFER_LABEL: OFFER_LABEL,
     FILTER_REASON: FILTER_REASON,
@@ -832,6 +958,7 @@
     suggestionsOf: suggestionsOf,
     defaultPicks: defaultPicks,
     recommendBodyOf: recommendBodyOf,
+    estimateText: estimateText,
     load: load,
   };
 })();

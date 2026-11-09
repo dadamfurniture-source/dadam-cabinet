@@ -1,12 +1,19 @@
 /**
- * 다담 본사 쪽 제작 의뢰 — 관리자(is_admin)만 (DB 0050).
+ * 다담 본사 쪽 제작 의뢰 — 관리자(is_admin)만 (DB 0050 · 추천 줄 예상 가격대 · 제작 기간 0055).
  *
  *   GET  /admin/production-requests?state=todo|waiting|done|all   의뢰 목록 (기본 todo = 본사 차례: 접수 · 검토 중 · 못 받음 · 답 없음)
  *   POST /admin/production-requests/:id/review                    검토 시작 (submitted → recommending, 두 번 눌러도 같다)
  *   GET  /admin/production-requests/:id/suggestions               추천 후보 — 상담 분배 점수(distribution/score.js) 그대로.
  *                                                                 점수 · 걸러진 이유는 본사 화면만 (Manager 에게는 싣지 않는다)
- *   POST /admin/production-requests/:id/recommend                 { company_ids[1~5], note?, notes?: { company_id: 소개 } }
+ *   POST /admin/production-requests/:id/recommend                 { company_ids[1~5], note?, notes?: { company_id: 소개 },
+ *                                                                   estimates?: { company_id: { price_min?, price_max?, lead_days? } } }
  *                                                                 → 201 Manager 대표 · 실장에게 앱 알림
+ *
+ * 예상 가격대 · 제작 기간 (estimates — 팩토리마다, 셋 다 비워 둘 수 있다. Manager 추천 카드에 보인다):
+ *   price_min · price_max  원, 0 이상 정수. 둘 다 있으면 최소 ≤ 최대 (본사 화면은 만 원으로 받아 원으로 보낸다)
+ *   lead_days              일, 1 이상 정수
+ *   어기면 422 — code bad_estimates(모양 · 추천하지 않는 팩토리 · 모르는 칸) · bad_price · price_range · bad_lead_days.
+ *   넣은 뒤에는 바꾸지 않는다 (DB 0055 지킴이 — 소개와 같다). 다시 적으려면 다시 추천한다.
  *
  * 추천할 수 있는 팩토리 (서버가 다시 본다): 업체 풀 — 다담 공장 · 활동 중 Expert · Agent 협력업체 (rules.js POOL_PLANS),
  *   의뢰한 업체 자신이 아니고, 이 의뢰를 못 받음 · 답 없음으로 돌려보낸 적이 없는 곳.
@@ -31,6 +38,7 @@ import {
   conflict,
   currentRecs,
   draftsOf,
+  estimateOf,
   guard,
   guardRead,
   inPool,
@@ -110,6 +118,7 @@ export async function listRequestsAdmin(env, { user, query = {} }) {
               name: (companies.get(x.company_id) || {}).name || null,
               rank: x.rank,
               note: x.note || null,
+              ...estimateOf(x),
               chosen: x.chosen === true,
               state: offerState(x, r),
             })),
@@ -212,7 +221,61 @@ export async function suggestionsFor(env, { user, params, nowMs = Date.now() }) 
   });
 }
 
-/** 추천 본문 검사 (순수) → { ids, hqNote, notes: Map } */
+/** 예상 가격대 · 제작 기간 칸 (DB 0055 production_recommendations) */
+export const ESTIMATE_KEYS = Object.freeze(['price_min', 'price_max', 'lead_days']);
+/** DB integer 칸(lead_days)이 담는 가장 큰 값 — 칸 형식이지 규칙이 아니다 (가격은 bigint 라 JS 안전 정수면 담긴다) */
+const INT4_MAX = 2147483647;
+const NO_ESTIMATE = Object.freeze({ price_min: null, price_max: null, lead_days: null });
+
+function badEstimate(message, code, companyId = null) {
+  const err = new ValidationError(
+    message,
+    companyId ? { field: 'estimates', company_id: companyId } : { field: 'estimates' }
+  );
+  err.code = code;
+  return err;
+}
+
+/**
+ * 팩토리 하나의 예상 가격대 · 제작 기간 검사 (순수) → { price_min, price_max, lead_days } | null (셋 다 없음).
+ * 값이 null · 없음이면 적지 않은 것. 숫자(정수)만 받는다 — 글자 '1000' 은 거절.
+ */
+export function parseEstimate(raw, companyId = null) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw))
+    throw badEstimate(
+      'estimates 는 { 팩토리 id: { price_min?, price_max?, lead_days? } } 입니다',
+      'bad_estimates',
+      companyId
+    );
+  for (const k of Object.keys(raw))
+    if (!ESTIMATE_KEYS.includes(k))
+      throw badEstimate(
+        'estimates 에는 price_min · price_max · lead_days 만 적습니다',
+        'bad_estimates',
+        companyId
+      );
+  const won = (v) => {
+    if (v === null || v === undefined) return null;
+    if (!Number.isSafeInteger(v) || v < 0)
+      throw badEstimate('가격대는 0 이상 정수(원)여야 합니다', 'bad_price', companyId);
+    return v;
+  };
+  const min = won(raw.price_min);
+  const max = won(raw.price_max);
+  if (min !== null && max !== null && min > max)
+    throw badEstimate('가격대 최소가 최대보다 큽니다', 'price_range', companyId);
+  let lead = null;
+  if (raw.lead_days !== null && raw.lead_days !== undefined) {
+    if (!Number.isSafeInteger(raw.lead_days) || raw.lead_days < 1 || raw.lead_days > INT4_MAX)
+      throw badEstimate('제작 기간은 1 이상 정수(일)여야 합니다', 'bad_lead_days', companyId);
+    lead = raw.lead_days;
+  }
+  if (min === null && max === null && lead === null) return null;
+  return { price_min: min, price_max: max, lead_days: lead };
+}
+
+/** 추천 본문 검사 (순수) → { ids, hqNote, notes: Map, estimates: Map } */
 export function parseRecommend(body) {
   const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
   const ids = b.company_ids;
@@ -250,7 +313,22 @@ export function parseRecommend(body) {
       if (s) notes.set(key, s);
     }
   }
-  return { ids: lower, hqNote, notes };
+  const estimates = new Map();
+  if (b.estimates !== undefined && b.estimates !== null) {
+    if (typeof b.estimates !== 'object' || Array.isArray(b.estimates))
+      throw badEstimate(
+        'estimates 는 { 팩토리 id: { price_min?, price_max?, lead_days? } } 입니다',
+        'bad_estimates'
+      );
+    for (const [k, v] of Object.entries(b.estimates)) {
+      const key = String(k).toLowerCase();
+      if (!lower.includes(key))
+        throw badEstimate('estimates 에 추천하지 않는 팩토리가 있습니다', 'bad_estimates');
+      const e = parseEstimate(v, key);
+      if (e) estimates.set(key, e);
+    }
+  }
+  return { ids: lower, hqNote, notes, estimates };
 }
 
 function notEligible(companyId, reasons) {
@@ -265,7 +343,7 @@ function notEligible(companyId, reasons) {
 /** POST /admin/production-requests/:id/recommend */
 export async function recommendFactories(env, { user, params, body, ctx }) {
   await assertAdmin(env, user);
-  const { ids, hqNote, notes } = parseRecommend(body);
+  const { ids, hqNote, notes, estimates } = parseRecommend(body);
   return guard(async () => {
     const req = await loadRequest(env, params.id);
     if (!RECOMMENDABLE.includes(req.status))
@@ -295,6 +373,7 @@ export async function recommendFactories(env, { user, params, body, ctx }) {
           round,
           rank: i + 1,
           note: notes.get(id) || null,
+          ...(estimates.get(id) || NO_ESTIMATE),
           created_by: user.id,
         }))
       );
@@ -339,6 +418,7 @@ export async function recommendFactories(env, { user, params, body, ctx }) {
           name: (companies.get(r.company_id) || {}).name || null,
           rank: r.rank,
           note: r.note || null,
+          ...estimateOf(r),
         })),
     };
   });

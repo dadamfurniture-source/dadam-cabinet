@@ -24,8 +24,10 @@
                시공 완료 희망 날짜 · 요청 메모. 플래너 설계는 팩토리에 사본으로 가고 사진은 보내지 않는다
                (워커 production-requests/factory.js copyDraftToFactory).
              줄을 누르면 그 자리에 단계 · 의뢰 내용 · 본사 말 · 추천 팩토리 · 고른 기록 · 거두기.
-               추천 팩토리 — 이름 · 다담 공장/팩토리 · 지역 · 하는 품목 · 본사 소개. 의뢰 품목 · 현장 지역과 다르면
-               확인 한 줄만 (막지 않는다). 가격대 · 제작 기간은 서버가 아직 주지 않는다 — 지어 쓰지 않는다.
+               추천 팩토리 — 이름 · 다담 공장/팩토리 · 지역 · 본사가 적은 예상 가격대 · 제작 기간 한 줄
+               (「가격대 1,200만~1,500만 원 · 제작 기간 약 20일」, 적은 값만 — 서버 price_min · price_max(원) · lead_days(일),
+               DB 0055. 서버가 주지 않으면 그 줄이 없다) · 하는 품목 · 본사 소개. 의뢰 품목 · 현장 지역과 다르면
+               확인 한 줄만 (막지 않는다).
                고르기 · 거두기는 가운데 창으로 한 번 더 묻는다 (SeganShell.sheet kind dialog — 막는 확인만).
              팩토리가 못 받은 사유는 본사만 본다 — 서버도 싣지 않고 이 화면도 그리지 않는다.
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · ready false — DB 0050 전) → 칸째 감춘다.
@@ -265,6 +267,42 @@
     };
   }
 
+  /** 원 → 「1,200만」(만 원으로 떨어질 때) · 「12,345,678」 — 뒤 「원」은 wonUnit */
+  function wonText(n) {
+    return n > 0 && n % 10000 === 0
+      ? (n / 10000).toLocaleString('ko-KR') + '만'
+      : n.toLocaleString('ko-KR');
+  }
+
+  /** 「1,200만 원」 · 「12,345,678원」 — 만 원으로 떨어지면 띄어 쓴다 */
+  function wonUnit(n) {
+    return n > 0 && n % 10000 === 0 ? ' 원' : '원';
+  }
+
+  /**
+   * 본사가 적은 예상 가격대 · 제작 기간 한 줄 — 「가격대 1,200만~1,500만 원 · 제작 기간 약 20일」.
+   * 적은 값만: 최소만 「가격대 1,200만 원부터」, 최대만 「가격대 1,500만 원까지」, 둘이 같으면 「가격대 1,200만 원」.
+   * 만 원으로 떨어지지 않는 값은 원 그대로 「12,345,678원」.
+   * 서버 price_min · price_max(원, 0 이상 정수) · lead_days(일, 1 이상 정수) — 모양이 틀린 값은 적지 않은 것으로 본다. 없으면 ''
+   */
+  function estimateText(f) {
+    var won = function (v) {
+      return typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null;
+    };
+    var lo = won(f && f.price_min);
+    var hi = won(f && f.price_max);
+    var lead = f && Number.isSafeInteger(f.lead_days) && f.lead_days >= 1 ? f.lead_days : null;
+    var out = [];
+    if (lo !== null && hi !== null)
+      out.push(
+        '가격대 ' + (lo === hi ? wonText(lo) : wonText(lo) + '~' + wonText(hi)) + wonUnit(hi)
+      );
+    else if (lo !== null) out.push('가격대 ' + wonText(lo) + wonUnit(lo) + '부터');
+    else if (hi !== null) out.push('가격대 ' + wonText(hi) + wonUnit(hi) + '까지');
+    if (lead !== null) out.push('제작 기간 약 ' + lead + '일');
+    return out.join(' · ');
+  }
+
   /** 단계 막대에서 지금 칸 (거둠 · 모르는 상태는 -1) */
   function stepIndex(status) {
     return has(STEP_OF, status) ? STEP_OF[status] : -1;
@@ -420,6 +458,7 @@
   function recHtml(r, f) {
     var hints = hintsOf(r, f);
     var o = f.chosen && f.offer && typeof f.offer === 'object' ? f.offer : null;
+    var estimate = estimateText(f);
     var facts = [];
     var items = arr(f.items);
     facts.push(fact('하는 품목', esc(items.length ? items.join(' · ') : '-')));
@@ -442,6 +481,7 @@
       '</b><span>' +
       esc([f.factory_label || '팩토리', f.region || ''].filter(Boolean).join(' · ')) +
       '</span></p>' +
+      (estimate ? '<p class="me-pt-msg" data-estimate>' + esc(estimate) + '</p>' : '') +
       '<dl class="me-facts">' +
       facts.join('') +
       '</dl>' +
@@ -1167,6 +1207,7 @@
     busyDrafts: busyDrafts,
     draftLabel: draftLabel,
     hintsOf: hintsOf,
+    estimateText: estimateText,
     bodyOf: bodyOf,
     leftText: leftText,
     deadlineText: deadlineText,

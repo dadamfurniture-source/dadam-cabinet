@@ -509,6 +509,13 @@ a.sg-row.ad-row::after {
   font-size: 13px;
 }
 
+/* 관리 › 제작 의뢰 — 고른 팩토리마다 가격대 최소 · 최대(만 원) · 제작 기간(일), 좁으면 다음 줄로 */
+.ad-est {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 8px;
+}
+
 /* 관리 › 작업 보고 — 숫자 넷 · 종류 고르기 */
 .ad-kpis dt {
   width: 8em;

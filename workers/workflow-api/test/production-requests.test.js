@@ -1,7 +1,8 @@
 /**
- * Manager 업체 제작 의뢰 — src/production-requests/* 를 워커로 부른다 (DB 0050 · 거둠 알림 종류 0053).
+ * Manager 업체 제작 의뢰 — src/production-requests/* 를 워커로 부른다 (DB 0050 · 거둠 알림 종류 0053 ·
+ *   추천 줄 예상 가격대 · 제작 기간 0055).
  *   Manager: POST|GET /production-requests · GET /production-requests/:id · POST …/:id/choose|cancel
- *   본사:    GET /admin/production-requests · POST …/:id/review|recommend · GET …/:id/suggestions
+ *   본사:    GET /admin/production-requests · POST …/:id/review|recommend(estimates 가격대 · 제작 기간) · GET …/:id/suggestions
  *   팩토리:  GET /factory/production-requests · POST …/:id/accept|decline · 1분 cron 답 없음
  * 가짜 Supabase 는 test/helpers/distribution-fake.js (0050 지킴이 · 제약을 흉내 낸다). 시험 데이터는 모두 가짜다.
  */
@@ -16,7 +17,12 @@ import {
   factoryProjectTitle,
 } from '../src/production-requests/factory.js';
 import { parseRequest, createRequest } from '../src/production-requests/manager.js';
-import { parseRecommend, consultLike } from '../src/production-requests/admin.js';
+import {
+  parseRecommend,
+  parseEstimate,
+  consultLike,
+  ESTIMATE_KEYS,
+} from '../src/production-requests/admin.js';
 import {
   buildHqSlack,
   offerState,
@@ -722,6 +728,129 @@ test('추천 — 풀 안 팩토리만 (Manager · 정지 · 모르는 업체 · 
   assert.deepEqual([closed.status, closed.json.code], [409, 'not_recommendable']);
 });
 
+test('추천 — 팩토리마다 예상 가격대 · 제작 기간 (적은 것만, 원 · 일), Manager 카드 · 본사 화면에 싣고 팩토리 화면에는 없다', async () => {
+  const fake = fresh();
+  const made = await call(fake, '/production-requests', M_OWNER, {
+    method: 'POST',
+    body: { draft_id: 'd-kitchen-01' },
+  });
+  const id = made.json.data.id;
+  const rec = await call(fake, `/admin/production-requests/${id}/recommend`, ADMIN, {
+    method: 'POST',
+    body: {
+      company_ids: [E, A, FACTORY],
+      notes: { [E]: '강남구 · 싱크대 전문' },
+      estimates: {
+        [E.toUpperCase()]: { price_min: 12000000, price_max: 15000000, lead_days: 20 },
+        [A]: { price_max: 15000000 },
+        [FACTORY]: { price_min: null, price_max: null, lead_days: null },
+      },
+    },
+  });
+  assert.equal(rec.status, 201, JSON.stringify(rec.json));
+  const pick = (r) => [r.company_id, r.price_min, r.price_max, r.lead_days];
+  const want = [
+    [E, 12000000, 15000000, 20],
+    [A, null, 15000000, null],
+    [FACTORY, null, null, null],
+  ];
+  assert.deepEqual(rec.json.data.recommendations.map(pick), want);
+  assert.deepEqual(
+    fake.db.production_recommendations
+      .filter((r) => r.request_id === id)
+      .sort((a, b) => a.rank - b.rank)
+      .map(pick),
+    want
+  );
+  // Manager 추천 카드 — 직원도 본다 (점수는 여전히 없다)
+  const d = await call(fake, `/production-requests/${id}`, M_STAFF);
+  assert.equal(d.status, 200);
+  assert.deepEqual(d.json.data.recommendations.map(pick), want);
+  assert.equal(d.json.data.recommendations[0].note, '강남구 · 싱크대 전문');
+  // 본사 목록 (답 기다림 탭 — 추천 도착)
+  const q = await call(fake, '/admin/production-requests?state=waiting', ADMIN);
+  assert.deepEqual(q.json.data.items.find((i) => i.id === id).recommendations.map(pick), want);
+  // 팩토리 화면에는 싣지 않는다
+  const chose = await call(fake, `/production-requests/${id}/choose`, M_OWNER, {
+    method: 'POST',
+    body: { company_id: E },
+  });
+  assert.equal(chose.status, 200, JSON.stringify(chose.json));
+  const f = await call(fake, '/factory/production-requests', E_OWNER);
+  assert.equal(f.json.data.items.length, 1);
+  const text = JSON.stringify(f.json);
+  for (const key of ['price_min', 'price_max', 'lead_days', '12000000', '15000000'])
+    assert.ok(!text.includes(key), `팩토리 화면에 ${key} 가 없다`);
+  // 고른 뒤에도 Manager 카드의 값은 그대로
+  const after = await call(fake, `/production-requests/${id}`, M_OWNER);
+  assert.deepEqual(after.json.data.recommendations.map(pick), want);
+});
+
+test('추천 — 예상 가격대 · 제작 기간 검사 (422 code · 그 팩토리), 막히면 추천 줄을 넣지 않는다, 0 원 · 같은 값 · 1일은 된다', async () => {
+  const fake = fresh();
+  const made = await call(fake, '/production-requests', M_OWNER, {
+    method: 'POST',
+    body: { draft_id: 'd-kitchen-01' },
+  });
+  const id = made.json.data.id;
+  const rec = (estimates) =>
+    call(fake, `/admin/production-requests/${id}/recommend`, ADMIN, {
+      method: 'POST',
+      body: { company_ids: [E, A], estimates },
+    });
+  for (const [estimates, code, company] of [
+    [[], 'bad_estimates', undefined],
+    ['12000000', 'bad_estimates', undefined],
+    [{ [M2]: { price_min: 1 } }, 'bad_estimates', undefined],
+    [{ [E]: 12000000 }, 'bad_estimates', E],
+    [{ [E]: [12000000, 15000000] }, 'bad_estimates', E],
+    [{ [E]: { price: 12000000 } }, 'bad_estimates', E],
+    [{ [E]: { price_min: -1 } }, 'bad_price', E],
+    [{ [E]: { price_max: 1.5 } }, 'bad_price', E],
+    [{ [E]: { price_min: '12000000' } }, 'bad_price', E],
+    [{ [E]: { price_max: Number.MAX_SAFE_INTEGER + 1 } }, 'bad_price', E],
+    [{ [E]: { price_min: 15000000, price_max: 12000000 } }, 'price_range', E],
+    [{ [A]: { lead_days: 0 } }, 'bad_lead_days', A],
+    [{ [A]: { lead_days: -3 } }, 'bad_lead_days', A],
+    [{ [A]: { lead_days: 2.5 } }, 'bad_lead_days', A],
+    [{ [A]: { lead_days: '20' } }, 'bad_lead_days', A],
+    [{ [A]: { lead_days: 2147483648 } }, 'bad_lead_days', A],
+  ]) {
+    const r = await rec(estimates);
+    assert.deepEqual(
+      [r.status, r.json.code, r.json.details.field, r.json.details.company_id],
+      [422, code, 'estimates', company],
+      JSON.stringify(estimates)
+    );
+  }
+  assert.equal(fake.db.production_recommendations.length, 0);
+  assert.equal(fake.db.production_requests.find((r) => r.id === id).status, 'submitted');
+  // 원 단위 그대로 (만 원으로 떨어지지 않아도 된다) · 0 원 · 최소 = 최대 · 1일 · 긴 기간
+  const ok = await rec({
+    [E]: { price_min: 0, price_max: 0, lead_days: 1 },
+    [A]: { price_min: 12345678, price_max: 12345678, lead_days: 400 },
+  });
+  assert.equal(ok.status, 201, JSON.stringify(ok.json));
+  assert.deepEqual(
+    ok.json.data.recommendations.map((r) => [r.price_min, r.price_max, r.lead_days]),
+    [
+      [0, 0, 1],
+      [12345678, 12345678, 400],
+    ]
+  );
+  // 넣은 줄의 값은 바꾸지 못한다 (DB 0055 지킴이 — 가짜도 같게 막는다)
+  const row = fake.db.production_recommendations.find((r) => r.company_id === E);
+  const patched = await withFetch(fake, () =>
+    fetch(`${ENV.SUPABASE_URL}/rest/v1/production_recommendations?id=eq.${row.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_days: 30 }),
+    })
+  );
+  assert.equal(patched.status, 400);
+  assert.equal(row.lead_days, 1);
+});
+
 // ── 못 받음 · 답 없음 · 다시 추천 ─────────────────────────────────
 
 test('못 받음 → 본사 차례 · Manager 알림, 그 팩토리는 다시 추천 못 함 → 다른 팩토리로 다시 추천 → 받기', async () => {
@@ -1297,6 +1426,31 @@ test('값 — 24시간은 상담 배정과 같다, 대표 · 실장만, 점수�
     notes: { [E.toUpperCase()]: ' 소개 ' },
   });
   assert.deepEqual([pr.ids, pr.hqNote, [...pr.notes]], [[E], '말', [[E, '소개']]]);
+  assert.deepEqual([...pr.estimates], []);
+  // 예상 가격대 · 제작 기간 — 대문자 id 도 같은 팩토리, 적지 않은 칸은 null, 셋 다 없으면 줄 없음
+  const pe = parseRecommend({
+    company_ids: [E, A],
+    estimates: {
+      [E.toUpperCase()]: { price_min: 12000000, lead_days: 20 },
+      [A]: { price_min: null },
+    },
+  });
+  assert.deepEqual(
+    [...pe.estimates],
+    [[E, { price_min: 12000000, price_max: null, lead_days: 20 }]]
+  );
+  assert.deepEqual([...ESTIMATE_KEYS], ['price_min', 'price_max', 'lead_days']);
+  assert.equal(parseEstimate(undefined), null);
+  assert.equal(parseEstimate({}), null);
+  assert.deepEqual(parseEstimate({ price_max: 15000000 }), {
+    price_min: null,
+    price_max: 15000000,
+    lead_days: null,
+  });
+  assert.throws(
+    () => parseEstimate({ price_min: 2, price_max: 1 }, E),
+    (e) => e.code === 'price_range' && e.statusCode === 422 && e.details.company_id === E
+  );
   // 고른 줄의 상태 — 의뢰 줄이 정본
   const rec = { chosen: true, response: null, round: 2, company_id: E };
   assert.equal(offerState(rec, { status: 'chosen', round: 2, factory_company_id: E }), 'open');
