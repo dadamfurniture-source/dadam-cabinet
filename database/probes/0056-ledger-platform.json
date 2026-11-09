@@ -1,0 +1,126 @@
+{
+  "title": "0056 다담 본사 회계장부 — 활성 다담 본사는 장부 · 사진 AI 읽기 full (구성원만), 업무 비서 · 다담 공장 · 협력업체는 0047 그대로, 본사가 active 가 아니면 본사 몫은 빠진다 (scripts/rls-probe.mjs --migration database/migrations/0056_ledger_platform.sql)",
+  "ids": [
+    "company_m",
+    "company_mr",
+    "company_e",
+    "company_er",
+    "company_a",
+    "company_none",
+    "entry_mr",
+    "doc_er"
+  ],
+  "users": [
+    "p_member_user",
+    "p_removed_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_m}}, 'partner', 'probe M', 'manager', 'active'), ({{company_mr}}, 'partner', 'probe MR', 'manager', 'active'), ({{company_e}}, 'partner', 'probe E', 'expert', 'active'), ({{company_er}}, 'partner', 'probe ER', 'expert', 'active'), ({{company_a}}, 'partner', 'probe A', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES (public.platform_company_id(), {{p_member_user}}, 'manager', 'active'), (public.platform_company_id(), {{p_removed_user}}, 'manager', 'removed')",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, counterparty_name, amount, vat_amount, evidence_type, payment_method, source, created_by) VALUES ({{entry_mr}}, {{company_mr}}, date '2026-10-15', 'income', 'income.sales', NULL, 500000, 50000, 'tax_invoice', 'transfer', 'manual', {{other_user}})",
+    "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256) VALUES ({{doc_er}}, {{company_er}}, {{other_user}}, 'probe/' || {{doc_er}}::text, 'image/jpeg', 100, repeat('5', 64))"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "p_member": {
+      "role": "authenticated",
+      "user": "p_member_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "다담 본사 — 장부 / 사진 AI 읽기 full (사람 없이, 자격 함수는 서버만)",
+      "sql": "select public.company_entitled(public.platform_company_id(), 'ledger') || '/' || public.company_entitled(public.platform_company_id(), 'ledger_ai')",
+      "expect": {
+        "service_role": "full/full",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "다담 본사 — active 구성원(실장)으로 물어도 장부 / 사진 AI 읽기 full",
+      "sql": "select public.company_entitled(public.platform_company_id(), 'ledger', {{p_member_user}}) || '/' || public.company_entitled(public.platform_company_id(), 'ledger_ai', {{p_member_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "full/full"
+      }
+    },
+    {
+      "name": "다담 본사 — 구성원이 아닌 사람 · 나간 구성원은 장부 / 사진 / 비서 모두 none",
+      "sql": "select public.company_entitled(public.platform_company_id(), 'ledger', {{other_user}}) || '/' || public.company_entitled(public.platform_company_id(), 'ledger_ai', {{other_user}}) || '/' || public.company_entitled(public.platform_company_id(), 'assistant', {{other_user}}) || ',' || public.company_entitled(public.platform_company_id(), 'ledger', {{p_removed_user}}) || '/' || public.company_entitled(public.platform_company_id(), 'ledger_ai', {{p_removed_user}}) || '/' || public.company_entitled(public.platform_company_id(), 'assistant', {{p_removed_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "none/none/none,none/none/none"
+      }
+    },
+    {
+      "name": "다담 본사 — 업무 비서(assistant)는 0047 식 그대로 (시험 예외 · 켜짐 · 전체 켜짐이 다 있어야 full, 장부 자격과 따로)",
+      "sql": "select (public.company_entitled(co.id, 'assistant') = CASE WHEN co.status = 'active' AND coalesce(s.trial, false) AND coalesce(s.enabled, false) AND coalesce((SELECT g.assistant_on FROM public.assistant_global g WHERE g.id), false) THEN 'full' ELSE 'none' END AND public.company_entitled(co.id, 'assistant', {{p_member_user}}) = public.company_entitled(co.id, 'assistant'))::text from public.companies co left join public.assistant_settings s on s.company_id = co.id where co.id = public.platform_company_id() and co.kind = 'platform'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "다담 본사가 active 가 아니면(이 칸 안에서만 suspended, 되돌림) 본사 몫이 빠진다 — 장부는 0047 처럼(줄 · 사진이 있으면 read, 없으면 none) / 사진 AI 읽기 none",
+      "sql": "update public.companies set status = 'suspended' where id = public.platform_company_id(); select (public.company_entitled(p.id, 'ledger') = CASE WHEN EXISTS (SELECT 1 FROM public.ledger_entries e WHERE e.company_id = p.id) OR EXISTS (SELECT 1 FROM public.ledger_documents d WHERE d.company_id = p.id) THEN 'read' ELSE 'none' END)::text || '/' || public.company_entitled(p.id, 'ledger_ai') from (select public.platform_company_id() as id) p",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/none"
+      }
+    },
+    {
+      "name": "다담 공장(hq) — 0047 식 그대로 (장부 · 사진 AI 읽기 · 비서)",
+      "sql": "select (public.company_entitled(co.id, 'ledger') = CASE WHEN co.status = 'active' AND coalesce(s.trial, false) THEN 'full' WHEN EXISTS (SELECT 1 FROM public.ledger_entries e WHERE e.company_id = co.id) OR EXISTS (SELECT 1 FROM public.ledger_documents d WHERE d.company_id = co.id) THEN 'read' ELSE 'none' END AND public.company_entitled(co.id, 'ledger_ai') = CASE WHEN co.status = 'active' AND coalesce(s.trial, false) THEN 'full' ELSE 'none' END AND public.company_entitled(co.id, 'assistant') = CASE WHEN co.status = 'active' AND coalesce(s.trial, false) AND coalesce(s.enabled, false) AND coalesce((SELECT g.assistant_on FROM public.assistant_global g WHERE g.id), false) THEN 'full' ELSE 'none' END)::text from public.companies co left join public.assistant_settings s on s.company_id = co.id where co.id = public.hq_company_id() and co.kind = 'hq'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "협력업체 — 0047 그대로 (장부/사진/비서): Manager · 장부 줄 있는 Manager · Expert · 사진 있는 Expert · Agent",
+      "sql": "select public.company_entitled({{company_m}}, 'ledger') || '/' || public.company_entitled({{company_m}}, 'ledger_ai') || '/' || public.company_entitled({{company_m}}, 'assistant') || ',' || public.company_entitled({{company_mr}}, 'ledger') || '/' || public.company_entitled({{company_mr}}, 'ledger_ai') || '/' || public.company_entitled({{company_mr}}, 'assistant') || ',' || public.company_entitled({{company_e}}, 'ledger') || '/' || public.company_entitled({{company_e}}, 'ledger_ai') || '/' || public.company_entitled({{company_e}}, 'assistant') || ',' || public.company_entitled({{company_er}}, 'ledger') || '/' || public.company_entitled({{company_er}}, 'ledger_ai') || '/' || public.company_entitled({{company_er}}, 'assistant') || ',' || public.company_entitled({{company_a}}, 'ledger') || '/' || public.company_entitled({{company_a}}, 'ledger_ai') || '/' || public.company_entitled({{company_a}}, 'assistant')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "none/none/none,read/none/none,none/none/none,read/none/none,full/full/none"
+      }
+    },
+    {
+      "name": "모르는 기능 · 없는 업체는 none (0047 그대로)",
+      "sql": "select public.company_entitled(public.platform_company_id(), 'books') || '/' || public.company_entitled({{company_none}}, 'ledger') || '/' || public.company_entitled({{company_none}}, 'ledger_ai')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "none/none/none"
+      }
+    },
+    {
+      "name": "자격 함수 모양 — sql · STABLE · SECURITY INVOKER · search_path '' · EXECUTE 는 서버만 (anon/authenticated/service_role)",
+      "sql": "select l.lanname::text || '/' || p.provolatile::text || '/' || p.prosecdef::text || '/' || coalesce(array_to_string(p.proconfig, ','), '') || '/' || has_function_privilege('anon', p.oid, 'EXECUTE')::text || '/' || has_function_privilege('authenticated', p.oid, 'EXECUTE')::text || '/' || has_function_privilege('service_role', p.oid, 'EXECUTE')::text from pg_proc p join pg_language l on l.oid = p.prolang where p.oid = 'public.company_entitled(uuid,text,uuid)'::regprocedure",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "sql/s/false/search_path=\"\"/false/false/true"
+      }
+    }
+  ]
+}
