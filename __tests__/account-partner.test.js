@@ -75,6 +75,7 @@ const Pt = loadEsm(
     'hashInviteToken',
     'newInviteToken',
     'INVITE_TTL_MS',
+    'STAFF_TOOL_PLANS',
     'PHONE_RE',
     'BIZNO_RE',
   ],
@@ -1375,7 +1376,7 @@ describe('POST /partner/plan — 승인된 Agent 예약', () => {
 describe('직원 초대', () => {
   test('만들기 — 201 {id, role, expires_at, token}. 토큰은 43자 base64url, DB 에는 sha256 hex 만, 7일', async () => {
     const before = Date.now();
-    const r = await call('POST', '/partner/invites', 'owner', { role: 'manager' });
+    const r = await call('POST', '/partner/invites', 'agentOwner', { role: 'manager' });
     expect(r.status).toBe(201);
     expect(Object.keys(r.json.data)).toEqual(['id', 'role', 'expires_at', 'token']);
     expect(r.json.data.role).toBe('manager');
@@ -1385,14 +1386,26 @@ describe('직원 초대', () => {
       nodeCrypto.createHash('sha256').update(r.json.data.token).digest('hex')
     );
     expect(JSON.stringify(row)).not.toContain(r.json.data.token);
-    expect(row).toMatchObject({ company_id: CO.expert, role: 'manager', created_by: U.owner });
+    expect(row).toMatchObject({ company_id: CO.agent, role: 'manager', created_by: U.agentOwner });
     const exp = Date.parse(r.json.data.expires_at);
     expect(exp - before).toBeGreaterThanOrEqual(Pt.INVITE_TTL_MS - 1000);
     expect(exp - Date.now()).toBeLessThanOrEqual(Pt.INVITE_TTL_MS);
     expect(Pt.INVITE_TTL_MS).toBe(7 * 24 * 3600 * 1000);
     // 다시 읽어도 토큰은 없다
-    const me = await call('GET', '/partner/me', 'owner');
+    const me = await call('GET', '/partner/me', 'agentOwner');
+    expect(me.json.data.invites).toHaveLength(1);
     expect(JSON.stringify(me.json)).not.toContain(r.json.data.token);
+  });
+
+  test('직원 초대 만들기는 Agent 팩토리만 — Manager · Expert 대표는 403 plan_staff, 아무것도 쓰지 않는다', async () => {
+    use({ mutate: withManager });
+    expect(Pt.STAFF_TOOL_PLANS).toEqual(['agent']);
+    for (const who of ['owner', 'mgrOwner']) {
+      const r = await call('POST', '/partner/invites', who, { role: 'staff' });
+      expect(r.status).toBe(403);
+      expect(r.json).toMatchObject({ success: false, code: 'plan_staff' });
+    }
+    expect(db.tables.company_invites).toEqual([]);
   });
 
   test('토큰 만들기 · 해시 — 매번 다르고, 해시는 sha256 hex 64자', async () => {
@@ -1414,7 +1427,7 @@ describe('직원 초대', () => {
       'company_inactive'
     );
     for (const role of ['owner', '', undefined, 'STAFF']) {
-      const r = await call('POST', '/partner/invites', 'owner', { role });
+      const r = await call('POST', '/partner/invites', 'agentOwner', { role });
       expect(r.status).toBe(422);
       expect(r.json).toMatchObject({ code: 'invalid', field: 'role' });
     }
