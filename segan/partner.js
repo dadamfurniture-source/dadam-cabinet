@@ -6,7 +6,8 @@
      payments-api GET /plans          Manager · Expert · Agent 월 금액 · 토스 client_key (segan/plans.html 과 같은 호출)
      credit_plans                     등급별 월 크레딧 (segan/plans.html 과 같은 표) — 금액 · 크레딧을 적어 두지 않는다
      RPC my_credit_wallet             업체 통장 잔액 (segan/make.js loadWallet — 내 정보의 크레딧 줄과 같은 값)
-   /partner/me 를 못 읽으면(오류 · 404 · 주소 없음) · 본사 구성원(hq_member)이면 칸째 감춘다 — 내 프로젝트와 같다.
+   /partner/me 를 못 읽으면(오류 · 404 · 주소 없음) · 다담 공장 구성원(hq_member) · 다담 본사 구성원(platform_member)이면
+   칸째 감춘다 — 내 프로젝트와 같다. 「팩토리로 시작하기」도 없다 (서버도 409 already_member).
 
    등급 (낮은 것부터, DB 0047 · payments-api src/plans.js): Manager < Expert < Agent
      Manager · Expert 는 신청 없이 결제하고 시작, Agent 는 신청 → 현장 미팅 → 본사 승인.
@@ -215,7 +216,7 @@
   // ── 판정 · 신청 본문 (순수 함수 — 시험이 직접 부른다) ─────────
   /** 보일 화면 — hidden | company | pending | approved | held | start */
   function viewOf(d) {
-    if (!d || typeof d !== 'object' || d.hq_member) return 'hidden';
+    if (!d || typeof d !== 'object' || d.hq_member || d.platform_member) return 'hidden';
     if (d.company) return 'company';
     var a = d.application;
     if (a && (a.status === 'applied' || a.status === 'meeting')) return 'pending';

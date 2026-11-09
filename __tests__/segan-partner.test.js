@@ -382,6 +382,7 @@ describe('칸 자리 · 감춤', () => {
     ['data 없음', { partner: { ok: true, status: 200, body: { success: true } } }],
     ['data 가 목록', { partner: ok([]) }],
     ['본사 구성원', { partner: ok(meData({ hq_member: true })) }],
+    ['다담 본사 구성원', { partner: ok(meData({ platform_member: true })) }],
   ])('못 읽으면 · 본사 구성원이면 칸째 감춘다 — %s', async (_name, extra) => {
     await load(extra);
     expect(section().hidden).toBe(true);
@@ -1420,6 +1421,7 @@ describe('판정 · 본문 (순수 함수)', () => {
     const { viewOf } = window.SeganPartner;
     expect(viewOf(null)).toBe('hidden');
     expect(viewOf(meData({ hq_member: true, company: null }))).toBe('hidden');
+    expect(viewOf(meData({ platform_member: true, company: null }))).toBe('hidden');
     expect(viewOf(meData())).toBe('start');
     expect(viewOf(meData({ company: company() }))).toBe('company');
     expect(viewOf(meData({ application: app() }))).toBe('pending');

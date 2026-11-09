@@ -3,7 +3,8 @@
 
    누가 보나  account-api GET /partner/me 로 가린다 (segan/me.js 가 업체 칸을 읽은 뒤
              SeganPush.load(sb, session, partnerMe) 를 부른다 — /partner/me 를 두 번 묻지 않는다)
-               협력업체 구성원 (company 있음, 역할 무관) · 본사 구성원 (hq_member) ·
+               협력업체 구성원 (company 있음, 역할 무관) · 다담 공장 구성원 (hq_member) ·
+               다담 본사 구성원 (platform_member — 서버 pushCompanyFor 는 업체 종류를 가리지 않는다) ·
                업체 신청 진행 중 (application.status applied · meeting · approved) ·
                작업자 (셸의 작업 탭 판정 — load 의 opts.worker, 작업 초대 · 신청 결과 · 확정 · 일정 알림)
              그 밖이면 칸이 없다. 서버도 그 밖이면 403 code 'no_company' 를 준다.
@@ -100,7 +101,7 @@
   function canUse(me, opts) {
     if (opts && opts.worker === true) return true;
     if (!me || typeof me !== 'object' || Array.isArray(me)) return false;
-    if (me.hq_member === true) return true;
+    if (me.hq_member === true || me.platform_member === true) return true;
     if (me.company && typeof me.company === 'object') return true;
     var a = me.application;
     return !!(a && typeof a === 'object' && APPLYING.indexOf(a.status) >= 0);
