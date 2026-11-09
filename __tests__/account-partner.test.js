@@ -6,7 +6,8 @@
  * 고정하는 것:
  *   1) 응답 모양 — 성공 { success, data }, 실패 { success:false, code, error } (+ 422 는 field), Cache-Control: no-store, private,
  *      시각은 ISO(UTC). 로그인 안 됨 401 unauthorized · 관리자 아님 403 not_admin · 서버 키 없음 503 not_configured
- *   2) GET /partner/me — 협력업체만 company 로, 본사 구성원은 company null + hq_member. 직원 목록 · 초대는 대표에게만
+ *   2) GET /partner/me — 협력업체만 company 로, 다담 공장 구성원은 company null + hq_member,
+ *      다담 본사 구성원은 company null + platform_member. 직원 목록 · 초대는 대표에게만
  *   3) 신청 — 본사 409 · 열린 신청 409 · Manager · Expert 대표는 upgrade(업체 값으로 채움, 이력 agent_applied) · 그 밖 구성원 409 ·
  *      형식 422(앞뒤 공백 자름, 연락처 · 사업자번호는 숫자와 -). 거두기
  *   4) 등급 예약 — 낮은 등급으로 내리기(Agent → Expert · Manager, Expert → Manager) · Manager → Expert 올리기 ·
@@ -134,6 +135,7 @@ const CO = {
   agent: 'c0000000-0000-4000-8000-000000000003',
   susp: 'c0000000-0000-4000-8000-000000000004',
   manager: 'c0000000-0000-4000-8000-000000000005', // withManager 로 넣는다
+  platform: 'c0000000-0000-4000-8000-000000000006', // withPlatform 으로 넣는다
 };
 
 const T0 = '2026-10-01T00:00:00.000Z';
@@ -709,6 +711,29 @@ function withManager(tables, row = {}) {
   });
 }
 
+/** 다담 본사(kind platform) + 대표(U.newbie). 목록 시험이 바뀌지 않게 seed 에는 넣지 않는다 */
+function withPlatform(tables) {
+  tables.companies.push({
+    id: CO.platform,
+    kind: 'platform',
+    name: '다담 본사',
+    plan: null,
+    next_plan: null,
+    status: 'active',
+    sido: null,
+    gugun: null,
+    created_at: at(50),
+  });
+  tables.company_members.push({
+    id: 'm0000000-0000-4000-8000-000000000009',
+    company_id: CO.platform,
+    user_id: U.newbie,
+    role: 'owner',
+    status: 'active',
+    created_at: at(51),
+  });
+}
+
 function addInvite(tables, token, row = {}) {
   const hash = nodeCrypto.createHash('sha256').update(token).digest('hex');
   const full = {
@@ -886,6 +911,24 @@ describe('GET /partner/me', () => {
       invites: [],
       hq_member: true,
     });
+  });
+
+  test('다담 본사 구성원 — company null + platform_member true (업체 칸 · 신청 길 없음)', async () => {
+    use({ mutate: withPlatform });
+    const r = await call('GET', '/partner/me', 'newbie');
+    expect(r.json.data).toEqual({
+      company: null,
+      application: null,
+      members: [],
+      invites: [],
+      platform_member: true,
+    });
+    expect(db.calls.some((c) => c.table === 'company_invites')).toBe(false);
+    // 신청은 그대로 막힌다 — 한 사람 한 업체
+    const a = await call('POST', '/partner/apply', 'newbie', APPLY_BODY());
+    expect(a.status).toBe(409);
+    expect(a.json.code).toBe('already_member');
+    expect(db.tables.partner_applications).toEqual([]);
   });
 
   test('신청은 가장 최근 하나 (아무 상태) — 회원 칸만, 연락처 · 사업자번호 없음', async () => {
