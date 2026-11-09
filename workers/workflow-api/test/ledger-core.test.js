@@ -10,6 +10,8 @@
  *   기록     쓰는 요청마다 x-actor-id 머리 (ledger_events 의 바꾼 사람)
  *   설정     과세 묶음(tax)만 바꾸고 원가 설정은 그대로. 원가 설정 저장도 tax 를 지우지 않는다
  *   본사     다담 본사 대표 · 실장은 다담 공장 장부도 본다 (?company=, 보기만). 본사 직원 · 공장 · 협력업체는 남의 장부 403
+ *   보고서   본사 대표 · 실장은 협력업체 월 보고서 다섯 주소만 연다 (보기만 · report). 장부 없는 협력업체 403 no_ledger,
+ *            그 밖의 장부 주소 · 본사 직원 · 본사 밖 사람 · 협력업체 아닌 업체는 403 not_member. 장부 목록에는 오르지 않는다
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,9 +41,15 @@ const PLATFORM = 'c0000000-0000-4000-8000-0000000000b1';
 const HQ = 'c0000000-0000-4000-8000-0000000000b2';
 const PF_OWNER = 'u-platform-owner';
 const PF_STAFF = 'u-platform-staff';
+const PF_MANAGER = 'u-platform-manager';
 const HQ_OWNER = 'u-hq-owner';
+/** Manager 등급 인테리어 업체 — 협력업체지만 장부 자격이 없다 */
+const CO_MGR = 'c0000000-0000-4000-8000-0000000000a4';
 const COMPANIES = [
-  { id: CO, name: '한빛인테리어', kind: 'partner' },
+  { id: CO, name: '한빛인테리어', kind: 'partner', plan: 'agent' },
+  { id: CO_READ, name: '두리인테리어', kind: 'partner', plan: 'expert' },
+  { id: CO_NONE, name: '세움인테리어', kind: 'partner', plan: 'expert' },
+  { id: CO_MGR, name: '소담인테리어', kind: 'partner', plan: 'manager' },
   { id: PLATFORM, name: '다담 본사', kind: 'platform' },
   { id: HQ, name: '다담 공장', kind: 'hq' },
 ];
@@ -56,6 +64,7 @@ const MEMBERS = [
   { user_id: N_OWNER, company_id: CO_NONE, role: 'owner', status: 'active' },
   { user_id: PF_OWNER, company_id: PLATFORM, role: 'owner', status: 'active' },
   { user_id: PF_STAFF, company_id: PLATFORM, role: 'staff', status: 'active' },
+  { user_id: PF_MANAGER, company_id: PLATFORM, role: 'manager', status: 'active' },
   { user_id: HQ_OWNER, company_id: HQ, role: 'owner', status: 'active' },
 ];
 /** 업체 자격 — 시험이 바꾼다 (본사 · 공장은 시험 예외로 full) */
@@ -104,6 +113,8 @@ function makeDb({ entries = [], documents = [], settings = {}, book = [], orders
     if (path.startsWith('/companies?')) {
       const kind = eq(q, 'kind');
       if (kind) return json(COMPANIES.filter((c) => c.kind === kind).map((c) => ({ id: c.id })));
+      const one = eq(q, 'id');
+      if (one) return json(COMPANIES.filter((c) => c.id === one));
       const ids = (q.get('id') || '').replace(/^in\.\(|\)$/g, '').split(',');
       return json(COMPANIES.filter((c) => ids.includes(c.id)));
     }
@@ -756,6 +767,116 @@ test('남의 장부 — 본사 직원 · 공장 · 협력업체는 403, 공장 �
     assert.equal(staff.body.code, 'not_entitled');
   } finally {
     LEVEL[PLATFORM] = 'full';
+  }
+});
+
+// ── 본사 → 협력업체 월 보고서 ─────────────────────────────────
+
+/** 보고서 주소 다섯 — 이 주소만 ledgerAccess 에 report 를 넘긴다 */
+const REPORT_PATHS = ['/ledger/me', '/ledger/dashboard', '/ledger/receivables', '/ledger/payables', '/ledger/close-memo'];
+/** 그 밖의 ?company= 를 받는 장부 주소 — 협력업체는 열지 않는다 */
+const OTHER_PATHS = ['/ledger/book', '/ledger/documents', '/ledger/accounts', '/ledger/settings', '/ledger/review', '/ledger/notices', '/ledger/suppliers', '/ledger/held', `/ledger/held/entries?biz_no=${BIZ_OK}`];
+const withCompany = (path, company) => `${path}${path.includes('?') ? '&' : '?'}company=${company}`;
+
+test('본사 대표 · 실장 — 협력업체 월 보고서 /ledger/me?company= 는 보기만 · report · company_name, ledgers 는 자기 목록 그대로', async () => {
+  const db = makeDb({ settings: { [CO]: { tax: { vat_type: 'general', business_kind: 'manufacturing' } } } });
+  const r = await call(db, `/ledger/me?company=${CO}`, PF_OWNER);
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.cache, 'no-store, private');
+  assert.deepEqual(r.body.data, {
+    company_id: CO, role: 'owner', money: true, level: 'read', viewing: true, can_upload: false, can_write: false, ai: true,
+    report: true, company_name: '한빛인테리어',
+    tax: { vat_type: 'general', business_kind: 'manufacturing' },
+    ledgers: [
+      { company_id: PLATFORM, name: '다담 본사', kind: 'platform', own: true },
+      { company_id: HQ, name: '다담 공장', kind: 'hq', own: false },
+    ],
+  });
+  const ent = db.rpc.filter((x) => x.fn === 'company_entitled' && x.body.p_feature === 'ledger' && x.body.p_company === CO);
+  assert.ok(ent.length && ent.every((x) => !('p_user' in x.body)), '협력업체 자격은 사람 없이 본다');
+
+  // 실장도 · 자격 read 협력업체도 — 늘 보기만
+  const mgr = await call(db, `/ledger/me?company=${CO_READ}`, PF_MANAGER);
+  assert.equal(mgr.status, 200, mgr.text);
+  assert.deepEqual([mgr.body.data.company_id, mgr.body.data.role, mgr.body.data.level, mgr.body.data.report, mgr.body.data.company_name], [CO_READ, 'manager', 'read', true, '두리인테리어']);
+  assert.deepEqual(mgr.body.data.ledgers.map((x) => x.company_id), [PLATFORM, HQ]);
+
+  // 공장 보기는 그대로 — report · company_name 이 없다
+  const hq = await call(db, `/ledger/me?company=${HQ}`, PF_OWNER);
+  assert.equal(hq.status, 200, hq.text);
+  assert.equal(hq.body.data.viewing, true);
+  assert.equal('report' in hq.body.data, false);
+  assert.equal('company_name' in hq.body.data, false);
+
+  // ?company= 없는 /ledger/me 는 자기 장부 — report 없음
+  const own = await call(db, '/ledger/me', PF_OWNER);
+  assert.equal(own.body.data.company_id, PLATFORM);
+  assert.equal('report' in own.body.data, false);
+});
+
+test('협력업체 보고서 — 본사 직원 · 본사 밖 사람 · 구성원 아님은 다섯 주소 모두 403 not_member (업체를 찾지 않는다)', async () => {
+  const db = makeDb();
+  for (const who of [PF_STAFF, OWNER, R_OWNER, HQ_OWNER, STRANGER, ADMIN]) {
+    for (const path of REPORT_PATHS) {
+      const target = who === OWNER ? CO_READ : CO;
+      const r = await call(db, `${path}?company=${target}`, who);
+      assert.equal(r.status, 403, `${who} ${path} ${r.text}`);
+      assert.equal(r.body.code, 'not_member', `${who} ${path}`);
+      assert.equal(r.calls.some((c) => c.url.includes('/companies?id=eq.')), false, `${who} ${path}`);
+    }
+  }
+});
+
+test('협력업체 보고서 — 장부 없는 협력업체(Manager 등급 포함)는 403 no_ledger, 본사 자격이 없어도 공장 장부로 넘기지 않는다', async () => {
+  const db = makeDb();
+  for (const company of [CO_NONE, CO_MGR]) {
+    for (const path of REPORT_PATHS) {
+      const r = await call(db, `${path}?company=${company}`, PF_OWNER);
+      assert.equal(r.status, 403, `${company} ${path} ${r.text}`);
+      assert.equal(r.body.code, 'no_ledger', `${company} ${path}`);
+      assert.equal(r.body.message, '이 팩토리는 장부가 없습니다');
+    }
+    // 본사 직원에게는 장부가 있는지도 알리지 않는다
+    const staff = await call(db, `/ledger/dashboard?company=${company}`, PF_STAFF);
+    assert.equal(staff.body.code, 'not_member');
+  }
+  LEVEL[PLATFORM] = 'none';
+  try {
+    const me = await call(db, `/ledger/me?company=${CO_NONE}`, PF_OWNER);
+    assert.equal(me.status, 403, me.text);
+    assert.equal(me.body.code, 'no_ledger');
+    const ok = await call(db, `/ledger/me?company=${CO}`, PF_OWNER);
+    assert.equal(ok.status, 200, ok.text);
+    assert.equal(ok.body.data.company_id, CO);
+    assert.equal(ok.body.data.report, true);
+  } finally {
+    LEVEL[PLATFORM] = 'full';
+  }
+});
+
+test('협력업체 보고서 — 그 밖의 장부 주소는 같은 업체도 403 not_member, 협력업체 아닌 업체 · 없는 업체도 not_member', async () => {
+  const db = makeDb();
+  for (const company of [CO, CO_NONE, CO_MGR]) {
+    for (const path of OTHER_PATHS) {
+      const r = await call(db, withCompany(path, company), PF_OWNER);
+      assert.equal(r.status, 403, `${company} ${path} ${r.text}`);
+      assert.equal(r.body.code, 'not_member', `${company} ${path}`);
+    }
+  }
+  assert.equal(db.rpc.filter((x) => x.fn === 'ledger_book').length, 0);
+  for (const company of ['c0000000-0000-4000-8000-0000000000ff', 'nope']) {
+    const r = await call(db, `/ledger/me?company=${company}`, PF_OWNER);
+    assert.equal(r.status, 403, `${company} ${r.text}`);
+    assert.equal(r.body.code, 'not_member');
+  }
+  // 공장 자격이 없을 때 공장 id 는 협력업체로 열리지 않는다
+  LEVEL[HQ] = 'none';
+  try {
+    const r = await call(db, `/ledger/dashboard?company=${HQ}`, PF_OWNER);
+    assert.equal(r.status, 403, r.text);
+    assert.equal(r.body.code, 'not_member');
+  } finally {
+    LEVEL[HQ] = 'full';
   }
 });
 

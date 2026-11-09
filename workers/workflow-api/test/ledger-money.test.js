@@ -4,6 +4,7 @@
  *   - 받을 돈: 안 받은 수금 일정 · 취소 수주 뺌 · 그 업체 것만, 받을 날 순(날짜 없는 것은 끝) · 늦음 · 합계
  *   - 낼 돈: 안 낸(spent_on 없음) · 낼 날 있는 원가, 거래처 이름(없으면 적은 이름) · 공급가 + 부가세
  *   - 대표 · 실장만 (직원 403 not_money), 고객 이름은 싣지 않는다
+ *   - 본사 대표 · 실장은 ?company= 로 협력업체 것을 보기만 (월 보고서, access.js report) — 본사 직원 403 not_member
  * 시험 데이터는 모두 가짜다.
  */
 import { test } from 'node:test';
@@ -21,7 +22,11 @@ const O = (i) => `0a000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
 const P = (i) => `0b000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
 const K = (i) => `0c000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
 const CP = '0d000000-0000-4000-8000-000000000001';
-const mem = (user_id, role) => ({ user_id, company_id: CO, role, status: 'active' });
+const PLATFORM = 'c0000000-0000-4000-8000-0000000000b1';
+const HQ = 'c0000000-0000-4000-8000-0000000000b2';
+const PF_OWNER = 'a0000000-0000-4000-8000-0000000000b1';
+const PF_STAFF = 'a0000000-0000-4000-8000-0000000000b3';
+const mem = (user_id, role, company_id = CO) => ({ user_id, company_id, role, status: 'active' });
 
 // ── 순수 ─────────────────────────────────────────────────
 
@@ -64,11 +69,11 @@ test('낼 돈 — 안 냈고 낼 날 있는 원가, 거래처 이름이 먼저 �
 
 // ── 주소 ─────────────────────────────────────────────────
 
-function world() {
+function world(rpcCalls = null) {
   return createFake({
     tables: {
-      companies: [{ id: CO, kind: 'partner', plan: 'expert', status: 'active' }],
-      company_members: [mem(OWNER, 'owner'), mem(STAFF, 'staff')],
+      companies: [{ id: CO, kind: 'partner', plan: 'expert', status: 'active' }, { id: PLATFORM, kind: 'platform', status: 'active' }, { id: HQ, kind: 'hq', status: 'active' }],
+      company_members: [mem(OWNER, 'owner'), mem(STAFF, 'staff'), mem(PF_OWNER, 'owner', PLATFORM), mem(PF_STAFF, 'staff', PLATFORM)],
       orders: [
         { id: O(1), company_id: CO, order_no: '2610-03', status: 'in_production', customer_name: '김고객' },
         { id: O(2), company_id: CO, order_no: '2610-21', status: 'cancelled', customer_name: '이고객' },
@@ -87,8 +92,12 @@ function world() {
       ],
       counterparties: [{ id: CP, company_id: CO, name: '나무상사' }],
     },
-    users: { t_owner: { id: OWNER }, t_staff: { id: STAFF } },
-    rpc: (name) => (name === 'company_entitled' ? 'full' : undefined),
+    users: { t_owner: { id: OWNER }, t_staff: { id: STAFF }, t_pf_owner: { id: PF_OWNER }, t_pf_staff: { id: PF_STAFF } },
+    rpc: (name, body) => {
+      if (name !== 'company_entitled') return undefined;
+      if (rpcCalls) rpcCalls.push(body);
+      return 'full';
+    },
   });
 }
 
@@ -125,5 +134,25 @@ test('받을 돈 · 낼 돈 — 직원은 403 not_money', async () => {
     const r = await call(world(), path, 't_staff');
     assert.equal(r.status, 403, path);
     assert.equal(r.json.code, 'not_money', path);
+  }
+});
+
+test('받을 돈 · 낼 돈 ?company= — 본사 대표는 협력업체 것을 보기만, 본사 직원 403 not_member', async () => {
+  const calls = [];
+  const fake = world(calls);
+  const rec = await call(fake, `/ledger/receivables?company=${CO}`, 't_pf_owner');
+  assert.equal(rec.status, 200, JSON.stringify(rec.json));
+  assert.deepEqual(rec.json.data.items.map((x) => x.id), [P(1)]);
+  assert.deepEqual([rec.json.data.level, rec.json.data.viewing], ['read', true]);
+  const pay = await call(fake, `/ledger/payables?company=${CO}`, 't_pf_owner');
+  assert.equal(pay.status, 200, JSON.stringify(pay.json));
+  assert.deepEqual(pay.json.data.items.map((x) => [x.id, x.vendor]), [[K(1), '나무상사']]);
+  assert.deepEqual([pay.json.data.level, pay.json.data.viewing], ['read', true]);
+  const ent = calls.filter((b) => b.p_company === CO);
+  assert.ok(ent.length && ent.every((b) => !('p_user' in b)), '협력업체 자격은 사람 없이 본다');
+  for (const path of ['/ledger/receivables', '/ledger/payables']) {
+    const r = await call(world(), `${path}?company=${CO}`, 't_pf_staff');
+    assert.equal(r.status, 403, path);
+    assert.equal(r.json.code, 'not_member', path);
   }
 });

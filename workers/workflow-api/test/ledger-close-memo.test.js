@@ -5,6 +5,7 @@
  *   - 바뀐 계정: 지출 계정마다 그 달 − 전달, 크기 순 셋 (0 은 뺌) · 부가세: 일반과세만 셈
  *   - 주소: 여덟 항목 차례 · 기다리는 명세표 · 확인 안 한 사진 · 늦은 받을 돈(고객 이름 없음) · 그 달(한국 시간) 중복 알림
  *   - 대표 · 실장만 (직원 403 not_money), DB 0034 전이면 available false
+ *   - 본사 대표 · 실장은 ?company= 로 협력업체 것을 보기만 (월 보고서, access.js report) — 본사 직원 403 not_member
  * 시험 데이터는 모두 가짜다.
  */
 import { test } from 'node:test';
@@ -19,7 +20,11 @@ const OWNER = 'a0000000-0000-4000-8000-000000000001';
 const STAFF = 'a0000000-0000-4000-8000-000000000003';
 const O = (i) => `0a000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
 const D = (i) => `0e000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
-const mem = (user_id, role) => ({ user_id, company_id: CO, role, status: 'active' });
+const PLATFORM = 'c0000000-0000-4000-8000-0000000000b1';
+const HQ = 'c0000000-0000-4000-8000-0000000000b2';
+const PF_OWNER = 'a0000000-0000-4000-8000-0000000000b1';
+const PF_STAFF = 'a0000000-0000-4000-8000-0000000000b3';
+const mem = (user_id, role, company_id = CO) => ({ user_id, company_id, role, status: 'active' });
 
 const line = (o) => ({ direction: 'expense', evidence_type: 'card', amount: 10000, vat_amount: 1000, voided_at: null, entry_date: '2026-10-05', counterparty_name: '가나상사', account: 'A1', source: 'entry', ...o });
 
@@ -85,8 +90,8 @@ function world({ missing = false } = {}) {
   const calls = [];
   const fake = createFake({
     tables: {
-      companies: [{ id: CO, kind: 'partner', plan: 'expert', status: 'active' }],
-      company_members: [mem(OWNER, 'owner'), mem(STAFF, 'staff')],
+      companies: [{ id: CO, kind: 'partner', plan: 'expert', status: 'active' }, { id: PLATFORM, kind: 'platform', status: 'active' }, { id: HQ, kind: 'hq', status: 'active' }],
+      company_members: [mem(OWNER, 'owner'), mem(STAFF, 'staff'), mem(PF_OWNER, 'owner', PLATFORM), mem(PF_STAFF, 'staff', PLATFORM)],
       company_settings: [{ company_id: CO, settings: { tax: { vat_type: 'general' } } }],
       ledger_documents: [
         { id: D(1), company_id: CO, review_status: 'pending' },
@@ -105,7 +110,7 @@ function world({ missing = false } = {}) {
         { id: 'n3', company_id: CO, kind: 'large_amount', created_at: '2026-10-10T00:00:00Z', data: {} },
       ],
     },
-    users: { t_owner: { id: OWNER }, t_staff: { id: STAFF } },
+    users: { t_owner: { id: OWNER }, t_staff: { id: STAFF }, t_pf_owner: { id: PF_OWNER }, t_pf_staff: { id: PF_STAFF } },
     rpc: (name, body) => {
       calls.push({ name, body });
       if (name === 'company_entitled') return 'full';
@@ -163,4 +168,19 @@ test('GET /ledger/close-memo — 직원 403 not_money · 달 모양 422 · DB 00
   const miss = await call(world({ missing: true }).fake, '/ledger/close-memo?month=2026-10');
   assert.equal(miss.status, 200);
   assert.equal(miss.json.data.available, false);
+});
+
+test('GET /ledger/close-memo?company= — 본사 대표는 협력업체 월 마감 메모를 보기만, 본사 직원 403 not_member', async () => {
+  const w = world();
+  const r = await call(w.fake, `/ledger/close-memo?month=2026-10&company=${CO}`, 't_pf_owner');
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const d = r.json.data;
+  assert.deepEqual([d.level, d.viewing, d.available, d.vat_type], ['read', true, true, 'general']);
+  assert.deepEqual(d.items.map((x) => x.key), MEMO_KEYS);
+  assert.deepEqual(w.calls.find((c) => c.name === 'ledger_book').body, { p_company: CO, p_from: '2026-10-01', p_to: '2026-10-31', p_include_void: false });
+  const ent = w.calls.filter((c) => c.name === 'company_entitled' && c.body.p_company === CO);
+  assert.ok(ent.length && ent.every((c) => !('p_user' in c.body)), '협력업체 자격은 사람 없이 본다');
+  const staff = await call(world().fake, `/ledger/close-memo?month=2026-10&company=${CO}`, 't_pf_staff');
+  assert.equal(staff.status, 403);
+  assert.equal(staff.json.code, 'not_member');
 });

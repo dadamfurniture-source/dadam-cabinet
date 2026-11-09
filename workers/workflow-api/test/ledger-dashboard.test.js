@@ -3,6 +3,7 @@
  *
  *   - 기간: 고른 달까지 12달(1~12), 빈 달은 0, 계정 · 지출 상대는 고른 달만
  *   - 대표 · 실장만 (직원 403), 0034 전이면 available false, 확인 기다리는 사진 수 · 과세 유형
+ *   - 본사 대표 · 실장은 ?company= 로 협력업체 것을 보기만 (월 보고서, access.js report) — 본사 직원 403 not_member
  * 시험 데이터는 모두 가짜다.
  */
 import { test } from 'node:test';
@@ -15,7 +16,11 @@ const ENV = { SUPABASE_URL: SB, SUPABASE_SERVICE_ROLE_KEY: 'service' };
 const CO = 'c0000000-0000-4000-8000-000000000001';
 const OWNER = 'a0000000-0000-4000-8000-000000000001';
 const STAFF = 'a0000000-0000-4000-8000-000000000003';
-const mem = (user_id, role) => ({ user_id, company_id: CO, role, status: 'active' });
+const PLATFORM = 'c0000000-0000-4000-8000-0000000000b1';
+const HQ = 'c0000000-0000-4000-8000-0000000000b2';
+const PF_OWNER = 'a0000000-0000-4000-8000-0000000000b1';
+const PF_STAFF = 'a0000000-0000-4000-8000-0000000000b3';
+const mem = (user_id, role, company_id = CO) => ({ user_id, company_id, role, status: 'active' });
 const doc = (i, review_status = 'pending') => ({ id: `d0000000-0000-4000-8000-${String(i).padStart(12, '0')}`, company_id: CO, review_status });
 
 const SUMMARY = {
@@ -40,12 +45,12 @@ function world({ summary = SUMMARY, missing = false } = {}) {
   const calls = [];
   const fake = createFake({
     tables: {
-      companies: [{ id: CO, kind: 'partner', plan: 'agent', status: 'active' }],
-      company_members: [mem(OWNER, 'owner'), mem(STAFF, 'staff')],
+      companies: [{ id: CO, kind: 'partner', plan: 'agent', status: 'active' }, { id: PLATFORM, kind: 'platform', status: 'active' }, { id: HQ, kind: 'hq', status: 'active' }],
+      company_members: [mem(OWNER, 'owner'), mem(STAFF, 'staff'), mem(PF_OWNER, 'owner', PLATFORM), mem(PF_STAFF, 'staff', PLATFORM)],
       company_settings: [{ company_id: CO, settings: { tax: { vat_type: 'general', business_kind: 'manufacturing' } } }],
       ledger_documents: [doc(1), doc(2), doc(3, 'posted')],
     },
-    users: { t_owner: { id: OWNER }, t_staff: { id: STAFF } },
+    users: { t_owner: { id: OWNER }, t_staff: { id: STAFF }, t_pf_owner: { id: PF_OWNER }, t_pf_staff: { id: PF_STAFF } },
     rpc: (name, body) => {
       calls.push({ name, body });
       if (name === 'company_entitled') return 'full';
@@ -109,4 +114,18 @@ test('틀린 달 · 개월 수 422, 직원 403, 0034 전이면 available false',
   assert.equal(old.status, 200);
   assert.deepEqual([old.json.data.available, old.json.data.from], [false, '2026-09-01']);
   assert.ok(old.lines.some((l) => l.includes('apply database/migrations/0034')));
+});
+
+test('GET /ledger/dashboard?company= — 본사 대표는 협력업체 월 보고서를 보기만 (그 업체 묶음 · 사람 없는 자격), 본사 직원 403 not_member', async () => {
+  const w = world();
+  const r = await get(w, `/ledger/dashboard?month=2026-11&company=${CO}`, 't_pf_owner');
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const d = r.json.data;
+  assert.deepEqual([d.level, d.viewing, d.available, d.vat_type, d.pending_photos], ['read', true, true, 'general', 2]);
+  assert.deepEqual(w.calls.find((c) => c.name === 'ledger_summary').body, { p_company: CO, p_from: '2025-12-01', p_to: '2026-11-30' });
+  const ent = w.calls.filter((c) => c.name === 'company_entitled' && c.body.p_company === CO);
+  assert.ok(ent.length && ent.every((c) => !('p_user' in c.body)), '협력업체 자격은 사람 없이 본다');
+  const staff = await get(world(), `/ledger/dashboard?month=2026-11&company=${CO}`, 't_pf_staff');
+  assert.equal(staff.status, 403);
+  assert.equal(staff.json.code, 'not_member');
 });
