@@ -220,7 +220,7 @@ afterEach(() => {
 });
 
 describe('자리 · 이름', () => {
-  test('me.html — 내 A/S 접수는 내 프로젝트 바로 아래, A/S함은 팩토리 칸의 프로젝트 아래 · 회계 위, 처음엔 감춘다', () => {
+  test('me.html — 내 A/S 접수는 내 프로젝트 바로 아래, A/S함은 팩토리 칸의 상담 설정 아래 · 회계 요약 위, 처음엔 감춘다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const mineSec = doc.getElementById('meAsSection');
     expect(mineSec.hasAttribute('hidden')).toBe(true);
@@ -228,7 +228,7 @@ describe('자리 · 이름', () => {
     const box = doc.getElementById('as');
     expect(box.hasAttribute('hidden')).toBe(true);
     expect(box.closest('section').id).toBe('partner');
-    expect(box.previousElementSibling.id).toBe('partnerProjects');
+    expect(box.previousElementSibling.id).toBe('partnerConsultSettings');
     expect(box.nextElementSibling.id).toBe('meBooks');
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const at = (name) => srcs.findIndex((s) => s.startsWith(name + '?v='));

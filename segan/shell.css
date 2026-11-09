@@ -675,6 +675,107 @@ a.sg-row.ad-row::after {
   margin-top: 32px;
 }
 
+/* 내 정보 — 업체 이름 · 내 역할 */
+.me-company {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--v5-ink);
+}
+
+/* 메뉴 나무 (segan/me.js) — 큰 메뉴(캔버스 용어) · 그 아래 하위 줄.
+   폰 · 태블릿: 큰 메뉴를 누르면 그 자리에 펼친다(.is-open, 한 번에 하나). PC 1100px~: 늘 펼친다 (아래 미디어) */
+.me-menus {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.me-menu {
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--v5-ink);
+  font-size: 16px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.me-main::after {
+  content: '▾';
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 12px;
+  color: var(--v5-ink-45);
+  transition: transform 0.15s ease;
+}
+
+.me-menu.is-open > .me-main::after {
+  transform: rotate(180deg);
+}
+
+.me-subs {
+  display: none;
+  margin: 0 0 12px;
+  padding-left: 14px;
+  border-top: 0;
+  border-left: 1px solid var(--v5-line-18);
+}
+
+.me-menu.is-open > .me-subs {
+  display: block;
+}
+
+.me-subs .sg-row {
+  min-height: 44px;
+  padding-left: 6px;
+  font-size: 14px;
+}
+
+.me-subs li:last-child .sg-row {
+  border-bottom: 0;
+}
+
+.me-soon-tag {
+  padding: 1px 6px;
+  background: var(--v5-well);
+  color: var(--v5-ink-60);
+  font-size: 11px;
+  font-weight: 300;
+}
+
+.me-row-soon {
+  color: var(--v5-ink-45);
+}
+
+/* 준비 중 안내 (재고 관리 · 일정 · 작업자 · Manager A/S) — 하위 화면 자리의 한 칸 */
+.me-pane-note.me-soon {
+  padding: 18px 16px;
+  border: 1px dashed var(--v5-line-25);
+  background: var(--v5-well);
+  color: var(--v5-ink-60);
+}
+
+/* 업체 칸 안 직원 · 초대 (segan/partner.js .me-pt-staff) — 인력 관리 › 직원 화면에서만, 그 화면은 그것만 */
+#partner:not([data-me-view='staff']) .me-pt-staff {
+  display: none;
+}
+
+#partner[data-me-view='staff'] #mePartner > :not(.me-pt-staff):not(.me-pt-msg):not(.me-pt-err) {
+  display: none;
+}
+
 /* 메뉴 줄의 값 (팩토리 이름 · 구독 상태) — 줄 글이 먼저, 값은 남는 폭에 */
 .me-hub .sg-row .me-val {
   min-width: 0;
@@ -732,6 +833,25 @@ a.sg-row.ad-row::after {
   /* 왼쪽 메뉴 — 지금 화면 줄은 흰 바탕 */
   .me-hub .sg-row {
     padding: 0 12px;
+  }
+
+  /* 메뉴 나무 — 큰 메뉴는 머리글처럼, 하위 줄은 늘 펼친다 */
+  .me-main {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 15px;
+    cursor: default;
+  }
+
+  .me-main::after {
+    content: none;
+  }
+
+  .me-subs,
+  .me-menu.is-open > .me-subs {
+    display: block;
+    margin-left: 12px;
+    padding-left: 0;
   }
 
   .me-hub .sg-row[aria-current='page'] {

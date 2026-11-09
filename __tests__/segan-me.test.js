@@ -336,7 +336,7 @@ describe('크레딧 · 구독', () => {
   test('메뉴 「크레딧 · 구독」(구독 상태) → 앱 안 billing.html, 설정 → 앱 안 settings.html', async () => {
     await load();
     const billing = $('mePlan');
-    const settings = [...document.querySelectorAll('a.sg-row')].find(
+    const settings = [...document.querySelectorAll('#meGroupMine a.sg-row')].find(
       (a) => a.textContent === '설정'
     );
     expect(billing.textContent).toBe('크레딧 · 구독이용 중 · 다음 결제 2026.11.20');
@@ -394,7 +394,7 @@ describe('내 프로젝트 — GET /me/projects', () => {
     expect(window.SeganMe.PAY_STAGE).toEqual(worker);
   });
 
-  test('본인 토큰으로 workflow-api 에 묻고, 「내 것」 메뉴에 내 프로젝트 줄이 열린다 (상담 내역 다음)', async () => {
+  test('본인 토큰으로 workflow-api 에 묻고, 프로젝트 관리 하위 줄(상담 ~ A/S)이 열린다 · 기본 정보는 내 연출컷 · 좋아요 먼저', async () => {
     const calls = await load(ok([project()]));
     expect(calls.fetch.find((f) => f.url === WORK + '/me/projects')).toEqual({
       url: WORK + '/me/projects',
@@ -402,15 +402,25 @@ describe('내 프로젝트 — GET /me/projects', () => {
     });
     expect(section().hidden).toBe(false);
     expect($('meProjectTitle').textContent).toBe('내 프로젝트');
-    const rows = [...document.querySelectorAll('#meGroupMine li:not([hidden]) .sg-row')].map(
-      (a) => [a.textContent, a.getAttribute('href')]
-    );
-    // 내 연출컷(예전 아래 탭) · 좋아요 · 상담 내역 · 내 프로젝트 — 내 A/S 접수(segan/as-requests.js)는 접수가 있을 때 그 아래
-    expect(rows.slice(0, 4)).toEqual([
+    const rowsOf = (sel) =>
+      [...document.querySelectorAll(sel + ' li:not([hidden]) .sg-row')].map((a) => [
+        a.textContent,
+        a.getAttribute('href'),
+      ]);
+    // 고객 — 상담 내역 · 내 프로젝트(단계로 거름) · A/S 접수가 프로젝트 관리 하위 줄로
+    expect(rowsOf('#meSubProject')).toEqual([
+      ['상담', '#p-consult'],
+      ['설계', '#p-design'],
+      ['견적', '#p-quote'],
+      ['계약', '#p-contract'],
+      ['제작', '#p-make'],
+      ['설치', '#p-install'],
+      ['A/S', '#p-as'],
+    ]);
+    // 기본 정보 — 내 연출컷(예전 아래 탭) · 좋아요 · 크레딧 · 구독 …
+    expect(rowsOf('#meGroupMine').slice(0, 2)).toEqual([
       ['내 연출컷', 'renders.html'],
       ['좋아요', '#likes'],
-      ['상담 내역', '#consults'],
-      ['내 프로젝트', '#projects-mine'],
     ]);
   });
 

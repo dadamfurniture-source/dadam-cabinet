@@ -61,8 +61,9 @@
     err: '',
     busy: false,
     ledger: false, // 장부를 여는가 (GET /ledger/me)
-    // GET /ledger/me 의 답 — 'book' 장부(full · read) · 'upload' 사진만 올림 · '' 못 연다. 마이페이지 메뉴 「회계」 (segan/me.js)
+    // GET /ledger/me 의 답 — 'book' 장부(full · read) · 'upload' 사진만 올림 · '' 못 연다. 마이페이지 회계 관리 (segan/me.js)
     ledgerKind: '',
+    ledgers: [], // GET /ledger/me 의 ledgers [{ company_id, name, kind, own }] — 본사 › 회계관리 › 공장 장부 보기
     readOnly: '', // 장부를 보기만 할 때 (level read) 그 까닭 한 줄
   };
 
@@ -354,7 +355,12 @@
       var b = await res.json();
       var d = b && b.success === true ? b.data : null;
       if (d && d.money === true && (d.level === 'full' || d.level === 'read'))
-        return { kind: 'book', read: d.level === 'read' && d.viewing !== true };
+        return {
+          kind: 'book',
+          read: d.level === 'read' && d.viewing !== true,
+          // 여는 장부 목록 (본사 대표 · 실장은 공장 장부도 — 마이페이지 본사 › 회계관리 › 공장 장부 보기)
+          ledgers: Array.isArray(d.ledgers) ? d.ledgers : [],
+        };
       if (d && d.can_upload === true) return { kind: 'upload', read: false };
       return none;
     } catch {
@@ -405,6 +411,7 @@
     box.hidden = true;
     box.innerHTML = '';
     B.ledgerKind = '';
+    B.ledgers = [];
     var cfg = window.DADAM_CONFIG || {};
     B.base = (cfg.workflowApi && cfg.workflowApi.url) || '';
     B.sb = sb;
@@ -415,6 +422,7 @@
       if (!me || typeof me !== 'object') return;
       var open = await ledgerOpen();
       B.ledgerKind = open.kind;
+      B.ledgers = open.ledgers || [];
       if (open.kind) renderLedgerOnly(open.kind);
       return;
     }
@@ -423,6 +431,7 @@
       var got = await Promise.all([fetchSummary(month), ledgerOpen()]);
       var d = got[0];
       B.ledgerKind = got[1].kind;
+      B.ledgers = got[1].ledgers || [];
       B.ledger = got[1].kind === 'book';
       B.readOnly = B.ledger && got[1].read ? readOnlyNote(me.company) : '';
       if (!d) return; // 403 · 404 · 오류 — 칸째 감춘다

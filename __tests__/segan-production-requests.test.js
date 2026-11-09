@@ -363,20 +363,27 @@ afterEach(() => {
 });
 
 describe('자리 · 이름 — 워커와 같은 값', () => {
-  test('me.html — 메뉴 두 줄(제작 의뢰 · 제작 의뢰함)은 프로젝트 아래 · A/S함 위, 칸은 업체 칸 안에 감춰 둔다', () => {
+  test('me.html — 제작 의뢰함은 프로젝트 관리 › 상담, 제작 의뢰는 › 제작 (둘 다 프로젝트 칸 앞), 칸은 업체 칸 안에 감춰 둔다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
-    const keys = [...doc.querySelectorAll('#meCompanyRows > li[data-me-item]')].map((li) =>
+    const keys = [...doc.querySelectorAll('#meSubProject > li[data-me-item]')].map((li) =>
       li.getAttribute('data-me-item')
     );
-    const order = ['partner-projects', 'production-requests', 'factory-requests', 'as'];
-    expect(keys.filter((k) => order.includes(k))).toEqual(order);
+    expect(keys).toEqual([
+      'p-consult',
+      'p-design',
+      'p-quote',
+      'p-contract',
+      'p-make',
+      'p-install',
+      'p-as',
+    ]);
+    const parts = [...doc.getElementById('partner').children].map((el) => el.id);
+    const partAt = (id) => parts.findIndex((x) => x === id);
     for (const id of ['production-requests', 'factory-requests']) {
       const el = doc.getElementById(id);
       expect(el.hasAttribute('hidden')).toBe(true);
       expect(el.closest('section').id).toBe('partner');
-      expect(
-        doc.querySelector(`#meCompanyRows [data-me-item="${id}"]`).hasAttribute('hidden')
-      ).toBe(true);
+      expect(partAt(id)).toBeLessThan(partAt('partnerProjects'));
     }
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const at = (name) => srcs.findIndex((s) => s.startsWith(name + '?v='));
@@ -425,10 +432,11 @@ describe('자리 · 이름 — 워커와 같은 값', () => {
 });
 
 describe('누가 보나 — 등급(company.plan)으로, 직책(role)과 견주지 않는다', () => {
-  test('Manager 등급 업체 대표 — 메뉴 「제작 의뢰」, 목록 · 「제작 의뢰」 단추, 제작 의뢰함은 없다', async () => {
+  test('Manager 등급 업체 대표 — 프로젝트 관리 › 제작에 「제작 의뢰」, 목록 · 「제작 의뢰」 단추, 제작 의뢰함은 없다', async () => {
     const calls = await load();
-    expect(visible(menu('production-requests'))).toBe(true);
-    expect(menu('factory-requests').hidden).toBe(true);
+    expect(visible(menu('p-make'))).toBe(true);
+    expect(menu('p-make').querySelector('a').getAttribute('aria-current')).toBe('page'); // 옛 주소 → 그 하위 줄
+    expect(fbox().hidden).toBe(true);
     expect(visible(box())).toBe(true);
     expect($('meTitle').textContent).toBe('제작 의뢰');
     expect(box().querySelector('[data-act="new"]').textContent).toBe('제작 의뢰');
@@ -467,8 +475,8 @@ describe('누가 보나 — 등급(company.plan)으로, 직책(role)과 견주�
       partner: partnerMe({ plan: 'expert', role: 'manager' }),
     });
     expect(gets(calls, '/production-requests')).toHaveLength(0);
-    expect(menu('production-requests').hidden).toBe(true);
-    expect(visible(menu('factory-requests'))).toBe(true);
+    expect(visible(menu('p-consult'))).toBe(true);
+    expect(menu('p-consult').querySelector('a').getAttribute('aria-current')).toBe('page');
     expect(visible(fbox())).toBe(true);
     expect(fbox().textContent).toContain('아직 온 제작 의뢰가 없습니다.');
   });
@@ -477,13 +485,12 @@ describe('누가 보나 — 등급(company.plan)으로, 직책(role)과 견주�
     await load({ url: '/segan/me.html#factory-requests', partner: HQ });
     expect($('partner').hidden).toBe(false);
     expect(visible(fbox())).toBe(true);
-    expect(menu('production-requests').hidden).toBe(true);
+    expect(visible(menu('p-consult'))).toBe(true);
   });
 
   test('DB 0050 전(ready false) · 403 — 칸째 감춘다, 메뉴 줄도 없다', async () => {
     await load({ list: () => ok({ ready: false, can_act: true, can_create: true, items: [] }) });
     expect(box().hidden).toBe(true);
-    expect(menu('production-requests').hidden).toBe(true);
     expect($('mePaneNote').textContent).toBe('볼 수 있는 내용이 없습니다.');
     await load({ list: () => fail(403, 'not_member', 'x') });
     expect(box().hidden).toBe(true);

@@ -207,7 +207,7 @@ afterEach(() => {
 });
 
 describe('자리 · 이름', () => {
-  test('me.html — 업체 칸(#partner) 안, 상담 설정 아래 · 회계 위, 처음엔 감춘다 · 서비스 워커가 담는다', () => {
+  test('me.html — 업체 칸(#partner) 안, 제작 의뢰 아래 · 상담 설정 위, 처음엔 감춘다 · 서비스 워커가 담는다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const el = doc.getElementById('partnerProjects');
     expect(el).not.toBeNull();
@@ -215,7 +215,8 @@ describe('자리 · 이름', () => {
     expect(el.closest('section').id).toBe('partner');
     const ids = [...el.parentElement.children].map((x) => x.id);
     const pos = (id) => ids.indexOf(id);
-    expect(pos('partnerProjects')).toBeGreaterThan(pos('partnerConsultSettings'));
+    expect(pos('partnerProjects')).toBeGreaterThan(pos('production-requests'));
+    expect(pos('partnerProjects')).toBeLessThan(pos('partnerConsultSettings'));
     expect(pos('partnerProjects')).toBeLessThan(pos('meBooks'));
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const at = (name) => srcs.findIndex((s) => s.startsWith(name + '?v='));
@@ -289,6 +290,95 @@ describe('누가 보나', () => {
   });
 });
 
+describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setView)', () => {
+  const P3 = '22222222-2222-4222-8222-222222222223';
+  const staged = () =>
+    ok(
+      projects({
+        assignee_ready: true,
+        members: [],
+        items: [
+          { ...projects().items[0], stage: 'installed', order: { id: P2, order_no: 'A-1', status: 'completed' } },
+          { ...projects().items[1], stage: 'design', order: null },
+          {
+            id: P3,
+            title: '신발장',
+            status: 'active',
+            created_at: '2026-10-05T00:00:00Z',
+            customer: { id: C2, name: '이고객', phone: null },
+            design_count: 1,
+            stage: 'order',
+            order: { id: P3, order_no: 'A-2', status: 'in_production' },
+          },
+        ],
+      })
+    );
+  const openScreen = async (hash) => {
+    window.history.replaceState(null, '', '/segan/me.html#' + hash);
+    window.SeganMe.apply();
+    await flush();
+  };
+  const titles = () => [...box().querySelectorAll('[data-project] b')].map((b) => b.textContent);
+
+  test('단계 — 연출컷 · 설계 = 설계, 수주는 상태로 계약 · 제작 · 설치 (segan/me.js menuStage 와 같다)', async () => {
+    await load();
+    const { menuStage } = window.SeganPartnerProjects;
+    expect(
+      [
+        ['consult'],
+        ['render'],
+        ['design'],
+        ['quote'],
+        ['order', 'confirmed'],
+        ['order', 'in_production'],
+        ['order', 'delivered'],
+        ['order', 'completed'],
+        ['installed', 'completed'],
+        [undefined],
+      ].map(([a, b]) => menuStage(a, b))
+    ).toEqual(['consult', 'design', 'design', 'quote', 'contract', 'make', 'install', 'install', 'install', 'consult']);
+    for (const [a, b] of [['order', 'in_production'], ['render'], ['installed']])
+      expect(window.SeganMe.menuStage(a, b)).toBe(menuStage(a, b));
+  });
+
+  test('설계 · 제작 · 설치 화면 — 그 단계 줄만, 머리글 「… 단계 프로젝트」, 새 고객 단추는 상담에서만, 견적 ~ 설치는 PC 안내', async () => {
+    await load({ list: staged });
+    await flush();
+    await openScreen('p-design');
+    expect(box().querySelector('.me-pt-sub').textContent).toBe('설계 단계 프로젝트');
+    expect(titles()).toEqual(['싱크대']);
+    expect(box().querySelector('[data-act="open"]')).toBeNull();
+    expect(box().textContent).not.toContain('PC 화면');
+    await openScreen('p-make');
+    expect(titles()).toEqual(['신발장']);
+    expect(box().textContent).toContain('PC 화면(상세설계 · 수주)');
+    await openScreen('p-install');
+    expect(titles()).toEqual(['붙박이장']);
+    await openScreen('p-quote');
+    expect(titles()).toEqual([]);
+    expect(box().querySelector('.me-empty').textContent).toBe('이 단계의 프로젝트가 없습니다.');
+    await openScreen('p-consult');
+    expect(box().querySelector('.me-pt-sub').textContent).toBe('상담 단계 프로젝트');
+    expect(box().querySelector('[data-act="open"]')).not.toBeNull();
+    // 단계 보기에서는 줄에 단계를 다시 적지 않는다
+    await openScreen('p-design');
+    expect(rows()[0]).toBe('싱크대 | 김고객 · 2026.10.10 · 설계 0개 | 010-1111-2222 | 담당자 없음');
+  });
+
+  test('작업 분배 — 진행 중 프로젝트 모두 (끝난 것 빼고), 머리글 「작업 분배」, 새 고객 단추 없음 · 옛 주소 #partner-projects 는 모두', async () => {
+    await load({ list: staged });
+    await flush();
+    await openScreen('assign');
+    expect(box().querySelector('.me-pt-sub').textContent).toBe('작업 분배');
+    expect(titles()).toEqual(['싱크대', '신발장']);
+    expect(box().querySelector('[data-act="open"]')).toBeNull();
+    expect(window.SeganPartnerProjects.canAssign()).toBe(true);
+    await openScreen('partner-projects');
+    expect(box().querySelector('.me-pt-sub').textContent).toBe('프로젝트');
+    expect(titles()).toEqual(['붙박이장', '싱크대', '신발장']);
+  });
+});
+
 describe('목록', () => {
   test('최신 순 그대로, 이름 · 상태(진행 중은 안 적음) · 고객 · 만든 날(한국 시간) · 설계 수 · 전화 링크', async () => {
     const calls = await load();
@@ -296,9 +386,10 @@ describe('목록', () => {
     expect(projectCalls(calls)[0].auth).toBe('Bearer tok-1');
     expect(box().hidden).toBe(false);
     expect(box().querySelector('.me-pt-sub').textContent).toBe('프로젝트');
+    // 모두 보기(옛 주소 #partner-projects · 처음)면 줄마다 단계 — 단계를 안 주는 옛 서버면 상담
     expect(rows()).toEqual([
-      '붙박이장 | 김고객 · 2026.10.21 · 설계 2개 | 010-1111-2222 | 끝남',
-      '싱크대 | 김고객 · 2026.10.10 · 설계 0개 | 010-1111-2222',
+      '붙박이장 | 상담 · 김고객 · 2026.10.21 · 설계 2개 | 010-1111-2222 | 끝남',
+      '싱크대 | 상담 · 김고객 · 2026.10.10 · 설계 0개 | 010-1111-2222',
     ]);
     expect(box().querySelector('a[href="tel:01011112222"]')).not.toBeNull();
   });

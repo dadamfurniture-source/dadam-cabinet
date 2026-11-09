@@ -303,19 +303,19 @@ const pickRegion = (sido, gugun) => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('자리 · 이름', () => {
-  test('me.html — 업체 칸(#partner) 안, 업체 내용 뒤 · 회계 앞에 상담 · 상담 설정, 처음엔 감춘다', () => {
+  test('me.html — 업체 칸(#partner) 안, 업체 내용 뒤에 상담 — 칸 차례가 프로젝트 관리 › 상담 화면 차례, 처음엔 감춘다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const ids = [...doc.getElementById('partner').children].map((el) => el.id).filter(Boolean);
     expect(ids).toEqual([
       'mePartnerTitle',
       'mePartner',
-      'partner-consults',
-      'partnerConsultSettings',
-      'partnerProjects', // 프로젝트 (segan/partner-projects.js)
+      'partner-consults', // 배정 상담
+      'factory-requests', // 받은 제작 의뢰 (segan/factory-requests.js)
+      'production-requests', // Manager 제작 의뢰 (segan/production-requests.js — 프로젝트 관리 › 제작)
+      'partnerProjects', // 그 단계 프로젝트 (segan/partner-projects.js)
+      'partnerConsultSettings', // 상담 설정 — 상담 화면 맨 아래
       'as', // A/S함 (segan/as-requests.js)
-      'meBooks',
-      'production-requests', // 제작 의뢰 (segan/production-requests.js)
-      'factory-requests', // 제작 의뢰함 (segan/factory-requests.js)
+      'meBooks', // 회계 요약 (내 팩토리)
     ]);
     for (const id of ['partner-consults', 'partnerConsultSettings'])
       expect(doc.getElementById(id).hasAttribute('hidden')).toBe(true);

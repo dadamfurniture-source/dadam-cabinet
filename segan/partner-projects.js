@@ -10,11 +10,16 @@
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET  /company/projects   { company, can_manage, assignee_ready, members[{ user_id, name, role }],
                                           items[{ id, title, status, created_at, closed_at,
-                                          customer { id, name, phone } | null, design_count, assignee | null }] }
+                                          customer { id, name, phone } | null, design_count, assignee | null,
+                                          stage, order { id, order_no, status } | null }] }
                POST /company/projects   { title, customer: { name, phone } } | { title, customer_id }
                                         → 201 { project_id, customer_id }
                PUT  /company/projects/:id/assignee  { assignee_id | null } (대표 · 실장 — DB 0042)
-   화면      프로젝트 한 줄마다 이름 · 상태(진행 중은 적지 않는다) · 고객 이름 · 전화 · 만든 날 · 이어진 설계 수 · 담당자
+   화면      마이페이지 메뉴가 고른 보기 (segan/me.js 가 setView 로 넘긴다):
+               프로젝트 관리 › 상담 ~ 설치 = 그 단계 프로젝트만 (단계 = menuStage — segan/me.js 와 같다),
+               인력 관리 › 작업 분배 = 진행 중 프로젝트 모두 (담당자 고르기), 옛 주소 #partner-projects = 모두.
+               「새 고객 · 프로젝트」는 모두 · 상담 보기에서만. 견적 ~ 설치 보기는 상세가 PC 화면이라는 안내 한 줄.
+             프로젝트 한 줄마다 이름 · 상태(진행 중은 적지 않는다) · (모두 보기면 단계) · 고객 이름 · 전화 · 만든 날 · 이어진 설계 수 · 담당자
              담당자 (2026-11-06 작업 분배 ① Expert · Agent 모두 ② 프로젝트에 한 명 ③ 대표 · 실장 · 직원):
                대표 · 실장은 줄의 「담당자」 → 지금 구성원 중 고르기 · 비우기 (Agent 의 비서 추천은 비서 대화의 승인 카드).
                서버가 담당자 칸을 아직 못 받으면(assignee_ready false — DB 0042 전) 담당자를 적지도 고르지도 않는다.
@@ -34,10 +39,24 @@
   var NAME_MAX = 50; // 워커 CUSTOMER_NAME_MAX
   var PHONE_RE = /^[0-9][0-9-]{7,19}$/; // 워커 PHONE_RE (account-api partner.js 와 같은 꼴)
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // 프로젝트 관리 하위 메뉴 단계 이름 — segan/me.js MENU_STAGES 와 같다
+  var STAGE_LABEL = {
+    consult: '상담',
+    design: '설계',
+    quote: '견적',
+    contract: '계약',
+    make: '제작',
+    install: '설치',
+  };
+  var PC_STAGES = ['quote', 'contract', 'make', 'install']; // 상세(견적서 · 수주 · 수금 · 완료 보고)가 PC 화면인 단계
 
   var TEXT = {
     lead: '상담에서 받은 고객과 전화 · 방문 고객의 프로젝트입니다. 설계는 프로젝트에 이어 저장합니다.',
     empty: '아직 프로젝트가 없습니다.',
+    stageEmpty: '이 단계의 프로젝트가 없습니다.',
+    assignEmpty: '진행 중인 프로젝트가 없습니다.',
+    assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
+    pcNote: '견적서 · 수주 · 수금 · 완료 보고의 상세는 PC 화면(상세설계 · 수주)에서 봅니다.',
     titleEmpty: '프로젝트 이름을 적어 주세요.',
     titleLong: '프로젝트 이름은 ' + TITLE_MAX + '자까지 적을 수 있습니다.',
     nameEmpty: '고객 이름을 적어 주세요.',
@@ -63,6 +82,7 @@
     err: '',
     msg: '',
     busy: false,
+    view: { stage: '', assign: false }, // 마이페이지 메뉴가 고른 보기 (setView)
   };
 
   var $ = function (id) {
@@ -93,6 +113,32 @@
   }
 
   // ── 판정 · 본문 (순수 함수 — 시험이 직접 부른다) ─────────
+  /** 프로젝트 → 하위 메뉴 단계 (segan/me.js menuStage 와 같다): 연출컷 · 설계 = 설계, 수주는 상태로 계약 · 제작 · 설치 */
+  function menuStage(stage, orderStatus) {
+    if (stage === 'installed') return 'install';
+    if (stage === 'order') {
+      if (orderStatus === 'in_production') return 'make';
+      if (orderStatus === 'delivered' || orderStatus === 'completed') return 'install';
+      return 'contract';
+    }
+    if (stage === 'quote') return 'quote';
+    if (stage === 'design' || stage === 'render') return 'design';
+    return 'consult';
+  }
+
+  function stageOf(p) {
+    return menuStage(
+      p && p.stage,
+      p && p.order && typeof p.order === 'object' ? p.order.status : ''
+    );
+  }
+
+  /** 지금 보기에 들 프로젝트 — 단계 보기면 그 단계, 작업 분배면 진행 중(active), 아니면 모두 */
+  function inView(p, view) {
+    if (view && view.assign) return p.status === 'active';
+    if (view && view.stage) return stageOf(p) === view.stage;
+    return true;
+  }
   /** 다담 공장 구성원 — /partner/me 가 company 없이 hq_member 로 준다 */
   function isHq(me) {
     return !!me && typeof me === 'object' && !Array.isArray(me) && me.hq_member === true;
@@ -186,7 +232,12 @@
     var d = J.data || {};
     var c = p.customer && typeof p.customer === 'object' ? p.customer : null;
     var who = c && c.name ? String(c.name) : '';
-    var sub = [who, kstDay(p.created_at), '설계 ' + (Number(p.design_count) || 0) + '개']
+    var sub = [
+      J.view.stage ? '' : STAGE_LABEL[stageOf(p)] || '',
+      who,
+      kstDay(p.created_at),
+      '설계 ' + (Number(p.design_count) || 0) + '개',
+    ]
       .filter(Boolean)
       .join(' · ');
     var status = PROJECT_STATUS[p.status] || '';
@@ -319,17 +370,30 @@
     var box = $('partnerProjects');
     if (!box) return;
     var d = J.data;
-    var items = d.items;
+    var v = J.view;
+    var items = d.items.filter(function (p) {
+      return inView(p, v);
+    });
+    var title = v.assign
+      ? '작업 분배'
+      : v.stage
+        ? STAGE_LABEL[v.stage] + ' 단계 프로젝트'
+        : '프로젝트';
+    var lead = v.assign ? TEXT.assignLead : v.stage ? '' : TEXT.lead;
+    var empty = v.assign ? TEXT.assignEmpty : v.stage ? TEXT.stageEmpty : TEXT.empty;
+    // 새 고객 · 프로젝트 — 모두 · 상담 보기에서만 (새 프로젝트는 상담 단계로 들어온다)
+    var canCreate = d.manage && !v.assign && (!v.stage || v.stage === 'consult');
     box.innerHTML =
-      '<h3 class="me-pt-sub" id="partnerProjectsTitle">프로젝트</h3>' +
-      '<p class="mk-note">' +
-      esc(TEXT.lead) +
-      '</p>' +
+      '<h3 class="me-pt-sub" id="partnerProjectsTitle">' +
+      esc(title) +
+      '</h3>' +
+      (lead ? '<p class="mk-note">' + esc(lead) + '</p>' : '') +
       (J.msg ? '<p class="me-pt-msg" role="status">' + esc(J.msg) + '</p>' : '') +
       (items.length
         ? '<ul class="me-pt-list me-pr-list">' + items.map(rowHtml).join('') + '</ul>'
-        : '<p class="me-empty">' + esc(TEXT.empty) + '</p>') +
-      (d.manage
+        : '<p class="me-empty">' + esc(empty) + '</p>') +
+      (PC_STAGES.indexOf(v.stage) >= 0 ? '<p class="mk-note">' + esc(TEXT.pcNote) + '</p>' : '') +
+      (canCreate
         ? J.open
           ? formHtml(customersOf(items))
           : '<div class="rd-acts"><button type="button" class="mk-btn" data-act="open">새 고객 · 프로젝트</button></div>'
@@ -582,6 +646,26 @@
     }
   }
 
+  /**
+   * 마이페이지 메뉴가 고른 보기 — { stage: '' | 'consult' … 'install', assign: 작업 분배 }.
+   * 같은 보기면 그대로 (칸을 다시 그리면 메뉴가 다시 맞추므로 되풀이하지 않게)
+   */
+  function setView(v) {
+    var next = { stage: (v && v.stage) || '', assign: !!(v && v.assign) };
+    if (next.stage === J.view.stage && next.assign === J.view.assign) return;
+    J.view = next;
+    J.open = false;
+    J.assignFor = '';
+    J.err = '';
+    J.msg = '';
+    if (J.data) render();
+  }
+
+  /** 담당자를 고를 수 있나 — 대표 · 실장이고 서버가 담당자 칸을 받을 때 (인력 관리 › 작업 분배) */
+  function canAssign() {
+    return !!(J.data && J.data.manage && J.data.assignee);
+  }
+
   window.SeganPartnerProjects = {
     PROJECT_STATUS: PROJECT_STATUS,
     TITLE_MAX: TITLE_MAX,
@@ -594,6 +678,10 @@
     bodyOf: bodyOf,
     personLabel: personLabel,
     assignBodyOf: assignBodyOf,
+    menuStage: menuStage,
+    STAGE_LABEL: STAGE_LABEL,
+    setView: setView,
+    canAssign: canAssign,
     load: load,
   };
 })();

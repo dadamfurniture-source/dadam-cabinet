@@ -31,8 +31,9 @@
    로그인이 필요한 페이지는 [data-auth-view="checking|signed-out|signed-in"] 세 칸을 둔다.
    signed-out 칸 안의 [data-segan-shell="gate"] 는 이 파일이 로그인 안내로 채운다.
 
-   역할 링크(ROLE_LINKS — 마이페이지 메뉴의 설계 · 비서 · 작업 · 관리)는 기존 판정을 그대로 쓴다 — 새 규칙을 만들지 않는다.
-   판정은 이 파일이 마이페이지에서만 묻고(SeganShell.ready 의 roles), 메뉴는 segan/me.js 가 그린다.
+   역할 판정(ROLE_LINKS — 설계 · 비서 · 작업 · 관리)은 기존 판정을 그대로 쓴다 — 새 규칙을 만들지 않는다.
+   판정은 이 파일이 마이페이지에서만 묻고(SeganShell.ready 의 roles), 메뉴 나무는 segan/me.html · me.js 가 그린다
+   (플래너 줄 = roles.planner, 본사 줄 = roles.admin, 맨 위 「오늘 작업」 카드 = work 링크 — 2026-11-09 메뉴 나무).
      설계       워크플로 API GET /planner/access  (200 이면 연다 — 다담 공장 · Manager · Expert · Agent 업체 구성원 · 관리자,
                 판정은 workers/workflow-api/src/planner-drafts.js canUsePlanner. 403 · 실패는 감춘다)
                 주소 planner/ = 간편 플래너 웹판 (/segan/planner/ — 다른 Worker, 이 저장소 밖).
@@ -97,8 +98,8 @@
     work: { label: '작업', target: 'segan/work.html' },
   };
 
-  // 역할 링크 (마이페이지 메뉴) — role = 여는 판정(없으면 key), group = 마이페이지 메뉴의 묶음
-  //   (company 업체 · hq 본사 · work 맨 위 「오늘 작업」 카드 — segan/me.js), desktopTab = PC 브라우저에서만 새 탭.
+  // 역할 링크 — role = 여는 판정(없으면 key), group = 쓰는 곳 (work = 마이페이지 맨 위 「오늘 작업」 카드 — segan/me.js.
+  //   company · hq 줄은 2026-11-09 메뉴 나무(segan/me.html)가 플래너 · 본사 하위 줄로 직접 둔다), desktopTab = PC 브라우저에서만 새 탭.
   // 설계는 간편 플래너 웹판(/segan/planner/), 비서 · 작업 · 관리는 앱 안 화면,
   // 관리자 화면 (PC) 는 js/site-shell.js(ACCOUNT_MENU)와 같은 사이트 관리자 화면
   var ROLE_LINKS = [
@@ -221,7 +222,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110912" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110913" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +

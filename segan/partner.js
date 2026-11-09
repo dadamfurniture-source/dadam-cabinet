@@ -15,7 +15,10 @@
 
    화면 (위에서부터 먼저 맞는 것)
      업체 있음         업체 이름 · 등급(다음 결제일부터 바뀌는 등급) · 상태 · 내 역할 · 크레딧
-                       대표: 직원(내보내기) · 직원 초대(링크) · 등급 바꾸기 · 결제 관리(segan/billing.html)
+                       대표: 등급 바꾸기 · 결제 관리(segan/billing.html)
+                       Agent 대표: 직원(내보내기) · 직원 초대(링크) — .me-pt-staff 한 덩이, 마이페이지 인력 관리 › 직원(#staff)
+                       화면에서만 보인다 (segan/me.js · shell.css data-me-view). Manager · Expert 는 인력 도구가 없다
+                       (2026-11-09 대표님 결정 — account-api STAFF_TOOL_PLANS)
                        실장 · 직원: 업체 이름 · 내 역할 · 크레딧만
                        정지(suspended) 「결제가 멈춰 있어 읽기만 됩니다」, 해지(closed) 「해지된 업체입니다」
      등급 바꾸기(대표 · 이용 중) — 다음 결제일부터 (일할 계산 없음, account-api POST /partner/plan)
@@ -49,6 +52,7 @@
   var MEMBER_STATUS = { active: '활동 중', removed: '내보냄' };
   var APP_STEPS = ['신청 접수', '미팅 예정', '승인'];
   var INVITE_ROLES = ['manager', 'staff'];
+  var STAFF_PLANS = ['agent']; // 직원 · 초대를 보이는 등급 — account-api STAFF_TOOL_PLANS 와 같다
 
   var SIGNUP_KEY = 'partnerSignup'; // billing-success.html 이 읽는다
   var INVITE_PATH = '/segan/join.html#t=';
@@ -880,8 +884,13 @@
       (notice ? '<p class="me-pt-warn">' + esc(notice) + '</p>' : '') +
       '</div>';
     if (owner) {
-      out += membersHtml(d, active);
-      if (active) out += invitesHtml(d) + planHtml(d);
+      if (STAFF_PLANS.indexOf(c.plan) >= 0)
+        out +=
+          '<div class="me-pt-staff">' +
+          membersHtml(d, active) +
+          (active ? invitesHtml(d) : '') +
+          '</div>';
+      if (active) out += planHtml(d);
       else if (c.status === 'suspended' || c.status === 'closed') out += restartHtml(c);
       out +=
         '<ul class="sg-rows me-pt-rows"><li><a class="sg-row" href="' +
