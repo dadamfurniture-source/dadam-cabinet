@@ -385,6 +385,7 @@ describe('누가 보나 — 협력업체 구성원 · 본사 구성원 · 팩토
     const { canUse } = window.SeganPush;
     expect(canUse({ company: { role: 'staff' } })).toBe(true);
     expect(canUse({ hq_member: true, company: null })).toBe(true);
+    expect(canUse({ platform_member: true, company: null })).toBe(true);
     expect(canUse({ application: { status: 'approved' } })).toBe(true);
     expect(canUse({ application: { status: 'held' } })).toBe(false);
     expect(canUse({ company: null, application: null })).toBe(false);
