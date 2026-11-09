@@ -15,6 +15,7 @@
  *   - 열린 신청(applied · meeting · 아직 안 쓴 approved)은 한 사람에 하나 (DB 유니크)
  *   - profiles.tier 는 쓰지 않는다 — 구성원 · 업체가 바뀌면 DB 트리거가 맞춘다
  *   - 초대 토큰은 발급 응답에서 한 번만 돌려주고 DB 에는 sha256 hex 만 둔다
+ *   - 직원 초대 만들기는 Agent 팩토리 대표만 (STAFF_TOOL_PLANS — 인력 관리는 Agent). 거두기 · 내보내기 · 수락은 그대로
  *   - company_events 에 이름 · 연락처 · 사업자번호 같은 개인정보를 넣지 않는다. 이력은 지울 수 없으므로
  *     모든 저장이 끝난 뒤 마지막에 넣고, 실패해도 처리를 되돌리지 않는다 (상태 코드만 로그)
  */
@@ -51,6 +52,8 @@ const PLANS = Object.freeze(['manager', 'expert', 'agent']);
 const SELF_SERVE_PLANS = Object.freeze(['manager', 'expert']);
 /** 업체 신청 → 미팅 → 본사 승인으로만 가는 등급 (partner_applications.plan 은 이것만) */
 const APPLICATION_PLAN = 'agent';
+/** 직원 초대를 만드는 등급 — 인력 관리는 Agent 만 (2026-11-09 대표님 결정). 있는 직원 · 열린 초대는 그대로 둔다 */
+export const STAFF_TOOL_PLANS = Object.freeze(['agent']);
 const planRank = (p) => (typeof p === 'string' ? PLANS.indexOf(p) : -1);
 /** a 가 b 보다 낮은 등급인가 (둘 다 아는 등급일 때만) */
 const isLowerPlan = (a, b) => planRank(a) >= 0 && planRank(b) >= 0 && planRank(a) < planRank(b);
@@ -131,6 +134,7 @@ const MSG = Object.freeze({
   application_open: '이미 진행 중인 신청이 있습니다.',
   already_member: '이미 팩토리 구성원입니다.',
   not_owner: '팩토리 대표만 할 수 있습니다.',
+  plan_staff: '직원 초대는 Agent 등급 팩토리에서 씁니다.',
   company_inactive: '팩토리가 활동 중이 아니어서 할 수 없습니다.',
   invalid_plan_change: '지금 등급에서는 그렇게 바꿀 수 없습니다.',
   agent_reserved: 'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.',
@@ -555,6 +559,7 @@ async function createInvite(env, { user, body }) {
   if (role !== 'manager' && role !== 'staff') throw invalid('role');
   const m = await partnerOwner(env, user.id);
   if (m.company.status !== 'active') throw fail(409, 'company_inactive', MSG.company_inactive);
+  if (!STAFF_TOOL_PLANS.includes(m.company.plan)) throw fail(403, 'plan_staff', MSG.plan_staff);
 
   const token = newInviteToken();
   const [saved] = await db(env, 'POST', 'company_invites?select=id,role,expires_at', {
