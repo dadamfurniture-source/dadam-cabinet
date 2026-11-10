@@ -27,6 +27,11 @@ const O3 = '33333333-3333-4333-8333-333333333333';
 const P1 = '44444444-4444-4444-8444-444444444441';
 const P2 = '44444444-4444-4444-8444-444444444442';
 const E1 = '88888888-8888-4888-8888-888888888881';
+const C1 = '55555555-5555-4555-8555-555555555551';
+const C2 = '55555555-5555-4555-8555-555555555552';
+const R1 = '66666666-6666-4666-8666-666666666661';
+const S1 = '77777777-7777-4777-8777-777777777771';
+const S2 = '77777777-7777-4777-8777-777777777772';
 const NOW = Date.parse('2026-11-10T03:00:00Z'); // 한국 시간 2026-11-10 (화) 12:00
 
 const ok = (data, status = 200) => ({ ok: true, status, body: { success: true, data } });
@@ -197,6 +202,9 @@ const PROJECTS = {
  * opts.orders() → GET /orders, opts.requests() → GET /order-requests, opts.schedules(url) → GET /company/schedules,
  * opts.detail(id) · opts.events(id) → GET /orders/:id(/events), opts.move(body, id) → PATCH /orders/:id,
  * opts.pay(method, body, url) → /orders/:id/payments…, opts.decide(body, url) → POST /order-events/:id/decide
+ * opts.info(body, id) → PATCH /orders/:id (status 없는 것), opts.costs · opts.reworks(method, body, url) → /orders/:id/costs… · /reworks…,
+ * opts.reports(method, body, url) → /orders/:id/reports, opts.photo(init, url) → POST …/reports/photo,
+ * opts.feedbackLink(url) → POST /orders/:id/feedback-link, opts.counterparties() → GET /counterparties
  */
 async function load(options = {}) {
   const opts = {
@@ -211,6 +219,13 @@ async function load(options = {}) {
     move: () => ok({ id: O1, status: 'in_production', state: 'done' }),
     pay: () => ok({ id: P2 }),
     decide: () => ok({ id: E1, state: 'approved' }),
+    info: () => ok({ id: O1 }),
+    costs: () => ok({ id: C1 }),
+    reworks: () => ok({ id: R1 }),
+    reports: () => ok({ ready: true, can_report: false, items: [] }),
+    photo: () => ok({ photo_path: 'reports/1.jpg' }),
+    feedbackLink: () => ok({ url: 'https://dadam.example/f/abc' }),
+    counterparties: () => ok({ items: [] }),
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -260,9 +275,17 @@ async function load(options = {}) {
     }),
   };
   window.fetch = jest.fn(async (url, init = {}) => {
-    const body = init.body ? JSON.parse(init.body) : undefined;
+    // 사진은 글이 아니라 파일째 보낸다 — 풀지 않고 raw 로 남긴다
+    const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined;
     const method = init.method || 'GET';
-    calls.fetch.push({ url, method, auth: (init.headers || {}).Authorization, body });
+    calls.fetch.push({
+      url,
+      method,
+      auth: (init.headers || {}).Authorization,
+      type: (init.headers || {})['Content-Type'],
+      body,
+      raw: typeof init.body === 'string' ? undefined : init.body,
+    });
     const reply = (r) => {
       if (r instanceof Error) throw r;
       return { ok: r.ok, status: r.status, json: async () => r.body };
@@ -276,8 +299,16 @@ async function load(options = {}) {
       const id = rest.split('/')[0];
       if (rest.includes('/payments')) return reply(await opts.pay(method, body, url));
       if (rest.endsWith('/events')) return reply(await opts.events(id));
-      return reply(await (method === 'GET' ? opts.detail(id) : opts.move(body, id)));
+      if (rest.endsWith('/reports/photo')) return reply(await opts.photo(init, url));
+      if (rest.endsWith('/reports')) return reply(await opts.reports(method, body, url));
+      if (rest.includes('/costs')) return reply(await opts.costs(method, body, url));
+      if (rest.includes('/reworks')) return reply(await opts.reworks(method, body, url));
+      if (rest.endsWith('/feedback-link')) return reply(await opts.feedbackLink(url));
+      if (method === 'GET') return reply(await opts.detail(id));
+      // 같은 주소의 PATCH — status 가 있으면 상태 바꾸기, 없으면 수주 정보 저장
+      return reply(await (body && 'status' in body ? opts.move(body, id) : opts.info(body, id)));
     }
+    if (url === WORK + '/counterparties') return reply(await opts.counterparties());
     if (url.startsWith(WORK + '/company/schedules')) return reply(await opts.schedules(url));
     if (url === WORK + '/company/projects') return reply(ok(PROJECTS));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
@@ -538,10 +569,11 @@ describe('계약 화면 — 수주 표', () => {
       'od-num od-dim'
     );
     expect($('orders').querySelector('.od-req')).toBeNull();
-    // PC 화면 안내 — 새 탭 링크
-    const pc = $('orders').querySelector('a.od-pc');
-    expect(pc.getAttribute('href')).toBe('../erp.html');
-    expect(pc.hasAttribute('data-desktop-tab')).toBe(true);
+    // 원가 · 재작업 · 완료 보고도 여기서 적는다 — PC 화면으로 보내는 링크는 없다
+    expect(text($('orders').querySelector('.mk-note'))).toBe(
+      '수주를 누르면 상태 · 수금 일정 · 원가 · 재작업 · 완료 보고를 적습니다.'
+    );
+    expect($('orders').querySelector('a.od-pc')).toBeNull();
     // 본인 토큰으로 묻는다 · 받을 날은 지난 60일 ~ 앞으로 30일
     const asked = calls.fetch.find((c) => c.url === WORK + '/orders');
     expect(asked.auth).toBe('Bearer tok-1');
@@ -995,6 +1027,635 @@ describe('상세 — 수금 일정', () => {
     await open(O1);
     expect(lines(part('pay'))[0]).toContain('확인 필요 · 들어온 돈 900,000원 — 금액이 다릅니다');
     expect(part('pay').querySelector('.od-late').textContent).toBe('— 금액이 다릅니다');
+  });
+});
+
+// 거래처 목록 — 거래처(partner) 하나 · 공급처(supplier) 하나 · 쓰지 않는 것 하나
+const CPS = [
+  { id: S1, name: '한결 인테리어', kind: 'partner', active: true },
+  { id: S2, name: '새봄 목재', kind: 'supplier', active: true },
+  { id: '77777777-7777-4777-8777-777777777773', name: '옛 거래처', kind: 'partner', active: false },
+];
+const COSTS = [
+  {
+    id: C1,
+    category: 'material',
+    amount: 1200000,
+    vat_amount: 120000,
+    description: 'PB 18T',
+    vendor_name: '새봄 목재',
+    evidence_type: 'tax_invoice',
+    spent_on: '2026-11-05',
+    due_on: null,
+  },
+  {
+    id: C2,
+    category: 'outsourcing',
+    amount: 300000,
+    vat_amount: null,
+    description: '',
+    vendor_name: '',
+    evidence_type: null,
+    spent_on: null,
+    due_on: '2026-11-15',
+  },
+];
+const REWORK = {
+  id: R1,
+  kind: 'as',
+  cause: 'install',
+  occurred_on: '2026-11-08',
+  minutes: 90,
+  cost: 50000,
+  parts: '상부장 도어 1장',
+  memo: '경첩 다시',
+};
+/** 수주 목록을 읽은 횟수 — 상세만 다시 읽는 일에는 늘지 않는다 */
+const listReads = (calls) => calls.fetch.filter((c) => c.url === WORK + '/orders').length;
+const form = (name) => part(name).querySelector('form');
+const options = (sel) => [...sel.options].map((o) => o.textContent);
+const change = async (el, value) => {
+  el.value = value;
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+};
+const press = async (el) => {
+  el.click();
+  await flush();
+};
+
+describe('상세 — 수주 정보', () => {
+  test('수금 일정이 있고 구분이 안 실려 오면 칸이 없다 · 구분만 실려 오면 구분만', async () => {
+    await load();
+    await open(O1);
+    expect(part('info').hidden).toBe(true);
+    expect(part('info').innerHTML).toBe('');
+
+    const d = detail1();
+    d.order.price_tier = 'customer';
+    d.order.partner_id = null;
+    await load({ detail: () => ok(d) });
+    await open(O1);
+    expect(text(part('info').querySelector('h3'))).toBe('수주 정보');
+    expect(form('info').elements.received).toBeUndefined();
+    expect(options(form('info').elements.tier)).toEqual(['고객', '거래처']);
+    expect(text(form('info').querySelector('.mk-note'))).toBe(
+      '수금액은 수금 일정의 받은 합입니다. 일정에서 받음을 눌러 주세요.'
+    );
+  });
+
+  test('저장 — 수금액 · 구분 · 거래처를 PATCH, 목록과 상세를 다시 읽는다', async () => {
+    const d = detail1({ payments: [] });
+    Object.assign(d.order, { price_tier: null, partner_id: null, received_amount: 300000 });
+    const info = jest.fn((body) => {
+      Object.assign(d.order, body);
+      return ok({ id: O1 });
+    });
+    const calls = await load({
+      info,
+      detail: () => ok(d),
+      counterparties: () => ok({ items: CPS }),
+    });
+    await open(O1);
+    expect(form('info').elements.received.value).toBe('300000');
+    expect(options(form('info').elements.tier)).toEqual([
+      '모름 (계약금으로 짐작)',
+      '고객',
+      '거래처',
+    ]);
+    // 거래처 고르기는 구분이 거래처일 때만 — 공급처 · 쓰지 않는 거래처는 없다
+    const box = () => form('info').querySelector('[data-od="partner"]');
+    expect(box().hidden).toBe(true);
+    await change(form('info').elements.tier, 'partner');
+    expect(box().hidden).toBe(false);
+    expect(options(form('info').elements.partner)).toEqual(['고르지 않음', '한결 인테리어']);
+    form('info').elements.received.value = '500000';
+    form('info').elements.partner.value = S1;
+    const before = listReads(calls);
+    await submit(form('info'));
+    expect(info).toHaveBeenCalledWith(
+      { received_amount: 500000, price_tier: 'partner', partner_id: S1 },
+      O1
+    );
+    expect(note()).toBe('수주 정보를 저장했습니다.');
+    expect(listReads(calls)).toBe(before + 1);
+    expect(form('info').elements.partner.value).toBe(S1);
+    expect(box().hidden).toBe(false);
+  });
+
+  test('거래처 → 고객으로 바꾸면 거래처를 비운다 · 목록에 없는 거래처도 그대로 보인다', async () => {
+    const d = detail1();
+    Object.assign(d.order, { price_tier: 'partner', partner_id: 'gone-1' });
+    const info = jest.fn(() => ok({ id: O1 }));
+    await load({ info, detail: () => ok(d), counterparties: () => ok({ items: CPS }) });
+    await open(O1);
+    expect(options(form('info').elements.partner)).toEqual([
+      '고르지 않음',
+      '지금 거래처 (목록에 없음)',
+      '한결 인테리어',
+    ]);
+    expect(form('info').elements.partner.value).toBe('gone-1');
+    await change(form('info').elements.tier, 'customer');
+    expect(form('info').querySelector('[data-od="partner"]').hidden).toBe(true);
+    await submit(form('info'));
+    expect(info).toHaveBeenCalledWith({ price_tier: 'customer', partner_id: null }, O1);
+  });
+
+  test('서버가 막으면 그 글을 그 자리에', async () => {
+    const d = detail1({ payments: [] });
+    await load({
+      detail: () => ok(d),
+      info: () => fail(403, 'forbidden', '대표만 고칠 수 있습니다.'),
+    });
+    await open(O1);
+    await submit(form('info'));
+    expect(err()).toBe('대표만 고칠 수 있습니다.');
+    expect(note()).toBe('');
+  });
+});
+
+describe('상세 — 실적 원가', () => {
+  test('줄 — 분류 · 공급가 · 부가세 · 증빙 · 낸 날, 없으면 없다고', async () => {
+    await load();
+    await open(O1);
+    expect(text(part('cost').querySelector('h3'))).toBe('실적 원가');
+    expect(text(part('cost').querySelector('[data-od-list]'))).toBe('입력된 원가가 없습니다.');
+    expect(text(part('cost').querySelector('summary'))).toBe('원가 넣기');
+    expect(part('cost').querySelector('details').open).toBe(false);
+
+    await load({ detail: () => ok(detail1({ costs: COSTS })) });
+    await open(O1);
+    expect(lines(part('cost'))).toEqual([
+      '자재 1,200,000원PB 18T · 새봄 목재 · 부가세 120,000원 · 세금계산서 · 낸 날 2026.11.05삭제',
+      '외주 300,000원부가세 미기재 · 낼 날 2026.11.15냈음삭제',
+    ]);
+  });
+
+  test('넣기 — 공급가 · 부가세를 살피고 POST, 칸을 비우고 상세만 다시 읽는다', async () => {
+    const list = [];
+    const costs = jest.fn((method, body) => {
+      list.push({ id: C1, ...body });
+      return ok({ id: C1 });
+    });
+    const calls = await load({ costs, detail: () => ok(detail1({ costs: list })) });
+    await open(O1);
+    part('cost').querySelector('details').open = true;
+    const f = () => form('cost');
+    expect(f().elements.supplier).toBeUndefined();
+    await submit(f());
+    expect(err()).toBe('공급가를 입력해 주세요.');
+    f().elements.amount.value = '500000';
+    f().elements.vat.value = '-1';
+    await submit(f());
+    expect(err()).toBe('부가세는 0 이상으로 입력해 주세요.');
+    expect(costs).not.toHaveBeenCalled();
+    f().elements.vat.value = '';
+    f().elements.category.value = 'hardware';
+    f().elements.vendor.value = '  다온 철물  ';
+    f().elements.description.value = '경첩';
+    f().elements.evidence.value = 'card';
+    f().elements.spent_on.value = '2026-11-09';
+    const before = listReads(calls);
+    await submit(f());
+    expect(costs).toHaveBeenCalledWith(
+      'POST',
+      {
+        category: 'hardware',
+        description: '경첩',
+        vendor_name: '다온 철물',
+        counterparty_id: null,
+        due_on: null,
+        amount: 500000,
+        vat_amount: null,
+        evidence_type: 'card',
+        spent_on: '2026-11-09',
+      },
+      WORK + '/orders/' + O1 + '/costs'
+    );
+    expect(note()).toBe('원가를 추가했습니다.');
+    expect(err()).toBe('');
+    expect(lines(part('cost'))).toEqual([
+      '부자재 500,000원경첩 · 다온 철물 · 부가세 미기재 · 카드 · 낸 날 2026.11.09삭제',
+    ]);
+    // 넣은 뒤 — 칸은 비고, 펼친 채로 남는다. 목록(수주 표)은 다시 읽지 않는다
+    expect(f().elements.amount.value).toBe('');
+    expect(f().elements.description.value).toBe('');
+    expect(part('cost').querySelector('details').open).toBe(true);
+    expect(listReads(calls)).toBe(before);
+  });
+
+  test('공급처를 고르면 거래처 적는 칸을 감추고 공급처 번호를 보낸다', async () => {
+    const costs = jest.fn(() => ok({ id: C1 }));
+    await load({ costs, counterparties: () => ok({ items: CPS }) });
+    await open(O1);
+    const f = () => form('cost');
+    const vendor = () => f().querySelector('[data-od="vendor"]');
+    expect(options(f().elements.supplier)).toEqual(['직접 적기', '새봄 목재']);
+    f().elements.vendor.value = '손으로 적은 곳';
+    await change(f().elements.supplier, S2);
+    expect(vendor().hidden).toBe(true);
+    f().elements.amount.value = '80000';
+    f().elements.vat.value = '8000';
+    f().elements.due_on.value = '2026-11-30';
+    await submit(f());
+    expect(costs.mock.calls[0][1]).toEqual({
+      category: 'material',
+      description: '',
+      vendor_name: '',
+      counterparty_id: S2,
+      due_on: '2026-11-30',
+      amount: 80000,
+      vat_amount: 8000,
+      evidence_type: null,
+      spent_on: null,
+    });
+    expect(vendor().hidden).toBe(false);
+    expect(f().elements.supplier.value).toBe('');
+  });
+
+  test('냈음 = 오늘 날짜로 PATCH · 삭제는 한 번 더 묻는다 — 적던 칸은 그대로 남는다', async () => {
+    const costs = jest.fn(() => ok({ id: C2 }));
+    const calls = await load({ costs, detail: () => ok(detail1({ costs: COSTS })) });
+    await open(O1);
+    part('cost').querySelector('details').open = true;
+    form('cost').elements.description.value = '적던 글';
+    const before = listReads(calls);
+    await press(part('cost').querySelector(`[data-act="cost-paid"][data-id="${C2}"]`));
+    expect(costs).toHaveBeenLastCalledWith(
+      'PATCH',
+      { spent_on: '2026-11-10' },
+      WORK + '/orders/' + O1 + '/costs/' + C2
+    );
+    expect(note()).toBe('낸 것으로 적었습니다.');
+    const row = () => part('cost').querySelectorAll('.me-pt-row')[0];
+    await press(row().querySelector('[data-act="del"]'));
+    expect(text(row().querySelector('.rd-acts'))).toBe('이 원가를 지울까요?삭제그만');
+    await press(row().querySelector('[data-act="del-no"]'));
+    expect(text(row().querySelector('.rd-acts'))).toBe('삭제');
+    await press(row().querySelector('[data-act="del"]'));
+    await press(row().querySelector('[data-act="del-yes"]'));
+    expect(costs).toHaveBeenLastCalledWith(
+      'DELETE',
+      undefined,
+      WORK + '/orders/' + O1 + '/costs/' + C1
+    );
+    expect(note()).toBe('원가를 지웠습니다.');
+    expect(form('cost').elements.description.value).toBe('적던 글');
+    expect(part('cost').querySelector('details').open).toBe(true);
+    expect(listReads(calls)).toBe(before);
+  });
+
+  test('서버가 막으면 그 글을 그 자리에 — 적은 것은 지우지 않는다', async () => {
+    await load({ costs: () => fail(400, 'bad_request', '낸 날이 수주일보다 앞섭니다.') });
+    await open(O1);
+    form('cost').elements.amount.value = '1000';
+    await submit(form('cost'));
+    expect(err()).toBe('낸 날이 수주일보다 앞섭니다.');
+    expect(form('cost').elements.amount.value).toBe('1000');
+  });
+});
+
+describe('상세 — 재작업 · A/S', () => {
+  test('줄 · 적기 · 지우기', async () => {
+    const list = [REWORK];
+    const reworks = jest.fn((method, body) => {
+      if (method === 'POST') list.push({ id: 'r-2', ...body });
+      else list.shift();
+      return ok({ id: R1 });
+    });
+    const calls = await load({ reworks, detail: () => ok(detail1({ reworks: list })) });
+    await open(O1);
+    expect(text(part('rework').querySelector('h3'))).toBe('재작업 · A/S');
+    expect(lines(part('rework'))).toEqual([
+      'A/S (설치 뒤) · 설치2026.11.08 · 90분 · 비용 50,000원 · 상부장 도어 1장 · 경첩 다시삭제',
+    ]);
+    expect(text(part('rework').querySelector('summary'))).toBe('재작업 · A/S 적기');
+    const f = () => form('rework');
+    f().elements.cause.value = 'cutting';
+    f().elements.minutes.value = '120';
+    const before = listReads(calls);
+    await submit(f());
+    expect(reworks).toHaveBeenCalledWith(
+      'POST',
+      {
+        kind: 'rework',
+        cause: 'cutting',
+        occurred_on: null,
+        minutes: 120,
+        cost: null,
+        parts: '',
+        memo: '',
+      },
+      WORK + '/orders/' + O1 + '/reworks'
+    );
+    expect(note()).toBe('재작업 · A/S 를 기록했습니다.');
+    expect(lines(part('rework'))[1]).toBe('재작업 (공장) · 재단120분삭제');
+    expect(f().elements.minutes.value).toBe('');
+
+    const row = () => part('rework').querySelectorAll('.me-pt-row')[0];
+    await press(row().querySelector('[data-act="del"]'));
+    expect(text(row().querySelector('.rd-acts'))).toBe('이 기록을 지울까요?삭제그만');
+    await press(row().querySelector('[data-act="del-yes"]'));
+    expect(reworks).toHaveBeenLastCalledWith(
+      'DELETE',
+      undefined,
+      WORK + '/orders/' + O1 + '/reworks/' + R1
+    );
+    expect(note()).toBe('기록을 지웠습니다.');
+    expect(lines(part('rework'))).toEqual(['재작업 (공장) · 재단120분삭제']);
+    expect(listReads(calls)).toBe(before);
+  });
+
+  test('기록 칸이 없는 서버 — 「준비되지 않았습니다」 · 적은 것이 없으면 없다고', async () => {
+    await load({ detail: () => ok(detail1({ reworks: null })) });
+    await open(O1);
+    expect(text(part('rework'))).toBe(
+      '재작업 · A/S재작업 · A/S 기록 칸이 아직 준비되지 않았습니다.'
+    );
+    expect(form('rework')).toBeNull();
+
+    await load();
+    await open(O1);
+    expect(text(part('rework').querySelector('[data-od-list]'))).toBe(
+      '적은 재작업 · A/S 가 없습니다.'
+    );
+  });
+
+  test('직원 — 재작업 줄만 본다 (적기 · 지우기 없음), 원가 · 수주 정보 · 거래처 목록은 없다', async () => {
+    const calls = await load({
+      partner: partnerMe({ role: 'staff' }),
+      orders: () => ok({ items: STAFF_ORDERS }),
+      detail: () =>
+        ok({
+          order: {
+            id: O1,
+            order_no: 'DD-1',
+            customer_name: '가람 고객',
+            status: 'confirmed',
+            ordered_at: '2026-11-02T01:00:00Z',
+          },
+          costs: [],
+          reworks: [REWORK],
+          feedback: null,
+        }),
+    });
+    await open(O1);
+    expect(lines(part('rework'))).toEqual([
+      'A/S (설치 뒤) · 설치2026.11.08 · 90분 · 비용 50,000원 · 상부장 도어 1장 · 경첩 다시',
+    ]);
+    expect(form('rework')).toBeNull();
+    expect(part('cost').hidden).toBe(true);
+    expect(part('info').hidden).toBe(true);
+    expect(part('report').hidden).toBe(false);
+    expect(calls.fetch.some((c) => c.url === WORK + '/counterparties')).toBe(false);
+  });
+});
+
+describe('상세 — 설치 · A/S 완료 보고', () => {
+  const photoFile = (name, type) => new File(['x'], name, { type });
+  const attach = (files) =>
+    Object.defineProperty(form('report').elements.photos, 'files', {
+      value: files,
+      configurable: true,
+    });
+
+  test('목록 — 언제 · 메모 · 사진 링크(https 만), 남길 수 없는 사람에게는 넣는 칸이 없다', async () => {
+    const calls = await load({
+      reports: () =>
+        ok({
+          ready: true,
+          can_report: false,
+          items: [
+            {
+              created_at: '2026-11-09T05:30:00Z',
+              label: '설치 완료',
+              kind: 'install_done',
+              note: '문 조정 끝',
+              photo_urls: [
+                'https://img.example/a.jpg',
+                'http://img.example/b.jpg',
+                'https://img.example/c.jpg',
+              ],
+            },
+          ],
+        }),
+    });
+    await open(O1);
+    expect(calls.fetch.some((c) => c.url === WORK + '/orders/' + O1 + '/reports')).toBe(true);
+    expect(text(part('report').querySelector('h3'))).toBe('설치 · A/S 완료 보고');
+    expect(lines(part('report'))).toEqual(['설치 완료2026.11.09 14:30 · 문 조정 끝사진 1사진 2']);
+    const photos = [...part('report').querySelectorAll('.me-pt-row a')];
+    expect(photos.map((a) => a.getAttribute('href'))).toEqual([
+      'https://img.example/a.jpg',
+      'https://img.example/c.jpg',
+    ]);
+    expect(photos.every((a) => a.target === '_blank' && a.rel === 'noopener')).toBe(true);
+    expect(form('report')).toBeNull();
+    // 작업 지시로 올라온 보고는 PC 화면에서
+    const link = part('report').querySelector('a[data-desktop-tab]');
+    expect(text(link)).toBe('작업 지시 보고 ↗');
+    expect(link.getAttribute('href')).toBe('../admin/work-reports.html?order=' + O1);
+  });
+
+  test('없으면 없다고 · 칸이 없는 서버 · 못 읽었을 때', async () => {
+    await load();
+    await open(O1);
+    expect(text(part('report').querySelector('[data-od-list]'))).toBe('아직 보고가 없습니다.');
+
+    await load({ reports: () => ok({ ready: false, can_report: false, items: [] }) });
+    await open(O1);
+    expect(text(part('report'))).toContain('완료 보고 칸이 아직 준비되지 않았습니다.');
+    expect(form('report')).toBeNull();
+
+    await load({ reports: () => fail(500, 'x', 'x') });
+    await open(O1);
+    expect(text(part('report'))).toContain('완료 보고를 불러오지 못했습니다.');
+    // 보고를 못 읽어도 나머지는 그대로
+    expect(lines(part('pay'))).toHaveLength(2);
+  });
+
+  test('남기기 — 사진을 한 장씩 올린 다음 보고를 보낸다', async () => {
+    let n = 0;
+    const photo = jest.fn(() => ok({ photo_path: 'reports/' + ++n + '.jpg' }));
+    const items = [];
+    const reports = jest.fn((method, body) => {
+      if (method !== 'POST') return ok({ ready: true, can_report: true, items });
+      items.push({ created_at: '2026-11-10T03:00:00Z', kind: body.kind, note: body.note });
+      return ok({ id: 'rep-1' }, 201);
+    });
+    const calls = await load({ photo, reports });
+    await open(O1);
+    expect(text(part('report').querySelector('summary'))).toBe('완료 보고 남기기');
+    expect(text(form('report').querySelector('.mk-note'))).toBe(
+      '설치 · A/S 를 마치면 사진과 함께 남깁니다. 본사에는 기록으로 갑니다 (검수 없음).'
+    );
+    const a = photoFile('a.jpg', 'image/jpeg');
+    const b = photoFile('b.png', 'image/png');
+    attach([a, b]);
+    form('report').elements.kind.value = 'as_done';
+    form('report').elements.note.value = '  실리콘 다시  ';
+    const before = listReads(calls);
+    await submit(form('report'));
+    const ups = calls.fetch.filter((c) => c.url.endsWith('/reports/photo'));
+    expect(ups.map((c) => [c.method, c.type, c.raw])).toEqual([
+      ['POST', 'image/jpeg', a],
+      ['POST', 'image/png', b],
+    ]);
+    expect(ups.every((c) => c.auth === 'Bearer tok-1')).toBe(true);
+    expect(reports).toHaveBeenCalledWith(
+      'POST',
+      { kind: 'as_done', note: '실리콘 다시', photo_paths: ['reports/1.jpg', 'reports/2.jpg'] },
+      WORK + '/orders/' + O1 + '/reports'
+    );
+    expect(note()).toBe('A/S 완료 보고를 남겼습니다.');
+    expect(lines(part('report'))).toEqual(['A/S 완료2026.11.10 12:00 · 실리콘 다시']);
+    expect(form('report').elements.note.value).toBe('');
+    expect(form('report').querySelector('button[type="submit"]').disabled).toBe(false);
+    expect(form('report').querySelector('[data-od="report-msg"]').hidden).toBe(true);
+    expect(listReads(calls)).toBe(before);
+
+    // 사진 · 메모 없이도 남긴다
+    attach([]);
+    await submit(form('report'));
+    expect(reports).toHaveBeenCalledWith(
+      'POST',
+      { kind: 'install_done', note: null, photo_paths: [] },
+      WORK + '/orders/' + O1 + '/reports'
+    );
+    expect(note()).toBe('설치 완료 보고를 남겼습니다.');
+  });
+
+  test('사진이 10장을 넘으면 보내지 않는다 · 사진을 못 올리면 보고도 보내지 않는다', async () => {
+    const posted = (reports) => reports.mock.calls.filter((c) => c[0] === 'POST');
+    const reportsOk = () =>
+      jest.fn((method) =>
+        method === 'POST' ? ok({ id: 'rep-1' }) : ok({ ready: true, can_report: true, items: [] })
+      );
+    let reports = reportsOk();
+    const photo = jest.fn(() => ok({ photo_path: 'reports/1.jpg' }));
+    await load({ reports, photo });
+    await open(O1);
+    attach(Array.from({ length: 11 }, (_, i) => photoFile(i + '.jpg', 'image/jpeg')));
+    await submit(form('report'));
+    expect(err()).toBe('사진은 10장까지입니다.');
+    expect(photo).not.toHaveBeenCalled();
+    expect(posted(reports)).toHaveLength(0);
+
+    reports = reportsOk();
+    await load({ reports, photo: () => fail(413, 'too_large', '사진이 너무 큽니다.') });
+    await open(O1);
+    attach([photoFile('a.jpg', 'image/jpeg')]);
+    form('report').elements.note.value = '적던 메모';
+    await submit(form('report'));
+    expect(err()).toBe('사진이 너무 큽니다.');
+    expect(posted(reports)).toHaveLength(0);
+    expect(form('report').elements.note.value).toBe('적던 메모');
+    expect(form('report').querySelector('button[type="submit"]').disabled).toBe(false);
+
+    reports = reportsOk();
+    await load({ reports, photo: () => fail(500, 'x') });
+    await open(O1);
+    attach([photoFile('a.jpg', 'image/jpeg')]);
+    await submit(form('report'));
+    expect(err()).toBe('사진을 올리지 못했습니다 (500)');
+    expect(posted(reports)).toHaveLength(0);
+  });
+});
+
+describe('상세 — 설치 후 한 문항', () => {
+  const fb = (feedback) => ({ detail: () => ok(detail1({ feedback })) });
+  const lead = () => text(part('feedback').querySelector('.mk-note, .me-empty'));
+  const button = () => part('feedback').querySelector('[data-act="feedback-link"]');
+
+  test('칸이 없는 서버 · 아직 안 보냄 · 답 기다림 · 기간 지남 · 받은 답', async () => {
+    await load();
+    await open(O1);
+    expect(text(part('feedback'))).toBe(
+      '설치 후 한 문항설치 후 문항 칸이 아직 준비되지 않았습니다.'
+    );
+    expect(button()).toBeNull();
+
+    await load(fb({ exists: false }));
+    await open(O1);
+    expect(lead()).toBe(
+      '아직 보내지 않았습니다. 설치가 끝나면 링크를 만들어 고객에게 문자로 보내 주세요.'
+    );
+    expect(text(button())).toBe('링크 만들기');
+
+    await load(
+      fb({ exists: true, answered: false, expired: false, expires_at: '2026-11-20T14:59:00Z' })
+    );
+    await open(O1);
+    expect(lead()).toBe(
+      '링크를 보냈고 답을 기다리는 중입니다 (2026.11.20 까지). 새로 만들면 예전 링크는 더 열리지 않습니다.'
+    );
+    expect(text(button())).toBe('새 링크 만들기');
+
+    await load(
+      fb({ exists: true, answered: false, expired: true, expires_at: '2026-11-01T14:59:00Z' })
+    );
+    await open(O1);
+    expect(lead()).toBe('보낸 링크의 기간이 지났습니다. 새 링크를 만들어 다시 보내 주세요.');
+    expect(text(button())).toBe('새 링크 만들기');
+
+    await load(
+      fb({
+        exists: true,
+        answered: true,
+        score: 9,
+        comment: '깔끔해요',
+        answered_at: '2026-11-09T02:00:00Z',
+      })
+    );
+    await open(O1);
+    expect(lead()).toBe('받은 답: 9점 · "깔끔해요" (2026.11.09)');
+    expect(button()).toBeNull();
+  });
+
+  test('링크 만들기 — 만든 그때만 보이고, 어디에도 남기지 않는다 · 복사', async () => {
+    const feedbackLink = jest.fn(() => ok({ url: 'https://dadam.example/f/abc' }));
+    const calls = await load({ feedbackLink, ...fb({ exists: false }) });
+    await open(O1);
+    const url = () => part('feedback').querySelector('[data-od="feedback-url"]');
+    expect(url()).toBeNull();
+    const before = listReads(calls);
+    await press(button());
+    expect(feedbackLink).toHaveBeenCalledWith(WORK + '/orders/' + O1 + '/feedback-link');
+    const post = sent(calls, 'POST').pop();
+    expect([post.body, post.type]).toEqual([undefined, undefined]);
+    expect(url().value).toBe('https://dadam.example/f/abc');
+    expect(url().readOnly).toBe(true);
+    expect(note()).toBe('링크를 만들었습니다. 복사해서 고객에게 문자로 보내 주세요.');
+    expect(listReads(calls)).toBe(before);
+    const kept = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage });
+    expect(kept).not.toContain('dadam.example');
+
+    // 복사가 막힌 곳 — 글을 골라 준다
+    await press(part('feedback').querySelector('[data-act="feedback-copy"]'));
+    expect(note()).toBe('링크를 골랐습니다. 길게 눌러(PC 는 Ctrl+C) 복사해 주세요.');
+    const writeText = jest.fn(() => Promise.resolve());
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    try {
+      await press(part('feedback').querySelector('[data-act="feedback-copy"]'));
+      expect(writeText).toHaveBeenCalledWith('https://dadam.example/f/abc');
+      expect(note()).toBe('링크를 복사했습니다.');
+    } finally {
+      delete window.navigator.clipboard;
+    }
+  });
+
+  test('서버가 막으면 그 글을 그 자리에', async () => {
+    await load({
+      feedbackLink: () => fail(409, 'conflict', '설치가 끝난 수주만 보낼 수 있습니다.'),
+      ...fb({ exists: false }),
+    });
+    await open(O1);
+    await press(button());
+    expect(err()).toBe('설치가 끝난 수주만 보낼 수 있습니다.');
+    expect(part('feedback').querySelector('[data-od="feedback-url"]')).toBeNull();
   });
 });
 

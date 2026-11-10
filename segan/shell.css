@@ -2545,6 +2545,90 @@ button.sm-num[aria-pressed='true'] {
   white-space: nowrap;
 }
 
+/* 알림 · 오류 — 긴 상세의 아래쪽을 고쳐도 보이게 위에 붙는다.
+   시트 본문의 위 여백(폰 16 · PC 20)만큼 올려 붙여, 그 틈으로 밑의 글이 비치지 않게 한다 */
+.od-detail > [data-od='note'],
+.od-detail > .mk-error {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+@media (min-width: 1100px) {
+  .od-detail > [data-od='note'],
+  .od-detail > .mk-error {
+    top: -20px;
+  }
+}
+
+/* 접어 둔 넣는 칸 — 「원가 넣기」 를 눌러야 펼쳐진다 (움직임 없음).
+   위 목록 마지막 줄의 밑줄과 겹쳐 한 줄로 보인다 */
+.od-add {
+  margin-top: -1px;
+  border-top: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.od-add summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  font-size: 14px;
+  font-weight: 400;
+  list-style: none;
+  cursor: pointer;
+}
+
+.od-add summary::-webkit-details-marker {
+  display: none;
+}
+
+.od-add summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 4px 0;
+  border-right: 1px solid var(--v5-ink-45);
+  border-bottom: 1px solid var(--v5-ink-45);
+  transform: rotate(45deg);
+}
+
+.od-add[open] summary::after {
+  margin-bottom: -4px;
+  transform: rotate(-135deg);
+}
+
+.od-add .od-form {
+  margin-top: 0;
+  padding-bottom: 16px;
+}
+
+.od-form .mk-note {
+  margin: 0;
+}
+
+.od-form input[type='file'] {
+  height: auto;
+  padding: 12px;
+}
+
+/* 설치 후 한 문항 — 만든 링크 칸은 안내 글과 띄운다 */
+.od-detail [data-od-part='feedback'] .mk-input {
+  margin-top: 12px;
+}
+
+/* 완료 보고의 사진 링크 — 줄 오른쪽 단추 자리에 나란히 */
+.od-detail .rd-acts .od-pc {
+  font-size: 13px;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
