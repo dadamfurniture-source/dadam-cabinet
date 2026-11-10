@@ -38,6 +38,8 @@
      그대로 페이지 이동 (플래너 · PC 관리자 화면은 PC 브라우저에서만 새 탭 — SeganShell.desktopTab).
      알림 · 결제가 여는 옛 주소(me.html#partner · #partner-consults · #as · #production-requests · #factory-requests ·
      #partner-projects · #consults · #projects-mine · #as-mine · ?failed=1)는 그대로 그 화면이다 (메뉴는 ALIAS 의 줄을 밝힌다).
+     폰 · 태블릿은 화면이 바뀔 때 들어온 쪽으로 — 하위 화면은 오른쪽에서, 메뉴는 왼쪽에서 들어온다
+     (segan/motion.js 를 실었을 때만 · 동작 줄이기면 흐려지기만, CLAUDE.md 「SEGAN 모션 규칙」).
      메뉴에서 누르면 기록을 하나 넣는다(pushState — 뒤로 가기가 메뉴로 돌아온다). 「‹ 마이페이지」 는 메뉴에서 왔으면
      뒤로, 알림 · 새로 고침으로 바로 왔으면 그 기록을 메뉴로 바꾼다(replaceState). 칸마다 「읽은 뒤에만 보인다」(hidden)는
      각 모듈이 정한다 — 메뉴 줄은 그 칸이 보일 때만 열고, 못 여는 화면으로 오면 「볼 수 있는 내용이 없습니다」.
@@ -647,7 +649,21 @@
     projectStage: null, // 지금 그린 고객 프로젝트 단계 (null = 아직 안 그림)
     open: '', // 폰에서 펼친 큰 메뉴
     touched: false, // 사람이 큰 메뉴를 골랐다 (전에는 처음 보이는 큰 메뉴를 펼친다)
+    shown: null, // 지난번에 보인 화면 (# — '' = 메뉴, null = 아직 안 그림)
   };
+
+  /** 움직임 — segan/motion.js 를 실은 화면만 (없으면 움직이지 않는다) */
+  function motion() {
+    return window.SeganMotion || null;
+  }
+
+  /** 폰 · 태블릿 화면 바꾸기 — 하위 화면은 오른쪽에서, 메뉴는 왼쪽에서 (들어온 쪽으로 나간다) */
+  function slideIn(toPane) {
+    var M = motion();
+    var el = $(toPane ? 'mePane' : 'meHub');
+    if (M && el)
+      M.enter(el, { transform: 'translateX(' + (toPane ? 28 : -28) + 'px)', opacity: 0.3 });
+  }
 
   function shown(id) {
     var el = $(id);
@@ -834,6 +850,8 @@
     if (title) title.textContent = asked && !wide ? askedTitle : HUB_TITLE;
     document.title = (asked ? askedTitle + ' · ' : '') + HUB_TITLE + ' · SEGAN';
     if (open && name === 'likes' && !LK.started) loadLikes(); // 좋아요 — 처음 열 때 읽는다
+    if (H.shown !== null && H.shown !== asked && !wide) slideIn(!!asked);
+    H.shown = asked;
   }
 
   function toTop() {
@@ -901,6 +919,14 @@
       if (isWide()) return; // PC 는 늘 펼친다
       var key = t.getAttribute('data-menu-toggle');
       setOpen(H.open === key ? '' : key, true);
+      // 펼친 하위 줄이 위에서 차례로 내려온다
+      var M = motion();
+      var subs =
+        H.open === key ? t.parentNode.querySelectorAll('li[data-me-item]:not([hidden])') : [];
+      if (M)
+        [].forEach.call(subs, function (li, i) {
+          M.enter(li, { transform: 'translateY(-6px)', opacity: 0.2 }, i * 28);
+        });
       return;
     }
     var a = e.target && e.target.closest ? e.target.closest('a[data-me-go]') : null;

@@ -1121,7 +1121,123 @@ describe('시트 · 옆 패널 · 가운데 창 — SeganShell.sheet', () => {
     expect(wide).toBeDefined();
     expect(wide).toMatch(/\.sg-sheet-wrap--panel \.sg-sheet\s*\{[^}]*width:\s*420px/);
     expect(wide).toMatch(/border-left:\s*1px solid/);
-    const calm = css.split('@media (prefers-reduced-motion: reduce)')[1];
+    const calm = css
+      .split('@media (prefers-reduced-motion: reduce)')
+      .slice(1)
+      .find((b) => /^\s*\{\s*\.sg-sheet-wrap/.test(b));
     expect(calm).toMatch(/\.sg-sheet-wrap \.sg-sheet\s*\{\s*animation:\s*none;/);
+  });
+
+  describe('폰 시트 — 머리를 끌어 내려 닫는다 (CLAUDE.md 「SEGAN 모션 규칙」)', () => {
+    const ptr = (el, type, y) =>
+      el.dispatchEvent(
+        new window.MouseEvent(type, { clientY: y, bubbles: true, cancelable: true })
+      );
+    const moved = (el) =>
+      Number((/translateY\((-?[\d.]+)px\)/.exec(el.style.transform) || [0, 0])[1]);
+    function openTall(S) {
+      const onClose = jest.fn();
+      const h = S.open({ title: '보기', body: para('본문'), onClose });
+      Object.defineProperty(h.el, 'offsetHeight', { configurable: true, value: 500 });
+      return { h, onClose, head: h.el.querySelector('.sg-sheet-head') };
+    }
+    afterEach(() => {
+      delete window.matchMedia;
+      jest.restoreAllMocks();
+    });
+
+    test('놓은 속도로 정한다 — 짧게 내려도 빠르게 던지면 닫고, 멈췄다 놓으면 제자리', async () => {
+      const { S } = await setup();
+      let t = 1000;
+      jest.spyOn(Date, 'now').mockImplementation(() => t);
+      const a = openTall(S);
+      ptr(a.head, 'pointerdown', 100);
+      t += 20;
+      ptr(a.head, 'pointermove', 150); // 0.02초에 50px — 1초에 2,500px
+      ptr(a.head, 'pointerup', 150);
+      await until(() => a.onClose.mock.calls.length === 1);
+      expect(a.onClose).toHaveBeenCalledWith('drag');
+      const b = openTall(S);
+      ptr(b.head, 'pointerdown', 100);
+      t += 20;
+      ptr(b.head, 'pointermove', 150);
+      t += 400; // 멈췄다 놓음
+      ptr(b.head, 'pointerup', 150);
+      expect(b.h.isOpen()).toBe(true);
+      expect(b.h.el.style.transform).toBe('');
+      await b.h.close();
+    });
+
+    test('손가락을 1:1 로 따라가고, 조금 끌다 놓으면 제자리', async () => {
+      const { S } = await setup();
+      const { h, onClose, head } = openTall(S);
+      let t = 1000;
+      jest.spyOn(Date, 'now').mockImplementation(() => t);
+      ptr(head, 'pointerdown', 100);
+      t += 600;
+      ptr(head, 'pointermove', 160); // 천천히 — 0.6초에 60px
+      t += 10;
+      expect(moved(h.el)).toBe(60);
+      ptr(head, 'pointerup', 160);
+      expect(h.el.style.transform).toBe('');
+      expect(h.isOpen()).toBe(true);
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    test('위로는 고무줄 — 덜 따라온다. 높이의 40 % 넘게 내리면 닫는다 (why drag)', async () => {
+      const { S } = await setup();
+      const { h, onClose, head } = openTall(S);
+      ptr(head, 'pointerdown', 100);
+      ptr(head, 'pointermove', 40);
+      expect(moved(h.el)).toBeLessThan(0);
+      expect(moved(h.el)).toBeGreaterThan(-60);
+      ptr(head, 'pointermove', 360);
+      expect(moved(h.el)).toBe(260);
+      ptr(head, 'pointerup', 360);
+      jest.restoreAllMocks();
+      await until(() => onClose.mock.calls.length === 1);
+      expect(onClose).toHaveBeenCalledWith('drag');
+      expect(wraps()).toHaveLength(0);
+    });
+
+    test('닫기 단추에서 시작하면 끌지 않는다 · PC 옆 패널 · 닫을 수 없는 시트는 끌지 않는다', async () => {
+      const { S } = await setup();
+      const { h, head } = openTall(S);
+      const x = head.querySelector('.sg-sheet-x');
+      ptr(x, 'pointerdown', 100);
+      ptr(head, 'pointermove', 400);
+      ptr(head, 'pointerup', 400);
+      expect(h.el.style.transform).toBe('');
+      expect(h.isOpen()).toBe(true);
+      await h.close();
+      window.matchMedia = (q) => ({ matches: /min-width:\s*1100px/.test(q), media: q });
+      const pc = openTall(S);
+      ptr(pc.head, 'pointerdown', 100);
+      ptr(pc.head, 'pointermove', 400);
+      ptr(pc.head, 'pointerup', 400);
+      expect(pc.h.el.style.transform).toBe('');
+      expect(pc.h.isOpen()).toBe(true);
+      await pc.h.close();
+      delete window.matchMedia;
+      const fixed = S.open({ title: '확인', body: para('본문'), dismissible: false });
+      const fh = fixed.el.querySelector('.sg-sheet-head');
+      ptr(fh, 'pointerdown', 100);
+      ptr(fh, 'pointermove', 400);
+      expect(fixed.el.style.transform).toBe('');
+      ptr(fh, 'pointerup', 400);
+      expect(fixed.isOpen()).toBe(true);
+      await fixed.close();
+    });
+
+    test('가운데 창은 끌 머리가 없다 · 손잡이 막대는 폰 시트에만 (CSS)', async () => {
+      const css = fs.readFileSync(path.join(ROOT, 'segan/shell.css'), 'utf8');
+      expect(css).toMatch(
+        /@media \(max-width: 1099\.98px\) \{\s*\.sg-sheet-wrap--sheet \.sg-sheet-head \{[^}]*touch-action: none;/
+      );
+      expect(css).toMatch(/\.sg-sheet-wrap--sheet \.sg-sheet-head::before \{/);
+      expect(css).toMatch(
+        /\.sg-sheet \{[^}]*animation: sg-sheet-up var\(--sg-spring-ms\) var\(--sg-spring\);/
+      );
+    });
   });
 });
