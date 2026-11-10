@@ -134,7 +134,7 @@ const ITEMS = [
     status: 'cancelled',
     design: { id: D1, name: '싱크대 A' },
   }),
-  { key: 'x:1', kind: 'design', day: '2026-11-10' }, // 모르는 종류 — 뺀다
+  { key: 'x:1', kind: 'purchase', day: '2026-11-10' }, // 모르는 종류 — 뺀다
   { key: 'x:2', kind: 'sales', day: '11-10' }, // 날이 아니다 — 뺀다
 ];
 const sched = (extra = {}) => ({
@@ -334,15 +334,19 @@ describe('자리 · 이름', () => {
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'calendar.js')");
   });
 
-  test('종류 색 — 스타일에 넷이 있다 (바꾸면 색각 검사를 다시 한다)', () => {
+  test('종류 색 — 스타일에 다섯이 있다 (바꾸면 색각 검사를 다시 한다)', () => {
     const css = read('segan/shell.css');
     for (const line of [
       '--cal-sales: #2f6fb0;',
+      '--cal-design: #8a7ff4;',
       '--cal-make: #c96a2b;',
       '--cal-install: #1f9a86;',
       '--cal-as: #9b3b3b;',
     ])
       expect(css).toContain(line);
+    expect(css).toContain('.cal-sw--design {');
+    expect(lib().KINDS).toEqual(['sales', 'design', 'make', 'install', 'as']); // 업무 흐름 차례
+    expect(lib().KIND_LABEL.design).toBe('설계');
   });
 });
 
@@ -424,7 +428,7 @@ describe('판정 · 본문 (순수 함수)', () => {
       'as:a1',
       'schedule:' + S2,
     ]);
-    const all = { sales: true, make: true, install: true, as: true };
+    const all = { sales: true, design: true, make: true, install: true, as: true };
     const map = L.byDay(d.items, all);
     expect(map['2026-11-10'].map((x) => x.kind)).toEqual(['sales', 'install']); // 시각 없는 줄이 먼저
     // 시각 차례 — 종류가 달라도 이른 것이 위, 같은 시각이면 종류 차례
@@ -434,8 +438,10 @@ describe('판정 · 본문 (순수 함수)', () => {
       at('as', '09:00'),
       at('install', '09:00'),
       at('make', null),
+      at('design', null),
     ];
     expect(L.byDay(mixed, all)['2026-11-11'].map((x) => x.kind)).toEqual([
+      'design',
       'make',
       'install',
       'as',
@@ -448,12 +454,14 @@ describe('판정 · 본문 (순수 함수)', () => {
     ]);
     expect(L.countKinds(d.items, L.monthGrid('2026-11-10'))).toEqual({
       sales: 2,
+      design: 0,
       make: 1,
       install: 1,
       as: 1,
     });
     expect(L.countKinds(d.items, L.weekDays('2026-11-10'))).toEqual({
       sales: 2,
+      design: 0,
       make: 0,
       install: 1,
       as: 0,
@@ -470,6 +478,25 @@ describe('판정 · 본문 (순수 함수)', () => {
     expect(L.openOf(by['as:a1'])).toBe('p-as');
     expect(L.openOf({ source: 'schedule', kind: 'sales' })).toBe('p-consult'); // 실측
     expect(L.openOf(null)).toBe('');
+    // 설계 마감 = 계약금 입금날 — 설계 화면으로, 상태는 받았는지
+    const due = {
+      key: 'design_due:o1',
+      source: 'design_due',
+      kind: 'design',
+      type: 'design_due',
+      label: '설계 마감',
+      day: '2026-11-12',
+      status: 'deposit_paid',
+      design: { id: D1, name: '싱크대 A' },
+      project: { id: P1, title: '싱크대' },
+      order_no: 'DD-1',
+      amount: null,
+    };
+    expect(L.openOf(due)).toBe('p-design');
+    expect(L.statusOf(due)).toBe('계약금 입금');
+    expect(L.statusOf({ ...due, status: 'deposit_due' })).toBe('입금 예정');
+    expect(L.statusOf({ ...due, status: 'x' })).toBe('');
+    expect(L.detailOf(due)).toBe('싱크대 · 설계 싱크대 A · 수주 DD-1'); // 금액은 없다
     expect(L.detailOf(by['schedule:' + S1])).toBe(
       '설치 1차 · 싱크대 · 설계 싱크대 A · 대구광역시 북구 · 수주 DD-1 · 담당 설치 1팀'
     );
@@ -589,14 +616,56 @@ describe('월 보기', () => {
     expect(cell('2026-11-11').hasAttribute('aria-current')).toBe(false);
     expect(cell('2026-12-03').classList.contains('cal-day--out')).toBe(true);
     expect(cell('2026-11-30').classList.contains('cal-day--out')).toBe(false);
-    // 네모 자리는 종류 차례로 넷 — 없는 종류는 빈 자리
+    // 네모 자리는 종류 차례로 다섯 — 없는 종류는 빈 자리
     expect([...today.querySelectorAll('.cal-dots i')].map((i) => i.className)).toEqual([
       'cal-sw cal-sw--sales',
+      'cal-sw cal-sw--none',
       'cal-sw cal-sw--none',
       'cal-sw cal-sw--install',
       'cal-sw cal-sw--none',
     ]);
     expect([...today.querySelectorAll('.cal-chip')].map(text)).toEqual(['상담 희망일', '설치']);
+  });
+
+  test('설계 마감 — 계약금 입금날에 설계 색 네모 · 상태 · 「열기」는 설계 화면', async () => {
+    const due = (id, day, status) =>
+      item({
+        key: 'design_due:' + id,
+        source: 'design_due',
+        id,
+        kind: 'design',
+        type: 'design_due',
+        label: '설계 마감',
+        day,
+        status,
+        design: { id: D1, name: '싱크대 A' },
+        project: { id: P1, title: '싱크대' },
+        order_no: 'DD-1',
+      });
+    await load({
+      sched: () =>
+        ok(
+          sched({
+            can_manage: false,
+            items: [
+              due('o1', '2026-11-10', 'deposit_paid'),
+              due('o2', '2026-11-18', 'deposit_due'),
+            ],
+          })
+        ),
+    });
+    expect(kinds()).toEqual(['영업0', '설계2', '생산0', '설치0', 'A/S0']);
+    expect([...cell('2026-11-10').querySelectorAll('.cal-dots i')].map((i) => i.className)[1]).toBe(
+      'cal-sw cal-sw--design'
+    );
+    expect(rows()).toEqual(['설계 마감 | 설계 · 싱크대 · 설계 싱크대 A · 수주 DD-1 | 계약금 입금']);
+    const go = box().querySelector('.cal-item .cal-link');
+    expect(go.getAttribute('data-me-go')).toBe('p-design');
+    expect(box().querySelector('[data-act="edit"]')).toBeNull(); // 일정 표의 줄이 아니다 — 고치기 없음
+    await click('.cal-day[data-day="2026-11-18"]');
+    expect(rows()).toEqual(['설계 마감 | 설계 · 싱크대 · 설계 싱크대 A · 수주 DD-1 | 입금 예정']);
+    await click('.cal-kind[data-kind="design"]');
+    expect(rows()).toHaveLength(0);
   });
 
   test('한 칸에 셋까지 적고 나머지는 +N', async () => {
@@ -652,9 +721,9 @@ describe('월 보기', () => {
 
   test('종류 켜고 끄기 — 수는 그대로, 달력 · 그날 일정에서 빠진다', async () => {
     await load();
-    expect(kinds()).toEqual(['영업2', '생산1', '설치1', 'A/S1']);
+    expect(kinds()).toEqual(['영업2', '설계0', '생산1', '설치1', 'A/S1']);
     await click('.cal-kind[data-kind="sales"]');
-    expect(kinds()).toEqual(['영업2 (끔)', '생산1', '설치1', 'A/S1']);
+    expect(kinds()).toEqual(['영업2 (끔)', '설계0', '생산1', '설치1', 'A/S1']);
     expect(rows()).toHaveLength(1);
     expect(cell('2026-11-10').getAttribute('aria-label')).toBe('11월 10일 화요일, 오늘, 일정 1건');
     expect(cell('2026-11-12').querySelectorAll('.cal-chip')).toHaveLength(0);

@@ -8,19 +8,22 @@
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET   /company/schedules?from=YYYY-MM-DD&to=YYYY-MM-DD   (한국 날짜 · 그날 포함 · 길어야 100일)
                      → { company, can_manage, range, today, truncated,
-                         items[{ key, source: schedule | consult | payment | as, id, kind: sales | make | install | as,
+                         items[{ key, source: schedule | consult | payment | design_due | as, id,
+                                 kind: sales | design | make | install | as,
                                  type, label, day, at, time, title, status, location, design { id, name } | null,
                                  order_no, amount, project { id, title } | null, duration_min?, assignee_name? }] }
                GET   /company/designs            { items[{ id, name, project_id }] } — 「일정 더하기」의 설계 고르기
                POST  /designs/:id/schedules      { items: [{ type, scheduled_at, title? }] }   (대표 · 실장)
                PATCH /schedules/:id              { scheduled_at?, status? }                    (대표 · 실장)
-   화면      월 · 주 · 목록 보기, ‹ 오늘 › 로 옮기기, 종류(영업 · 생산 · 설치 · A/S) 켜고 끄기.
+   화면      월 · 주 · 목록 보기, ‹ 오늘 › 로 옮기기, 종류(영업 · 설계 · 생산 · 설치 · A/S) 켜고 끄기.
              월 · 주는 날을 누르면 아래 「그날 일정」 칸에 줄이 나온다. 목록은 그 달의 일정 있는 날만 차례로.
              줄마다 시각 · 종류 · 이름 · 프로젝트 · 설계 · 지역 · 수주 번호 · (받을 날은 금액) · 담당 · 상태,
-             「열기」 = 그 일의 하위 화면(상담 · 계약 · 생산 · 설치 · A/S), 일정 표의 줄은 대표 · 실장에게 「고치기」(날 · 시각 · 상태).
+             「열기」 = 그 일의 하위 화면(상담 · 계약 · 설계 · 생산 · 설치 · A/S), 일정 표의 줄은 대표 · 실장에게 「고치기」(날 · 시각 · 상태).
              「일정 더하기」(대표 · 실장) — 설계 · 종류 · 날 · 시각 · 이름. 일정은 설계에 붙는다 (설계 없는 프로젝트에는 못 넣는다).
              영업 일정(상담 희망일 · 실측 · 받을 날)과 A/S 접수는 서버가 자료에서 찾아 준다 — 여기서 넣지 않는다.
-   색        종류 넷 — 영업 #2f6fb0 · 생산 #c96a2b · 설치 #1f9a86 · A/S #9b3b3b (흰 바탕, 모든 짝 색각 검사 통과).
+             설계 마감 = 계약금 입금날 당일 (2026-11-10 대표님 결정) — 서버가 수주의 계약금에서 찾아 준다.
+             받았으면 받은 날에 「계약금 입금」, 아직이면 계약금 받을 날에 「입금 예정」. 금액은 오지 않는다 (구성원 모두 본다).
+   색        종류 다섯 — 영업 #2f6fb0 · 설계 #8a7ff4 · 생산 #c96a2b · 설치 #1f9a86 · A/S #9b3b3b (흰 바탕, 모든 짝 색각 검사 통과).
              색만으로 가리지 않는다: 종류 단추 · 줄에는 이름을 적고, 폰 월 달력의 네모는 종류마다 자리가 정해져 있다.
    움직임    없다 — 달 넘기기 · 날 고르기는 자주 누르는 곳이다 (CLAUDE.md 「SEGAN 앱 모션 규칙」).
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · 모양이 틀림) → 칸째 감춘다. 달을 옮기다 못 읽으면 그 자리에 글 + 「다시 읽기」.
@@ -32,8 +35,8 @@
 
   var MEMBER_ROLES = ['owner', 'manager', 'staff'];
   var PLANS = ['manager', 'expert', 'agent']; // 프로젝트를 가지는 협력업체 — segan/partner-projects.js PLANS
-  var KINDS = ['sales', 'make', 'install', 'as']; // 워커 SCHEDULE_KINDS — 이 차례가 네모 자리 · 종류 단추 차례
-  var KIND_LABEL = { sales: '영업', make: '생산', install: '설치', as: 'A/S' };
+  var KINDS = ['sales', 'design', 'make', 'install', 'as']; // 워커 SCHEDULE_KINDS — 이 차례가 네모 자리 · 종류 단추 차례
+  var KIND_LABEL = { sales: '영업', design: '설계', make: '생산', install: '설치', as: 'A/S' };
   var VIEWS = ['month', 'week', 'list'];
   var VIEW_LABEL = { month: '월', week: '주', list: '목록' };
   var WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -57,6 +60,8 @@
     cancelled: '취소',
   };
   var AS_STATE = { requested: '접수', received: '받음', done: '끝' }; // segan/as-requests.js 와 같다
+  // 설계 마감(계약금 입금날) — 받은 날이면 굳은 날, 받을 날이면 아직 예정
+  var DESIGN_DUE_STATE = { deposit_paid: '계약금 입금', deposit_due: '입금 예정' };
   var DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
   var TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -94,7 +99,7 @@
     view: 'month',
     cursor: '', // 지금 보는 달 · 주 안의 한 날 (YYYY-MM-DD, 한국 날짜)
     sel: '', // 고른 날
-    kinds: { sales: true, make: true, install: true, as: true },
+    kinds: { sales: true, design: true, make: true, install: true, as: true },
     data: null, // { manage, today, truncated, items } — 지금 기간
     cache: {}, // 'from~to' → data
     seq: 0, // 늦게 온 응답 버리기
@@ -259,28 +264,30 @@
     days.forEach(function (d) {
       inDays[d] = true;
     });
-    var n = { sales: 0, make: 0, install: 0, as: 0 };
+    var n = { sales: 0, design: 0, make: 0, install: 0, as: 0 };
     (items || []).forEach(function (x) {
       if (inDays[x.day]) n[x.kind] += 1;
     });
     return n;
   }
 
-  /** 「열기」가 가는 하위 화면 (segan/me.js 화면 이름) — 상담 희망일 · 실측 = 상담, 받을 날 = 계약 */
+  /** 「열기」가 가는 하위 화면 (segan/me.js 화면 이름) — 상담 희망일 · 실측 = 상담, 받을 날 = 계약, 설계 마감 = 설계 */
   function openOf(x) {
     if (!x || typeof x !== 'object') return '';
     if (x.source === 'payment') return 'p-contract';
     if (x.kind === 'sales') return 'p-consult';
+    if (x.kind === 'design') return 'p-design';
     if (x.kind === 'make') return 'p-make';
     if (x.kind === 'install') return 'p-install';
     if (x.kind === 'as') return 'p-as';
     return '';
   }
 
-  /** 상태 글 — 일정 표 · A/S 접수만 (상담 상태 · 받을 날은 적지 않는다) */
+  /** 상태 글 — 일정 표 · A/S 접수 · 설계 마감 (상담 상태 · 받을 날은 적지 않는다) */
   function statusOf(x) {
     if (x.source === 'schedule') return SCHEDULE_STATUS[x.status] || '';
     if (x.source === 'as') return AS_STATE[x.status] || '';
+    if (x.source === 'design_due') return DESIGN_DUE_STATE[x.status] || '';
     return '';
   }
 
@@ -1025,7 +1032,7 @@
     C.view = 'month';
     C.cursor = kstToday();
     C.sel = C.cursor;
-    C.kinds = { sales: true, make: true, install: true, as: true };
+    C.kinds = { sales: true, design: true, make: true, install: true, as: true };
     C.data = null;
     C.cache = {};
     C.seq += 1;
@@ -1087,6 +1094,7 @@
     byDay: byDay,
     countKinds: countKinds,
     openOf: openOf,
+    statusOf: statusOf,
     detailOf: detailOf,
     designsOf: designsOf,
     designGroups: designGroups,
