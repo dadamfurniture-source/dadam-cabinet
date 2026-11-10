@@ -197,7 +197,6 @@ test('대표 — 일정 · 상담 희망일 · 받을 날 · 설계 마감 · A/
     `schedule:${S(2)}`,
     `payment:${PAY(2)}`,
     `payment:${PAY(5)}`,
-    `design_due:${O(3)}`,
     `schedule:${S(3)}`,
     `payment:${PAY(7)}`,
     `schedule:${S(4)}`,
@@ -243,7 +242,7 @@ test('대표 — 일정 · 상담 희망일 · 받을 날 · 설계 마감 · A/
   assert.equal(as.time, '16:20');
   assert.equal(as.order_no, 'SO-20261101-AAAA');
 
-  // 설계 마감 — 계약금을 받았으면 받은 날, 아직이면 받을 날(예정). 금액은 없다
+  // 설계 마감 — 계약금을 받은 날. 입금된 뒤에만 보인다 (2026-11-10 대표님 결정). 금액은 없다
   const due1 = by[`design_due:${O(1)}`];
   assert.equal(due1.kind, 'design');
   assert.equal(due1.label, '설계 마감');
@@ -253,12 +252,8 @@ test('대표 — 일정 · 상담 희망일 · 받을 날 · 설계 마감 · A/
   assert.equal(due1.order_no, 'SO-20261101-AAAA');
   assert.deepEqual(due1.design, { id: D(1), name: '예시 설계 1' });
   assert.deepEqual(due1.project, { id: P(1), title: '예시 프로젝트 1' });
-  const due3 = by[`design_due:${O(3)}`];
-  assert.equal(due3.day, '2026-11-18', '아직 안 받았으면 계약금 받을 날');
-  assert.equal(due3.status, 'deposit_due');
-  assert.equal(due3.amount, null);
-  assert.deepEqual(due3.design, { id: D(2), name: '예시 설계 2' });
-  assert.deepEqual(due3.project, { id: P(2), title: '예시 프로젝트 2' });
+  assert.ok(!by[`design_due:${O(3)}`], '계약금을 아직 안 받은 수주 — 받을 날에는 마감이 없다');
+  assert.ok(d.items.every((i) => i.status !== 'deposit_due'), '「입금 예정」 줄은 없다');
   assert.ok(!by[`design_due:${O(4)}`], '10월에 계약금을 먼저 받은 수주 — 남은 계약금 받을 날은 마감이 아니다');
   assert.ok(!by[`design_due:${O(2)}`], '취소 수주');
 
@@ -282,7 +277,6 @@ test('실장은 대표와 같다 · 직원은 받을 날(금액)을 못 보고 c
     `consult:${C(1)}`,
     `as:${AS(1)}`,
     `schedule:${S(2)}`,
-    `design_due:${O(3)}`,
     `schedule:${S(3)}`,
     `schedule:${S(4)}`,
   ]);
@@ -291,6 +285,22 @@ test('실장은 대표와 같다 · 직원은 받을 날(금액)을 못 보고 c
   assert.ok(payCalls.length > 0, '설계 마감 날짜는 직원도 본다');
   assert.ok(payCalls.every((c) => !c.query.includes('amount')), '직원 요청은 금액을 읽지 않는다');
   assert.ok(payCalls.every((c) => c.query.includes('stage=eq.deposit')), '직원 요청은 계약금 줄만 읽는다');
+});
+
+test('설계 마감은 입금된 뒤에만 — 받은 날에 생기고, 나눠 받아도 처음 받은 날 하나', async () => {
+  const t = tables();
+  const pay = (n) => t.order_payments.find((p) => p.id === PAY(n));
+  pay(5).paid_on = '2026-11-12'; // 받을 날(18일)보다 먼저 받음
+  pay(7).paid_on = '2026-11-22'; // 10월에 먼저 받은 수주의 둘째 계약금
+  const r = await call(world(t), 't_staff', NOV);
+  const by = Object.fromEntries(r.json.data.items.map((i) => [i.key, i]));
+  const due3 = by[`design_due:${O(3)}`];
+  assert.equal(due3.day, '2026-11-12', '받을 날이 아니라 받은 날');
+  assert.equal(due3.status, 'deposit_paid');
+  assert.equal(due3.amount, null);
+  assert.deepEqual(due3.design, { id: D(2), name: '예시 설계 2' });
+  assert.deepEqual(due3.project, { id: P(2), title: '예시 프로젝트 2' });
+  assert.ok(!by[`design_due:${O(4)}`], '처음 받은 날(10월 20일)이 마감 — 11월에 또 받아도 줄이 늘지 않는다');
 });
 
 test('기간을 좁히면 그 날만 — 마지막 날은 한국 시간 자정 앞까지', async () => {
@@ -308,7 +318,7 @@ test('기간을 좁히면 그 날만 — 마지막 날은 한국 시간 자정 �
 test('기간 없이 부르면 이번 달', async () => {
   const r = await call(world(), 't_owner', '/company/schedules');
   assert.deepEqual(r.json.data.range, { from: '2026-11-01', to: '2026-11-30' });
-  assert.equal(r.json.data.items.length, 11);
+  assert.equal(r.json.data.items.length, 10);
 });
 
 test('잘못된 기간은 422 · 구성원이 아니면 403 not_member · 프로젝트를 못 가지는 업체는 403 not_project_company · 토큰 없으면 401', async () => {
@@ -338,7 +348,7 @@ test('A/S 접수 표가 아직 없으면 (DB 0045 전) 그 줄만 빼고 준다'
     return inner(input, init);
   };
   const data = await withFake(fake, () => listCompanySchedules(ENV, { user: { id: OWNER }, query: { from: '2026-11-01', to: '2026-11-30' } }, AT));
-  assert.equal(data.items.length, 10);
+  assert.equal(data.items.length, 9);
   assert.ok(!data.items.some((i) => i.source === 'as'));
 });
 
