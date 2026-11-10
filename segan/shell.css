@@ -1277,6 +1277,359 @@ a.sg-row.ad-row::after {
   margin-top: 16px;
 }
 
+/* 설치 · A/S 지도 + 표 (#siteInstall · #siteAs — segan/site-map.js). 각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음.
+   상태 색 넷(예정 · 진행/미정 · 팀 없음 · 끝)은 핀과 번호 네모가 같이 쓴다. 색만으로 가리지 않는다:
+   핀 · 네모에는 번호가, 표에는 상태 글자가, 범례에는 이름이 있다 */
+.sm {
+  --sm-info: #2f6fb0;
+  --sm-warn: #fab219;
+  --sm-bad: #d03b3b;
+  --sm-ok: #1a7f37;
+  margin-bottom: 24px;
+}
+
+.sm-range {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+
+.sm-head > .sm-range {
+  flex: 1 0 100%;
+  margin-bottom: 0;
+}
+
+.sm-tabs {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.sm-n {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+.sm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-left: auto;
+}
+
+.sm-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.sm-filter select {
+  min-height: 44px;
+  max-width: 180px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.sm-mapwrap {
+  position: relative;
+  height: 300px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+}
+
+/* 지도를 못 쓰는 때(키 없음 · 못 불러옴) — 큰 빈 칸 대신 글 한 줄 */
+.sm-mapwrap--off {
+  height: auto;
+  border-style: dashed;
+  border-color: var(--v5-line-25);
+}
+
+.sm-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* 지도 타일은 제 크기로 — 셸의 img { max-width: 100% } 가 타일을 줄이지 않게 */
+.sm-map img {
+  max-width: none;
+}
+
+.sm-mapmsg {
+  position: relative;
+  margin: 0;
+  padding: 16px;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sm-mapnote {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.sm-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sm-sw {
+  width: 10px;
+  height: 10px;
+}
+
+.sm-sw--info {
+  background: var(--sm-info);
+}
+
+.sm-sw--warn {
+  background: var(--sm-warn);
+}
+
+.sm-sw--bad {
+  background: var(--sm-bad);
+}
+
+.sm-sw--ok {
+  background: var(--sm-ok);
+}
+
+.sm-tablewrap {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+
+.sm-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sm-table th,
+.sm-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 300;
+  white-space: nowrap;
+}
+
+.sm-table thead th {
+  border-bottom-color: var(--v5-line-25);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--v5-ink-60);
+}
+
+.sm-table th:first-child {
+  width: 44px;
+  padding-left: 0;
+}
+
+/* 줄은 줄이지 않고 바탕만 바로 바꾼다 (CLAUDE.md 「SEGAN 앱 모션 규칙」 — 목록 줄) */
+.sm-row {
+  cursor: pointer;
+}
+
+.sm-row--on {
+  background: var(--v5-well);
+}
+
+.sm-table td.sm-name,
+.sm-table td.sm-body {
+  white-space: normal;
+}
+
+/* 프로젝트 이름이 증상 칸에 밀려 글자마다 꺾이지 않게 */
+.sm-table td.sm-name {
+  min-width: 150px;
+}
+
+.sm-name b {
+  display: block;
+  font-weight: 400;
+}
+
+.sm-name small {
+  display: block;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.sm-body {
+  min-width: 140px;
+  max-width: 260px;
+}
+
+.sm-dim {
+  color: var(--v5-ink-45);
+}
+
+/* 번호 네모 — 표의 번호 단추 · 현장 정보 제목. 지도 핀과 같은 색 */
+.sm-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+button.sm-num {
+  cursor: pointer;
+}
+
+.sm-num--info,
+.sm-pin--info {
+  background: var(--sm-info);
+}
+
+.sm-num--warn,
+.sm-pin--warn {
+  background: var(--sm-warn);
+  color: var(--v5-ink);
+}
+
+.sm-num--bad,
+.sm-pin--bad {
+  background: var(--sm-bad);
+}
+
+.sm-num--ok,
+.sm-pin--ok {
+  background: var(--sm-ok);
+}
+
+button.sm-num[aria-pressed='true'] {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
+/* 지도 핀 — 각진 번호 네모. 흰 테두리로 지도 바탕 · 옆 핀과 가른다. 고른 핀은 크게 + 먹색 선 */
+.sm-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 5px;
+  border: 2px solid #ffffff;
+  border-radius: 0;
+  color: #ffffff;
+  font-family: var(--v5-sans);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sm-pin--warn {
+  color: var(--v5-ink);
+}
+
+.sm-pin--on {
+  min-width: 38px;
+  height: 38px;
+  font-size: 14px;
+  outline: 2px solid var(--v5-ink);
+}
+
+.sm-detail {
+  margin-top: 14px;
+}
+
+.sm-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.sm-dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px 24px;
+  margin: 0;
+}
+
+.sm-dl > div {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.sm-dl dt {
+  flex: 0 0 72px;
+  color: var(--v5-ink-60);
+}
+
+.sm-dl dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 300;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 720px) {
+  .sm-mapwrap {
+    height: 380px;
+  }
+
+  .sm-mapwrap--off {
+    height: auto;
+  }
+
+  .sm-dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* 준비 중 안내 (구매 · 재고 · 근무 일정 · 작업자 · 수금 · 고객 · Manager A/S) — 하위 화면 자리의 한 칸 */
 .me-pane-note.me-soon {
   padding: 18px 16px;

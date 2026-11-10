@@ -312,8 +312,10 @@ describe('자리 · 이름', () => {
       'partner-consults', // 배정 상담
       'factory-requests', // 받은 제작 의뢰 (segan/factory-requests.js)
       'production-requests', // Manager 제작 의뢰 (segan/production-requests.js — 프로젝트 관리 › 제작)
+      'siteInstall', // 설치 현장 지도 + 표 (segan/site-map.js — 프로젝트 관리 › 설치)
       'partnerProjects', // 그 단계 프로젝트 (segan/partner-projects.js)
       'partnerConsultSettings', // 상담 설정 — 상담 화면 맨 아래
+      'siteAs', // A/S 현장 지도 + 표 (segan/site-map.js — 프로젝트 관리 › A/S)
       'as', // A/S함 (segan/as-requests.js)
       'meBooks', // 회계 요약 (내 팩토리)
     ]);
