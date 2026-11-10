@@ -363,20 +363,13 @@ afterEach(() => {
 });
 
 describe('자리 · 이름 — 워커와 같은 값', () => {
-  test('me.html — 제작 의뢰함은 프로젝트 관리 › 상담, 제작 의뢰는 › 제작 (둘 다 프로젝트 칸 앞), 칸은 업체 칸 안에 감춰 둔다', () => {
+  test('me.html — 제작 의뢰함 · 제작 의뢰는 프로젝트 관리 › 생산(제작) (둘 다 프로젝트 칸 앞), 칸은 업체 칸 안에 감춰 둔다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const keys = [...doc.querySelectorAll('#meSubProject > li[data-me-item]')].map((li) =>
       li.getAttribute('data-me-item')
     );
-    expect(keys).toEqual([
-      'p-consult',
-      'p-design',
-      'p-quote',
-      'p-contract',
-      'p-make',
-      'p-install',
-      'p-as',
-    ]);
+    expect(keys).toEqual(['pj-sales', 'pj-design', 'pj-planner', 'pj-make', 'pj-install', 'pj-as']);
+    expect(doc.querySelector('[data-me-item="pj-make"] a').getAttribute('href')).toBe('#p-make');
     const parts = [...doc.getElementById('partner').children].map((el) => el.id);
     const partAt = (id) => parts.findIndex((x) => x === id);
     for (const id of ['production-requests', 'factory-requests']) {
@@ -432,10 +425,10 @@ describe('자리 · 이름 — 워커와 같은 값', () => {
 });
 
 describe('누가 보나 — 등급(company.plan)으로, 직책(role)과 견주지 않는다', () => {
-  test('Manager 등급 업체 대표 — 프로젝트 관리 › 제작에 「제작 의뢰」, 목록 · 「제작 의뢰」 단추, 제작 의뢰함은 없다', async () => {
+  test('Manager 등급 업체 대표 — 프로젝트 관리 › 생산에 「제작 의뢰」, 목록 · 「제작 의뢰」 단추, 제작 의뢰함은 없다', async () => {
     const calls = await load();
-    expect(visible(menu('p-make'))).toBe(true);
-    expect(menu('p-make').querySelector('a').getAttribute('aria-current')).toBe('page'); // 옛 주소 → 그 하위 줄
+    expect(visible(menu('pj-make'))).toBe(true);
+    expect(menu('pj-make').querySelector('a').getAttribute('aria-current')).toBe('page'); // 옛 주소 → 그 하위 줄 (생산)
     expect(fbox().hidden).toBe(true);
     expect(visible(box())).toBe(true);
     expect($('meTitle').textContent).toBe('제작 의뢰');
@@ -475,8 +468,8 @@ describe('누가 보나 — 등급(company.plan)으로, 직책(role)과 견주�
       partner: partnerMe({ plan: 'expert', role: 'manager' }),
     });
     expect(gets(calls, '/production-requests')).toHaveLength(0);
-    expect(visible(menu('p-consult'))).toBe(true);
-    expect(menu('p-consult').querySelector('a').getAttribute('aria-current')).toBe('page');
+    expect(visible(menu('pj-make'))).toBe(true);
+    expect(menu('pj-make').querySelector('a').getAttribute('aria-current')).toBe('page'); // 받은 제작 의뢰 = 생산
     expect(visible(fbox())).toBe(true);
     expect(fbox().textContent).toContain('아직 온 제작 의뢰가 없습니다.');
   });
@@ -485,7 +478,7 @@ describe('누가 보나 — 등급(company.plan)으로, 직책(role)과 견주�
     await load({ url: '/segan/me.html#factory-requests', partner: HQ });
     expect($('partner').hidden).toBe(false);
     expect(visible(fbox())).toBe(true);
-    expect(visible(menu('p-consult'))).toBe(true);
+    expect(visible(menu('pj-make'))).toBe(true);
   });
 
   test('DB 0050 전(ready false) · 403 — 칸째 감춘다, 메뉴 줄도 없다', async () => {

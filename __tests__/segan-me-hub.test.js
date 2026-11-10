@@ -1,15 +1,17 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, Element */
 /**
- * SEGAN 마이페이지 메뉴 · 하위 화면 (segan/me.js + segan/me.html) — 페이지가 싣는 실제 모듈을 모두 올린다
+ * SEGAN 마이페이지 메뉴 · 대시보드 · 하위 화면 (segan/me.js + segan/me.html) — 페이지가 싣는 실제 모듈을 모두 올린다
  * (업체 칸 · 상담 · 회계 · 프로젝트 · A/S · 결제 · 셸 · 만들기 · 마이페이지, 알림 push.js 만 뺀다).
  *
- *   메뉴    캔버스 용어 큰 메뉴(프로젝트 관리 · 플래너 · 재고 관리 · 회계 관리 · 인력 관리 / 본사 여섯 / 기본 정보)와
- *           그 아래 하위 줄, 쓸 수 있는 줄만 — 고객 · Manager · Expert · Agent · 다담 공장 · 다담 본사 · 관리자 · 작업자.
- *           폰 · 태블릿은 큰 메뉴를 누르면 펼치고(한 번에 하나), PC 는 늘 펼친다. 맨 아래 로그아웃
- *   하위 화면 주소 #이름 — 프로젝트 관리 #p-… · 인력 관리 #staff … · 알림 · 결제가 여는 옛 주소(#partner · #partner-consults ·
+ *   메뉴    B안 (2026-11-10) — 업무(홈 · 프로젝트 관리) / 관리(구매 · 재고 · 회계 · 인사 · 기준정보 · 플랫폼) / 내 계정,
+ *           쓸 수 있는 줄만 — 고객 · Manager · Expert · Agent · 다담 공장 · 다담 본사 · 관리자 · 작업자.
+ *           큰 메뉴 이름 = 그 대시보드(#dash-이름), 옆 ▾ = 하위 줄만 접고 편다 (폰 · PC 모두 한 번에 하나). 맨 아래 로그아웃
+ *   대시보드 하위 줄마다 칸 하나 (프로젝트 관리는 단계별 수), 아래에 그 메뉴의 칸 (프로젝트 목록 · 회계 요약)
+ *   구역    프로젝트 관리 하위 줄이 묶은 화면들 (영업 = 상담 · 견적 · 계약 · 수금 · 고객) — 같은 기록 안에서 바꾼다
+ *   하위 화면 주소 #이름 — 프로젝트 관리 #p-… · 인사 #staff … · 알림 · 결제가 여는 옛 주소(#partner · #partner-consults ·
  *           #as · ?failed=1)도 그 화면. 메뉴에서 누르면 기록을 넣고, 「‹ 마이페이지」 는 메뉴에서 왔으면 뒤로 · 바로 왔으면 메뉴로
- *   PC      1100px~ 두 칸 — # 가 없으면 메뉴 차례대로 처음 보이는 하위 화면
+ *   PC      1100px~ 두 칸 — # 가 없으면 처음 보이는 큰 메뉴의 대시보드
  *   플래너  PC 브라우저에서만 새 탭 (SeganShell.desktopTab — 규칙은 __tests__/segan-shell.test.js)
  */
 const fs = require('fs');
@@ -220,7 +222,7 @@ const screen = () => $('main').getAttribute('data-me-screen');
 /** 보이는 메뉴 — [큰 메뉴, [하위 줄 글 …]] (묶음 · 메뉴 차례대로, 감춘 묶음 · 메뉴 · 줄은 빼고) */
 const menus = () =>
   [...$('meHub').querySelectorAll('.me-group:not([hidden]) [data-menu]:not([hidden])')].map((m) => [
-    m.querySelector('.me-main').firstChild.textContent.trim(),
+    m.querySelector('.me-menu-name').textContent.trim(),
     [...m.querySelectorAll('li[data-me-item]:not([hidden]) .sg-row')].map((a) => a.textContent),
   ]);
 /** 보이는 묶음 머리글 (차례대로) */
@@ -248,21 +250,90 @@ const partnerParts = () =>
 const opened = () =>
   [...$('meHub').querySelectorAll('[data-menu].is-open')].map((m) => m.getAttribute('data-menu'));
 
-const STAGES = ['상담', '설계', '견적', '계약', '제작', '설치', 'A/S'];
+const PJ = ['영업', '설계', '생산', '설치', 'A/S'];
+const PJ_CUSTOMER = ['상담 · 계약', '설계', '제작', '설치', 'A/S'];
 const BASIC = ['내 연출컷', '좋아요', '크레딧 · 구독없음', '내 활동', '설정'];
 const basic = (factory) => [...BASIC.slice(0, 3), factory, ...BASIC.slice(3)];
 const LEDGER = ['한눈에', '매출', '매입', '사진', '보고서', '설정'];
 const STOCK = ['기본 자재', '자투리 자재', '철물'];
+const HOME = [
+  '오늘 현황',
+  '이익 · 목표',
+  '손익 분석',
+  '현금 · 미수',
+  '매출 예측',
+  '고객 흐름',
+  '공정 · 품질',
+];
+const MASTER = ['시공사례', '참고 이미지', '학습 데이터셋', '가전 모델'];
+const PLATFORM_ADMIN = [
+  '팩토리 신청',
+  '팩토리 평가',
+  '상담 배정',
+  '제작 의뢰 추천',
+  '완료 보고',
+  'A/S 현황',
+  '거래처 · 공급처 성적',
+  '회원',
+  '관리자 계정',
+  '활동 로그',
+];
 const HQ_CO = '77777777-7777-4777-8777-777777777777';
 const PLATFORM = partnerMe({ platform_member: true });
+/** 업체 프로젝트 — 단계마다 (영업 2 · 설계 1 · 생산 1 · 설치 1) */
+const projectOf = (n, extra = {}) => ({
+  id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`,
+  title: '프로젝트 ' + n,
+  status: 'active',
+  stage: 'consult',
+  created_at: '2026-11-01T00:00:00Z',
+  ...extra,
+});
+const PROJECTS = ok({
+  company: { id: CO },
+  can_manage: false,
+  items: [
+    projectOf(1),
+    projectOf(2, { stage: 'quote' }),
+    projectOf(3, { stage: 'design' }),
+    projectOf(4, { stage: 'order', order: { status: 'in_production' } }),
+    projectOf(5, { stage: 'installed' }),
+  ],
+});
+const dashBtn = (key) => $('meHub').querySelector(`[data-me-dash="${key}"]`);
+const toggle = (key) => $('meHub').querySelector(`[data-menu-toggle="${key}"]`);
+/** 대시보드 칸 — [글, 수, 작은 글] (없으면 null) */
+const tiles = () =>
+  [...$('meDashBody').querySelectorAll('.me-tile')].map((t) => [
+    t.querySelector('.me-tile-k').textContent,
+    t.querySelector('.me-tile-n') ? t.querySelector('.me-tile-n').textContent : null,
+    t.querySelector('.me-tile-d') ? t.querySelector('.me-tile-d').textContent : null,
+  ]);
+const tile = (label) =>
+  [...$('meDashBody').querySelectorAll('.me-tile')].find(
+    (t) => t.querySelector('.me-tile-k').textContent === label
+  );
+/** 구역 단추 — 보이면 글 차례대로, 감췄으면 [] */
+const chips = () =>
+  $('meParts').hidden
+    ? []
+    : [...$('meParts').querySelectorAll('.me-part')].map((a) => a.textContent);
+const chip = (label) =>
+  [...$('meParts').querySelectorAll('.me-part')].find((a) => a.textContent === label);
+const chipOn = () => {
+  const a = $('meParts').querySelector('[aria-current="page"]');
+  return a ? a.textContent : null;
+};
+const lit = () =>
+  [...$('meHub').querySelectorAll('[aria-current="page"]')].map((a) => a.textContent);
 
 afterEach(() => {
   jest.restoreAllMocks();
   delete window.matchMedia;
 });
 
-describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () => {
-  test('고객 — 내 정보, 프로젝트 관리(상담) · 기본 정보(팩토리로 시작하기), 머리글 없이, 맨 아래 로그아웃', async () => {
+describe('메뉴 — B안 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () => {
+  test('고객 — 내 정보, 프로젝트 관리(상담 · 계약) · 내 계정(팩토리로 시작하기), 머리글 없이, 맨 아래 로그아웃', async () => {
     await load();
     expect(screen()).toBe('');
     expect($('meName').textContent).toBe('김대표');
@@ -271,34 +342,31 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
     expect($('meCredits').textContent).toBe('1,200 크레딧 · 생성 60회');
     expect($('meCompany').hidden).toBe(true);
     expect(menus()).toEqual([
-      ['프로젝트 관리', ['상담']],
-      ['기본 정보', basic('팩토리로 시작하기')],
+      ['프로젝트 관리', ['상담 · 계약']],
+      ['내 계정', basic('팩토리로 시작하기')],
     ]);
-    expect(groups()).toEqual(['', '']); // 고객은 「업무」 머리글 없이
-    expect(row('상담').getAttribute('href')).toBe('#p-consult');
+    expect(groups()).toEqual(['', '']); // 고객은 「업무」 머리글 없이, 관리 묶음은 없다
+    expect(row('상담 · 계약').getAttribute('href')).toBe('#p-consult');
     expect(row('팩토리로 시작하기').getAttribute('href')).toBe('#partner');
     expect($('meWork').hidden).toBe(true);
     expect($('meHub').lastElementChild.contains($('sgLogout'))).toBe(true);
-    // 상담 내역 · 내 프로젝트 · A/S 접수 줄은 없다 (프로젝트 관리로 옮겼다)
-    for (const label of ['상담 내역', '내 프로젝트', 'A/S 접수'])
+    for (const label of ['상담 내역', '내 프로젝트', 'A/S 접수', '영업'])
       expect(row(label)).toBeUndefined();
   });
 
-  test('고객 — 내 프로젝트를 읽으면 프로젝트 관리 하위 줄 일곱 (상담 ~ A/S)', async () => {
+  test('고객 — 내 프로젝트를 읽으면 프로젝트 관리 하위 줄 다섯 (상담 · 계약 · 설계 · 제작 · 설치 · A/S)', async () => {
     await load({ projects: ok([]) });
-    expect(menus()[0]).toEqual(['프로젝트 관리', STAGES]);
-    expect(STAGES.map((l) => row(l, 'project').getAttribute('href'))).toEqual([
+    expect(menus()[0]).toEqual(['프로젝트 관리', PJ_CUSTOMER]);
+    expect(PJ_CUSTOMER.map((l) => row(l, 'project').getAttribute('href'))).toEqual([
       '#p-consult',
       '#p-design',
-      '#p-quote',
-      '#p-contract',
       '#p-make',
       '#p-install',
       '#p-as',
     ]);
   });
 
-  test('신청 중 — 기본 정보 › 「팩토리 신청」', async () => {
+  test('신청 중 — 내 계정 › 「팩토리 신청」', async () => {
     await load({
       partner: partnerMe({
         application: {
@@ -310,37 +378,35 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
         },
       }),
     });
-    expect(menus()[1]).toEqual(['기본 정보', basic('팩토리 신청')]);
+    expect(menus()[1]).toEqual(['내 계정', basic('팩토리 신청')]);
   });
 
-  test('Manager 업체 대표 — 업무: 프로젝트 관리 · 플래너(BOM 없이), 재고 · 회계 · 인력 관리 없음, 내 정보에 업체 · 역할', async () => {
+  test('Manager 업체 대표 — 업무: 프로젝트 관리(영업 ~ A/S), 관리 묶음 없음, 플래너 줄은 따로 없다, 내 정보에 업체 · 역할', async () => {
     await load({ partner: member({ plan: 'manager' }), planner: PLANNER });
     expect(groups()).toEqual(['업무', '']);
     expect(menus()).toEqual([
-      ['프로젝트 관리', STAGES],
-      ['플래너', ['새 설계', '설계 모음', '렌더링']],
-      ['기본 정보', basic('내 팩토리다담 협력 주방')],
+      ['프로젝트 관리', PJ],
+      ['내 계정', basic('내 팩토리다담 협력 주방')],
     ]);
-    expect(row('새 설계').getAttribute('href')).toBe('planner/'); // SeganShell.ROLE_LINKS planner
+    expect(row('설계').getAttribute('href')).toBe('#p-design'); // 플래너는 설계 화면 위 단추
+    for (const label of ['새 설계', '설계 모음', 'BOM']) expect(row(label)).toBeUndefined();
     expect($('meCompany').textContent).toBe('다담 협력 주방 · 대표');
     expect($('meCompany').hidden).toBe(false);
   });
 
-  test('Expert 업체 직원 — 프로젝트 관리 · 재고 관리(준비 중), 인력 관리 없음', async () => {
+  test('Expert 업체 직원 — 프로젝트 관리 · 관리 › 구매 · 재고(준비 중), 인사 없음', async () => {
     await load({ partner: member({ plan: 'expert', role: 'staff' }) });
+    expect(groups()).toEqual(['업무', '관리', '']);
     expect(menus()).toEqual([
-      ['프로젝트 관리', STAGES],
-      ['재고 관리', STOCK],
-      ['기본 정보', basic('내 팩토리다담 협력 주방')],
+      ['프로젝트 관리', PJ],
+      ['구매 · 재고', STOCK],
+      ['내 계정', basic('내 팩토리다담 협력 주방')],
     ]);
-    expect($('meHub').querySelector('[data-menu="stock"] .me-soon-tag').textContent).toBe(
-      '준비 중'
-    );
     expect(row('기본 자재').classList.contains('me-row-soon')).toBe(true);
     expect($('meCompany').textContent).toBe('다담 협력 주방 · 직원');
   });
 
-  test('Agent 업체 대표 — 프로젝트 · 플래너 · 재고 · 회계 · 인력 관리 (비서 줄은 없다 — 모든 화면 비서)', async () => {
+  test('Agent 업체 대표 — 프로젝트 관리 · 구매 · 재고 · 회계 · 인사 (비서 줄은 없다 — 모든 화면 비서)', async () => {
     await load({
       partner: member(),
       ledger: ok({ money: true, level: 'full' }),
@@ -348,12 +414,11 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
       assistant: { level: 'full', can_chat: true },
     });
     expect(menus()).toEqual([
-      ['프로젝트 관리', STAGES],
-      ['플래너', ['새 설계', '설계 모음', '렌더링', 'BOM', '발주서 · 작업지시서']],
-      ['재고 관리', STOCK],
-      ['회계 관리', LEDGER],
-      ['인력 관리', ['직원', '일정', '작업자']],
-      ['기본 정보', basic('내 팩토리다담 협력 주방')],
+      ['프로젝트 관리', PJ],
+      ['구매 · 재고', STOCK],
+      ['회계', LEDGER],
+      ['인사', ['직원', '근무 일정', '작업자']],
+      ['내 계정', basic('내 팩토리다담 협력 주방')],
     ]);
     expect(LEDGER.map((l) => row(l, 'ledger').getAttribute('href'))).toEqual([
       'ledger.html#board',
@@ -367,84 +432,61 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
     expect(row('비서')).toBeUndefined();
   });
 
-  test('인력 관리 › 작업 분배 — 담당자를 고를 수 있을 때 (대표 · 실장, 서버 assignee_ready)', async () => {
-    await load({
-      partner: member(),
-      companyProjects: ok({
-        company: { id: CO },
-        can_manage: true,
-        assignee_ready: true,
-        members: [],
-        items: [],
-      }),
+  test('인사 › 작업 분배 — 담당자를 고를 수 있을 때 (대표 · 실장, 서버 assignee_ready)', async () => {
+    const assignable = ok({
+      company: { id: CO },
+      can_manage: true,
+      assignee_ready: true,
+      members: [],
+      items: [],
     });
-    expect(menus().find((m) => m[0] === '인력 관리')).toEqual([
-      '인력 관리',
-      ['직원', '작업 분배', '일정', '작업자'],
+    await load({ partner: member(), companyProjects: assignable });
+    expect(menus().find((m) => m[0] === '인사')).toEqual([
+      '인사',
+      ['직원', '작업 분배', '근무 일정', '작업자'],
     ]);
     // Agent 실장 — 직원 · 초대는 대표만 (업체 칸이 그리지 않는다)
-    await load({
-      partner: member({ role: 'manager' }),
-      companyProjects: ok({
-        company: { id: CO },
-        can_manage: true,
-        assignee_ready: true,
-        members: [],
-        items: [],
-      }),
-    });
-    expect(menus().find((m) => m[0] === '인력 관리')[1]).toEqual(['작업 분배', '일정', '작업자']);
+    await load({ partner: member({ role: 'manager' }), companyProjects: assignable });
+    expect(menus().find((m) => m[0] === '인사')[1]).toEqual(['작업 분배', '근무 일정', '작업자']);
   });
 
-  test('회계 관리 — 장부를 보기만(read) 해도 탭 여섯, 사진만 올리면 「영수증 올리기」, 못 열면 없다', async () => {
+  test('회계 — 장부를 보기만(read) 해도 여섯 줄, 사진만 올리면 「영수증 올리기」, 못 열면 없다', async () => {
     await load({ partner: member({ plan: 'expert' }), ledger: ok({ money: true, level: 'read' }) });
-    expect(menus().find((m) => m[0] === '회계 관리')).toEqual(['회계 관리', LEDGER]);
+    expect(menus().find((m) => m[0] === '회계')).toEqual(['회계', LEDGER]);
     await load({
       partner: member({ plan: 'expert', role: 'staff' }),
       ledger: ok({ can_upload: true }),
     });
-    expect(menus().find((m) => m[0] === '회계 관리')).toEqual(['회계 관리', ['영수증 올리기']]);
+    expect(menus().find((m) => m[0] === '회계')).toEqual(['회계', ['영수증 올리기']]);
     expect(row('영수증 올리기').getAttribute('href')).toBe('ledger.html');
     await load({ partner: member({ plan: 'expert' }) });
-    expect(menus().map((m) => m[0])).not.toContain('회계 관리');
+    expect(menus().map((m) => m[0])).not.toContain('회계');
   });
 
-  test('다담 공장 구성원 — 내 팩토리 줄 없이, 인력 관리 › 작업자는 PC 생산 계획', async () => {
+  test('다담 공장 구성원 — Agent 업체처럼, 내 팩토리 줄 없이, 인사 › 작업자는 PC 생산 계획', async () => {
     await load({ partner: HQ, ledger: ok({ money: true, level: 'full' }), planner: PLANNER });
     expect(menus()).toEqual([
-      ['프로젝트 관리', STAGES],
-      ['플래너', ['새 설계', '설계 모음', '렌더링', 'BOM', '발주서 · 작업지시서']],
-      ['재고 관리', STOCK],
-      ['회계 관리', LEDGER],
-      ['인력 관리', ['일정', '작업자']],
-      ['기본 정보', BASIC],
+      ['프로젝트 관리', PJ],
+      ['구매 · 재고', STOCK],
+      ['회계', LEDGER],
+      ['인사', ['근무 일정', '작업자']],
+      ['내 계정', BASIC],
     ]);
     expect(row('작업자').getAttribute('href')).toBe('../production.html');
     expect($('meCompany').textContent).toBe('다담 공장');
   });
 
-  test('관리자 — 본사 묶음: 경영 대시보드는 조각으로 메뉴마다 (회계관리 장부 줄은 본사 구성원만)', async () => {
+  test('관리자 — 홈(경영 대시보드 조각) · 관리 묶음의 관리자 줄 (거래처 · 인사 · 기준정보 · 플랫폼)', async () => {
     await load({ partner: HQ, isAdmin: true });
-    expect(groups()).toEqual(['업무', '본사', '']);
-    const hq = menus().slice(3, -1); // 업무 셋(프로젝트 · 재고 · 인력) 다음
-    expect(hq).toEqual([
-      ['종합 대시보드', ['오늘 현황', '이익 · 목표']],
-      ['계정관리', ['회원', '고객 흐름', '관리자 계정', '활동 로그']],
-      [
-        '업체관리',
-        [
-          '상담 배정',
-          '제작 의뢰 추천',
-          '팩토리 신청',
-          '팩토리 평가',
-          '완료 보고',
-          'A/S 현황',
-          '거래처 · 공급처 성적',
-        ],
-      ],
-      ['DB관리', ['시공사례', '참고 이미지', '학습 데이터셋', '가전 모델', '거래처 · 공급처']],
-      ['회계관리', ['손익 분석', '현금 · 미수', '매출 예측']],
-      ['인력관리', ['작업자 · 작업 배정', '작업 지시 보고', '공정 · 품질']],
+    expect(groups()).toEqual(['업무', '관리', '']);
+    expect(menus()).toEqual([
+      ['홈', HOME],
+      ['프로젝트 관리', PJ],
+      ['구매 · 재고', [...STOCK, '거래처 · 공급처']],
+      ['인사', ['근무 일정', '작업자', '작업자 · 작업 배정', '작업 지시 보고']],
+      ['기준정보', MASTER],
+      ['플랫폼', PLATFORM_ADMIN],
+      ['내 계정', BASIC],
     ]);
     expect(row('이익 · 목표').getAttribute('href')).toBe('hq-board.html#profit'); // 앱 화면
     expect(row('이익 · 목표').hasAttribute('data-desktop-tab')).toBe(false);
@@ -455,9 +497,10 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
     expect(row('제작 의뢰 추천').getAttribute('href')).toBe('admin.html#production');
     expect(row('팩토리 평가').getAttribute('href')).toBe('../admin/partner-eval.html');
     expect(row('회원').getAttribute('href')).toBe('admin.html#members');
+    expect(row('거래처 · 공급처').getAttribute('href')).toBe('../admin/counterparties.html');
   });
 
-  test('다담 본사 구성원 — 본사 묶음이 맨 위, 프로젝트 관리 없음, 회계관리 = 본사 장부만 (공장 장부는 등록 업체 › 회계)', async () => {
+  test('다담 본사 구성원 — 홈 · 관리, 업체 프로젝트 없음, 회계 = 본사 장부 (설정 없이, 공장 장부는 등록 업체 › 회계)', async () => {
     await load({
       partner: PLATFORM,
       isAdmin: true,
@@ -470,32 +513,41 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
         ],
       }),
     });
-    expect(groups()).toEqual(['본사', '']);
+    expect(groups()).toEqual(['업무', '관리', '']);
     expect(menus().map((m) => m[0])).toEqual([
-      '종합 대시보드',
-      '계정관리',
-      '업체관리',
-      'DB관리',
-      '회계관리',
-      '인력관리',
-      '기본 정보',
+      '홈',
+      '구매 · 재고',
+      '회계',
+      '인사',
+      '기준정보',
+      '플랫폼',
+      '내 계정',
     ]);
-    // 공장 장부를 열 수 있어도 「공장 장부 보기」 줄은 없다 — 업체관리 › 등록 업체 › 다담 공장 › 회계와 겹친다.
-    // 장부 줄 다음에 경영 대시보드 조각 (관리자)
-    expect(menus()[4]).toEqual([
-      '회계관리',
-      ['한눈에', '매출', '매입', '사진', '보고서', '손익 분석', '현금 · 미수', '매출 예측'],
-    ]);
+    expect(menus()[2]).toEqual(['회계', ['한눈에', '매출', '매입', '사진', '보고서']]);
+    expect(menus()[3]).toEqual(['인사', ['작업자 · 작업 배정', '작업 지시 보고']]);
     expect(document.querySelector('#meHub a[href*="company=' + HQ_CO + '"]')).toBeNull();
-    expect(row('한눈에', 'hq-ledger').getAttribute('href')).toBe('ledger.html#board');
-    expect(menus()[6]).toEqual(['기본 정보', BASIC]);
+    expect(row('한눈에', 'ledger').getAttribute('href')).toBe('ledger.html#board');
+    expect(menus()[6]).toEqual(['내 계정', BASIC]);
     expect($('meCompany').textContent).toBe('다담 본사');
     // 관리자가 아니면 관리자 줄은 없다
     await load({ partner: PLATFORM, ledger: ok({ money: true, level: 'full', ledgers: [] }) });
+    expect(groups()).toEqual(['관리', '']);
     expect(menus()).toEqual([
-      ['회계관리', ['한눈에', '매출', '매입', '사진', '보고서']],
-      ['기본 정보', BASIC],
+      ['회계', ['한눈에', '매출', '매입', '사진', '보고서']],
+      ['내 계정', BASIC],
     ]);
+  });
+
+  test('다담 본사 구성원이 플래너를 쓰면 — 프로젝트 관리 › 설계 = 플래너 페이지 (본사 설계는 공장 설계함)', async () => {
+    await load({ partner: PLATFORM, planner: PLANNER });
+    expect(menus()).toEqual([
+      ['프로젝트 관리', ['설계']],
+      ['내 계정', BASIC],
+    ]);
+    const a = row('설계', 'project');
+    expect(a.getAttribute('href')).toBe('planner/'); // SeganShell.ROLE_LINKS planner
+    expect(a.hasAttribute('data-me-go')).toBe(false);
+    expect(a.hasAttribute('data-desktop-tab')).toBe(true);
   });
 
   test('작업자 — 맨 위 「오늘 작업」 카드 (건수 · 다음 작업, 누르면 작업 화면)', async () => {
@@ -518,9 +570,10 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
     expect($('meWorkBody').textContent).not.toContain('모집중');
   });
 
-  test('글은 글자로만 — 팩토리 이름 · 다음 작업', async () => {
+  test('글은 글자로만 — 팩토리 이름 · 다음 작업 · 대시보드 칸', async () => {
     const bad = '<img src=x onerror=alert(1)>';
     await load({
+      url: '/segan/me.html#dash-basic',
       partner: member({ name: bad }),
       workMe: { ...WORKER, next_job: { ...WORKER.next_job, title: bad } },
     });
@@ -528,9 +581,12 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
     expect($('mePartnerVal').textContent).toBe(bad);
     expect($('meCompany').textContent).toBe(bad + ' · 대표');
     expect($('meWorkBody').textContent).toContain(bad);
+    expect($('meDashBody').querySelector('img')).toBeNull();
+    expect(tile('내 팩토리')).toBeDefined();
+    expect(tiles().find((t) => t[0] === '내 팩토리')).toEqual(['내 팩토리', null, bad]);
   });
 
-  test('알림 칸이 열리면(segan/push.js) 기본 정보에 알림 줄', async () => {
+  test('알림 칸이 열리면(segan/push.js) 내 계정에 알림 줄', async () => {
     await load();
     expect(row('알림')).toBeUndefined();
     $('mePush').hidden = false;
@@ -539,14 +595,14 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
   });
 });
 
-describe('메뉴 — 폰 · 태블릿은 큰 메뉴를 누르면 펼친다 (한 번에 하나), PC 는 늘 펼친다', () => {
-  test('처음엔 처음 보이는 큰 메뉴, 누르면 그것만 · 다시 누르면 접는다, 고른 것은 이 탭 동안 기억', async () => {
+describe('메뉴 — 큰 메뉴 이름은 대시보드, ▾ 는 하위 줄만 (한 번에 하나, 폰 · PC 같다)', () => {
+  test('폰 — 처음엔 처음 보이는 큰 메뉴, ▾ 를 누르면 그것만 · 다시 누르면 접는다, 고른 것은 이 탭 동안 기억', async () => {
     await load({ partner: member(), ledger: ok({ money: true, level: 'full' }) });
     expect(opened()).toEqual(['project']);
-    const toggle = (key) => $('meHub').querySelector(`[data-menu-toggle="${key}"]`);
     expect(toggle('project').getAttribute('aria-expanded')).toBe('true');
     expect(toggle('ledger').getAttribute('aria-expanded')).toBe('false');
     toggle('ledger').click();
+    expect(screen()).toBe(''); // ▾ 는 화면을 바꾸지 않는다
     expect(opened()).toEqual(['ledger']);
     expect(toggle('ledger').getAttribute('aria-expanded')).toBe('true');
     expect(toggle('project').getAttribute('aria-expanded')).toBe('false');
@@ -560,28 +616,172 @@ describe('메뉴 — 폰 · 태블릿은 큰 메뉴를 누르면 펼친다 (한 
     expect(opened()).toEqual(['people']);
   });
 
-  test('PC — 누르기는 아무것도 바꾸지 않고, 모든 큰 메뉴가 펼친 것으로 읽힌다', async () => {
-    await load({ wide: true, partner: member() });
-    const t = $('meHub').querySelector('[data-menu-toggle="basic"]');
-    expect(t.getAttribute('aria-expanded')).toBe('true');
-    const before = opened();
-    t.click();
-    expect(opened()).toEqual(before);
+  test('큰 메뉴 이름을 누르면 그 대시보드 (기록 하나) · 그 큰 메뉴를 펼친다', async () => {
+    await load({ partner: member(), ledger: ok({ money: true, level: 'full' }) });
+    const before = window.history.length;
+    dashBtn('ledger').click();
+    expect(window.location.hash).toBe('#dash-ledger');
+    expect(window.history.length).toBe(before + 1);
+    expect(screen()).toBe('dash-ledger');
+    expect($('meTitle').textContent).toBe('회계');
+    expect(opened()).toEqual(['ledger']);
+    expect(dashBtn('ledger').getAttribute('aria-current')).toBe('page');
+    $('meBack').click();
+    await flush();
+    expect(screen()).toBe('');
+    expect(opened()).toEqual(['ledger']);
   });
 
-  test('CSS — 하위 줄은 접어 두고 .is-open 만 펼친다, PC 는 늘 펼친다', () => {
+  test('PC — ▾ 도 접고 편다 (화면은 그대로), 처음엔 지금 대시보드의 큰 메뉴', async () => {
+    await load({ wide: true, partner: member() });
+    expect(screen()).toBe('dash-project');
+    expect(opened()).toEqual(['project']);
+    toggle('basic').click();
+    expect(opened()).toEqual(['basic']);
+    expect(toggle('basic').getAttribute('aria-expanded')).toBe('true');
+    expect(toggle('project').getAttribute('aria-expanded')).toBe('false');
+    toggle('basic').click();
+    expect(opened()).toEqual([]);
+    expect(screen()).toBe('dash-project');
+  });
+
+  test('CSS — 하위 줄은 접어 두고 .is-open 만 펼친다 (PC 도), ▾ 는 펼치면 돈다', () => {
     const css = read('segan/shell.css');
     expect(css).toMatch(/\.me-subs\s*\{[^}]*display:\s*none;/);
     expect(css).toMatch(/\.me-menu\.is-open > \.me-subs\s*\{\s*display:\s*block;/);
+    expect(css).toMatch(
+      /\.me-menu\.is-open \.me-chev::before\s*\{\s*transform:\s*rotate\(180deg\);/
+    );
     const wide = css
       .split('@media (min-width: 1100px)')
       .slice(1)
       .find((b) => b.includes('.me-layout'));
-    expect(wide).toMatch(/\.me-subs,\s*\.me-menu\.is-open > \.me-subs\s*\{[^}]*display:\s*block;/);
+    expect(wide).not.toMatch(/\.me-subs[^{]*\{[^}]*display:\s*block/);
     // 직원 화면은 업체 칸 안 직원 · 초대만, 다른 화면에서는 직원 · 초대를 감춘다
     expect(css).toMatch(
       /#partner:not\(\[data-me-view='staff'\]\) \.me-pt-staff\s*\{\s*display:\s*none;/
     );
+  });
+});
+
+describe('대시보드 — #dash-이름 (하위 줄마다 칸, 아래에 그 메뉴의 칸)', () => {
+  test('프로젝트 관리 (업체) — 단계별 프로젝트 수 · 처리 중 A/S, 아래에 모든 단계 프로젝트', async () => {
+    await load({
+      url: '/segan/me.html#dash-project',
+      partner: member(),
+      companyProjects: PROJECTS,
+    });
+    expect(screen()).toBe('dash-project');
+    expect($('meTitle').textContent).toBe('프로젝트 관리');
+    expect($('meDashTitle').textContent).toBe('프로젝트 관리');
+    expect(tiles()).toEqual([
+      ['영업', '2', '상담 · 견적 · 계약'],
+      ['설계', '1', '설계 · 연출컷'],
+      ['생산', '1', '제작 중'],
+      ['설치', '1', '배송 · 설치'],
+      ['A/S', '0', '처리 중'],
+    ]);
+    expect(onScreen()).toEqual(['meDash', 'partner']);
+    expect(partnerParts()).toEqual(['partnerProjects']);
+    expect($('partnerProjects').querySelectorAll('[data-project]')).toHaveLength(5); // 모든 단계
+    expect(lit()).toEqual(['프로젝트 관리']);
+    // 칸을 누르면 그 하위 줄과 같은 화면 (기록 하나 — 대시보드에서 왔다)
+    tile('영업').click();
+    expect(screen()).toBe('p-consult');
+    expect(window.history.state).toEqual({ meFrom: 'dash-project' });
+    expect(lit()).toEqual(['영업']);
+  });
+
+  test('프로젝트 관리 (고객) — 내 프로젝트 · 내 A/S 로 센다, 아래에 내 프로젝트', async () => {
+    await load({ url: '/segan/me.html#dash-project', projects: ok([]) });
+    expect(tiles()).toEqual([
+      ['상담 · 계약', '0', '상담 · 견적 · 계약'],
+      ['설계', '0', '설계 · 연출컷'],
+      ['제작', '0', '제작 중'],
+      ['설치', '0', '배송 · 설치'],
+      ['A/S', '0', '처리 중'],
+    ]);
+    expect(onScreen()).toEqual(['meDash', 'meProjectSection']);
+    expect($('meProjectTitle').textContent).toBe('내 프로젝트');
+  });
+
+  test('회계 — 줄마다 칸 (수 없이), 회계 요약을 못 읽으면 칸만', async () => {
+    await load({
+      url: '/segan/me.html#dash-ledger',
+      partner: member(),
+      ledger: ok({ money: true, level: 'full' }),
+    });
+    expect(tiles().map((t) => t[0])).toEqual(LEDGER);
+    expect(tiles().every((t) => t[1] === null)).toBe(true);
+    expect(tile('한눈에').getAttribute('href')).toBe('ledger.html#board');
+    expect(onScreen()).toEqual(['meDash']);
+  });
+
+  test('구매 · 재고 — 준비 중 칸 · 인사 — 화면 칸을 누르면 그 화면', async () => {
+    await load({ url: '/segan/me.html#dash-stock', partner: member({ plan: 'expert' }) });
+    expect(tiles()).toEqual(STOCK.map((l) => [l, null, '준비 중']));
+    await load({ url: '/segan/me.html#dash-people', partner: member() });
+    expect(tiles().map((t) => t[0])).toEqual(['직원', '근무 일정', '작업자']);
+    tile('직원').click();
+    expect(screen()).toBe('staff');
+    expect(lit()).toEqual(['직원']);
+  });
+
+  test('내 계정 — 줄의 값(구독 상태)을 작은 글로', async () => {
+    await load({ url: '/segan/me.html#dash-basic' });
+    expect(tiles().find((t) => t[0] === '크레딧 · 구독')).toEqual(['크레딧 · 구독', null, '없음']);
+  });
+
+  test('볼 수 없는 메뉴의 대시보드 — 「볼 수 있는 내용이 없습니다」', async () => {
+    await load({ url: '/segan/me.html#dash-platform' });
+    expect(onScreen()).toEqual([]);
+    expect($('mePaneNote').textContent).toBe('볼 수 있는 내용이 없습니다.');
+  });
+});
+
+describe('구역 — 프로젝트 관리 하위 줄이 묶은 화면 (같은 기록 안에서)', () => {
+  test('영업 (업체) — 상담 · 견적 · 계약 · 수금 · 고객, 누르면 기록을 늘리지 않고 바꾼다', async () => {
+    await load({ url: '/segan/me.html#p-quote', partner: member({ plan: 'expert' }) });
+    expect(chips()).toEqual(['상담', '견적', '계약', '수금', '고객']);
+    expect(chipOn()).toBe('견적');
+    expect(lit()).toEqual(['영업']);
+    const before = window.history.length;
+    chip('계약').click();
+    expect(window.location.hash).toBe('#p-contract');
+    expect(window.history.length).toBe(before);
+    expect(screen()).toBe('p-contract');
+    expect($('meTitle').textContent).toBe('계약');
+    expect(chipOn()).toBe('계약');
+    chip('수금').click();
+    expect($('mePaneNote').textContent).toContain('수금은 준비 중입니다.');
+    expect(chips()).toHaveLength(5);
+    // 「‹ 마이페이지」 — 바로 온 기록이라 메뉴로 바꾼다
+    $('meBack').click();
+    expect(screen()).toBe('');
+    expect(opened()).toEqual(['project']);
+  });
+
+  test('영업 (고객) — 상담 · 견적 · 계약 (수금 · 고객은 업체만)', async () => {
+    await load({ url: '/segan/me.html#p-quote', projects: ok([]) });
+    expect(chips()).toEqual(['상담', '견적', '계약']);
+    expect(lit()).toEqual(['상담 · 계약']);
+  });
+
+  test('옛 주소(#partner-consults)는 그 화면의 구역을 밝힌다 · 화면 하나뿐이면 구역이 없다', async () => {
+    await load({ url: '/segan/me.html#partner-consults', partner: member({ plan: 'expert' }) });
+    expect(chipOn()).toBe('상담');
+    await load({ url: '/segan/me.html#p-install', partner: member({ plan: 'expert' }) });
+    expect(chips()).toEqual([]);
+  });
+
+  test('설계 — 플래너를 쓰면 「플래너 열기」 (PC 브라우저면 새 탭)', async () => {
+    await load({ wide: true, url: '/segan/me.html#p-design', partner: member(), planner: PLANNER });
+    expect(chips()).toEqual(['설계', '플래너 열기']);
+    const a = chip('플래너 열기');
+    expect(a.getAttribute('href')).toBe('planner/');
+    expect([a.getAttribute('target'), a.getAttribute('rel')]).toEqual(['_blank', 'noopener']);
+    await load({ url: '/segan/me.html#p-design', partner: member() });
+    expect(chips()).toEqual([]);
   });
 });
 
@@ -594,15 +794,16 @@ describe('하위 화면 — 주소 #이름', () => {
       '내 팩토리',
       '내 팩토리다담 협력 주방',
     ],
-    ['#partner-consults', 'partner-consults', ['partner-consults'], '상담', '상담'],
+    ['#partner-consults', 'partner-consults', ['partner-consults'], '상담', '영업'],
     ['#partner-projects', 'partner-projects', ['partnerProjects'], '프로젝트', null],
     ['#as', 'as', ['as'], 'A/S함', 'A/S'],
-    ['#p-consult', 'p-consult', ['partner-consults', 'partnerProjects'], '상담', '상담'],
+    ['#p-consult', 'p-consult', ['partner-consults', 'partnerProjects'], '상담', '영업'],
     ['#p-design', 'p-design', ['partnerProjects'], '설계', '설계'],
+    ['#p-make', 'p-make', ['partnerProjects'], '제작', '생산'],
     ['#p-as', 'p-as', ['as'], 'A/S', 'A/S'],
   ])(
     '%s → 업체 칸의 그 부분만 (제목 · 「‹ 마이페이지」 · 밝힌 하위 줄)',
-    async (hash, name, parts, title, lit) => {
+    async (hash, name, parts, title, litRow) => {
       await load({ url: '/segan/me.html' + hash, partner: member({ plan: 'expert' }) });
       expect(screen()).toBe(name);
       expect(onScreen()).toEqual(['partner']);
@@ -613,7 +814,7 @@ describe('하위 화면 — 주소 #이름', () => {
       const current = [...$('meHub').querySelectorAll('a[aria-current="page"]')].map(
         (a) => a.textContent
       );
-      expect(current).toEqual(lit ? [lit] : []);
+      expect(current).toEqual(litRow ? [litRow] : []);
       expect(document.title).toBe(title + ' · 마이페이지 · SEGAN');
     }
   );
@@ -623,7 +824,7 @@ describe('하위 화면 — 주소 #이름', () => {
     expect($('partnerProjects').querySelector('.me-pt-sub').textContent).toBe('설계 단계 프로젝트');
   });
 
-  test('준비 중 — 재고 관리 · 일정 · Manager 의 A/S: 칸 없이 안내 한 줄', async () => {
+  test('준비 중 — 구매 · 재고 · 근무 일정 · Manager 의 A/S: 칸 없이 안내 한 줄', async () => {
     await load({ url: '/segan/me.html#stock-board', partner: member({ plan: 'expert' }) });
     expect(onScreen()).toEqual([]);
     expect($('mePaneNote').hidden).toBe(false);
@@ -633,10 +834,11 @@ describe('하위 화면 — 주소 #이름', () => {
     await load({ url: '/segan/me.html#p-as', partner: member({ plan: 'manager' }) });
     expect($('mePaneNote').textContent).toBe(window.SeganMe.TEXT.managerAs);
     await load({ url: '/segan/me.html#schedule', partner: member() });
-    expect($('mePaneNote').textContent).toContain('일정은 준비 중입니다.');
+    expect($('meTitle').textContent).toBe('근무 일정');
+    expect($('mePaneNote').textContent).toContain('근무 일정은 준비 중입니다.');
   });
 
-  test('인력 관리 › 직원 — 업체 칸 안 직원 · 초대만 (data-me-view staff), 내 팩토리 화면에는 직원 · 초대가 없다', async () => {
+  test('인사 › 직원 — 업체 칸 안 직원 · 초대만 (data-me-view staff), 내 팩토리 화면에는 직원 · 초대가 없다', async () => {
     await load({ url: '/segan/me.html#staff', partner: member() });
     expect(screen()).toBe('staff');
     expect(partnerParts()).toEqual(['mePartner']);
@@ -699,7 +901,7 @@ describe('하위 화면 — 주소 #이름', () => {
   test('메뉴에서 누르면 기록을 넣고, 「‹ 마이페이지」 는 뒤로 가기로 메뉴에 돌아온다', async () => {
     await load({ partner: member({ plan: 'expert' }) });
     const before = window.history.length;
-    row('상담').click();
+    row('영업').click();
     expect(window.location.hash).toBe('#p-consult');
     expect(window.history.length).toBe(before + 1);
     expect(screen()).toBe('p-consult');
@@ -736,7 +938,7 @@ describe('하위 화면 — 주소 #이름', () => {
     expect(partnerParts()).toEqual(['as']);
   });
 
-  test('로그인 전 — 하위 화면 주소면 로그인 뒤 같은 화면으로', async () => {
+  test('로그인 전 — 하위 화면 · 대시보드 주소면 로그인 뒤 같은 화면으로', async () => {
     for (const name of [
       'partner',
       'partner-consults',
@@ -745,6 +947,7 @@ describe('하위 화면 — 주소 #이름', () => {
       'notify',
       'p-consult',
       'staff',
+      'dash-project',
     ]) {
       await load({ session: null, url: '/segan/me.html#' + name });
       expect(
@@ -767,7 +970,7 @@ describe('움직임 — 들어온 쪽으로 (segan/motion.js · CLAUDE.md 「SEG
     await load({ partner: member({ plan: 'expert' }) });
     const enter = jest.fn();
     window.SeganMotion = { enter };
-    row('상담').click();
+    row('영업').click();
     expect(enter).toHaveBeenCalledWith($('mePane'), {
       transform: 'translateX(28px)',
       opacity: 0.3,
@@ -780,7 +983,7 @@ describe('움직임 — 들어온 쪽으로 (segan/motion.js · CLAUDE.md 「SEG
       opacity: 0.3,
     });
     enter.mockClear();
-    $('meHub').querySelector('[data-menu-toggle="basic"]').click();
+    toggle('basic').click();
     const rows = [
       ...$('meHub').querySelectorAll('[data-menu="basic"] li[data-me-item]:not([hidden])'),
     ];
@@ -793,37 +996,53 @@ describe('움직임 — 들어온 쪽으로 (segan/motion.js · CLAUDE.md 「SEG
     ]);
     // 접을 때는 움직이지 않는다
     enter.mockClear();
-    $('meHub').querySelector('[data-menu-toggle="basic"]').click();
+    toggle('basic').click();
     expect(enter).not.toHaveBeenCalled();
+  });
+
+  test('폰 — 구역 단추는 차례대로 좌우에서 (뒤 단추는 오른쪽, 앞 단추는 왼쪽)', async () => {
+    await load({ url: '/segan/me.html#p-quote', partner: member({ plan: 'expert' }) });
+    const enter = jest.fn();
+    window.SeganMotion = { enter };
+    chip('계약').click();
+    expect(enter.mock.calls).toEqual([
+      [$('mePane'), { transform: 'translateX(28px)', opacity: 0.3 }],
+    ]);
+    enter.mockClear();
+    chip('상담').click();
+    expect(enter.mock.calls).toEqual([
+      [$('mePane'), { transform: 'translateX(-28px)', opacity: 0.3 }],
+    ]);
   });
 
   test('움직임 파일이 없으면 그대로 (화면만 바뀐다)', async () => {
     await load({ partner: member({ plan: 'expert' }) });
-    row('상담').click();
+    row('영업').click();
     expect(screen()).toBe('p-consult');
   });
 });
 
 describe('PC 1100px~ — 왼쪽 메뉴 + 오른쪽 하위 화면', () => {
-  test('# 없이 — 메뉴 차례대로 처음 보이는 하위 화면 (업체 · 고객 모두 프로젝트 관리 › 상담), 제목은 마이페이지 그대로', async () => {
+  test('# 없이 — 처음 보이는 큰 메뉴의 대시보드 (업체 · 고객 모두 프로젝트 관리), 제목은 마이페이지 그대로', async () => {
     await load({ wide: true, partner: member({ plan: 'expert' }) });
-    expect(screen()).toBe('p-consult');
+    expect(screen()).toBe('dash-project');
     expect(window.location.hash).toBe('');
-    expect(partnerParts()).toEqual(['partner-consults', 'partnerProjects']);
-    expect(row('상담').getAttribute('aria-current')).toBe('page');
+    expect(onScreen()).toEqual(['meDash', 'partner']);
+    expect(partnerParts()).toEqual(['partnerProjects']);
+    expect(dashBtn('project').getAttribute('aria-current')).toBe('page');
     expect($('meTitle').textContent).toBe('마이페이지');
     expect($('meBack').hidden).toBe(true);
     await load({ wide: true });
-    expect(screen()).toBe('p-consult');
-    expect(onScreen()).toEqual(['meConsultSection']);
+    expect(screen()).toBe('dash-project');
+    expect(onScreen()).toEqual(['meDash']);
   });
 
-  test('다담 공장 구성원 · 다담 본사 구성원(관리자) — 첫 하위 화면', async () => {
+  test('다담 공장 구성원 · 다담 본사 구성원(관리자) — 처음 대시보드', async () => {
     await load({ wide: true, partner: HQ });
-    expect(screen()).toBe('p-consult');
-    // 본사 — 본사 묶음의 줄은 모두 페이지라, 처음 화면은 기본 정보 › 좋아요
+    expect(screen()).toBe('dash-project');
     await load({ wide: true, partner: PLATFORM, isAdmin: true });
-    expect(screen()).toBe('likes');
+    expect(screen()).toBe('dash-home');
+    expect(tiles().map((t) => t[0])).toEqual(HOME);
   });
 
   test('# 가 있어도 제목은 마이페이지 (왼쪽 메뉴가 늘 보인다)', async () => {
@@ -846,23 +1065,27 @@ describe('PC 1100px~ — 왼쪽 메뉴 + 오른쪽 하위 화면', () => {
       /\.me-main:not\(\[data-me-screen=''\]\) \.me-hub\s*\{\s*display:\s*none;/
     );
     expect(css).toMatch(/\.me-pane \.me-off\s*\{\s*display:\s*none;/);
+    // 큰 메뉴 단추(.me-menu-name)와 화면 틀(<main class="me-main">)은 이름을 나눠 쓴다 — 틀에 단추 모양이 붙지 않게
+    expect(css).not.toMatch(/(^|\n)\s*\.me-main\s*\{/);
+    const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
+    expect([...doc.querySelectorAll('.me-main')].map((el) => el.tagName)).toEqual(['MAIN']);
   });
 });
 
 describe('플래너 · PC 관리자 화면 — PC 브라우저에서만 새 탭', () => {
   test('PC 브라우저면 target _blank · rel noopener, 폰 · 태블릿이면 같은 창', async () => {
-    await load({ wide: true, partner: member(), planner: PLANNER });
-    const a = row('새 설계');
+    await load({ wide: true, partner: PLATFORM, planner: PLANNER });
+    const a = row('설계', 'project');
     expect([a.getAttribute('target'), a.getAttribute('rel')]).toEqual(['_blank', 'noopener']);
-    await load({ partner: member(), planner: PLANNER });
-    expect(row('새 설계').getAttribute('target')).toBeNull();
+    await load({ partner: PLATFORM, planner: PLANNER });
+    expect(row('설계', 'project').getAttribute('target')).toBeNull();
     // 설치한 앱 (PC 라도 같은 창)
     window.matchMedia = media({ ...PC, '(display-mode: standalone)': true });
     document.addEventListener('click', (e) => e.preventDefault(), { once: true }); // jsdom 은 이동하지 않는다
-    row('새 설계').dispatchEvent(
+    row('설계', 'project').dispatchEvent(
       new window.MouseEvent('click', { bubbles: true, cancelable: true })
     );
-    expect(row('새 설계').getAttribute('target')).toBeNull();
+    expect(row('설계', 'project').getAttribute('target')).toBeNull();
   });
 
   test('앱 안 줄(회계 · 앱 관리)은 늘 같은 창, PC 관리자 화면은 PC 에서 새 탭', async () => {

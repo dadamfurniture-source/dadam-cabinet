@@ -6,38 +6,45 @@
                 업체 직책 「실장」과 다르다) · 남은 크레딧 · 업체 구성원이면 업체 이름 · 내 역할
      오늘 작업  작업자만 — 셸 판정 roles.workMe(GET /work/me) 의 건수 · 다음 작업을 js/mypage-work.js
                 (summaryCounts · nextJobText · SUSPENDED_NOTE) 로 적는다, 누르면 작업 화면(work.html)
-     메뉴 나무 — 큰 메뉴는 캔버스 「SEGAN APP production」 마이페이지 용어만 (2026-11-09 대표님 승인 시안),
-       그 아래 하위 줄. 폰 · 태블릿은 큰 메뉴를 누르면 그 자리에 펼친다(한 번에 하나 — 처음엔 처음 보이는 큰 메뉴,
-       고른 것은 이 탭 동안 sessionStorage), PC 는 늘 펼친다. 보이는 하위 줄이 없으면 큰 메뉴 · 묶음째 감춘다.
-       업무 (머리글은 업체 구성원만)
-         프로젝트 관리  누구나 (다담 본사 구성원은 없다) — 상담 · 설계 · 견적 · 계약 · 제작 · 설치 · A/S (#p-…)
-                        고객: 상담 = 내 상담 내역, 설계 ~ 설치 = 내 프로젝트를 그 단계로 거름, A/S = 내 A/S 접수
-                        업체: 상담 = 배정 상담 · 받은 제작 의뢰 · 상담 단계 프로젝트 · 상담 설정 (팩토리 = 다담 공장 · Expert · Agent,
-                        Manager 는 상담 단계 프로젝트만), 설계 ~ 설치 = 업체 프로젝트를 그 단계로 거름,
-                        제작 = Manager 는 제작 의뢰도, A/S = 팩토리 A/S함 · Manager 는 준비 중
-                        단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다)
-         플래너        셸 판정 roles.planner (GET /planner/access) — 새 설계 · 설계 모음 · 렌더링, BOM · 발주서 · 작업지시서는
-                        팩토리 · 본사 · 관리자. 모두 플래너를 연다 (플래너 안 화면으로 바로 가는 주소는 아직 없다)
-         재고 관리     팩토리 — 기본 자재 · 자투리 자재 · 철물, 준비 중 (안내 한 줄)
-         회계 관리     segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 · 설정,
-                        사진만 올리면 영수증 올리기 (다담 본사 구성원은 본사 › 회계관리)
-         인력 관리     Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
-                        작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 일정(준비 중) · 작업자(공장은 PC 생산 계획)
-       본사 (다담 본사 구성원은 맨 위) — 종합 대시보드 · 계정관리 · 업체관리 · DB관리 · 인력관리 줄은 관리자(is_admin) —
-         앱 관리(admin.html#…) 또는 PC 관리자 화면(새 탭). 업체관리 › 등록 업체(#companies)는 본사 대표 · 실장
-         (segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력). 회계관리 = 본사 장부(본사 대표 · 실장) — 공장 장부는
-         등록 업체 › 다담 공장 › 회계에 있어 여기 두지 않는다. 경영 대시보드(admin/management.html)는 한 장 줄 없이
-         조각(?part=)으로 — 종합 대시보드 › 이익 · 목표, 계정관리 › 고객 흐름, 업체관리 › 거래처 · 공급처 성적,
-         회계관리 › 손익 분석 · 현금 · 미수 · 매출 예측, 인력관리 › 공정 · 품질 (관리자)
-       기본 정보 (누구나) — 내 연출컷 · 좋아요 #likes · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
+     메뉴 나무 — B안 (2026-11-10 대표님 승인, 캔버스 「SEGAN 관리 메뉴 — 안 B」). 다담 공장은 Agent 업체처럼, 다담 본사는 따로.
+       큰 메뉴 이름을 누르면 그 대시보드(#dash-이름), 옆 ▾ 는 하위 줄만 접고 편다 — 폰 · PC 모두 한 번에 하나
+       (처음엔 지금 화면이 든 큰 메뉴, 없으면 처음 보이는 큰 메뉴, 고른 것은 이 탭 동안 sessionStorage).
+       보이는 하위 줄이 없으면 큰 메뉴 · 묶음째 감춘다.
+       업무 (머리글은 업체 구성원 · 본사 구성원만)
+         홈            관리자 — 오늘 현황 · 경영 대시보드 조각(이익 · 목표 · 손익 분석 · 현금 · 미수 · 매출 예측은 앱 화면
+                        segan/hq-board.html#조각, 고객 흐름 · 공정 · 품질은 PC 화면 admin/management.html?part=)
+         프로젝트 관리  영업 · 설계 · 생산 · 설치 · A/S — 줄 하나가 화면 여럿을 묶는다 (SUBS, 화면 위 구역 단추 #meParts):
+                        영업 = 상담 #p-consult · 견적 · 계약 · 수금 · 고객(수금 · 고객은 업체만, 준비 중), 설계 = #p-design (+ 플래너 단추),
+                        생산 = #p-make, 설치 = #p-install, A/S = #p-as. 고객은 「상담 · 계약」 · 「제작」 이라 적는다 (data-customer).
+                        고객: 상담 = 내 상담 내역, 견적 ~ 설치 = 내 프로젝트를 그 단계로 거름, A/S = 내 A/S 접수
+                        업체: 상담 = 배정 상담 · 상담 단계 프로젝트 · 상담 설정 (팩토리 = 다담 공장 · Expert · Agent,
+                        Manager 는 상담 단계 프로젝트만), 견적 ~ 설치 = 업체 프로젝트를 그 단계로 거름,
+                        제작 = 팩토리는 받은 제작 의뢰도 · Manager 는 제작 의뢰도, A/S = 팩토리 A/S함 · Manager 는 준비 중
+                        단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다).
+                        다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
+       관리
+         구매 · 재고   팩토리 — 기본 자재 · 자투리 자재 · 철물 (준비 중 — 안내 한 줄), 관리자 — 거래처 · 공급처
+         회계          segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 (+ 업체는 설정),
+                        사진만 올리면 영수증 올리기 (업체만). 본사 대표 · 실장은 본사 장부 — 공장 장부는 플랫폼 › 등록 업체 › 다담 공장 › 회계
+         인사          Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
+                        작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 근무 일정(준비 중) · 작업자(공장은 PC 생산 계획),
+                        관리자 — 작업자 · 작업 배정 · 작업 지시 보고
+         기준정보      관리자 — 시공사례 · 참고 이미지 · 학습 데이터셋 · 가전 모델 (PC 관리자 화면)
+         플랫폼        등록 업체(#companies — 본사 대표 · 실장, segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력),
+                        관리자 — 팩토리 신청 · 평가 · 상담 배정 · 제작 의뢰 추천 · 완료 보고 · A/S 현황 · 거래처 · 공급처 성적 ·
+                        회원 · 관리자 계정 · 활동 로그 (앱 관리 admin.html#… 또는 PC 관리자 화면)
+       내 계정 (누구나) — 내 연출컷 · 좋아요 #likes · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
          「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」, 다담 공장 · 본사 구성원은 없다) · 내 활동 · 알림 #notify · 설정
        맨 아래 로그아웃
+   대시보드 (#dash-이름 — 칸 #meDash) — 그 큰 메뉴의 보이는 하위 줄마다 칸 하나 (누르면 그 줄과 같다).
+     프로젝트 관리는 칸마다 그 단계 프로젝트 수 · A/S 는 처리 중(접수 · 받음) 수 — 이미 읽은 목록으로 센다 (새로 묻지 않는다).
+     아래에 그 메뉴의 칸을 더 붙인다: 프로젝트 관리 = 프로젝트 목록(모든 단계), 회계 = 회계 요약(segan/books.js, 대표 · 실장)
    하위 화면 (SCREENS — 주소 #이름)
      폰 · 태블릿은 하나만 (메뉴를 감추고 위에 「‹ 마이페이지」 · 그 화면 이름), PC 는 오른쪽 칸 —
-     # 가 없으면 메뉴 차례대로 처음 보이는 하위 화면. 다른 페이지(연출컷 · 구독 · 설정 · 활동 · 회계 · 작업 · 관리 · 플래너)는
+     # 가 없으면 처음 보이는 큰 메뉴의 대시보드. 다른 페이지(연출컷 · 구독 · 설정 · 활동 · 회계 · 작업 · 관리 · 플래너)는
      그대로 페이지 이동 (플래너 · PC 관리자 화면은 PC 브라우저에서만 새 탭 — SeganShell.desktopTab).
      알림 · 결제가 여는 옛 주소(me.html#partner · #partner-consults · #as · #production-requests · #factory-requests ·
-     #partner-projects · #consults · #projects-mine · #as-mine · ?failed=1)는 그대로 그 화면이다 (메뉴는 ALIAS 의 줄을 밝힌다).
+     #partner-projects · #consults · #projects-mine · #as-mine · ?failed=1)는 그대로 그 화면이다 (메뉴 · 구역은 ALIAS 의 화면을 밝힌다).
      폰 · 태블릿은 화면이 바뀔 때 들어온 쪽으로 — 하위 화면은 오른쪽에서, 메뉴는 왼쪽에서 들어온다
      (segan/motion.js 를 실었을 때만 · 동작 줄이기면 흐려지기만, CLAUDE.md 「SEGAN 모션 규칙」).
      메뉴에서 누르면 기록을 하나 넣는다(pushState — 뒤로 가기가 메뉴로 돌아온다). 「‹ 마이페이지」 는 메뉴에서 왔으면
@@ -489,6 +496,25 @@
   // stage = 프로젝트를 이 단계로 거른다 ('' = 모두) · view = 업체 칸의 data-me-view (직원 화면은 업체 내용 안 직원만) ·
   // soon = 준비 중 안내 (칸 없이) · empty = 칸이 없을 때 「볼 수 있는 내용이 없습니다」 대신 · pick = 보는 사람마다 고른다
   var SCREENS = {
+    // 대시보드 — 큰 메뉴 이름을 누르면 (dash = 그 큰 메뉴 data-menu)
+    'dash-home': { title: '홈', dash: 'home', section: 'meDash' },
+    'dash-project': {
+      title: '프로젝트 관리',
+      dash: 'project',
+      section: 'meDash',
+      pick: projectDash,
+    },
+    'dash-stock': { title: '구매 · 재고', dash: 'stock', section: 'meDash' },
+    'dash-ledger': {
+      title: '회계',
+      dash: 'ledger',
+      section: 'meDash',
+      extra: { section: 'partner', parts: ['meBooks'] },
+    },
+    'dash-people': { title: '인사', dash: 'people', section: 'meDash' },
+    'dash-master': { title: '기준정보', dash: 'master', section: 'meDash' },
+    'dash-platform': { title: '플랫폼', dash: 'platform', section: 'meDash' },
+    'dash-basic': { title: '내 계정', dash: 'basic', section: 'meDash' },
     // 프로젝트 관리 — 고객은 내 것, 업체 구성원은 업체 것 (pick)
     'p-consult': { title: '상담', pick: stageScreen('consult') },
     'p-design': { title: '설계', pick: stageScreen('design') },
@@ -497,7 +523,16 @@
     'p-make': { title: '제작', pick: stageScreen('make') },
     'p-install': { title: '설치', pick: stageScreen('install') },
     'p-as': { title: 'A/S', pick: stageScreen('as') },
-    // 재고 관리 (Expert 이상 · 공장) — 준비 중
+    // 영업 › 수금 · 고객 (업체) — 준비 중
+    'p-collect': {
+      title: '수금',
+      soon: '수금은 준비 중입니다. 계약금 · 중도금 · 잔금의 낼 날과 받은 돈을 한 표로 보게 됩니다.',
+    },
+    'p-customers': {
+      title: '고객',
+      soon: '고객 목록은 준비 중입니다. 업체 고객의 연락처와 프로젝트를 모아 보고 고치게 됩니다.',
+    },
+    // 구매 · 재고 (Expert 이상 · 공장) — 준비 중
     'stock-board': {
       title: '기본 자재',
       soon: '재고 관리는 준비 중입니다. 보드 · 판재 재고를 여기서 관리하게 됩니다.',
@@ -510,7 +545,7 @@
       title: '철물',
       soon: '재고 관리는 준비 중입니다. 경첩 · 서랍 레일 · 리프트업 철물 수량을 관리하게 됩니다.',
     },
-    // 인력 관리 (Agent · 공장)
+    // 인사 (Agent · 공장)
     staff: {
       title: '직원',
       section: 'partner',
@@ -527,16 +562,16 @@
       assign: true,
     },
     schedule: {
-      title: '일정',
-      soon: '일정은 준비 중입니다. 이번 주 실측 · 설치 · A/S 방문을 사람마다 모아 보게 됩니다.',
+      title: '근무 일정',
+      soon: '근무 일정은 준비 중입니다. 직원 · 작업자의 근무와 쉬는 날을 한 표로 보게 됩니다.',
     },
     workers: {
       title: '작업자',
       soon: '작업자는 준비 중입니다. 설치 · A/S 외부 작업자를 모으고 배정하게 됩니다.',
     },
-    // 본사 › 업체관리 — 등록 업체 (segan/hq-companies.js)
+    // 플랫폼 — 등록 업체 (segan/hq-companies.js)
     companies: { title: '등록 업체', section: 'hqCompanies' },
-    // 기본 정보
+    // 내 계정
     partner: {
       title: '내 팩토리',
       section: 'partner',
@@ -576,16 +611,35 @@
     'projects-mine': { title: '내 프로젝트', section: 'meProjectSection', stage: '' },
     'as-mine': { title: 'A/S 접수', section: 'meAsSection' },
   };
-  // 옛 주소로 왔을 때 메뉴에서 밝힐 하위 줄
+  // 옛 주소로 왔을 때 메뉴 · 구역에서 밝힐 화면
   var ALIAS = {
     'partner-consults': 'p-consult',
-    'factory-requests': 'p-consult',
+    'factory-requests': 'p-make',
     consults: 'p-consult',
     'production-requests': 'p-make',
     as: 'p-as',
     'as-mine': 'p-as',
   };
+  // 프로젝트 관리 하위 줄(data-me-item) → 묶은 화면 (차례 = 화면 위 구역 단추 차례, 첫 화면이 줄의 주소)
+  var SUBS = {
+    'pj-sales': ['p-consult', 'p-quote', 'p-contract', 'p-collect', 'p-customers'],
+    'pj-design': ['p-design'],
+    'pj-make': ['p-make'],
+    'pj-install': ['p-install'],
+    'pj-as': ['p-as'],
+  };
+  var MEMBER_PARTS = ['p-collect', 'p-customers']; // 업체 구성원만 (준비 중)
+  // 대시보드 칸 — 프로젝트 관리 하위 줄마다 셀 단계 · 작은 글 (A/S 는 처리 중 접수)
+  var DASH_COUNT = {
+    'pj-sales': { stages: ['consult', 'quote', 'contract'], note: '상담 · 견적 · 계약' },
+    'pj-design': { stages: ['design'], note: '설계 · 연출컷' },
+    'pj-make': { stages: ['make'], note: '제작 중' },
+    'pj-install': { stages: ['install'], note: '배송 · 설치' },
+    'pj-as': { as: true, note: '처리 중' },
+  };
+  var AS_OPEN = ['requested', 'received']; // 접수 · 받음 (segan/as-requests.js STATE_LABEL)
   var SECTIONS = [
+    'meDash',
     'hqCompanies',
     'meProjectSection',
     'meAsSection',
@@ -605,15 +659,11 @@
     'as',
     'meBooks',
   ];
-  // 묶음 차례 — 본사 구성원은 본사가 먼저
-  var GROUP_ORDER = {
-    platform: ['meGroupHq', 'meGroupWork', 'meGroupMine'],
-    other: ['meGroupWork', 'meGroupHq', 'meGroupMine'],
-  };
-  var FACTORY_PLANS = ['expert', 'agent']; // 상담 배정 · 받은 제작 의뢰 · A/S함 · 재고 관리 (+ 다담 공장)
-  var PEOPLE_PLANS = ['agent']; // 인력 관리 (+ 다담 공장) — account-api STAFF_TOOL_PLANS
+  var GROUPS = ['meGroupWork', 'meGroupManage', 'meGroupMine'];
+  var FACTORY_PLANS = ['expert', 'agent']; // 상담 배정 · 받은 제작 의뢰 · A/S함 · 구매 · 재고 (+ 다담 공장)
+  var PEOPLE_PLANS = ['agent']; // 인사 (+ 다담 공장) — account-api STAFF_TOOL_PLANS
   var MONEY_ROLES = ['owner', 'manager']; // 대표 · 실장
-  var OPEN_KEY = 'segan.me.open'; // 폰에서 펼친 큰 메뉴 (sessionStorage)
+  var OPEN_KEY = 'segan.me.open'; // 펼친 큰 메뉴 (sessionStorage)
   var WIDE = '(min-width: 1100px)'; // shell.css 두 칸 — 시트가 옆 패널이 되는 폭과 같다
   var HUB_TITLE = '마이페이지';
   var TEXT = {
@@ -635,6 +685,9 @@
     likesFail: '좋아요를 불러오지 못했습니다.',
     likesMore: '더 보기',
     likesRetry: '다시 불러오기',
+    planner: '플래너 열기',
+    dashEmpty: '이 메뉴에서 볼 수 있는 화면이 없습니다.',
+    open: '열기',
   };
   var ROLE_NAME = { owner: '대표', manager: '실장', staff: '직원' }; // 업체 안 직책 (등급 Manager 와 다르다)
 
@@ -647,8 +700,8 @@
     session: null,
     projects: null, // GET /me/projects 의 줄 (고객 프로젝트 관리 — 단계로 거른다)
     projectStage: null, // 지금 그린 고객 프로젝트 단계 (null = 아직 안 그림)
-    open: '', // 폰에서 펼친 큰 메뉴
-    touched: false, // 사람이 큰 메뉴를 골랐다 (전에는 처음 보이는 큰 메뉴를 펼친다)
+    open: '', // 펼친 큰 메뉴 (data-menu)
+    touched: false, // 사람이 큰 메뉴를 골랐다 (전에는 지금 화면이 든 · 처음 보이는 큰 메뉴를 펼친다)
     shown: null, // 지난번에 보인 화면 (# — '' = 메뉴, null = 아직 안 그림)
   };
 
@@ -707,8 +760,8 @@
 
   /**
    * 프로젝트 관리 하위 화면 — 고객은 내 상담 · 내 프로젝트 · 내 A/S, 업체 구성원은 업체 칸.
-   *   상담: 팩토리 = 배정 상담 · 받은 제작 의뢰 · 상담 단계 프로젝트 · 상담 설정, Manager = 상담 단계 프로젝트
-   *   제작: Manager = 제작 의뢰 · 제작 단계 프로젝트, 그 밖 = 제작 단계 프로젝트
+   *   상담: 팩토리 = 배정 상담 · 상담 단계 프로젝트 · 상담 설정, Manager = 상담 단계 프로젝트
+   *   제작: 팩토리 = 받은 제작 의뢰 · 제작 단계 프로젝트, Manager = 제작 의뢰 · 제작 단계 프로젝트
    *   A/S: 팩토리 = A/S함, Manager = 준비 중
    */
   function stageScreen(stage) {
@@ -722,19 +775,24 @@
       }
       var parts = ['partnerProjects'];
       if (stage === 'consult' && v.factory)
-        parts = [
-          'partner-consults',
-          'factory-requests',
-          'partnerProjects',
-          'partnerConsultSettings',
-        ];
-      if (stage === 'make' && !v.factory) parts = ['production-requests', 'partnerProjects'];
+        parts = ['partner-consults', 'partnerProjects', 'partnerConsultSettings'];
+      if (stage === 'make')
+        parts = [v.factory ? 'factory-requests' : 'production-requests', 'partnerProjects'];
       if (stage === 'as')
         return v.factory
           ? { title: title, section: 'partner', parts: ['as'], label: 'asTitle' }
           : { title: title, soon: TEXT.managerAs };
       return { title: title, section: 'partner', parts: parts, stage: stage };
     };
+  }
+
+  /** 프로젝트 관리 대시보드 — 아래에 모든 단계 프로젝트 (고객은 내 프로젝트, 업체는 업체 프로젝트) */
+  function projectDash() {
+    var base = { title: SCREENS['dash-project'].title, dash: 'project', section: 'meDash' };
+    base.extra = viewer().member
+      ? { section: 'partner', parts: ['partnerProjects'], stage: '' }
+      : { section: 'meProjectSection', stage: '' };
+    return base;
   }
 
   /** 화면 정의 — 보는 사람마다 고르는 것(pick)은 지금 판정으로 */
@@ -744,11 +802,20 @@
     return typeof s.pick === 'function' ? s.pick() : s;
   }
 
-  /** 그 화면을 보일 수 있나 — 칸을 그 모듈이 열었을 때만 (준비 중은 늘) */
+  /** 큰 메뉴 (li[data-menu]) */
+  function menuEl(key) {
+    return key ? document.querySelector('#meHub [data-menu="' + key + '"]') : null;
+  }
+
+  /** 그 화면을 보일 수 있나 — 칸을 그 모듈이 열었을 때만 (준비 중은 늘, 대시보드는 그 큰 메뉴가 보일 때) */
   function available(name) {
     var s = defOf(name);
     if (!s) return false;
     if (s.soon) return true;
+    if (s.dash) {
+      var m = menuEl(s.dash);
+      return !!m && !m.hidden;
+    }
     if (!shown(s.section)) return false;
     if (s.filled) {
       var f = $(s.filled);
@@ -778,17 +845,31 @@
     return document.querySelector('#meHub [data-me-item="' + key + '"]');
   }
 
-  /** 그 화면을 연 하위 줄이 든 큰 메뉴 (옛 주소는 ALIAS 의 줄) */
+  /** 옛 주소는 그것이 여는 화면으로 */
+  function aliasOf(name) {
+    return own(ALIAS, name) ? ALIAS[name] : name;
+  }
+
+  /** 화면 → 밝힐 하위 줄(data-me-item) — 프로젝트 관리 화면은 그것을 묶은 줄 */
+  function rowKeyOf(name) {
+    var n = aliasOf(name);
+    for (var k in SUBS) if (own(SUBS, k) && SUBS[k].indexOf(n) >= 0) return k;
+    return n;
+  }
+
+  /** 그 화면이 든 큰 메뉴 — 대시보드는 그 메뉴, 나머지는 밝힐 하위 줄이 든 메뉴 */
   function menuOf(name) {
-    var li = item(own(ALIAS, name) ? ALIAS[name] : name);
+    var s = own(SCREENS, name) ? SCREENS[name] : null;
+    if (s && s.dash) return s.dash;
+    var li = item(rowKeyOf(name));
     var menu = li && li.closest ? li.closest('[data-menu]') : null;
     return menu ? menu.getAttribute('data-menu') : '';
   }
 
-  /** PC 에서 # 없이 열면 — 메뉴 차례대로 보이는 첫 하위 화면 */
+  /** PC 에서 # 없이 열면 — 처음 보이는 큰 메뉴의 대시보드 */
   function defaultScreen() {
-    var a = document.querySelector('#meHub li[data-me-item]:not([hidden]) a[data-me-go]');
-    return a ? a.getAttribute('data-me-go') : 'p-consult';
+    var m = document.querySelector('#meHub .me-group:not([hidden]) [data-menu]:not([hidden])');
+    return 'dash-' + (m ? m.getAttribute('data-menu') : 'basic');
   }
 
   function off(id, yes) {
@@ -805,6 +886,163 @@
       PP.setView({ stage: s.stage || '', assign: !!s.assign });
   }
 
+  /** 플래너 주소 — SeganShell.ROLE_LINKS planner (한 곳에서 정한다) */
+  function plannerHref() {
+    var links = (window.SeganShell && window.SeganShell.ROLE_LINKS) || [];
+    for (var i = 0; i < links.length; i++) if (links[i].key === 'planner') return links[i].href;
+    return '';
+  }
+
+  /** data-desktop-tab 링크 — PC 브라우저에서만 새 탭 (SeganShell.desktopTab) */
+  function linkTargets(root) {
+    var Shell = window.SeganShell || {};
+    if (!root || !Shell.applyLinkTarget) return;
+    root.querySelectorAll('a[data-desktop-tab]').forEach(function (a) {
+      Shell.applyLinkTarget(a);
+    });
+  }
+
+  /** 글이 바뀔 때만 다시 그린다 (누른 칸의 초점을 지키게) */
+  function paint(el, html) {
+    if (el.__meHtml === html) return;
+    el.__meHtml = html;
+    el.innerHTML = html;
+    linkTargets(el);
+  }
+
+  /**
+   * 화면 위 구역 단추 — 그 화면을 묶은 하위 줄의 화면들 (수금 · 고객은 업체 구성원만), 설계는 플래너 단추도.
+   * 둘 이상일 때만 보인다
+   */
+  function renderParts(name) {
+    var nav = $('meParts');
+    if (!nav) return;
+    var n = aliasOf(name);
+    var key = name ? rowKeyOf(name) : '';
+    var v = viewer();
+    var html = (own(SUBS, key) ? SUBS[key] : [])
+      .filter(function (p) {
+        return MEMBER_PARTS.indexOf(p) >= 0 ? v.member : available(p);
+      })
+      .map(function (p) {
+        var s = defOf(p);
+        return (
+          '<a class="me-part' +
+          (s.soon ? ' me-part-soon' : '') +
+          '" href="#' +
+          p +
+          '" data-me-part="' +
+          p +
+          '"' +
+          (p === n ? ' aria-current="page"' : '') +
+          '>' +
+          esc(s.title) +
+          '</a>'
+        );
+      });
+    var href = key === 'pj-design' && (H.roles || {}).planner === true ? plannerHref() : '';
+    if (href)
+      html.push(
+        '<a class="me-part me-part-link" href="' +
+          esc(href) +
+          '" data-desktop-tab>' +
+          esc(TEXT.planner) +
+          '</a>'
+      );
+    paint(nav, html.length > 1 ? html.join('') : '');
+    nav.hidden = html.length < 2;
+  }
+
+  /** 프로젝트 단계별 수 — 고객은 내 프로젝트, 업체는 업체 프로젝트 (읽지 못했으면 null) */
+  function stageCounts(v) {
+    var PP = window.SeganPartnerProjects;
+    var d = v.member && PP && PP.state ? PP.state.data : null;
+    var list = v.member ? d && d.items : H.projects;
+    if (!Array.isArray(list)) return null;
+    var n = {};
+    list.forEach(function (p) {
+      var k = menuStage(
+        p && p.stage,
+        p && p.order && typeof p.order === 'object' ? p.order.status : ''
+      );
+      n[k] = (n[k] || 0) + 1;
+    });
+    return n;
+  }
+
+  /** 처리 중(접수 · 받음) A/S 수 — 업체는 A/S함, 고객은 내 접수 (읽지 못했으면 null) */
+  function asCount(v) {
+    var A = window.SeganAs;
+    var list = A && A.state ? (v.member ? A.state.box : A.state.mine) : null;
+    if (!Array.isArray(list)) return null;
+    return list.filter(function (x) {
+      return !!x && AS_OPEN.indexOf(x.state) >= 0;
+    }).length;
+  }
+
+  /** 대시보드 칸의 수 — 프로젝트 관리 하위 줄만 (모르면 null) */
+  function countOf(key, v) {
+    var c = own(DASH_COUNT, key) ? DASH_COUNT[key] : null;
+    if (!c) return null;
+    if (c.as) return asCount(v);
+    var n = stageCounts(v);
+    if (!n) return null;
+    return c.stages.reduce(function (sum, k) {
+      return sum + (n[k] || 0);
+    }, 0);
+  }
+
+  /** 대시보드 칸 하나 — 그 하위 줄과 같은 곳으로 (글 · 값은 줄에서, 수는 프로젝트 관리만) */
+  function tileHtml(li, v) {
+    var a = li.querySelector('a.sg-row');
+    if (!a) return '';
+    var key = li.getAttribute('data-me-item');
+    var first = a.querySelector('span');
+    var val = a.querySelector('.me-val');
+    var soon = a.classList.contains('me-row-soon');
+    var go = a.getAttribute('data-me-go');
+    var n = countOf(key, v);
+    var note = n !== null ? DASH_COUNT[key].note : soon ? '준비 중' : val ? val.textContent : '';
+    return (
+      '<a class="me-tile' +
+      (soon ? ' me-tile-soon' : '') +
+      '" href="' +
+      esc(a.getAttribute('href') || '#') +
+      '"' +
+      (go ? ' data-me-go="' + esc(go) + '"' : '') +
+      (a.hasAttribute('data-desktop-tab') ? ' data-desktop-tab' : '') +
+      '><span class="me-tile-k">' +
+      esc((first || a).textContent) +
+      '</span>' +
+      (n !== null ? '<span class="me-tile-n">' + esc(String(n)) + '</span>' : '') +
+      (note ? '<span class="me-tile-d">' + esc(note) + '</span>' : '') +
+      '</a>'
+    );
+  }
+
+  /** 대시보드 — 그 큰 메뉴의 보이는 하위 줄마다 칸 하나 */
+  function renderDash(key) {
+    var body = $('meDashBody');
+    if (!body) return;
+    var m = menuEl(key);
+    var v = viewer();
+    var rows = m ? [].slice.call(m.querySelectorAll('li[data-me-item]:not([hidden])')) : [];
+    var title = $('meDashTitle');
+    if (title) title.textContent = SCREENS['dash-' + key].title;
+    paint(
+      body,
+      rows.length
+        ? '<div class="me-tiles">' +
+            rows
+              .map(function (li) {
+                return tileHtml(li, v);
+              })
+              .join('') +
+            '</div>'
+        : '<p class="me-empty">' + esc(TEXT.dashEmpty) + '</p>'
+    );
+  }
+
   /** 지금 주소 · 폭에 맞는 화면을 보인다 ('' = 메뉴만, 폰 · 태블릿) */
   function apply() {
     var main = $('main');
@@ -814,12 +1052,16 @@
     var name = asked || (wide && H.partnerKnown ? defaultScreen() : '');
     var s = name ? defOf(name) : null;
     var open = !!s && !s.soon && available(name); // 못 여는 화면 · 준비 중이면 칸 없이 안내만
+    // 아래에 붙일 칸 (대시보드) — 그 모듈이 연 때만
+    var x = open && s.extra && shown(s.extra.section) ? s.extra : null;
+    if (x && x.parts && !x.parts.some(shown)) x = null;
+    var parts = (s && s.parts ? s.parts : []).concat(x && x.parts ? x.parts : []);
     main.setAttribute('data-me-screen', name);
     SECTIONS.forEach(function (id) {
-      off(id, !open || s.section !== id);
+      off(id, !open || (s.section !== id && !(x && x.section === id)));
     });
     PARTNER_PARTS.forEach(function (id) {
-      off(id, !s || !s.parts || s.parts.indexOf(id) < 0);
+      off(id, parts.indexOf(id) < 0);
     });
     var sec = $('partner');
     if (sec) {
@@ -827,6 +1069,9 @@
       sec.setAttribute('data-me-view', (open && s.view) || '');
     }
     if (open) showStage(s);
+    if (x) showStage(x);
+    if (open && s.dash) renderDash(s.dash);
+    renderParts(name);
     var note = $('mePaneNote');
     if (note) {
       var text = '';
@@ -837,10 +1082,17 @@
       note.hidden = !text;
       note.classList.toggle('me-soon', !!(s && s.soon));
     }
-    var lit = own(ALIAS, name) ? ALIAS[name] : name;
-    document.querySelectorAll('#meHub a[data-me-go]').forEach(function (a) {
-      if (lit && a.getAttribute('data-me-go') === lit) a.setAttribute('aria-current', 'page');
+    // 밝힐 줄 — 하위 줄(프로젝트 관리는 화면을 묶은 줄) · 대시보드면 큰 메뉴 이름
+    var lit = name ? rowKeyOf(name) : '';
+    document.querySelectorAll('#meHub li[data-me-item] > a.sg-row').forEach(function (a) {
+      if (lit && a.parentNode.getAttribute('data-me-item') === lit)
+        a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
+    });
+    var dash = s && s.dash ? s.dash : '';
+    document.querySelectorAll('#meHub [data-me-dash]').forEach(function (b) {
+      if (dash && b.getAttribute('data-me-dash') === dash) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
     });
     var back = $('meBack');
     if (back) back.hidden = !asked;
@@ -859,7 +1111,7 @@
     if (se) se.scrollTop = 0;
   }
 
-  /** 펼친 큰 메뉴 — 폰 · 태블릿은 하나만 (PC 는 CSS 가 늘 펼친다). chosen = 사람이 골랐다 (이 탭 동안 기억) */
+  /** 펼친 큰 메뉴 — 폰 · PC 모두 하나만. chosen = 사람이 골랐다 (이 탭 동안 기억) */
   function setOpen(key, chosen) {
     H.open = key || '';
     if (chosen) {
@@ -874,24 +1126,45 @@
       var on = li.getAttribute('data-menu') === H.open;
       li.classList.toggle('is-open', on);
       var b = li.querySelector('[data-menu-toggle]');
-      if (b) b.setAttribute('aria-expanded', String(on || isWide()));
+      if (b) b.setAttribute('aria-expanded', String(on));
     });
   }
 
-  /** 메뉴에서 그 화면으로 — 기록을 하나 넣는다 (meFrom = 넣기 전 화면, '' 이면 메뉴) */
-  function go(name) {
+  /**
+   * 메뉴에서 그 화면으로 — 그 화면이 든 큰 메뉴를 펼치고 기록을 하나 넣는다 (meFrom = 넣기 전 화면, '' 이면 메뉴).
+   * replace = 구역 단추 — 같은 기록을 바꾼다 (뒤로 가기는 구역마다가 아니라 메뉴로)
+   */
+  function go(name, replace) {
     var from = askedScreen();
-    if (name === from) return;
     var menu = menuOf(name);
     if (menu) setOpen(menu, true);
+    if (name === from) return;
     try {
-      history.pushState({ meFrom: from }, '', '#' + name);
+      if (replace) history.replaceState(history.state, '', '#' + name);
+      else history.pushState({ meFrom: from }, '', '#' + name);
     } catch {
       location.hash = name;
       return;
     }
     apply();
     toTop();
+  }
+
+  /** 구역 단추 — 같은 기록 안에서, 폰 · 태블릿은 단추 차례대로 좌우에서 들어온다 */
+  function goPart(name) {
+    var from = askedScreen();
+    var list = SUBS[rowKeyOf(name)] || [];
+    if (!from || name === from) {
+      go(name);
+      return;
+    }
+    var dir = list.indexOf(name) > list.indexOf(aliasOf(from)) ? 1 : -1;
+    H.shown = name; // apply 의 화면 바꾸기 움직임 대신 아래 좌우 움직임
+    go(name, true);
+    var M = motion();
+    var el = $('mePane');
+    if (M && el && !isWide())
+      M.enter(el, { transform: 'translateX(' + dir * 28 + 'px)', opacity: 0.3 });
   }
 
   /** 「‹ 마이페이지」 — 메뉴에서 왔으면 뒤로, 아니면(알림 · 새로 고침) 이 기록을 메뉴로 바꾼다 */
@@ -913,27 +1186,47 @@
     toTop();
   }
 
+  /** 누름 — 새 탭 · 다른 단추로 누르면 브라우저에 맡긴다 */
+  function plainClick(e) {
+    return !(e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
+  }
+
   function onHubClick(e) {
     var t = e.target && e.target.closest ? e.target.closest('[data-menu-toggle]') : null;
     if (t) {
-      if (isWide()) return; // PC 는 늘 펼친다
       var key = t.getAttribute('data-menu-toggle');
       setOpen(H.open === key ? '' : key, true);
       // 펼친 하위 줄이 위에서 차례로 내려온다
       var M = motion();
+      var menu = t.closest('[data-menu]');
       var subs =
-        H.open === key ? t.parentNode.querySelectorAll('li[data-me-item]:not([hidden])') : [];
+        H.open === key && menu ? menu.querySelectorAll('li[data-me-item]:not([hidden])') : [];
       if (M)
         [].forEach.call(subs, function (li, i) {
           M.enter(li, { transform: 'translateY(-6px)', opacity: 0.2 }, i * 28);
         });
       return;
     }
-    var a = e.target && e.target.closest ? e.target.closest('a[data-me-go]') : null;
-    if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    // 큰 메뉴 이름 — 그 대시보드
+    var d = e.target && e.target.closest ? e.target.closest('[data-me-dash]') : null;
+    if (d) {
+      go('dash-' + d.getAttribute('data-me-dash'));
       return;
+    }
+    var a = e.target && e.target.closest ? e.target.closest('a[data-me-go]') : null;
+    if (!a || !plainClick(e)) return;
     e.preventDefault();
     go(a.getAttribute('data-me-go'));
+  }
+
+  /** 하위 화면 안 — 구역 단추 · 대시보드 칸 */
+  function onPaneClick(e) {
+    var a =
+      e.target && e.target.closest ? e.target.closest('a[data-me-part], a[data-me-go]') : null;
+    if (!a || !a.closest('#meParts, #meDash') || !plainClick(e)) return;
+    e.preventDefault();
+    if (a.hasAttribute('data-me-part')) goPart(a.getAttribute('data-me-part'));
+    else go(a.getAttribute('data-me-go'));
   }
 
   function onPop(e) {
@@ -959,17 +1252,13 @@
    * data-desktop-tab 은 PC 브라우저에서만 새 탭 (플래너 · PC 관리자 화면 — SeganShell.desktopTab)
    */
   function hubLinks() {
-    var Shell = window.SeganShell || {};
-    var links = Shell.ROLE_LINKS || [];
+    var links = (window.SeganShell && window.SeganShell.ROLE_LINKS) || [];
     document.querySelectorAll('#meHub a[data-role-link]').forEach(function (a) {
       for (var i = 0; i < links.length; i++)
         if (links[i].key === a.getAttribute('data-role-link'))
           a.setAttribute('href', links[i].href);
     });
-    if (!Shell.applyLinkTarget) return;
-    document.querySelectorAll('#meHub a[data-desktop-tab]').forEach(function (a) {
-      Shell.applyLinkTarget(a);
-    });
+    linkTargets($('meHub'));
   }
 
   /** 오늘 작업 — GET /work/me 요약 (js/mypage-work.js 의 건수 · 다음 작업 글) */
@@ -1028,44 +1317,39 @@
    */
   function rowOn(key, v, roles, ledger) {
     var pr = shown('partnerProjects');
+    // 견적 ~ 설치 — 단계로 거를 프로젝트를 읽었을 때 (본사 구성원은 업체 프로젝트가 없다)
+    var staged = !v.platform && (v.member ? pr : shown('meProjectSection'));
     switch (key) {
-      // 프로젝트 관리 — 본사 구성원은 없다 (업체관리)
-      case 'p-consult':
-        return !v.platform && (v.member ? available(key) : true);
-      case 'p-design':
-      case 'p-quote':
-      case 'p-contract':
-      case 'p-make':
-      case 'p-install':
-        return !v.platform && (v.member ? pr : shown('meProjectSection'));
-      case 'p-as':
+      // 프로젝트 관리
+      case 'pj-sales':
+        return !v.platform && (v.member ? available('p-consult') : true);
+      case 'pj-design':
+      case 'pj-make':
+      case 'pj-install':
+        return staged;
+      case 'pj-planner': // 설계 화면이 없고 플래너를 쓰면 (본사 · 관리자) — 설계 = 플래너
+        return roles.planner === true && !staged;
+      case 'pj-as':
         if (v.platform) return false;
         if (!v.member) return shown('meProjectSection') || shown('meAsSection');
         return v.factory ? shown('as') : pr;
-      // 플래너 — 셸 판정 (GET /planner/access), BOM · 발주서는 Expert 이상 · 공장 · 본사
-      case 'pl-new':
-      case 'pl-drafts':
-      case 'pl-render':
-        return roles.planner === true;
-      case 'pl-bom':
-      case 'pl-orders':
-        return roles.planner === true && (v.factory || v.platform || roles.admin === true);
-      // 재고 관리 — 준비 중 (Expert 이상 · 공장)
+      // 구매 · 재고 — 준비 중 (Expert 이상 · 공장)
       case 'stock-board':
       case 'stock-scrap':
       case 'stock-hardware':
         return v.factory && !v.platform;
-      // 회계 관리 — 장부를 열면 탭 여섯, 사진만 올리면 하나 (본사 구성원은 본사 › 회계관리)
+      // 회계 — 장부를 열면 (본사 대표 · 실장은 본사 장부), 설정 · 영수증 올리기는 업체만
       case 'lg-board':
       case 'lg-sales':
       case 'lg-buys':
       case 'lg-photos':
       case 'lg-report':
+        return ledger === 'book';
       case 'lg-settings':
         return ledger === 'book' && !v.platform;
       case 'lg-upload':
         return ledger === 'upload' && !v.platform;
-      // 인력 관리 — Agent 대표 · 실장 · 다담 공장
+      // 인사 — Agent 대표 · 실장 · 다담 공장
       case 'staff':
         return v.people && available(key);
       case 'assign':
@@ -1080,10 +1364,10 @@
         return v.people && !v.hq;
       case 'workers-hq':
         return v.people && v.hq;
-      // 본사 › 업체관리 › 등록 업체 — 본사 대표 · 실장 (칸을 연 때만)
+      // 플랫폼 › 등록 업체 — 본사 대표 · 실장 (칸을 연 때만)
       case 'companies':
         return v.platform && available(key);
-      // 기본 정보
+      // 내 계정
       case 'partner':
       case 'likes':
       case 'notify':
@@ -1098,11 +1382,9 @@
     }
   }
 
-  /** 본사 줄 — data-need: admin = 관리자, platform-book = 본사 장부를 연다 */
-  function needOn(need, v, roles, ledger) {
-    if (need === 'admin') return roles.admin === true;
-    if (need === 'platform-book') return v.platform && ledger === 'book';
-    return false;
+  /** 관리자 줄 — data-need admin (is_admin) */
+  function needOn(need, roles) {
+    return need === 'admin' && roles.admin === true;
   }
 
   /** 메뉴 줄 · 큰 메뉴 · 묶음을 지금 칸 상태에 맞춘다 (모듈이 칸을 열고 닫을 때마다) */
@@ -1115,9 +1397,14 @@
     document.querySelectorAll('#meHub li[data-me-item]').forEach(function (li) {
       var need = li.getAttribute('data-need');
       var key = li.getAttribute('data-me-item');
-      li.hidden = !(need ? needOn(need, v, roles, ledger) : rowOn(key, v, roles, ledger));
+      li.hidden = !(need ? needOn(need, roles) : rowOn(key, v, roles, ledger));
     });
-    // 기본 정보 › 내 팩토리 — 업체 이름, 업체가 없으면 「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」
+    // 프로젝트 관리 — 고객에게는 「상담 · 계약」 · 「제작」 (data-customer), 업체 · 본사는 「영업」 · 「생산」
+    document.querySelectorAll('#meHub a[data-customer]').forEach(function (a) {
+      if (!a.hasAttribute('data-label')) a.setAttribute('data-label', a.textContent);
+      a.textContent = a.getAttribute(v.member || v.platform ? 'data-label' : 'data-customer');
+    });
+    // 내 계정 › 내 팩토리 — 업체 이름, 업체가 없으면 「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」
     var p = partnerOf();
     var label = $('mePartnerLabel');
     if (label)
@@ -1148,34 +1435,25 @@
     document.querySelectorAll('#meHub [data-menu]').forEach(function (m) {
       m.hidden = !m.querySelector('li[data-me-item]:not([hidden])');
     });
-    ['meGroupWork', 'meGroupHq', 'meGroupMine'].forEach(function (id) {
+    GROUPS.forEach(function (id) {
       var g = $(id);
       if (g) g.hidden = !g.querySelector('[data-menu]:not([hidden])');
     });
-    // 업무 머리글 — 업체 구성원에게만 (고객은 프로젝트 관리 하나라 머리글 없이)
+    // 업무 머리글 — 업체 · 본사 구성원에게만 (고객은 프로젝트 관리 하나라 머리글 없이)
     var wt = $('meGroupWorkTitle');
     if (wt) wt.hidden = !v.member && !v.platform;
-    var hub = $('meHub');
-    var tail = hub ? hub.querySelector('.me-logout') : null;
-    if (hub && tail) {
-      var order = GROUP_ORDER[v.platform ? 'platform' : 'other'];
-      var now = [].filter
-        .call(hub.children, function (g) {
-          return g.classList.contains('me-group');
-        })
-        .map(function (g) {
-          return g.id;
-        });
-      if (now.join() !== order.join())
-        order.forEach(function (id) {
-          if ($(id)) hub.insertBefore($(id), tail); // 차례가 바뀔 때만 옮긴다 (누른 줄의 초점을 지키게)
-        });
-    }
-    // 폰에서 펼칠 큰 메뉴 — 사람이 고르기 전에는 처음 보이는 큰 메뉴, 고른 메뉴가 사라졌으면 처음 것
+    // 펼칠 큰 메뉴 — 사람이 고르기 전에는 지금 화면이 든 큰 메뉴(없으면 처음 보이는 것), 고른 메뉴가 사라졌으면 처음 것
     var first = document.querySelector('#meHub .me-group:not([hidden]) [data-menu]:not([hidden])');
-    var cur = H.open ? document.querySelector('#meHub [data-menu="' + H.open + '"]') : null;
-    if (!H.touched || (H.open && (!cur || cur.hidden)))
-      H.open = first ? first.getAttribute('data-menu') : '';
+    var cur = menuEl(H.open);
+    if (!H.touched || (H.open && (!cur || cur.hidden))) {
+      var here = menuEl(menuOf(askedScreen() || (isWide() ? defaultScreen() : '')));
+      H.open =
+        here && !here.hidden
+          ? here.getAttribute('data-menu')
+          : first
+            ? first.getAttribute('data-menu')
+            : '';
+    }
     setOpen(H.open, false);
     apply();
   }
@@ -1210,6 +1488,12 @@
       hub.setAttribute('data-bound', '1');
       hub.addEventListener('click', onHubClick);
     }
+    var pane = $('mePane');
+    if (pane && !pane.getAttribute('data-bound')) {
+      pane.setAttribute('data-bound', '1');
+      pane.addEventListener('click', onPaneClick);
+    }
+    if ($('meDash')) $('meDash').hidden = false; // 대시보드 칸은 이 파일이 그린다 (보이기는 me-off 로)
     var back = $('meBack');
     if (back && !back.getAttribute('data-bound')) {
       back.setAttribute('data-bound', '1');
@@ -1322,6 +1606,7 @@
   var api = {
     SCREENS: SCREENS,
     ALIAS: ALIAS,
+    SUBS: SUBS,
     MENU_STAGES: MENU_STAGES,
     menuStage: menuStage,
     defOf: defOf,
