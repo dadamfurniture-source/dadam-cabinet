@@ -444,7 +444,7 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
     expect(row('회원').getAttribute('href')).toBe('admin.html#members');
   });
 
-  test('다담 본사 구성원 — 본사 묶음이 맨 위, 프로젝트 관리 없음, 회계관리 = 본사 장부 + 공장 장부 보기', async () => {
+  test('다담 본사 구성원 — 본사 묶음이 맨 위, 프로젝트 관리 없음, 회계관리 = 본사 장부만 (공장 장부는 등록 업체 › 회계)', async () => {
     await load({
       partner: PLATFORM,
       isAdmin: true,
@@ -467,15 +467,13 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
       '인력관리',
       '기본 정보',
     ]);
-    expect(menus()[4]).toEqual([
-      '회계관리',
-      ['한눈에', '매출', '매입', '사진', '보고서', '공장 장부 보기'],
-    ]);
-    expect(row('공장 장부 보기').getAttribute('href')).toBe('ledger.html?company=' + HQ_CO);
+    // 공장 장부를 열 수 있어도 「공장 장부 보기」 줄은 없다 — 업체관리 › 등록 업체 › 다담 공장 › 회계와 겹친다
+    expect(menus()[4]).toEqual(['회계관리', ['한눈에', '매출', '매입', '사진', '보고서']]);
+    expect(document.querySelector('#meHub a[href*="company=' + HQ_CO + '"]')).toBeNull();
     expect(row('한눈에', 'hq-ledger').getAttribute('href')).toBe('ledger.html#board');
     expect(menus()[6]).toEqual(['기본 정보', BASIC]);
     expect($('meCompany').textContent).toBe('다담 본사');
-    // 공장 장부 목록이 없으면 그 줄만 없다 · 관리자가 아니면 관리자 줄은 없다
+    // 관리자가 아니면 관리자 줄은 없다
     await load({ partner: PLATFORM, ledger: ok({ money: true, level: 'full', ledgers: [] }) });
     expect(menus()).toEqual([
       ['회계관리', ['한눈에', '매출', '매입', '사진', '보고서']],

@@ -3,7 +3,7 @@
 /**
  * SEGAN 「관리 › 회원」 (segan/admin-members.js + segan/admin.html#members, 보기만)
  *
- *   들어오기  관리 첫 화면 「찾기 › 회원」 = #members
+ *   들어오기  마이페이지 본사 › 계정관리 › 회원 = admin.html#members
  *   읽는 것    Supabase profiles (최근 가입 20명, 이름 · 이메일 찾기 = or ilike) + 그 20명의 subscriptions · user_credits
  *             — PC admin/users.html 과 같은 표 · 같은 관리자 권한, 새 서버 주소 없음
  *   화면      이름 · 이메일 · 등급 · 구독 · 크레딧 · 상세설계 · 지역 · 가입. 바꾸기는 PC에서
@@ -161,14 +161,13 @@ afterEach(() => {
 });
 
 describe('들어오기', () => {
-  test('관리 첫 화면 「찾기」 줄 = #members, 열면 첫 화면을 감춘다', async () => {
-    await load({ hash: '' });
-    expect($('adGo').hidden).toBe(false);
-    expect($('adGo').querySelector('a').getAttribute('href')).toBe('#members');
+  test('#members 로 열면 첫 화면을 감춘다 — 들어오는 줄은 마이페이지 본사 › 계정관리 › 회원', async () => {
     await load();
     expect($('adMembers').hidden).toBe(false);
-    expect($('adGo').hidden).toBe(true);
     expect($('adToday').hidden).toBe(true);
+    expect(fs.readFileSync(path.join(ROOT, 'segan/me.html'), 'utf8')).toContain(
+      'href="admin.html#members"'
+    );
   });
 });
 

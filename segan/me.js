@@ -25,7 +25,8 @@
                         작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 일정(준비 중) · 작업자(공장은 PC 생산 계획)
        본사 (다담 본사 구성원은 맨 위) — 종합 대시보드 · 계정관리 · 업체관리 · DB관리 · 인력관리 줄은 관리자(is_admin) —
          앱 관리(admin.html#…) 또는 PC 관리자 화면(새 탭). 업체관리 › 등록 업체(#companies)는 본사 대표 · 실장
-         (segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력). 회계관리 = 본사 장부(본사 대표 · 실장) · 공장 장부 보기
+         (segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력). 회계관리 = 본사 장부(본사 대표 · 실장) — 공장 장부는
+         등록 업체 › 다담 공장 › 회계에 있어 여기 두지 않는다
        기본 정보 (누구나) — 내 연출컷 · 좋아요 #likes · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
          「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」, 다담 공장 · 본사 구성원은 없다) · 내 활동 · 알림 #notify · 설정
        맨 아래 로그아웃
@@ -993,17 +994,6 @@
     }
   }
 
-  /** 다담 공장 장부 (본사 대표 · 실장이 보기만 — /ledger/me 의 ledgers 중 공장) */
-  function hqLedger() {
-    var B = window.SeganBooks;
-    var list = B && B.state && Array.isArray(B.state.ledgers) ? B.state.ledgers : [];
-    for (var i = 0; i < list.length; i++) {
-      var l = list[i];
-      if (l && l.kind === 'hq' && !l.own && typeof l.company_id === 'string') return l.company_id;
-    }
-    return '';
-  }
-
   /**
    * 하위 줄을 보이나 — 화면 줄(data-me-go)은 그 화면을 열 수 있을 때, 페이지 줄은 판정으로.
    * v = viewer(), roles = 셸 판정, ledger = segan/books.js ledgerKind ('book' · 'upload' · '')
@@ -1080,11 +1070,10 @@
     }
   }
 
-  /** 본사 줄 — data-need: admin = 관리자, platform-book = 본사 장부를 연다, platform-hq-book = 공장 장부도 */
+  /** 본사 줄 — data-need: admin = 관리자, platform-book = 본사 장부를 연다 */
   function needOn(need, v, roles, ledger) {
     if (need === 'admin') return roles.admin === true;
     if (need === 'platform-book') return v.platform && ledger === 'book';
-    if (need === 'platform-hq-book') return v.platform && ledger === 'book' && !!hqLedger();
     return false;
   }
 
@@ -1127,10 +1116,6 @@
       co.textContent = t;
       co.hidden = !t;
     }
-    var hqId = hqLedger();
-    var hqLink = $('meHqFactoryLedger');
-    if (hqLink && hqId)
-      hqLink.setAttribute('href', 'ledger.html?company=' + encodeURIComponent(hqId));
     // 큰 메뉴 — 보이는 하위 줄이 없으면 감춘다, 묶음도 같게
     document.querySelectorAll('#meHub [data-menu]').forEach(function (m) {
       m.hidden = !m.querySelector('li[data-me-item]:not([hidden])');

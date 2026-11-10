@@ -8,7 +8,7 @@
  *   오늘 할 일 새 팩토리 신청 (account-api) · 배정을 기다리는 상담 · 팩토리 답을 기다리는 배정 (consult-inbox) ·
  *            추천할 제작 의뢰 (production-requests?state=todo) · 결정할 생산 제안 (reports/summary).
  *            못 읽은 줄은 「불러오지 못함」(제작 의뢰는 DB 0050 전 ready false 도), 상한 200 이면 「200+건」
- *   PC에서 열기 PC 에 남기는 관리자 화면 10개 — 이름 · 주소는 js/admin-shell.js ADMIN_NAV 와 같다
+ *   첫 화면은 오늘 할 일만 — 회원 · PC 관리자 화면 줄은 마이페이지 본사 메뉴 (segan/me.html)
  */
 const fs = require('fs');
 const path = require('path');
@@ -128,7 +128,6 @@ describe('누가 보나', () => {
     const calls = await load({ isAdmin: false });
     expect($('adDenied').hidden).toBe(false);
     expect($('adToday').hidden).toBe(true);
-    expect($('adPc').hidden).toBe(true);
     expect(calls.fetch).toHaveLength(0);
     // 관리는 막대에 탭이 없다 — 마이페이지 「업무」에서 온다, 막대는 「마이」가 켜진다
     expect(document.querySelector('[data-tab-link="admin"]')).toBeNull();
@@ -206,30 +205,33 @@ describe('오늘 할 일', () => {
   });
 });
 
-describe('PC에서 열기', () => {
-  test('PC 에 남기는 화면 10개 — 이름 · 주소는 js/admin-shell.js ADMIN_NAV 와 같고 파일이 있다', async () => {
+describe('첫 화면 — 오늘 할 일만', () => {
+  test('회원 · PC 관리자 화면 줄은 두지 않는다 — 마이페이지 본사 메뉴가 같은 곳을 연다', async () => {
     await load();
-    expect($('adPc').hidden).toBe(false);
-    const rows = [...$('adPcRows').querySelectorAll('a')].map((a) => [
-      a.textContent,
-      a.getAttribute('href'),
-    ]);
-    expect(rows).toHaveLength(10);
-    const nav = read('js/admin-shell.js');
-    for (const [label, href] of rows) {
-      const file = href.replace('../admin/', '');
-      expect(nav).toContain(`href: '${file}', icon:`);
-      expect(nav).toMatch(new RegExp(`href: '${file.replace('.', '\\.')}'[^}]*label: '${label}'`));
-      expect(fs.existsSync(path.join(ROOT, 'admin', file))).toBe(true);
-    }
-    // 앱으로 옮기는 넷(팩토리 신청 · 상담 · 작업 보고 · 회원)은 PC 목록에 두지 않는다
-    for (const moved of [
-      'expert-requests',
-      'consultations',
-      'consult-distribution',
-      'work-reports',
-      'users',
+    expect($('adToday').hidden).toBe(false);
+    expect($('adGo')).toBeNull();
+    expect($('adPc')).toBeNull();
+    // 첫 화면의 줄은 오늘 할 일 다섯뿐
+    const signedIn = document.querySelector('[data-auth-view="signed-in"]');
+    const home = [...signedIn.querySelectorAll('a.sg-row')].filter((a) => !a.closest('.ad-view'));
+    expect(home.map((a) => a.getAttribute('href'))).toEqual(
+      window.SeganAdmin.TODAY.map((t) => t.href)
+    );
+    // 예전 첫 화면 줄은 모두 마이페이지 본사 메뉴에 있다 (빠진 곳이 없게)
+    const me = read('segan/me.html');
+    for (const href of [
+      'admin.html#members',
+      '../admin/management.html',
+      '../admin/counterparties.html',
+      '../admin/gallery.html',
+      '../admin/reference-images.html',
+      '../admin/dataset.html',
+      '../admin/partner-eval.html',
+      '../admin/appliances.html',
+      '../admin/work-jobs.html',
+      '../admin/logs.html',
+      '../admin/settings.html',
     ])
-      expect(rows.some(([, href]) => href.includes(moved))).toBe(false);
+      expect(me).toContain(`href="${href}"`);
   });
 });
