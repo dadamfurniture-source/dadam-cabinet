@@ -15,13 +15,15 @@
                         segan/hq-board.html#조각, 고객 흐름 · 공정 · 품질은 PC 화면 admin/management.html?part=)
          프로젝트 관리  영업 · 설계 · 생산 · 설치 · A/S — 줄 하나가 화면 여럿을 묶는다 (SUBS, 화면 위 구역 단추 #meParts):
                         영업 = 상담 #p-consult · 견적 · 계약 · 수금 · 고객(수금 · 고객은 업체만, 준비 중), 설계 = #p-design (+ 플래너 단추),
-                        생산 = #p-make, 설치 = #p-install, A/S = #p-as. 고객은 「상담 · 계약」 · 「제작」 이라 적는다 (data-customer).
+                        생산 = #p-make · 생산 계획 #p-plan (다담 공장), 설치 = #p-install, A/S = #p-as. 고객은 「상담 · 계약」 · 「제작」 이라 적는다 (data-customer).
                         고객: 상담 = 내 상담 내역, 견적 ~ 설치 = 내 프로젝트를 그 단계로 거름, A/S = 내 A/S 접수
                         업체: 상담 = 배정 상담 · 상담 단계 프로젝트 · 상담 설정 (팩토리 = 다담 공장 · Expert · Agent,
                         Manager 는 상담 단계 프로젝트만), 견적 ~ 설치 = 업체 프로젝트를 그 단계로 거름,
                         제작 = 팩토리는 받은 제작 의뢰도 · Manager 는 제작 의뢰도, A/S = 팩토리 A/S함 · Manager 는 준비 중
                         설치 = 설치 현장 지도 + 표(#siteInstall) 가 프로젝트 위에, A/S = A/S 현장 지도 + 표(#siteAs) 가 A/S함 위에
                         (segan/site-map.js — 카카오맵)
+                        생산 계획 = 추천 · 주문별 일정 · 날짜별 부하 · 지시 내역 · 월 손익 (#productionPlan —
+                        segan/production-plan.js, 다담 공장 구성원만)
                         단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다).
                         대시보드(#dash-project) = 단계별 수 + 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js) + 프로젝트 목록.
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
@@ -526,6 +528,13 @@
     'p-make': { title: '제작', pick: stageScreen('make') },
     'p-install': { title: '설치', pick: stageScreen('install') },
     'p-as': { title: 'A/S', pick: stageScreen('as') },
+    // 생산 › 생산 계획 (다담 공장) — 추천 · 일정 · 부하 · 지시 · 월 손익 (segan/production-plan.js)
+    'p-plan': {
+      title: '생산 계획',
+      section: 'partner',
+      parts: ['productionPlan'],
+      label: 'productionPlanTitle',
+    },
     // 영업 › 수금 (업체) — 수금 표 (segan/orders.js)
     'p-collect': { title: '수금', pick: collectScreen },
     // 영업 › 고객 (업체) — 준비 중
@@ -625,7 +634,7 @@
   var SUBS = {
     'pj-sales': ['p-consult', 'p-quote', 'p-contract', 'p-collect', 'p-customers'],
     'pj-design': ['p-design'],
-    'pj-make': ['p-make'],
+    'pj-make': ['p-make', 'p-plan'],
     'pj-install': ['p-install'],
     'pj-as': ['p-as'],
   };
@@ -655,6 +664,7 @@
     'partner-consults',
     'factory-requests',
     'production-requests',
+    'productionPlan',
     'siteInstall',
     'orders',
     'ordersCollect',
@@ -1589,6 +1599,7 @@
     var Factory = window.SeganFactoryRequests;
     var HqCo = window.SeganHqCompanies;
     var Orders = window.SeganOrders;
+    var Plan = window.SeganProductionPlan;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1607,6 +1618,8 @@
           synced(Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null),
           // 수주 · 수금 = 프로젝트를 보는 사람과 같다, 금액은 대표 · 실장 (segan/orders.js — 계약 · 수금 화면)
           synced(Orders && Orders.load ? Orders.load(auth.sb, auth.session, me) : null),
+          // 생산 계획 = 다담 공장 구성원 (segan/production-plan.js — 생산 › 생산 계획 화면)
+          synced(Plan && Plan.load ? Plan.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
           synced(Cal && Cal.load ? Cal.load(auth.sb, auth.session, me) : null),
           // 설치 · A/S 지도 + 표 = 업무 달력 · A/S함을 보는 사람 (segan/site-map.js — 설치 · A/S 화면)

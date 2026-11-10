@@ -2629,6 +2629,171 @@ button.sm-num[aria-pressed='true'] {
   font-size: 13px;
 }
 
+/* 업체 › 생산 계획 (#productionPlan — segan/production-plan.js). 표 · 요약 칸은 위 수주 · 수금(.od-*)을 그대로 쓴다.
+   각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음. 막대 색 셋은 업무 달력의 색각 검사를 통과한 값이다 (재단 · 엣지 · 조립).
+   색만으로 가리지 않는다 — 막대 위에 글 범례, 오른쪽에 시간 칸, 막대마다 읽어 주는 이름이 있다 */
+.pp {
+  --pp-cut: #2f6fb0;
+  --pp-edge: #c96a2b;
+  --pp-asm: #1f9a86;
+}
+
+.pp-meta {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pp-meta .od-badge {
+  margin: 0 6px 0 0;
+  color: var(--v5-ink);
+}
+
+/* 추천 목록 — 줄 전체가 체크 자리 (누르는 곳 44px). 줄은 줄이지 않는다 */
+.pp-sugs {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pp-sug {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.pp-pick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 0;
+  font-size: 14px;
+  font-weight: 300;
+  cursor: pointer;
+}
+
+.pp-pick input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--v5-navy);
+}
+
+.pp-pick input:disabled {
+  cursor: default;
+}
+
+.pp-pick .od-badge {
+  flex: none;
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+.pp-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pp-cost {
+  flex: none;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
+.pp-acts {
+  margin-top: 14px;
+}
+
+/* 날짜별 부하 — 가능 시간 대비 막대 셋 (재단 · 엣지 · 조립) */
+.pp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.pp-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-key {
+  width: 10px;
+  height: 10px;
+}
+
+.pp-key--cut,
+.pp-bar--cut > i {
+  background: var(--pp-cut);
+}
+
+.pp-key--edge,
+.pp-bar--edge > i {
+  background: var(--pp-edge);
+}
+
+.pp-key--asm,
+.pp-bar--asm > i {
+  background: var(--pp-asm);
+}
+
+.od-table td.pp-bars {
+  width: 34%;
+  min-width: 140px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.pp-bar {
+  display: block;
+  height: 5px;
+  background: var(--v5-well);
+}
+
+.pp-bar + .pp-bar {
+  margin-top: 2px;
+}
+
+.pp-bar > i {
+  display: block;
+  height: 100%;
+}
+
+/* 지시 내용 — 긴 글은 줄을 바꾼다 */
+.od-table td.pp-wrap {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.pp-month {
+  max-width: 200px;
+}
+
+.pp-more {
+  margin-top: 10px;
+}
+
+.pp-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--v5-navy);
+  cursor: pointer;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;

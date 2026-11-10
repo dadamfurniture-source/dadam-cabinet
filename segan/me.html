@@ -8,58 +8,60 @@
     <title>마이페이지 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026111103" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026111103" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026111103" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111103" />
+    <link rel="icon" href="icons/icon.svg?v=2026111105" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111105" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111105" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111105" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026111103" />
+    <link rel="stylesheet" href="shell.css?v=2026111105" />
     <!-- 업체 칸의 입력 · 버튼 — 만들기 탭과 같은 모양 (consult.html · renders.html 처럼 싣는다) -->
-    <link rel="stylesheet" href="make.css?v=2026111103" />
+    <link rel="stylesheet" href="make.css?v=2026111105" />
     <!-- 로그인 상태 · 역할 링크 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말).
          설계(간편 플래너)는 모듈 없이 워크플로 API GET /planner/access 로 판정한다 -->
-    <script src="../js/config.js?v=2026111103"></script>
+    <script src="../js/config.js?v=2026111105"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111103"></script>
-    <script src="../js/mypage-work.js?v=2026111103"></script>
+    <script src="../js/admin-access.js?v=2026111105"></script>
+    <script src="../js/mypage-work.js?v=2026111105"></script>
     <!-- 업체 칸: Manager · Expert 카드 등록 · Agent 결제 · 다시 시작 — pricing.html 과 같은 토스 결제창 -->
     <script src="https://js.tosspayments.com/v1/payment" defer></script>
     <!-- 내 정보 › 알림 (web push) — 셸의 로그아웃이 이 기기 구독을 지우려 SeganPush.forget 을 부른다 -->
-    <script src="push.js?v=2026111103" defer></script>
-    <script src="regions.js?v=2026111103" defer></script>
-    <script src="partner.js?v=2026111103" defer></script>
-    <script src="partner-consults.js?v=2026111103" defer></script>
-    <script src="books.js?v=2026111103" defer></script>
-    <script src="partner-projects.js?v=2026111103" defer></script>
+    <script src="push.js?v=2026111105" defer></script>
+    <script src="regions.js?v=2026111105" defer></script>
+    <script src="partner.js?v=2026111105" defer></script>
+    <script src="partner-consults.js?v=2026111105" defer></script>
+    <script src="books.js?v=2026111105" defer></script>
+    <script src="partner-projects.js?v=2026111105" defer></script>
     <!-- 업무 달력 — 프로젝트 관리 대시보드의 #meCalendar (segan/calendar.js) -->
-    <script src="calendar.js?v=2026111103" defer></script>
+    <script src="calendar.js?v=2026111105" defer></script>
     <!-- 설치 · A/S 지도 + 표 — 프로젝트 관리 › 설치 #siteInstall · A/S #siteAs (segan/site-map.js) -->
-    <script src="site-map.js?v=2026111103" defer></script>
+    <script src="site-map.js?v=2026111105" defer></script>
     <!-- A/S 접수 — 내 프로젝트의 「A/S 신청」 · 내 접수 · 팩토리 A/S함 (segan/as-requests.js) -->
-    <script src="as-requests.js?v=2026111103" defer></script>
+    <script src="as-requests.js?v=2026111105" defer></script>
     <!-- 관리 › 플랫폼 › 등록 업체 — 업체마다 프로젝트 · 회계 · 인력 (segan/hq-companies.js) -->
-    <script src="hq-companies.js?v=2026111103" defer></script>
+    <script src="hq-companies.js?v=2026111105" defer></script>
     <!-- 제작 의뢰 — Manager 업체의 의뢰 · 고르기 (segan/production-requests.js) · 팩토리 제작 의뢰함 (segan/factory-requests.js) -->
-    <script src="production-requests.js?v=2026111103" defer></script>
-    <script src="factory-requests.js?v=2026111103" defer></script>
+    <script src="production-requests.js?v=2026111105" defer></script>
+    <script src="factory-requests.js?v=2026111105" defer></script>
     <!-- 프로젝트 관리 › 영업 › 계약 · 수금 — 수주 표 · 수금 표 · 수주 상세 시트 (segan/orders.js) -->
-    <script src="orders.js?v=2026111103" defer></script>
+    <script src="orders.js?v=2026111105" defer></script>
+    <!-- 프로젝트 관리 › 생산 › 생산 계획 — 추천 · 주문별 일정 · 날짜별 부하 · 지시 내역 · 월 손익 (segan/production-plan.js) -->
+    <script src="production-plan.js?v=2026111105" defer></script>
     <!-- 내 프로젝트 다음 결제 — 결제 칸 · 토스 결제창 (위 v1 결제 모듈) -->
-    <script src="pay.js?v=2026111103" defer></script>
+    <script src="pay.js?v=2026111105" defer></script>
     <!-- 내 것 › 좋아요 — 시공사례와 같은 타일 · 사진 보기 (segan/collection-view.js) -->
-    <script src="collection-view.js?v=2026111103" defer></script>
+    <script src="collection-view.js?v=2026111105" defer></script>
     <!-- 움직임 한 벌 — 화면 넘기기 · 메뉴 펼치기 · 시트 끌기 (CLAUDE.md 「SEGAN 모션 규칙」, segan/motion.js) -->
-    <script src="motion.js?v=2026111103" defer></script>
-    <script src="shell.js?v=2026111103" defer></script>
+    <script src="motion.js?v=2026111105" defer></script>
+    <script src="shell.js?v=2026111105" defer></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026111103" defer></script>
-    <script src="make.js?v=2026111103" defer></script>
-    <script src="me.js?v=2026111103" defer></script>
+    <script src="guide.js?v=2026111105" defer></script>
+    <script src="make.js?v=2026111105" defer></script>
+    <script src="me.js?v=2026111105" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -86,8 +88,14 @@
               <p class="me-name" id="meName" hidden></p>
               <p class="sg-account" id="sgAccountEmail"></p>
               <dl class="me-profile-facts">
-                <div><dt>등급</dt><dd id="meTier">…</dd></div>
-                <div><dt>남은 크레딧</dt><dd id="meCredits">…</dd></div>
+                <div>
+                  <dt>등급</dt>
+                  <dd id="meTier">…</dd>
+                </div>
+                <div>
+                  <dt>남은 크레딧</dt>
+                  <dd id="meCredits">…</dd>
+                </div>
               </dl>
               <p class="me-company" id="meCompany" hidden></p>
             </div>
@@ -112,16 +120,37 @@
                 <li class="me-menu" data-menu="home" hidden>
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="home">홈</button>
-                    <button type="button" class="me-chev" data-menu-toggle="home" aria-expanded="false" aria-controls="meSubHome" aria-label="홈 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="home"
+                      aria-expanded="false"
+                      aria-controls="meSubHome"
+                      aria-label="홈 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubHome">
-                    <li data-me-item="hq-today" data-need="admin" hidden><a class="sg-row" href="admin.html">오늘 현황</a></li>
-                    <li data-me-item="hq-profit" data-need="admin" hidden><a class="sg-row" href="hq-board.html#profit">이익 · 목표</a></li>
-                    <li data-me-item="hq-pl" data-need="admin" hidden><a class="sg-row" href="hq-board.html#finance">손익 분석</a></li>
-                    <li data-me-item="hq-cash" data-need="admin" hidden><a class="sg-row" href="hq-board.html#cash">현금 · 미수</a></li>
-                    <li data-me-item="hq-forecast" data-need="admin" hidden><a class="sg-row" href="hq-board.html#forecast">매출 예측</a></li>
-                    <li data-me-item="hq-customers" data-need="admin" hidden><a class="sg-row" href="../admin/management.html?part=customer" data-desktop-tab>고객 흐름</a></li>
-                    <li data-me-item="hq-process" data-need="admin" hidden><a class="sg-row" href="../admin/management.html?part=process" data-desktop-tab>공정 · 품질</a></li>
+                    <li data-me-item="hq-today" data-need="admin" hidden>
+                      <a class="sg-row" href="admin.html">오늘 현황</a>
+                    </li>
+                    <li data-me-item="hq-profit" data-need="admin" hidden>
+                      <a class="sg-row" href="hq-board.html#profit">이익 · 목표</a>
+                    </li>
+                    <li data-me-item="hq-pl" data-need="admin" hidden>
+                      <a class="sg-row" href="hq-board.html#finance">손익 분석</a>
+                    </li>
+                    <li data-me-item="hq-cash" data-need="admin" hidden>
+                      <a class="sg-row" href="hq-board.html#cash">현금 · 미수</a>
+                    </li>
+                    <li data-me-item="hq-forecast" data-need="admin" hidden>
+                      <a class="sg-row" href="hq-board.html#forecast">매출 예측</a>
+                    </li>
+                    <li data-me-item="hq-customers" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/management.html?part=customer" data-desktop-tab>고객 흐름</a>
+                    </li>
+                    <li data-me-item="hq-process" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/management.html?part=process" data-desktop-tab>공정 · 품질</a>
+                    </li>
                   </ul>
                 </li>
                 <!-- 프로젝트 관리 — 영업 · 설계 · 생산 · 설치 · A/S. 줄 하나가 화면 여럿을 묶는다 (segan/me.js SUBS — 영업 = 상담 · 견적 · 계약 ·
@@ -129,14 +158,31 @@
                 <li class="me-menu" data-menu="project" hidden>
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="project">프로젝트 관리</button>
-                    <button type="button" class="me-chev" data-menu-toggle="project" aria-expanded="false" aria-controls="meSubProject" aria-label="프로젝트 관리 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="project"
+                      aria-expanded="false"
+                      aria-controls="meSubProject"
+                      aria-label="프로젝트 관리 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubProject">
-                    <li data-me-item="pj-sales" hidden><a class="sg-row" href="#p-consult" data-me-go="p-consult" data-customer="상담 · 계약">영업</a></li>
-                    <li data-me-item="pj-design" hidden><a class="sg-row" href="#p-design" data-me-go="p-design">설계</a></li>
-                    <li data-me-item="pj-planner" hidden><a class="sg-row" data-role-link="planner" data-desktop-tab>설계</a></li>
-                    <li data-me-item="pj-make" hidden><a class="sg-row" href="#p-make" data-me-go="p-make" data-customer="제작">생산</a></li>
-                    <li data-me-item="pj-install" hidden><a class="sg-row" href="#p-install" data-me-go="p-install">설치</a></li>
+                    <li data-me-item="pj-sales" hidden>
+                      <a class="sg-row" href="#p-consult" data-me-go="p-consult" data-customer="상담 · 계약">영업</a>
+                    </li>
+                    <li data-me-item="pj-design" hidden>
+                      <a class="sg-row" href="#p-design" data-me-go="p-design">설계</a>
+                    </li>
+                    <li data-me-item="pj-planner" hidden>
+                      <a class="sg-row" data-role-link="planner" data-desktop-tab>설계</a>
+                    </li>
+                    <li data-me-item="pj-make" hidden>
+                      <a class="sg-row" href="#p-make" data-me-go="p-make" data-customer="제작">생산</a>
+                    </li>
+                    <li data-me-item="pj-install" hidden>
+                      <a class="sg-row" href="#p-install" data-me-go="p-install">설치</a>
+                    </li>
                     <li data-me-item="pj-as" hidden><a class="sg-row" href="#p-as" data-me-go="p-as">A/S</a></li>
                   </ul>
                 </li>
@@ -151,13 +197,28 @@
                 <li class="me-menu" data-menu="stock" hidden>
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="stock">구매 · 재고</button>
-                    <button type="button" class="me-chev" data-menu-toggle="stock" aria-expanded="false" aria-controls="meSubStock" aria-label="구매 · 재고 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="stock"
+                      aria-expanded="false"
+                      aria-controls="meSubStock"
+                      aria-label="구매 · 재고 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubStock">
-                    <li data-me-item="stock-board" hidden><a class="sg-row me-row-soon" href="#stock-board" data-me-go="stock-board">기본 자재</a></li>
-                    <li data-me-item="stock-scrap" hidden><a class="sg-row me-row-soon" href="#stock-scrap" data-me-go="stock-scrap">자투리 자재</a></li>
-                    <li data-me-item="stock-hardware" hidden><a class="sg-row me-row-soon" href="#stock-hardware" data-me-go="stock-hardware">철물</a></li>
-                    <li data-me-item="hq-counterparties" data-need="admin" hidden><a class="sg-row" href="../admin/counterparties.html" data-desktop-tab>거래처 · 공급처</a></li>
+                    <li data-me-item="stock-board" hidden>
+                      <a class="sg-row me-row-soon" href="#stock-board" data-me-go="stock-board">기본 자재</a>
+                    </li>
+                    <li data-me-item="stock-scrap" hidden>
+                      <a class="sg-row me-row-soon" href="#stock-scrap" data-me-go="stock-scrap">자투리 자재</a>
+                    </li>
+                    <li data-me-item="stock-hardware" hidden>
+                      <a class="sg-row me-row-soon" href="#stock-hardware" data-me-go="stock-hardware">철물</a>
+                    </li>
+                    <li data-me-item="hq-counterparties" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/counterparties.html" data-desktop-tab>거래처 · 공급처</a>
+                    </li>
                   </ul>
                 </li>
                 <!-- 회계 — GET /ledger/me 가 장부(full · read)로 답할 때 한눈에 ~ 보고서 (본사 대표 · 실장은 본사 장부),
@@ -165,7 +226,14 @@
                 <li class="me-menu" data-menu="ledger" hidden>
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="ledger">회계</button>
-                    <button type="button" class="me-chev" data-menu-toggle="ledger" aria-expanded="false" aria-controls="meSubLedger" aria-label="회계 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="ledger"
+                      aria-expanded="false"
+                      aria-controls="meSubLedger"
+                      aria-label="회계 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubLedger">
                     <li data-me-item="lg-board" hidden><a class="sg-row" href="ledger.html#board">한눈에</a></li>
@@ -180,49 +248,114 @@
                 <li class="me-menu" data-menu="people" hidden>
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="people">인사</button>
-                    <button type="button" class="me-chev" data-menu-toggle="people" aria-expanded="false" aria-controls="meSubPeople" aria-label="인사 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="people"
+                      aria-expanded="false"
+                      aria-controls="meSubPeople"
+                      aria-label="인사 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubPeople">
                     <li data-me-item="staff" hidden><a class="sg-row" href="#staff" data-me-go="staff">직원</a></li>
-                    <li data-me-item="assign" hidden><a class="sg-row" href="#assign" data-me-go="assign">작업 분배</a></li>
-                    <li data-me-item="schedule" hidden><a class="sg-row me-row-soon" href="#schedule" data-me-go="schedule">근무 일정</a></li>
-                    <li data-me-item="workers" hidden><a class="sg-row me-row-soon" href="#workers" data-me-go="workers">작업자</a></li>
+                    <li data-me-item="assign" hidden>
+                      <a class="sg-row" href="#assign" data-me-go="assign">작업 분배</a>
+                    </li>
+                    <li data-me-item="schedule" hidden>
+                      <a class="sg-row me-row-soon" href="#schedule" data-me-go="schedule">근무 일정</a>
+                    </li>
+                    <li data-me-item="workers" hidden>
+                      <a class="sg-row me-row-soon" href="#workers" data-me-go="workers">작업자</a>
+                    </li>
                     <!-- 다담 공장 — 생산 계획 · 작업자 링크 (PC 화면 production.html) -->
-                    <li data-me-item="workers-hq" hidden><a class="sg-row" href="../production.html" data-desktop-tab>작업자</a></li>
-                    <li data-me-item="hq-workers" data-need="admin" hidden><a class="sg-row" href="../admin/work-jobs.html" data-desktop-tab>작업자 · 작업 배정</a></li>
-                    <li data-me-item="hq-work-reports" data-need="admin" hidden><a class="sg-row" href="admin.html#reports">작업 지시 보고</a></li>
+                    <li data-me-item="workers-hq" hidden>
+                      <a class="sg-row" href="../production.html" data-desktop-tab>작업자</a>
+                    </li>
+                    <li data-me-item="hq-workers" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/work-jobs.html" data-desktop-tab>작업자 · 작업 배정</a>
+                    </li>
+                    <li data-me-item="hq-work-reports" data-need="admin" hidden>
+                      <a class="sg-row" href="admin.html#reports">작업 지시 보고</a>
+                    </li>
                   </ul>
                 </li>
                 <li class="me-menu" data-menu="master" hidden>
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="master">기준정보</button>
-                    <button type="button" class="me-chev" data-menu-toggle="master" aria-expanded="false" aria-controls="meSubMaster" aria-label="기준정보 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="master"
+                      aria-expanded="false"
+                      aria-controls="meSubMaster"
+                      aria-label="기준정보 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubMaster">
-                    <li data-me-item="hq-gallery" data-need="admin" hidden><a class="sg-row" href="../admin/gallery.html" data-desktop-tab>시공사례</a></li>
-                    <li data-me-item="hq-refs" data-need="admin" hidden><a class="sg-row" href="../admin/reference-images.html" data-desktop-tab>참고 이미지</a></li>
-                    <li data-me-item="hq-dataset" data-need="admin" hidden><a class="sg-row" href="../admin/dataset.html" data-desktop-tab>학습 데이터셋</a></li>
-                    <li data-me-item="hq-appliances" data-need="admin" hidden><a class="sg-row" href="../admin/appliances.html" data-desktop-tab>가전 모델</a></li>
+                    <li data-me-item="hq-gallery" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/gallery.html" data-desktop-tab>시공사례</a>
+                    </li>
+                    <li data-me-item="hq-refs" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/reference-images.html" data-desktop-tab>참고 이미지</a>
+                    </li>
+                    <li data-me-item="hq-dataset" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/dataset.html" data-desktop-tab>학습 데이터셋</a>
+                    </li>
+                    <li data-me-item="hq-appliances" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/appliances.html" data-desktop-tab>가전 모델</a>
+                    </li>
                   </ul>
                 </li>
                 <li class="me-menu" data-menu="platform" hidden>
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="platform">플랫폼</button>
-                    <button type="button" class="me-chev" data-menu-toggle="platform" aria-expanded="false" aria-controls="meSubPlatform" aria-label="플랫폼 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="platform"
+                      aria-expanded="false"
+                      aria-controls="meSubPlatform"
+                      aria-label="플랫폼 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubPlatform">
                     <!-- 등록 업체 — 본사 대표 · 실장 (segan/hq-companies.js 가 칸을 열 때만) -->
-                    <li data-me-item="companies" hidden><a class="sg-row" href="#companies" data-me-go="companies">등록 업체</a></li>
-                    <li data-me-item="hq-applications" data-need="admin" hidden><a class="sg-row" href="admin.html#applications">팩토리 신청</a></li>
-                    <li data-me-item="hq-eval" data-need="admin" hidden><a class="sg-row" href="../admin/partner-eval.html" data-desktop-tab>팩토리 평가</a></li>
-                    <li data-me-item="hq-consults" data-need="admin" hidden><a class="sg-row" href="admin.html#consults">상담 배정</a></li>
-                    <li data-me-item="hq-production" data-need="admin" hidden><a class="sg-row" href="admin.html#production">제작 의뢰 추천</a></li>
-                    <li data-me-item="hq-done" data-need="admin" hidden><a class="sg-row" href="../admin/order-reports.html" data-desktop-tab>완료 보고</a></li>
-                    <li data-me-item="hq-as" data-need="admin" hidden><a class="sg-row" href="../admin/as-requests.html" data-desktop-tab>A/S 현황</a></li>
-                    <li data-me-item="hq-partner-score" data-need="admin" hidden><a class="sg-row" href="../admin/management.html?part=partners" data-desktop-tab>거래처 · 공급처 성적</a></li>
-                    <li data-me-item="hq-members" data-need="admin" hidden><a class="sg-row" href="admin.html#members">회원</a></li>
-                    <li data-me-item="hq-admins" data-need="admin" hidden><a class="sg-row" href="../admin/settings.html" data-desktop-tab>관리자 계정</a></li>
-                    <li data-me-item="hq-logs" data-need="admin" hidden><a class="sg-row" href="../admin/logs.html" data-desktop-tab>활동 로그</a></li>
+                    <li data-me-item="companies" hidden>
+                      <a class="sg-row" href="#companies" data-me-go="companies">등록 업체</a>
+                    </li>
+                    <li data-me-item="hq-applications" data-need="admin" hidden>
+                      <a class="sg-row" href="admin.html#applications">팩토리 신청</a>
+                    </li>
+                    <li data-me-item="hq-eval" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/partner-eval.html" data-desktop-tab>팩토리 평가</a>
+                    </li>
+                    <li data-me-item="hq-consults" data-need="admin" hidden>
+                      <a class="sg-row" href="admin.html#consults">상담 배정</a>
+                    </li>
+                    <li data-me-item="hq-production" data-need="admin" hidden>
+                      <a class="sg-row" href="admin.html#production">제작 의뢰 추천</a>
+                    </li>
+                    <li data-me-item="hq-done" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/order-reports.html" data-desktop-tab>완료 보고</a>
+                    </li>
+                    <li data-me-item="hq-as" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/as-requests.html" data-desktop-tab>A/S 현황</a>
+                    </li>
+                    <li data-me-item="hq-partner-score" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/management.html?part=partners" data-desktop-tab
+                        >거래처 · 공급처 성적</a
+                      >
+                    </li>
+                    <li data-me-item="hq-members" data-need="admin" hidden>
+                      <a class="sg-row" href="admin.html#members">회원</a>
+                    </li>
+                    <li data-me-item="hq-admins" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/settings.html" data-desktop-tab>관리자 계정</a>
+                    </li>
+                    <li data-me-item="hq-logs" data-need="admin" hidden>
+                      <a class="sg-row" href="../admin/logs.html" data-desktop-tab>활동 로그</a>
+                    </li>
                   </ul>
                 </li>
               </ul>
@@ -234,7 +367,14 @@
                 <li class="me-menu" data-menu="basic">
                   <div class="me-menu-head">
                     <button type="button" class="me-menu-name" data-me-dash="basic">내 계정</button>
-                    <button type="button" class="me-chev" data-menu-toggle="basic" aria-expanded="false" aria-controls="meSubBasic" aria-label="내 계정 하위 메뉴"></button>
+                    <button
+                      type="button"
+                      class="me-chev"
+                      data-menu-toggle="basic"
+                      aria-expanded="false"
+                      aria-controls="meSubBasic"
+                      aria-label="내 계정 하위 메뉴"
+                    ></button>
                   </div>
                   <ul class="sg-rows me-subs" id="meSubBasic">
                     <!-- 내 연출컷 — 예전 아래 탭 「내 연출컷」 (목록 renders.html, 하나는 만들기 ③ 결과로 연다) -->
@@ -243,12 +383,16 @@
                     <li data-me-item="likes"><a class="sg-row" href="#likes" data-me-go="likes">좋아요</a></li>
                     <!-- 크레딧 · 구독 — 사이트 헤더 · billing.html 과 같은 출처. 바꾸기는 앱 안 구독 관리 (segan/billing.html) -->
                     <li data-me-item="billing">
-                      <a class="sg-row" href="billing.html" id="mePlan"><span>크레딧 · 구독</span><span class="me-val" id="meSub">…</span></a>
+                      <a class="sg-row" href="billing.html" id="mePlan"
+                        ><span>크레딧 · 구독</span><span class="me-val" id="meSub">…</span></a
+                      >
                     </li>
                     <!-- 내 팩토리 — 업체 정보 · 등급 바꾸기 · 결제 관리 (#partner, segan/partner.js). 업체가 없으면 「팩토리로 시작하기」,
                          신청 중이면 「팩토리 신청」. 다담 공장 · 본사 구성원은 없다 -->
                     <li data-me-item="partner" hidden>
-                      <a class="sg-row" href="#partner" data-me-go="partner"><span id="mePartnerLabel">내 팩토리</span><span class="me-val" id="mePartnerVal"></span></a>
+                      <a class="sg-row" href="#partner" data-me-go="partner"
+                        ><span id="mePartnerLabel">내 팩토리</span><span class="me-val" id="mePartnerVal"></span
+                      ></a>
                     </li>
                     <!-- 내 활동 — mypage.html 의 저장한 추천 업체 · 시공 완료 평가 · 내 시공사례를 앱 안으로 (segan/activity.html) -->
                     <li data-me-item="activity"><a class="sg-row" href="activity.html">내 활동</a></li>
@@ -304,6 +448,7 @@
                    프로젝트 관리 › 영업 › 상담 #p-consult = 배정 상담 · 상담 단계 프로젝트 · 상담 설정, › 견적 = 그 단계 프로젝트,
                    › 계약 #p-contract = 수주 표 · 계약 단계 프로젝트, › 수금 #p-collect = 수금 표,
                    › 설계 · 설치 = 그 단계 프로젝트, › 생산 #p-make = 받은 제작 의뢰(팩토리) · 제작 의뢰(Manager) · 제작 단계 프로젝트,
+                   › 생산 계획 #p-plan = 생산 계획(다담 공장),
                    › A/S #p-as = A/S함, 인사 › 작업 분배 #assign = 진행 중 프로젝트의 담당자,
                    대시보드 › 프로젝트 관리 = 모든 단계 프로젝트, › 회계 = 회계 요약.
                  알림 · 결제가 여는 옛 주소(#partner · #partner-consults · #factory-requests · #production-requests · #as ·
@@ -322,6 +467,10 @@
                    의뢰 · 고르기 · 거두기는 대표 · 실장. 추천 도착 · 팩토리 답 알림이 me.html#production-requests 로 연다
                    (segan/production-requests.js) -->
               <div class="me-pt-group me-cs me-prq" id="production-requests" hidden></div>
+              <!-- 업체 › 생산 계획 — workflow-api GET /production/proposals/latest · /production/assignments · /production/monthly.
+                   다담 공장 구성원만, 월 손익은 대표 · 실장만 (서버가 가린다). 추천을 골라 지시 · 무시 · 다시 계산.
+                   생산 계획 화면(#p-plan)에서만, 읽은 뒤에만 보인다 (segan/production-plan.js) -->
+              <div class="me-pt-group od pp" id="productionPlan" hidden></div>
               <!-- 업체 › 수주 — workflow-api GET /orders · /order-requests. 다담 공장 · Manager · Expert · Agent 업체 구성원,
                    금액은 대표 · 실장만 (서버가 가린다). 줄을 누르면 상세 시트 — 상태 바꾸기 · 수금 일정 · 상태 기록.
                    계약 화면(#p-contract)에서만, 읽은 뒤에만 보인다 (segan/orders.js) -->
