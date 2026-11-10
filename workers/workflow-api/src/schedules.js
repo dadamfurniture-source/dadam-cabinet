@@ -9,12 +9,17 @@
  *
  *   Slack 이 죽어도 일정은 남는다. 이게 업무 루프의 생명선이다.
  *   Slack 실패로 500 을 던지면 일정 등록 자체가 실패한 것처럼 보인다.
+ *
+ * 누가: 보기(목록)는 설계를 보는 사람 모두. 넣기 · 고치기는 설계 업체의 대표 · 실장만
+ *   (2026-11-10 결정 — 직원은 보기만. 다담 공장 설계는 그 설계를 만든 사람 · 관리자도, designAccess 의 money 와 같다).
  */
 
 import {
+  ForbiddenError,
   ValidationError,
   NotFoundError,
   assertDesignAccess,
+  designAccess,
   hqCompanyId,
   insertOne,
   insertMany,
@@ -27,6 +32,14 @@ import { buildScheduleBlocks, postToWebhook, SCHEDULE_LABELS } from './slack.js'
 export const SCHEDULE_TYPES = Object.keys(SCHEDULE_LABELS);
 const SCHEDULE_STATUSES = ['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 const MAX_ITEMS_PER_BATCH = 50;
+
+/** 일정을 넣고 고칠 수 있는 사람인가 — 통과하면 설계 행 */
+async function assertScheduleManage(env, designId, user) {
+  const access = await designAccess(env, designId, user);
+  if (!access.money)
+    throw new ForbiddenError('일정은 팩토리 대표 · 실장만 넣고 고칠 수 있습니다', 'not_manager');
+  return access.design;
+}
 
 function validItem(raw, index) {
   const problems = [];
@@ -112,7 +125,7 @@ async function collectLinks(env, designId, documentId) {
  */
 export async function createSchedules(env, ctx, { designId, user, body }) {
   // 응답은 일정뿐 — 견적 합계는 본사 Slack 메시지에만 실린다
-  const design = await assertDesignAccess(env, designId, user, { money: false });
+  const design = await assertScheduleManage(env, designId, user);
   validateScheduleItems(body.items);
 
   const batchId = crypto.randomUUID();
@@ -221,7 +234,7 @@ export async function listSchedules(env, { designId, user }) {
 export async function updateSchedule(env, { scheduleId, user, patch }) {
   const row = await selectOne(env, 'design_schedules', { id: `eq.${scheduleId}`, select: '*' });
   if (!row) throw new NotFoundError('일정을 찾을 수 없습니다');
-  await assertDesignAccess(env, row.design_id, user, { money: false });
+  await assertScheduleManage(env, row.design_id, user);
 
   const allowed = {};
   if (patch.status !== undefined) {
