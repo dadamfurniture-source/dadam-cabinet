@@ -5,7 +5,7 @@
  *   본문은 서버가 센 목록. 매일 08:00, 볼 것이 0건이면 보내지 않는다.
  *   비서를 쓰는 업체는 장부 아침 묶음 알림을 이 알림 하나로 받는다 (ledger/notices.js 가 그 업체 묶음 알림을 건너뛴다).
  *
- *   누가    company_entitled(업체, 'assistant', 사람) 가 full 인 업체의 active 구성원 (Agent · 시험 업체 중 비서를 켠 곳)
+ *   누가    company_entitled(업체, 'assistant', 사람) 가 full 인 업체의 active 구성원 (Agent · 다담 공장(DB 0057) · 시험 업체 중 비서를 켠 곳)
  *   볼 것 (알림 숫자에 드는 것) — 역할마다
  *     consults     대표 · 실장  응답 기다리는 배정 상담 (consult_assignments assigned — 배정 뒤 ASSIGNMENT_TTL_HOURS 안에 받기 · 거절)
  *                              · 가장 이른 마감
