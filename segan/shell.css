@@ -2879,6 +2879,61 @@ button.sm-num[aria-pressed='true'] {
   white-space: nowrap;
 }
 
+/* 업체 › 생산 설정 (#productionSettings — segan/production-settings.js) — 표준시간 · 인력 · 견적 원가.
+   칸은 만들기 탭 입력 칸(.mk-input), 묶음 제목 · 안내 글은 수주 · 생산 계획과 같은 것을 쓴다 (.od-* · .mk-*) */
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px 16px;
+  align-items: end; /* 이름이 두 줄이어도 칸은 한 줄에 맞춘다 */
+  margin-top: 10px;
+}
+
+.ps-field {
+  min-width: 0;
+}
+
+.ps-field > span {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ps-field input {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 서버가 짚은 칸 — 색만으로 알리지 않는다 (단추 옆 글에 칸 이름을, 칸 아래에 까닭을 적는다) */
+.ps-field input[aria-invalid='true'] {
+  padding: 0 11px;
+  border: 2px solid var(--v5-tan);
+}
+
+.ps-field > .ps-err {
+  color: var(--v5-ink);
+  font-weight: 500;
+}
+
+.ps-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 14px;
+}
+
+.ps-bar .ps-msg {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+}
+
+.ps-sec + .ps-bar {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;

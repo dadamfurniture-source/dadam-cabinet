@@ -2,7 +2,7 @@
    segan/production-workers.js — 「인사 › 작업자」 다담 공장 (segan/me.html #productionWorkers)
 
    PC 화면 production.html(생산 현황판)의 작업자 부분을 앱 안으로 옮긴 것 — 서버 · 권한은 그대로, 화면만.
-   (마이페이지 B안 4단계 — 화면마다 PR 하나. 표준시간 · 인력 설정은 PC 화면에 남아 있다)
+   (마이페이지 B안 4단계 — 화면마다 PR 하나. 표준시간 · 인력 설정은 생산 › 생산 설정 화면 segan/production-settings.js)
 
    누가 보나  다담 공장 구성원 가운데 공장 배정을 읽을 수 있는 사람 (account-api GET /partner/me 의 hq_member +
              서버가 공장 대표 · 실장 · 관리자에게만 주는 GET /production/factory-workers). 공장 직원 · 협력업체 ·
@@ -38,7 +38,7 @@
   var ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
   var WEEK = '일월화수목금토';
   var LOG_MAX = 100; // 최근 기록 — 앞의 100줄 (production.html 과 같다)
-  var DESKTOP_URL = '../production.html'; // 표준시간 · 인력 설정 (PC 생산 현황판)
+  var SETTINGS_HASH = '#p-config'; // 표준시간 · 인력 설정 (생산 › 생산 설정 — segan/production-settings.js)
 
   // 공정 · 작업자 종류 — production.html 과 같다
   var ROLE = { cutter: '재단', edge: '엣지', asm: '조립' };
@@ -78,8 +78,8 @@
     reflected: '반영됨',
     noLogs: '기록 없음',
     logs: '최근 기록 보기',
-    settings: '표준시간 · 인력 설정',
-    settingsHelp: '표준시간 · 인력 설정은 아직 PC 생산 현황판에서 합니다.',
+    settings: '생산 설정',
+    settingsHelp: '표준시간 · 인력 설정은 생산 › 「생산 설정」에서 합니다.',
   };
 
   var J = {
@@ -502,8 +502,8 @@
       '<p class="mk-note">' +
       esc(TEXT.settingsHelp) +
       ' <a class="od-pc" href="' +
-      DESKTOP_URL +
-      '" data-desktop-tab>' +
+      SETTINGS_HASH +
+      '">' +
       esc(TEXT.settings) +
       ' →</a></p>'
     );
@@ -527,12 +527,6 @@
       el.hidden = !html;
       more = el.querySelector('details');
       if (more && open) more.open = true;
-      // PC 화면 링크 — PC 브라우저에서만 새 탭 (SeganShell.desktopTab)
-      var Shell = window.SeganShell || {};
-      if (Shell.applyLinkTarget)
-        el.querySelectorAll('a[data-desktop-tab]').forEach(function (a) {
-          Shell.applyLinkTarget(a);
-        });
     });
   }
   function say(text) {

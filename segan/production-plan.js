@@ -3,7 +3,7 @@
 
    PC 화면 production.html(생산 현황판)의 계획 부분을 앱 안으로 옮긴 것 — 서버 · 권한은 그대로, 화면만.
    (마이페이지 B안 4단계 — 화면마다 PR 하나. 공장 배정 · 작업자 링크 · 실측 보정은 인사 › 작업자 화면
-   segan/production-workers.js, 표준시간 · 인력 설정은 PC 화면에 남아 있다)
+   segan/production-workers.js, 표준시간 · 인력 설정은 생산 › 생산 설정 화면 segan/production-settings.js)
 
    누가 보나  다담 공장 구성원만 (account-api GET /partner/me 의 hq_member) — 협력업체 · 다담 본사 구성원은 서버가
              403(not_hq)으로 막는다. 월 손익 요약은 서버가 공장 대표 · 실장 · 관리자에게만 준다(아니면 403 not_money).
