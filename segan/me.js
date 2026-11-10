@@ -32,7 +32,8 @@
          회계          segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 (+ 업체는 설정),
                         사진만 올리면 영수증 올리기 (업체만). 본사 대표 · 실장은 본사 장부 — 공장 장부는 플랫폼 › 등록 업체 › 다담 공장 › 회계
          인사          Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
-                        작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 근무 일정(준비 중) · 작업자(공장은 PC 생산 계획),
+                        작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 근무 일정(준비 중) · 작업자(준비 중 —
+                        다담 공장은 #workers-hq = 공장 배정 · 작업자 링크 · 실측 보정, segan/production-workers.js),
                         관리자 — 작업자 · 작업 배정 · 작업 지시 보고
          기준정보      관리자 — 시공사례 · 참고 이미지 · 학습 데이터셋 · 가전 모델 (PC 관리자 화면)
          플랫폼        등록 업체(#companies — 본사 대표 · 실장, segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력),
@@ -579,6 +580,13 @@
       title: '작업자',
       soon: '작업자는 준비 중입니다. 설치 · A/S 외부 작업자를 모으고 배정하게 됩니다.',
     },
+    // 인사 › 작업자 (다담 공장) — 공장 배정 · 작업자 링크 · 실측 보정 (segan/production-workers.js)
+    'workers-hq': {
+      title: '작업자',
+      section: 'partner',
+      parts: ['productionWorkers'],
+      label: 'productionWorkersTitle',
+    },
     // 플랫폼 — 등록 업체 (segan/hq-companies.js)
     companies: { title: '등록 업체', section: 'hqCompanies' },
     // 내 계정
@@ -665,6 +673,7 @@
     'factory-requests',
     'production-requests',
     'productionPlan',
+    'productionWorkers',
     'siteInstall',
     'orders',
     'ordersCollect',
@@ -1397,8 +1406,9 @@
         return v.people;
       case 'workers':
         return v.people && !v.hq;
+      // 다담 공장 작업자 — 공장 배정을 읽은 때만 (대표 · 실장 · 관리자, segan/production-workers.js)
       case 'workers-hq':
-        return v.people && v.hq;
+        return v.people && v.hq && available(key);
       // 플랫폼 › 등록 업체 — 본사 대표 · 실장 (칸을 연 때만)
       case 'companies':
         return v.platform && available(key);
@@ -1600,6 +1610,7 @@
     var HqCo = window.SeganHqCompanies;
     var Orders = window.SeganOrders;
     var Plan = window.SeganProductionPlan;
+    var Workers = window.SeganProductionWorkers;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1620,6 +1631,8 @@
           synced(Orders && Orders.load ? Orders.load(auth.sb, auth.session, me) : null),
           // 생산 계획 = 다담 공장 구성원 (segan/production-plan.js — 생산 › 생산 계획 화면)
           synced(Plan && Plan.load ? Plan.load(auth.sb, auth.session, me) : null),
+          // 작업자 = 다담 공장 대표 · 실장 · 관리자 (segan/production-workers.js — 인사 › 작업자 화면)
+          synced(Workers && Workers.load ? Workers.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
           synced(Cal && Cal.load ? Cal.load(auth.sb, auth.session, me) : null),
           // 설치 · A/S 지도 + 표 = 업무 달력 · A/S함을 보는 사람 (segan/site-map.js — 설치 · A/S 화면)

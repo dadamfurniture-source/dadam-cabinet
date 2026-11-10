@@ -2794,6 +2794,91 @@ button.sm-num[aria-pressed='true'] {
   cursor: pointer;
 }
 
+/* 업체 › 작업자 (#productionWorkers — segan/production-workers.js) — 공장 배정 · 작업자 링크 · 실측 보정.
+   표 · 단추 · 안내 글은 수주 · 생산 계획과 같은 것을 쓴다 (.od-* · .mk-*) */
+.pw-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 14px;
+}
+
+.pw-add select {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 360px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.pw-muted {
+  color: var(--v5-ink-60);
+}
+
+/* 확인 한 줄 — 창을 띄우지 않고 표 아래에 묻는다 */
+.pw-ask {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.pw-ask p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pw-more {
+  margin-top: 10px;
+}
+
+.pw-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--v5-navy);
+  cursor: pointer;
+}
+
+/* 표 머리의 가린 글(단추 칸 이름)이 감싸개 밖으로 새지 않게 — 폰에서 화면이 옆으로 밀리지 않는다 */
+.pw .od-tablewrap {
+  position: relative;
+}
+
+/* 하기 칸(배정 끝 · 끊기)은 표를 옆으로 밀어도 오른쪽에 붙어 있다 — 폰에서 밀지 않고 누른다.
+   붙은 칸은 표의 줄 선을 따라오지 않아 선을 칸 안쪽에 다시 긋는다 */
+.pw .od-table .pw-act {
+  position: sticky;
+  right: 0;
+  padding-right: 0;
+  background: var(--v5-invert);
+  background-clip: padding-box;
+  text-align: right;
+}
+
+.pw .od-table .od-row--on .pw-act {
+  background: var(--v5-well);
+}
+
+.pw-sr {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;

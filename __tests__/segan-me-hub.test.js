@@ -77,7 +77,7 @@ const PC = { '(pointer: fine)': true, '(min-width: 1100px)': true };
  * me.html 을 올린다. 서버 응답: partner(/partner/me) · projects(/me/projects) · mineAs(/me/as-requests) ·
  * consults(/company/consults) · companyProjects(/company/projects) · box(/company/as-requests) · ledger(/ledger/me) ·
  * planner(/planner/access data — 없으면 403) · workMe(/work/me data) · assistant(/assistant/me data — 없으면 403) ·
- * isAdmin · wide(PC 두 칸)
+ * factoryWorkers(/production/factory-workers — 다담 공장 구성원일 때만 묻는다) · isAdmin · wide(PC 두 칸)
  */
 async function load(options = {}) {
   const opts = {
@@ -93,6 +93,7 @@ async function load(options = {}) {
     planner: null,
     workMe: { ready: true, worker: null },
     assistant: null,
+    factoryWorkers: ok({ assigned: [], candidates: [] }),
     isAdmin: false,
     wide: false,
     profile: { tier: 'agent', name: '김대표' },
@@ -115,6 +116,7 @@ async function load(options = {}) {
     'SeganPartnerConsults',
     'SeganPartnerProjects',
     'SeganBooks',
+    'SeganProductionWorkers',
     'SeganAs',
     'SeganPay',
     'SeganRegions',
@@ -186,6 +188,12 @@ async function load(options = {}) {
     if (url === WORK + '/ledger/me') return reply(opts.ledger);
     if (url === WORK + '/planner/access') return reply(opts.planner ? ok(opts.planner) : fail(403));
     if (url === WORK + '/work/me') return reply(ok(opts.workMe));
+    // 인사 › 작업자 (다담 공장) — 공장 배정을 읽은 때만 메뉴 줄이 보인다 (segan/production-workers.js)
+    if (url === WORK + '/production/factory-workers') return reply(opts.factoryWorkers);
+    if (url === WORK + '/production/worker-links') return reply(ok({ items: [] }));
+    if (url === WORK + '/production/calibration')
+      return reply(ok({ from: '2026-10-11', days: 30, result: [] }));
+    if (url.startsWith(WORK + '/production/worklogs?')) return reply(ok({ items: [] }));
     if (url === ASSIST + '/assistant/me')
       return reply(opts.assistant ? ok(opts.assistant) : fail(403));
     return reply(fail(404));
@@ -201,6 +209,7 @@ async function load(options = {}) {
     'segan/partner-consults.js',
     'segan/books.js',
     'segan/partner-projects.js',
+    'segan/production-workers.js',
     'segan/as-requests.js',
     'segan/pay.js',
     'segan/shell.js',
@@ -463,7 +472,7 @@ describe('메뉴 — B안 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () =
     expect(menus().map((m) => m[0])).not.toContain('회계');
   });
 
-  test('다담 공장 구성원 — Agent 업체처럼, 내 팩토리 줄 없이, 인사 › 작업자는 PC 생산 계획', async () => {
+  test('다담 공장 구성원 — Agent 업체처럼, 내 팩토리 줄 없이, 인사 › 작업자는 앱 화면 (공장 배정 · 링크 · 보정)', async () => {
     await load({ partner: HQ, ledger: ok({ money: true, level: 'full' }), planner: PLANNER });
     expect(menus()).toEqual([
       ['프로젝트 관리', PJ],
@@ -472,8 +481,30 @@ describe('메뉴 — B안 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () =
       ['인사', ['근무 일정', '작업자']],
       ['내 계정', BASIC],
     ]);
-    expect(row('작업자').getAttribute('href')).toBe('../production.html');
+    expect(row('작업자').getAttribute('href')).toBe('#workers-hq');
+    expect(row('작업자').hasAttribute('data-desktop-tab')).toBe(false);
     expect($('meCompany').textContent).toBe('다담 공장');
+    row('작업자').click();
+    await flush();
+    expect(screen()).toBe('workers-hq');
+    expect(onScreen()).toEqual(['partner']);
+    expect(partnerParts()).toEqual(['productionWorkers']);
+    expect($('meTitle').textContent).toBe('작업자');
+  });
+
+  test('다담 공장 직원 — 공장 배정을 못 읽으면(403) 인사 › 작업자 줄이 없다', async () => {
+    const calls = await load({
+      partner: HQ,
+      ledger: ok({ money: true, level: 'full' }),
+      planner: PLANNER,
+      factoryWorkers: fail(403),
+    });
+    expect(menus().find((m) => m[0] === '인사')).toEqual(['인사', ['근무 일정']]);
+    expect(row('작업자')).toBeUndefined();
+    // 나머지 작업자 화면 주소는 묻지 않는다
+    expect(
+      calls.fetch.filter((c) => c.url.startsWith(WORK + '/production/')).map((c) => c.url)
+    ).toEqual([WORK + '/production/factory-workers']);
   });
 
   test('관리자 — 홈(경영 대시보드 조각) · 관리 묶음의 관리자 줄 (거래처 · 인사 · 기준정보 · 플랫폼)', async () => {
