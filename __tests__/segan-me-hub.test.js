@@ -446,7 +446,8 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
       ['회계관리', ['손익 분석', '현금 · 미수', '매출 예측']],
       ['인력관리', ['작업자 · 작업 배정', '작업 지시 보고', '공정 · 품질']],
     ]);
-    expect(row('이익 · 목표').getAttribute('href')).toBe('../admin/management.html?part=profit');
+    expect(row('이익 · 목표').getAttribute('href')).toBe('hq-board.html#profit'); // 앱 화면
+    expect(row('이익 · 목표').hasAttribute('data-desktop-tab')).toBe(false);
     expect(row('공정 · 품질').getAttribute('href')).toBe('../admin/management.html?part=process');
     expect(document.querySelector('#meHub a[href="../admin/management.html"]')).toBeNull();
     expect(row('오늘 현황').getAttribute('href')).toBe('admin.html');

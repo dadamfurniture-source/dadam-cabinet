@@ -1,0 +1,758 @@
+/* ============================================================
+   segan/hq-board.css — 본사 대시보드 앱 화면 (segan/hq-board.html · hq-board.js)
+   v5 그대로 — 각진 모서리 · 그림자 없음 · 가는 선. 상태 색은 회계 화면과 같다 (segan/ledger.css --lg-*).
+   움직임은 segan/motion.js (transform · opacity 만) — 여기서는 멈춘 모습과 바탕만 정한다
+   ============================================================ */
+
+:root {
+  --hb-ok: #2f6b4f; /* 닿음 · 손익분기 넘음 · 덜 나감 */
+  --hb-warn: #6f4c0c; /* 뒤처짐 · 잔액 경고 */
+  --hb-warn-bg: #fbefd4;
+  --hb-warn-line: #c9952b;
+  --hb-crit: #93301f; /* 더 나감 · 마이너스 */
+  --hb-sys: #0b2545; /* 시스템 수주 막대 — navy */
+  --hb-hist: rgba(45, 42, 38, 0.32); /* 장부에 적은 달 */
+}
+
+.hb-main {
+  display: grid;
+  align-content: start;
+}
+
+.hb-board {
+  display: grid;
+  gap: 14px;
+}
+
+.hb-board[hidden] {
+  display: none;
+}
+
+/* ── 위 탭 — 회계관리 조각 셋. 밑줄 막대가 스프링으로 옮겨 간다 ── */
+.hb-tabs {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  border-bottom: 1px solid var(--v5-line-16);
+}
+
+.hb-tabs[hidden] {
+  display: none;
+}
+
+.hb-tabs button {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink-62);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hb-tabs button[aria-selected='true'] {
+  color: var(--v5-ink);
+  font-weight: 500;
+}
+
+.hb-tab-ind {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--v5-navy);
+  transition:
+    transform var(--sg-spring-ms) var(--sg-spring),
+    width var(--sg-spring-ms) var(--sg-spring);
+}
+
+/* ── 달 고르기 ── */
+.hb-month {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hb-month[hidden] {
+  display: none;
+}
+
+.hb-step {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--v5-line-16);
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.hb-step:disabled {
+  color: var(--v5-ink-32);
+  cursor: default;
+}
+
+.hb-month-label {
+  min-width: 120px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.hb-status {
+  min-height: 1em;
+  margin: 0;
+  font-size: 13px;
+  color: var(--v5-ink-62);
+}
+
+.hb-status.is-error {
+  color: var(--hb-crit);
+}
+
+.hb-status:empty {
+  display: none;
+}
+
+/* ── 조각 — 같은 칸에 겹쳐 두고 하나만 보인다 (넘길 때 잠깐 둘) ── */
+.hb-views {
+  display: grid;
+}
+
+.hb-view {
+  grid-area: 1 / 1;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+}
+
+.hb-view[hidden] {
+  display: none;
+}
+
+.hb-view.is-leaving {
+  pointer-events: none;
+}
+
+/* ── 카드 ── */
+.hb-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-16);
+  background: var(--v5-paper);
+  min-width: 0;
+}
+
+.hb-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hb-card h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.hb-tag {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--v5-line-25);
+  font-size: 11.5px;
+  color: var(--v5-ink-62);
+}
+
+.hb-q {
+  margin: -4px 0 0;
+  font-size: 12.5px;
+  color: var(--v5-ink-62);
+}
+
+.hb-line {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.hb-line b,
+.hb-num {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.hb-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--v5-ink-55);
+}
+
+.hb-warn {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--hb-warn-line);
+  background: var(--hb-warn-bg);
+  color: var(--hb-warn);
+  font-size: 13px;
+}
+
+.hb-warn.is-crit {
+  border-left-color: var(--hb-crit);
+  background: rgba(147, 48, 31, 0.08);
+  color: var(--hb-crit);
+}
+
+.hb-empty {
+  margin: 0;
+  padding: 12px;
+  background: var(--v5-well);
+  font-size: 13px;
+  color: var(--v5-ink-62);
+}
+
+/* 차이 — 더 나감(비용 늘어남 · 이익 줄어듦)은 붉게, 덜 나감은 초록 */
+.hb-up {
+  color: var(--hb-crit);
+}
+
+.hb-down {
+  color: var(--hb-ok);
+}
+
+/* ── 이익 식 — 영수증처럼 위에서 아래로 셈한다 ── */
+.hb-calc {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+
+.hb-calc li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: baseline;
+  padding-block: 9px;
+  border-bottom: 1px dashed var(--v5-line-16);
+}
+
+.hb-op {
+  text-align: center;
+  color: var(--v5-tan);
+}
+
+.hb-lbl {
+  font-size: 14px;
+}
+
+.hb-lbl small {
+  display: block;
+  font-size: 12px;
+  color: var(--v5-ink-55);
+}
+
+.hb-val {
+  text-align: right;
+  font-size: 17px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.hb-calc li.is-net {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-bottom: 0;
+  border-top: 1px solid var(--v5-ink);
+}
+
+.hb-calc li.is-net .hb-lbl {
+  font-weight: 500;
+}
+
+.hb-calc li.is-net .hb-val {
+  font-family: 'Cormorant Garamond', 'Noto Sans KR', serif;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.hb-calc li.is-neg .hb-val {
+  color: var(--hb-crit);
+}
+
+/* ── 막대 — 멈춘 모습은 그 비율 (transform 만 움직인다) ── */
+.hb-track {
+  position: relative;
+  height: 8px;
+  background: var(--v5-well);
+}
+
+.hb-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: var(--v5-navy);
+  transform-origin: left center;
+}
+
+.hb-fill.is-ok {
+  background: var(--hb-ok);
+}
+
+.hb-fill.is-warn {
+  background: var(--hb-warn-line);
+}
+
+.hb-fill.is-crit {
+  background: var(--hb-crit);
+}
+
+.hb-fill.is-muted {
+  background: var(--v5-ink-32);
+}
+
+.hb-pace {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--v5-ink);
+}
+
+/* 분기 목표 */
+.hb-goals {
+  display: grid;
+  gap: 14px;
+}
+
+.hb-goal {
+  display: grid;
+  gap: 6px;
+}
+
+.hb-goal-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.hb-goal-top b {
+  font-weight: 500;
+}
+
+.hb-pill {
+  flex: none;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  font-size: 11.5px;
+}
+
+.hb-pill.done {
+  color: var(--hb-ok);
+}
+
+.hb-pill.track {
+  color: var(--v5-navy);
+}
+
+.hb-pill.behind {
+  color: var(--hb-warn);
+}
+
+.hb-pill.below,
+.hb-pill.none {
+  color: var(--v5-ink-55);
+}
+
+.hb-goal-meta {
+  font-size: 12.5px;
+  color: var(--v5-ink-62);
+}
+
+/* 사실 칸 — 둘씩 */
+.hb-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--v5-line);
+  border-left: 1px solid var(--v5-line);
+}
+
+.hb-facts div {
+  display: grid;
+  gap: 1px;
+  padding: 8px 10px;
+  border-right: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+  min-width: 0;
+}
+
+.hb-facts small {
+  font-size: 11.5px;
+  color: var(--v5-ink-62);
+}
+
+.hb-facts b {
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+  overflow-wrap: anywhere;
+}
+
+/* 가로 막대 줄 — 이름 · 막대 · 값 */
+.hb-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.hb-bar {
+  display: grid;
+  grid-template-columns: minmax(64px, auto) minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.hb-bar .hb-track {
+  height: 10px;
+}
+
+.hb-bar > b {
+  text-align: right;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.hb-bar small {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--v5-ink-55);
+}
+
+/* 목록 — 범주 · 주문 · 미수 */
+.hb-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.hb-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13.5px;
+}
+
+.hb-list li small {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--v5-ink-55);
+}
+
+.hb-list b {
+  font-weight: 500;
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.hb-sub {
+  margin: 4px 0 -2px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 만약에 판 — 시트 안 */
+.hb-open {
+  justify-self: start;
+  margin: 0;
+}
+
+.hb-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.hb-presets button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-25);
+  background: transparent;
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.hb-levers {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.hb-lever {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.hb-lever label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hb-lever output {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.hb-lever input[type='range'] {
+  width: 100%;
+  accent-color: var(--v5-navy);
+}
+
+.hb-table-wrap {
+  overflow-x: auto;
+}
+
+.hb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.hb-table th,
+.hb-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.hb-table th:first-child,
+.hb-table td:first-child {
+  text-align: left;
+}
+
+.hb-table th {
+  font-weight: 400;
+  color: var(--v5-ink-62);
+}
+
+.hb-table tr.is-key td {
+  font-weight: 500;
+}
+
+/* ── 차트 ── */
+.hb-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hb-chart.is-scrub-able {
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+.hb-chart .grid {
+  stroke: var(--v5-line);
+  stroke-width: 1;
+}
+
+.hb-chart .zero {
+  stroke: var(--v5-ink-45);
+  stroke-width: 1;
+}
+
+.hb-chart .tick {
+  fill: var(--v5-ink-55);
+  font-size: 10px;
+  font-family: var(--v5-sans);
+}
+
+.hb-chart .line {
+  fill: none;
+  stroke: var(--v5-navy);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.hb-chart .area {
+  fill: rgba(11, 37, 69, 0.08);
+  stroke: none;
+}
+
+.hb-chart .end {
+  fill: var(--v5-navy);
+  stroke: var(--v5-paper);
+  stroke-width: 2;
+}
+
+.hb-chart .low {
+  fill: var(--v5-paper);
+  stroke: var(--hb-warn-line);
+  stroke-width: 2;
+}
+
+.hb-chart .low.is-neg {
+  stroke: var(--hb-crit);
+}
+
+.hb-chart .scrub {
+  opacity: 0;
+}
+
+.hb-chart.is-scrub .scrub {
+  opacity: 1;
+}
+
+.hb-chart .scrub-line {
+  stroke: var(--v5-ink-55);
+  stroke-width: 1;
+}
+
+.hb-chart .scrub-dot {
+  fill: var(--v5-navy);
+  stroke: var(--v5-paper);
+  stroke-width: 2;
+}
+
+/* 막대 차트 — 아래에서 자란다 */
+.hb-chart rect {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.hb-chart rect.sys {
+  fill: var(--hb-sys);
+}
+
+.hb-chart rect.hist {
+  fill: var(--hb-hist);
+}
+
+.hb-chart rect.fc {
+  fill: transparent;
+  stroke: var(--hb-warn-line);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+
+.hb-chart rect.sofar {
+  fill: var(--hb-warn-line);
+  opacity: 0.55;
+}
+
+.hb-readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+  font-size: 12.5px;
+  color: var(--v5-ink-62);
+}
+
+.hb-readout b {
+  color: var(--v5-ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 계절 지수 — 달마다 칸 */
+.hb-index {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-top: 1px solid var(--v5-line);
+  border-left: 1px solid var(--v5-line);
+}
+
+.hb-index span {
+  display: grid;
+  justify-items: center;
+  padding: 6px 2px;
+  border-right: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 12px;
+}
+
+.hb-index small {
+  color: var(--v5-ink-55);
+  font-size: 11px;
+}
+
+.hb-index b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.hb-index .hi {
+  background: rgba(201, 149, 43, 0.14);
+}
+
+.hb-index .lo {
+  background: var(--v5-well);
+}
+
+.hb-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--v5-ink-62);
+}
+
+.hb-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+/* PC 화면 링크 — 넣기는 PC 에서 */
+.hb-pc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--v5-ink-62);
+}
+
+.hb-pc:empty {
+  display: none;
+}
+
+/* PC — 카드 둘씩 */
+@media (min-width: 1100px) {
+  .hb-board {
+    max-width: 1040px;
+  }
+
+  .hb-view {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .hb-card.is-wide {
+    grid-column: 1 / -1;
+  }
+
+  .hb-index {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}

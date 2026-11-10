@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>본사 대시보드 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111004" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111004" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111004" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111004" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shell.css?v=2026111004" />
+    <!-- 단추 · 뒤로 링크 — 만들기 탭과 같은 모양 -->
+    <link rel="stylesheet" href="make.css?v=2026111004" />
+    <link rel="stylesheet" href="hq-board.css?v=2026111004" />
+    <!-- 로그인 상태 · 관리자 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
+    <script src="../js/config.js?v=2026111004"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=2026111004"></script>
+    <script src="../js/mypage-work.js?v=2026111004"></script>
+    <!-- 움직임 한 벌 — 숫자 굴리기 · 막대 · 선 · 탭 넘기기 · 시트 끌기 (CLAUDE.md 「SEGAN 모션 규칙」) -->
+    <script src="motion.js?v=2026111004" defer></script>
+    <script src="shell.js?v=2026111004" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026111004" defer></script>
+    <script src="hq-board.js?v=2026111004" defer></script>
+  </head>
+  <body class="sg-app" data-tab="me">
+    <div data-segan-shell="header"></div>
+
+    <!-- 본사 대시보드 — 경영 대시보드 조각 넷을 앱 화면으로 (segan/hq-board.js 머리말).
+         #profit 종합 대시보드 › 이익 · 목표, #finance · #cash · #forecast 회계관리 › 손익 분석 · 현금 · 미수 · 매출 예측 -->
+    <main class="sg-main hb-main" id="main">
+      <a class="mk-link mk-back" href="me.html">‹ 마이페이지</a>
+      <h1 class="sg-h1" id="hbTitle">본사 대시보드</h1>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <!-- 관리자가 아니면 이 줄만 (서버도 관리자만 답한다) -->
+        <div class="sg-panel" id="hbDenied" hidden>
+          <p class="sg-title">관리자만 볼 수 있습니다</p>
+          <p class="sg-note">관리자 계정으로 로그인해 주세요.</p>
+        </div>
+
+        <div class="hb-board" id="hbBoard" hidden>
+          <!-- 같은 메뉴 조각끼리 (회계관리 셋) — 차례대로 좌우로 들어오고 나간다 -->
+          <div class="hb-tabs" role="tablist" aria-label="회계관리" id="hbTabs" hidden>
+            <span class="hb-tab-ind" aria-hidden="true"></span>
+          </div>
+
+          <!-- 달 — 이익 식 · 손익 분석만 (현금 · 예측은 오늘부터) -->
+          <div class="hb-month" id="hbMonth" hidden>
+            <button type="button" class="hb-step" id="hbPrev" aria-label="지난 달">‹</button>
+            <span class="hb-month-label num" id="hbMonthLabel" aria-live="polite"></span>
+            <button type="button" class="hb-step" id="hbNext" aria-label="다음 달">›</button>
+          </div>
+
+          <p class="hb-status" id="hbStatus" role="status"></p>
+
+          <div class="hb-views" id="hbViews">
+            <section class="hb-view" id="hbProfit" data-part="profit" aria-label="이익 · 목표" hidden></section>
+            <section class="hb-view" id="hbFinance" data-part="finance" aria-label="손익 분석" hidden></section>
+            <section class="hb-view" id="hbCash" data-part="cash" aria-label="현금 · 미수" hidden></section>
+            <section class="hb-view" id="hbForecast" data-part="forecast" aria-label="매출 예측" hidden></section>
+          </div>
+
+          <p class="hb-pc" id="hbPc"></p>
+        </div>
+      </div>
+
+      <div data-segan-shell="biz"></div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

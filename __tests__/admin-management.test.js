@@ -1219,10 +1219,12 @@ describe('조각 보기 (?part=) — 마이페이지 본사 메뉴마다 한 조
     expect(text('pageTitle')).toBe('경영 대시보드');
   });
 
-  test('마이페이지 본사 메뉴 — 조각마다 줄 하나, 한 장 줄은 없다', async () => {
+  test('마이페이지 본사 메뉴 — 조각마다 줄 하나 (넷은 앱 화면 segan/hq-board.html, 셋은 이 PC 화면), 한 장 줄은 없다', async () => {
     await openPart('');
     const me = fs.readFileSync(path.join(ROOT, 'segan/me.html'), 'utf8');
-    const links = me.split('href="../admin/management.html').slice(1).map((t) => t.slice(0, t.indexOf('"')));
-    expect(links.sort()).toEqual(Object.keys(window.Management.PARTS).map((k) => `?part=${k}`).sort());
+    const pc = me.split('href="../admin/management.html').slice(1).map((t) => t.slice(0, t.indexOf('"')));
+    expect(pc.sort()).toEqual(['?part=customer', '?part=partners', '?part=process']);
+    const app = me.split('href="hq-board.html#').slice(1).map((t) => t.slice(0, t.indexOf('"')));
+    expect(pc.map((p) => p.replace('?part=', '')).concat(app).sort()).toEqual(Object.keys(window.Management.PARTS).sort());
   });
 });
