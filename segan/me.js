@@ -21,6 +21,7 @@
                         Manager 는 상담 단계 프로젝트만), 견적 ~ 설치 = 업체 프로젝트를 그 단계로 거름,
                         제작 = 팩토리는 받은 제작 의뢰도 · Manager 는 제작 의뢰도, A/S = 팩토리 A/S함 · Manager 는 준비 중
                         단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다).
+                        대시보드(#dash-project) = 단계별 수 + 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js) + 프로젝트 목록.
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
        관리
          구매 · 재고   팩토리 — 기본 자재 · 자투리 자재 · 철물 (준비 중 — 안내 한 줄), 관리자 — 거래처 · 공급처
@@ -1071,6 +1072,7 @@
     if (open) showStage(s);
     if (x) showStage(x);
     if (open && s.dash) renderDash(s.dash);
+    off('meCalendar', !(open && s.dash === 'project')); // 업무 달력 — 프로젝트 관리 대시보드에서만
     renderParts(name);
     var note = $('mePaneNote');
     if (note) {
@@ -1556,6 +1558,7 @@
     var Consults = window.SeganPartnerConsults;
     var Books = window.SeganBooks;
     var Projects = window.SeganPartnerProjects;
+    var Cal = window.SeganCalendar;
     var Push = window.SeganPush;
     var As = window.SeganAs;
     var Production = window.SeganProduction;
@@ -1577,6 +1580,8 @@
           synced(Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null),
           synced(Books && Books.load ? Books.load(auth.sb, auth.session, me) : null),
           synced(Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null),
+          // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
+          synced(Cal && Cal.load ? Cal.load(auth.sb, auth.session, me) : null),
           // A/S함 = 다담 공장 · Expert · Agent 구성원 (segan/as-requests.js)
           synced(As && As.load ? As.load(auth.sb, auth.session, me) : null),
           // 제작 의뢰 = Manager 등급 업체 구성원 (segan/production-requests.js),
