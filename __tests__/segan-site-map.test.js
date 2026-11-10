@@ -474,8 +474,13 @@ describe('자리 · 이름', () => {
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) =>
       s.getAttribute('src').replace(/\?.*$/, '')
     );
-    expect(srcs.indexOf('site-map.js')).toBeGreaterThan(srcs.indexOf('calendar.js'));
-    expect(srcs.indexOf('site-map.js')).toBeLessThan(srcs.indexOf('me.js'));
+    // 없으면(-1) 차례 비교가 거짓으로 통과하지 않게 자리부터 본다
+    const at = (name) => srcs.findIndex((s) => s === name);
+    for (const name of ['calendar.js', 'site-map.js', 'me.js']) {
+      expect(at(name)).toBeGreaterThanOrEqual(0);
+    }
+    expect(at('site-map.js')).toBeGreaterThan(at('calendar.js'));
+    expect(at('site-map.js')).toBeLessThan(at('me.js'));
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'site-map.js')");
   });
 
