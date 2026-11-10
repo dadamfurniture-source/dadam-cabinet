@@ -20,6 +20,8 @@
                         업체: 상담 = 배정 상담 · 상담 단계 프로젝트 · 상담 설정 (팩토리 = 다담 공장 · Expert · Agent,
                         Manager 는 상담 단계 프로젝트만), 견적 ~ 설치 = 업체 프로젝트를 그 단계로 거름,
                         제작 = 팩토리는 받은 제작 의뢰도 · Manager 는 제작 의뢰도, A/S = 팩토리 A/S함 · Manager 는 준비 중
+                        설치 = 설치 현장 지도 + 표(#siteInstall) 가 프로젝트 위에, A/S = A/S 현장 지도 + 표(#siteAs) 가 A/S함 위에
+                        (segan/site-map.js — 카카오맵)
                         단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다).
                         대시보드(#dash-project) = 단계별 수 + 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js) + 프로젝트 목록.
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
@@ -607,7 +609,7 @@
       parts: ['factory-requests'],
       label: 'factoryRequestsTitle',
     },
-    as: { title: 'A/S함', section: 'partner', parts: ['as'], label: 'asTitle' },
+    as: { title: 'A/S함', section: 'partner', parts: ['siteAs', 'as'], label: 'asTitle' },
     consults: { title: '상담 내역', section: 'meConsultSection' },
     'projects-mine': { title: '내 프로젝트', section: 'meProjectSection', stage: '' },
     'as-mine': { title: 'A/S 접수', section: 'meAsSection' },
@@ -655,8 +657,10 @@
     'partner-consults',
     'factory-requests',
     'production-requests',
+    'siteInstall',
     'partnerProjects',
     'partnerConsultSettings',
+    'siteAs',
     'as',
     'meBooks',
   ];
@@ -763,7 +767,8 @@
    * 프로젝트 관리 하위 화면 — 고객은 내 상담 · 내 프로젝트 · 내 A/S, 업체 구성원은 업체 칸.
    *   상담: 팩토리 = 배정 상담 · 상담 단계 프로젝트 · 상담 설정, Manager = 상담 단계 프로젝트
    *   제작: 팩토리 = 받은 제작 의뢰 · 제작 단계 프로젝트, Manager = 제작 의뢰 · 제작 단계 프로젝트
-   *   A/S: 팩토리 = A/S함, Manager = 준비 중
+   *   설치: 설치 현장 지도 + 표 · 설치 단계 프로젝트
+   *   A/S: 팩토리 = A/S 현장 지도 + 표 · A/S함, Manager = 준비 중
    */
   function stageScreen(stage) {
     return function () {
@@ -779,9 +784,11 @@
         parts = ['partner-consults', 'partnerProjects', 'partnerConsultSettings'];
       if (stage === 'make')
         parts = [v.factory ? 'factory-requests' : 'production-requests', 'partnerProjects'];
+      // 설치 = 설치 현장 지도 + 표 · 설치 단계 프로젝트, A/S = A/S 현장 지도 + 표 · A/S함 (segan/site-map.js)
+      if (stage === 'install') parts = ['siteInstall', 'partnerProjects'];
       if (stage === 'as')
         return v.factory
-          ? { title: title, section: 'partner', parts: ['as'], label: 'asTitle' }
+          ? { title: title, section: 'partner', parts: ['siteAs', 'as'], label: 'asTitle' }
           : { title: title, soon: TEXT.managerAs };
       return { title: title, section: 'partner', parts: parts, stage: stage };
     };
@@ -1559,6 +1566,7 @@
     var Books = window.SeganBooks;
     var Projects = window.SeganPartnerProjects;
     var Cal = window.SeganCalendar;
+    var SiteMap = window.SeganSiteMap;
     var Push = window.SeganPush;
     var As = window.SeganAs;
     var Production = window.SeganProduction;
@@ -1582,6 +1590,8 @@
           synced(Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
           synced(Cal && Cal.load ? Cal.load(auth.sb, auth.session, me) : null),
+          // 설치 · A/S 지도 + 표 = 업무 달력 · A/S함을 보는 사람 (segan/site-map.js — 설치 · A/S 화면)
+          synced(SiteMap && SiteMap.load ? SiteMap.load(auth.sb, auth.session, me) : null),
           // A/S함 = 다담 공장 · Expert · Agent 구성원 (segan/as-requests.js)
           synced(As && As.load ? As.load(auth.sb, auth.session, me) : null),
           // 제작 의뢰 = Manager 등급 업체 구성원 (segan/production-requests.js),
