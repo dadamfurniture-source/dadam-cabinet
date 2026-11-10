@@ -757,6 +757,52 @@ describe('하위 화면 — 주소 #이름', () => {
   });
 });
 
+describe('움직임 — 들어온 쪽으로 (segan/motion.js · CLAUDE.md 「SEGAN 모션 규칙」)', () => {
+  afterEach(() => {
+    delete window.SeganMotion;
+  });
+
+  test('폰 — 하위 화면은 오른쪽에서, 메뉴는 왼쪽에서 들어온다 · 펼친 하위 줄은 차례로 내려온다', async () => {
+    await load({ partner: member({ plan: 'expert' }) });
+    const enter = jest.fn();
+    window.SeganMotion = { enter };
+    row('상담').click();
+    expect(enter).toHaveBeenCalledWith($('mePane'), {
+      transform: 'translateX(28px)',
+      opacity: 0.3,
+    });
+    enter.mockClear();
+    $('meBack').click();
+    await flush();
+    expect(enter).toHaveBeenCalledWith($('meHub'), {
+      transform: 'translateX(-28px)',
+      opacity: 0.3,
+    });
+    enter.mockClear();
+    $('meHub').querySelector('[data-menu-toggle="basic"]').click();
+    const rows = [
+      ...$('meHub').querySelectorAll('[data-menu="basic"] li[data-me-item]:not([hidden])'),
+    ];
+    expect(rows.length).toBeGreaterThan(1);
+    expect(enter.mock.calls.map((c) => c[0])).toEqual(rows);
+    expect(enter.mock.calls[1]).toEqual([
+      rows[1],
+      { transform: 'translateY(-6px)', opacity: 0.2 },
+      28,
+    ]);
+    // 접을 때는 움직이지 않는다
+    enter.mockClear();
+    $('meHub').querySelector('[data-menu-toggle="basic"]').click();
+    expect(enter).not.toHaveBeenCalled();
+  });
+
+  test('움직임 파일이 없으면 그대로 (화면만 바뀐다)', async () => {
+    await load({ partner: member({ plan: 'expert' }) });
+    row('상담').click();
+    expect(screen()).toBe('p-consult');
+  });
+});
+
 describe('PC 1100px~ — 왼쪽 메뉴 + 오른쪽 하위 화면', () => {
   test('# 없이 — 메뉴 차례대로 처음 보이는 하위 화면 (업체 · 고객 모두 프로젝트 관리 › 상담), 제목은 마이페이지 그대로', async () => {
     await load({ wide: true, partner: member({ plan: 'expert' }) });

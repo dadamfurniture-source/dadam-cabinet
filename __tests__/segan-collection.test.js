@@ -435,7 +435,7 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     const wide = css
       .split('@media (min-width: 1100px)')
       .slice(1)
-      .find((b) => b.includes('.sg-sheet-wrap--sheet .sg-sheet'));
+      .find((b) => b.includes('.sg-sheet-wrap--panel .sg-sheet')); // PC 옆 패널 칸 (폰 시트 손잡이 칸과 헷갈리지 않게)
     expect(wide).toMatch(/\.sg-sheet-wrap \.pv-photo\s*\{\s*margin:\s*-20px -24px 0;/);
   });
 });

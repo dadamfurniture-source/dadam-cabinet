@@ -39,6 +39,11 @@
   --sg-px: 20px; /* 좌우 여백 — 폰 */
   --sg-bar: 60px; /* 폰 위 막대 높이 */
   --sg-tab: 58px; /* 폰 아래 탭 높이 (안전 영역 제외) */
+
+  /* 기본 스프링 (응답 0.35초 · 감쇠 1.0) — segan/motion.js 가 같은 스프링의 linear() 곡선으로 바꿔 둔다.
+     이 값은 motion.js 를 싣지 않은 화면 · linear() 를 모르는 브라우저의 대신 곡선 (CLAUDE.md 「SEGAN 모션 규칙」) */
+  --sg-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --sg-spring-ms: 520ms;
 }
 
 *,
@@ -136,6 +141,32 @@ button {
 .sg-btn:focus-visible {
   background: var(--v5-ink);
   color: var(--v5-invert);
+}
+
+/* 누름 — 누르는 순간 0.97배 · 0.1초, 떼면 스프링으로 돌아온다 (CLAUDE.md 「SEGAN 모션 규칙」).
+   목록 줄은 줄이지 않고 바탕만 바로 바꾼다 */
+.sg-btn,
+.mk-btn {
+  transition: transform var(--sg-spring-ms) var(--sg-spring);
+}
+
+.sg-btn:active,
+.mk-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+
+a.sg-row:active,
+button.sg-row:active {
+  background: var(--v5-well);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-btn:active,
+  .mk-btn:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 /* ============================================================
@@ -718,7 +749,7 @@ a.sg-row.ad-row::after {
   padding-left: 12px;
   font-size: 12px;
   color: var(--v5-ink-45);
-  transition: transform 0.15s ease;
+  transition: transform var(--sg-spring-ms) var(--sg-spring);
 }
 
 .me-menu.is-open > .me-main::after {
@@ -2013,7 +2044,7 @@ body.sg-locked {
   background: var(--v5-paper);
   color: var(--v5-ink);
   outline: none;
-  animation: sg-sheet-up 0.24s ease-out;
+  animation: sg-sheet-up var(--sg-spring-ms) var(--sg-spring);
 }
 
 .sg-sheet-head {
@@ -2060,6 +2091,26 @@ body.sg-locked {
   overscroll-behavior: contain;
   padding: 16px max(20px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom))
     max(20px, env(safe-area-inset-left));
+}
+
+/* 폰 시트 — 머리를 끌어 내려 닫는다 (segan/shell.js bindSheetDrag). 위 가운데 손잡이 막대가 그 표시 */
+@media (max-width: 1099.98px) {
+  .sg-sheet-wrap--sheet .sg-sheet-head {
+    position: relative;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet-head::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    background: var(--v5-line-25);
+  }
 }
 
 /* 가운데 작은 창 — 막는 확인만 (지우기 확인 · 동의 · 로그인 필요 · 크레딧 부족) */

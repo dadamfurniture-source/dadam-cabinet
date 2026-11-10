@@ -222,7 +222,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111002" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111003" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +
@@ -597,7 +597,11 @@
        var h = SeganShell.sheet.open({ title: '사진 보기', body: node, kind: 'sheet',
                                        onClose: function (why) {} });
        h.close();   // 약속 — 표시 칸을 되돌린 뒤 풀린다. 닫고 바로 화면을 옮기면 이것을 기다린다
-     why: 'close'(h.close) · 'button'(닫기) · 'escape' · 'backdrop'(바깥) · 'back'(뒤로 가기) · 'replaced'(새 시트)
+     why: 'close'(h.close) · 'button'(닫기) · 'escape' · 'backdrop'(바깥) · 'back'(뒤로 가기) · 'replaced'(새 시트) ·
+          'drag'(폰 시트 머리를 끌어 내림)
+     폰 시트(kind 'sheet', 1100px 미만)는 머리를 끌어 내려 닫는다 — 손가락을 1:1 로 따라가고, 위로는 고무줄,
+     놓은 속도로 멈출 곳을 셈해 시트 높이의 40 % 를 넘으면 닫는다 (CLAUDE.md 「SEGAN 모션 규칙」).
+     segan/motion.js 를 실은 화면은 스프링으로 돌아오고 · 내려가며, 없으면 바로 자리로
      dismissible: false — Esc · 바깥 누르기 · 닫기 버튼으로 닫지 않는다 (뒤로 가기는 닫는다)
      initialFocus: 창 안의 요소 — 없으면 창 자체에 초점
   */
@@ -797,6 +801,92 @@
     }
   }
 
+  var DRAG_CLOSE = 0.4; // 시트 높이의 이만큼 넘게 내려갈 속도 · 거리면 닫는다
+
+  function narrowScreen() {
+    try {
+      return !(window.matchMedia && window.matchMedia('(min-width: 1100px)').matches);
+    } catch {
+      return true;
+    }
+  }
+
+  /** 놓은 속도(px/s)로 더 갈 거리 — segan/motion.js project 와 같은 식 (d 0.998) */
+  function projectDistance(v) {
+    return ((v / 1000) * 0.998) / (1 - 0.998);
+  }
+
+  /** 끝을 넘어 끌면 갈수록 더 버틴다 — segan/motion.js rubber 와 같은 식 */
+  function rubberband(over, dim) {
+    return dim > 0 ? (over * dim * 0.55) / (dim + 0.55 * Math.abs(over)) : 0;
+  }
+
+  /** 폰 시트 — 머리를 끌어 내려 닫는다 (위 「시트」 칸) */
+  function bindSheetDrag(L, head) {
+    var M = window.SeganMotion;
+    var y = 0;
+    var put = function (v) {
+      y = v;
+      L.box.style.transform = v ? 'translateY(' + v + 'px)' : '';
+    };
+    var sp = M && M.spring ? M.spring(put, { value: 0, eps: 0.5 }) : null;
+    var drag = null;
+    head.addEventListener('pointerdown', function (e) {
+      if (!L.open || !L.dismissible || !narrowScreen() || e.button > 0) return;
+      if (e.target && e.target.closest && e.target.closest('button, a, input, select, textarea'))
+        return;
+      if (sp) sp.halt(); // 움직이는 중이면 그 자리에서 잡는다
+      if (typeof L.box.getAnimations === 'function') {
+        L.box.getAnimations().forEach(function (a) {
+          a.finish(); // 올라오는 중이면 다 올라온 것으로 — 그다음부터 손을 따른다
+        });
+      }
+      try {
+        head.setPointerCapture(e.pointerId);
+      } catch {
+        /* 붙잡지 못해도 머리 안에서는 따라간다 */
+      }
+      drag = { y0: e.clientY, from: y, hist: [{ t: Date.now(), y: e.clientY }] };
+    });
+    head.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var v = drag.from + (e.clientY - drag.y0);
+      if (v < 0) v = -rubberband(-v, L.box.offsetHeight || 1);
+      if (sp) sp.set(v);
+      else put(v);
+      drag.hist.push({ t: Date.now(), y: e.clientY });
+      if (drag.hist.length > 6) drag.hist.shift();
+    });
+    function release(e) {
+      if (!drag) return;
+      // 놓은 속도 — 마지막 0.1초 동안만 (멈췄다 놓으면 0)
+      var h = drag.hist;
+      var b = h[h.length - 1];
+      var a = b;
+      for (var i = h.length - 1; i >= 0 && b.t - h[i].t <= 100; i--) a = h[i];
+      var vel = b.t > a.t && Date.now() - b.t < 80 ? ((b.y - a.y) / (b.t - a.t)) * 1000 : 0; // px/s, 아래가 +
+      drag = null;
+      var H = L.box.offsetHeight || 0;
+      var landing = y + projectDistance(vel);
+      if (e.type !== 'pointercancel' && L.open && y > 0 && landing > Math.max(H, 1) * DRAG_CLOSE) {
+        // 놓은 속도 그대로 내려가고, 다 내려가면 닫는다
+        if (sp && H) {
+          sp.to(H, { response: 0.3, damping: 1, velocity: vel }).then(function () {
+            if (L.open) closeLayer(L, 'drag');
+          });
+        } else {
+          put(H);
+          closeLayer(L, 'drag');
+        }
+        return;
+      }
+      if (sp) sp.to(0, { response: 0.3, damping: Math.abs(vel) > 200 ? 0.8 : 1, velocity: vel });
+      else put(0);
+    }
+    head.addEventListener('pointerup', release);
+    head.addEventListener('pointercancel', release);
+  }
+
   /**
    * 시트 · 옆 패널 · 가운데 창을 연다.
    * @param {{ title?: string, body?: Node|string, kind?: 'sheet'|'panel'|'dialog',
@@ -873,6 +963,7 @@
       downOnBack: null,
     };
     x.hidden = !L.dismissible;
+    if (kind === 'sheet') bindSheetDrag(L, head);
     x.addEventListener('click', function () {
       closeLayer(L, 'button');
     });
