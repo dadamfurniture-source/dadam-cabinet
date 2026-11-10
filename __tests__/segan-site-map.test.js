@@ -484,9 +484,14 @@ describe('자리 · 이름', () => {
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'site-map.js')");
   });
 
-  test('키 자리 — 저장소에는 지도 키가 없다 (빈 칸). 지도 회사 주소로는 SDK 만 부른다', () => {
+  test('키 자리 — 지도 키는 공용 설정 파일 한 곳에만 (화면 코드는 빈 칸). 지도 회사 주소로는 SDK 만 부른다', () => {
     const src = read('segan/site-map.js');
     expect(src).toMatch(/var KAKAO_JS_KEY = '';/);
+    // 설정 파일의 키는 화면이 받는 모양(영문 · 숫자 16~64자)이어야 지도가 켜진다
+    const cfg = read('js/config.js').match(/kakaoJsKey: '([^']*)'/);
+    expect(cfg).not.toBeNull();
+    expect(cfg[1]).toMatch(/^[0-9a-zA-Z]{16,64}$/);
+    expect(read('segan/me.html')).toMatch(/<script src="\.\.\/js\/config\.js\?v=\d+"><\/script>/);
     expect(src.match(/https?:\/\/[^'"\s]+/g).filter((u) => !u.includes('dapi.kakao.com'))).toEqual(
       []
     );

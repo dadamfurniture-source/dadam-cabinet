@@ -19,7 +19,8 @@
                PATCH /schedules/:id                 { scheduled_at?, assignee_name?, status? }                     (대표 · 실장)
                PUT   /company/as-requests/:id/visit { visit_at, assignee_name? }                                   (대표 · 실장)
    지도      카카오맵 JavaScript SDK (2026-11-10 대표님 결정). 키는 JavaScript 키 하나 — 사이트 도메인에만 묶인 공개 키다.
-             KAKAO_JS_KEY (또는 DADAM_CONFIG.kakaoJsKey) 가 비어 있으면 지도 자리에 「준비 중」 한 줄, 표는 그대로.
+             키는 js/config.js 의 DADAM_CONFIG.kakaoJsKey 에 적는다 (아래 KAKAO_JS_KEY 는 비워 둔다).
+             둘 다 비어 있으면 지도 자리에 「준비 중」 한 줄, 표는 그대로.
              칸이 화면에 보일 때 처음 SDK 를 부른다 (안 보는 사람은 부르지 않는다).
    좌표      주소 → 좌표는 브라우저에서 카카오 주소 찾기(services.Geocoder)로 바꾸고, 찾은 값을 서버에 적는다
              (PUT /company/sites/geo — 서버는 「지금 주소와 같은 글자」일 때만 받는다). 주소를 고치면 좌표는 저절로 다시 구한다.
@@ -40,7 +41,8 @@
 (function () {
   'use strict';
 
-  // 카카오맵 JavaScript 키 (공개 키 — 카카오 개발자 콘솔에서 사이트 도메인에만 묶는다). REST · Admin 키는 여기 넣지 않는다.
+  // 카카오맵 JavaScript 키는 js/config.js 의 DADAM_CONFIG.kakaoJsKey 에 적는다 (공개 키 — 카카오 개발자 콘솔에서
+  // 사이트 도메인에만 묶는다). 여기는 설정 파일이 없을 때의 빈 자리다. REST · Admin 키는 어디에도 넣지 않는다.
   var KAKAO_JS_KEY = '';
   var SDK_URL = 'https://dapi.kakao.com/v2/maps/sdk.js';
   var CENTER = [36.5, 127.8]; // 처음 지도 가운데 — 핀을 그리면 핀에 맞춘다
