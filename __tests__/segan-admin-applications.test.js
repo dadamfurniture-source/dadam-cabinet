@@ -140,7 +140,6 @@ describe('들어오기', () => {
     await window.SeganAdmin.routed;
     expect($('adApplications').hidden).toBe(false);
     expect($('adToday').hidden).toBe(true);
-    expect($('adPc').hidden).toBe(true);
   });
 
   test('「‹ 관리」로 돌아오면 첫 화면 · 수를 다시 읽는다', async () => {

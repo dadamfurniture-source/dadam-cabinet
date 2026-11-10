@@ -14,10 +14,10 @@
              워커 production-requests/common.js)에 닿으면 「200+」.
              줄을 누르면 그 일을 하는 화면 — 앱 화면이 있으면 #화면(새 업체 신청 #applications),
              아직 없으면 PC 관리자 화면(admin/*.html).
-   앱 화면    주소의 # 로 고른다 (VIEWS). 화면을 열면 오늘 할 일 · PC에서 열기를 감추고, 「‹ 관리」로 돌아오면
+   앱 화면    주소의 # 로 고른다 (VIEWS). 화면을 열면 오늘 할 일을 감추고, 「‹ 관리」로 돌아오면
              수를 다시 읽는다 (그 화면에서 처리했을 수 있다).
-   찾기       수가 아닌 앱 화면 — 회원 (#members, 보기만)
-   PC에서 열기  표 · 큰 입력이 많아 PC 에 남기는 관리자 화면 10개 (주소 · 이름은 js/admin-shell.js ADMIN_NAV)
+   회원(#members) · PC 관리자 화면(admin/*.html) 줄은 여기 두지 않는다 — 마이페이지 본사 메뉴
+   (계정관리 · 업체관리 · DB관리 · 인력관리, segan/me.html)가 같은 곳을 연다
    ============================================================ */
 /* global window, document, fetch */
 (function () {
@@ -31,19 +31,6 @@
     { key: 'assigned', label: '팩토리 답을 기다리는 배정', href: '#consults-assigned' },
     { key: 'production', label: '추천할 제작 의뢰', href: '#production' },
     { key: 'proposals', label: '결정할 생산 제안', href: '#reports' },
-  ];
-  // PC 에 남기는 화면 — 이름은 js/admin-shell.js ADMIN_NAV 와 같다 (시험이 본다)
-  var PC_PAGES = [
-    { href: '../admin/management.html', label: '경영 대시보드' },
-    { href: '../admin/counterparties.html', label: '거래처 · 공급처' },
-    { href: '../admin/gallery.html', label: '시공사례 관리' },
-    { href: '../admin/reference-images.html', label: '참고 이미지' },
-    { href: '../admin/dataset.html', label: '학습 데이터셋' },
-    { href: '../admin/partner-eval.html', label: '팩토리 평가' },
-    { href: '../admin/appliances.html', label: '가전 모델 관리' },
-    { href: '../admin/work-jobs.html', label: '작업 배정' },
-    { href: '../admin/logs.html', label: '활동 로그' },
-    { href: '../admin/settings.html', label: '설정' },
   ];
   var FAIL = '불러오지 못함';
   // 앱 화면 — 주소 # 이름 → [칸 id, 채우는 모듈 이름]
@@ -177,15 +164,7 @@
     }).join('');
   }
 
-  function pcHtml() {
-    return PC_PAGES.map(function (p) {
-      return '<li><a class="sg-row" href="' + esc(p.href) + '">' + esc(p.label) + '</a></li>';
-    }).join('');
-  }
-
   async function showHome() {
-    $('adGo').hidden = false;
-    $('adPc').hidden = false;
     A.counts = await loadCounts();
     $('adTodayRows').innerHTML = todayHtml(A.counts);
     $('adToday').hidden = false;
@@ -205,8 +184,6 @@
     var mod = view ? window[view[1]] : null;
     if (view && mod && mod.load) {
       $('adToday').hidden = true;
-      $('adGo').hidden = true;
-      $('adPc').hidden = true;
       A.view = name;
       await mod.load(A.sb, A.session, arg);
       return;
@@ -224,7 +201,6 @@
       $('adDenied').hidden = false;
       return;
     }
-    $('adPcRows').innerHTML = pcHtml();
     // 주소 # 가 바뀌면 화면을 다시 고른다 — 손잡이는 하나만 (스크립트를 다시 실어도 겹치지 않게)
     if (window.__seganAdminHash) window.removeEventListener('hashchange', window.__seganAdminHash);
     window.__seganAdminHash = function () {
@@ -236,7 +212,6 @@
 
   var api = {
     TODAY: TODAY,
-    PC_PAGES: PC_PAGES,
     INBOX_LIMIT: INBOX_LIMIT,
     PRODUCTION_LIMIT: PRODUCTION_LIMIT,
     VIEWS: VIEWS,
