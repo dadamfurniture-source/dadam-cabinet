@@ -59,7 +59,7 @@ OPENAI_IMAGE_MODEL = "gpt-image-2.5-sunburst"
 OPENAI_IMAGE_QUALITY = "high"
 
 # Claude — 연출컷 구성 분석 (POST /api/generate/:id/layout, src/claude.js). 키는 시크릿 ANTHROPIC_API_KEY.
-ANTHROPIC_MODEL = "claude-opus-5"
+ANTHROPIC_MODEL = "claude-fable-5-2"
 
 # 생성 결과 저장·공유
 GENERATIONS_BUCKET = "generations"

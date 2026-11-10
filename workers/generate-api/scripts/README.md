@@ -14,7 +14,7 @@
 
 - `workers/generate-api` 에서 `npm ci` (SDK 가 필요하다)
 - 키는 환경 변수로만: `ANTHROPIC_API_KEY` (저장소·명령 기록에 남기지 않는다). 모델은
-  `ANTHROPIC_MODEL` (기본 `claude-opus-5`, 워커 `wrangler.toml` 과 같게)
+  `ANTHROPIC_MODEL` (기본 `claude-fable-5-2`, 워커 `wrangler.toml` 과 같게)
 - design_spec JSON 파일: `generations.options.design_spec` 를 그대로 저장하거나, generations
   행을 통째로 저장해도 된다 (`options.design_spec` · `category` · `wall_analysis` 를 꺼낸다)
 
@@ -38,7 +38,7 @@ node scripts/rescore-planner.mjs --spec d1.json --photo <결과 URL> --elevation
 ### 출력 (형식 예시 — 실제 결과 아님)
 
 ```
-new  ok=true score=4/4 elevation=labeled shape=straight (8123ms, claude-opus-5)
+new  ok=true score=4/4 elevation=labeled shape=straight (8123ms, claude-fable-5-2)
      floor doors 5+0dr / upper doors 4  (plan 5+0 / 4)
   L1   plan cabinet/2d+0dr  read cabinet/2d+0dr
   ...
