@@ -8,56 +8,56 @@
     <title>마이페이지 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026111012" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026111012" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026111012" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111012" />
+    <link rel="icon" href="icons/icon.svg?v=2026111013" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111013" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111013" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111013" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026111012" />
+    <link rel="stylesheet" href="shell.css?v=2026111013" />
     <!-- 업체 칸의 입력 · 버튼 — 만들기 탭과 같은 모양 (consult.html · renders.html 처럼 싣는다) -->
-    <link rel="stylesheet" href="make.css?v=2026111012" />
+    <link rel="stylesheet" href="make.css?v=2026111013" />
     <!-- 로그인 상태 · 역할 링크 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말).
          설계(간편 플래너)는 모듈 없이 워크플로 API GET /planner/access 로 판정한다 -->
-    <script src="../js/config.js?v=2026111012"></script>
+    <script src="../js/config.js?v=2026111013"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111012"></script>
-    <script src="../js/mypage-work.js?v=2026111012"></script>
+    <script src="../js/admin-access.js?v=2026111013"></script>
+    <script src="../js/mypage-work.js?v=2026111013"></script>
     <!-- 업체 칸: Manager · Expert 카드 등록 · Agent 결제 · 다시 시작 — pricing.html 과 같은 토스 결제창 -->
     <script src="https://js.tosspayments.com/v1/payment" defer></script>
     <!-- 내 정보 › 알림 (web push) — 셸의 로그아웃이 이 기기 구독을 지우려 SeganPush.forget 을 부른다 -->
-    <script src="push.js?v=2026111012" defer></script>
-    <script src="regions.js?v=2026111012" defer></script>
-    <script src="partner.js?v=2026111012" defer></script>
-    <script src="partner-consults.js?v=2026111012" defer></script>
-    <script src="books.js?v=2026111012" defer></script>
-    <script src="partner-projects.js?v=2026111012" defer></script>
+    <script src="push.js?v=2026111013" defer></script>
+    <script src="regions.js?v=2026111013" defer></script>
+    <script src="partner.js?v=2026111013" defer></script>
+    <script src="partner-consults.js?v=2026111013" defer></script>
+    <script src="books.js?v=2026111013" defer></script>
+    <script src="partner-projects.js?v=2026111013" defer></script>
     <!-- 업무 달력 — 프로젝트 관리 대시보드의 #meCalendar (segan/calendar.js) -->
-    <script src="calendar.js?v=2026111012" defer></script>
+    <script src="calendar.js?v=2026111013" defer></script>
     <!-- 설치 · A/S 지도 + 표 — 프로젝트 관리 › 설치 #siteInstall · A/S #siteAs (segan/site-map.js) -->
-    <script src="site-map.js?v=2026111012" defer></script>
+    <script src="site-map.js?v=2026111013" defer></script>
     <!-- A/S 접수 — 내 프로젝트의 「A/S 신청」 · 내 접수 · 팩토리 A/S함 (segan/as-requests.js) -->
-    <script src="as-requests.js?v=2026111012" defer></script>
+    <script src="as-requests.js?v=2026111013" defer></script>
     <!-- 관리 › 플랫폼 › 등록 업체 — 업체마다 프로젝트 · 회계 · 인력 (segan/hq-companies.js) -->
-    <script src="hq-companies.js?v=2026111012" defer></script>
+    <script src="hq-companies.js?v=2026111013" defer></script>
     <!-- 제작 의뢰 — Manager 업체의 의뢰 · 고르기 (segan/production-requests.js) · 팩토리 제작 의뢰함 (segan/factory-requests.js) -->
-    <script src="production-requests.js?v=2026111012" defer></script>
-    <script src="factory-requests.js?v=2026111012" defer></script>
+    <script src="production-requests.js?v=2026111013" defer></script>
+    <script src="factory-requests.js?v=2026111013" defer></script>
     <!-- 내 프로젝트 다음 결제 — 결제 칸 · 토스 결제창 (위 v1 결제 모듈) -->
-    <script src="pay.js?v=2026111012" defer></script>
+    <script src="pay.js?v=2026111013" defer></script>
     <!-- 내 것 › 좋아요 — 시공사례와 같은 타일 · 사진 보기 (segan/collection-view.js) -->
-    <script src="collection-view.js?v=2026111012" defer></script>
+    <script src="collection-view.js?v=2026111013" defer></script>
     <!-- 움직임 한 벌 — 화면 넘기기 · 메뉴 펼치기 · 시트 끌기 (CLAUDE.md 「SEGAN 모션 규칙」, segan/motion.js) -->
-    <script src="motion.js?v=2026111012" defer></script>
-    <script src="shell.js?v=2026111012" defer></script>
+    <script src="motion.js?v=2026111013" defer></script>
+    <script src="shell.js?v=2026111013" defer></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026111012" defer></script>
-    <script src="make.js?v=2026111012" defer></script>
-    <script src="me.js?v=2026111012" defer></script>
+    <script src="guide.js?v=2026111013" defer></script>
+    <script src="make.js?v=2026111013" defer></script>
+    <script src="me.js?v=2026111013" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>

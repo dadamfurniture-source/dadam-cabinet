@@ -494,7 +494,7 @@ describe('판정 · 본문 (순수 함수)', () => {
     };
     expect(L.openOf(due)).toBe('p-design');
     expect(L.statusOf(due)).toBe('계약금 입금');
-    expect(L.statusOf({ ...due, status: 'deposit_due' })).toBe('입금 예정');
+    expect(L.statusOf({ ...due, status: 'deposit_due' })).toBe(''); // 「입금 예정」은 없다 — 입금된 뒤에만
     expect(L.statusOf({ ...due, status: 'x' })).toBe('');
     expect(L.detailOf(due)).toBe('싱크대 · 설계 싱크대 A · 수주 DD-1'); // 금액은 없다
     expect(L.detailOf(by['schedule:' + S1])).toBe(
@@ -649,7 +649,7 @@ describe('월 보기', () => {
             can_manage: false,
             items: [
               due('o1', '2026-11-10', 'deposit_paid'),
-              due('o2', '2026-11-18', 'deposit_due'),
+              due('o2', '2026-11-18', 'deposit_paid'),
             ],
           })
         ),
@@ -663,7 +663,7 @@ describe('월 보기', () => {
     expect(go.getAttribute('data-me-go')).toBe('p-design');
     expect(box().querySelector('[data-act="edit"]')).toBeNull(); // 일정 표의 줄이 아니다 — 고치기 없음
     await click('.cal-day[data-day="2026-11-18"]');
-    expect(rows()).toEqual(['설계 마감 | 설계 · 싱크대 · 설계 싱크대 A · 수주 DD-1 | 입금 예정']);
+    expect(rows()).toEqual(['설계 마감 | 설계 · 싱크대 · 설계 싱크대 A · 수주 DD-1 | 계약금 입금']);
     await click('.cal-kind[data-kind="design"]');
     expect(rows()).toHaveLength(0);
   });
