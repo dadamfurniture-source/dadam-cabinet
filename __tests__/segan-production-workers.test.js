@@ -362,7 +362,7 @@ afterEach(() => {
 });
 
 describe('자리 · 이름', () => {
-  test('me.html — 업체 칸(#partner) 안, 생산 계획 다음 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
+  test('me.html — 업체 칸(#partner) 안, 생산 설정 다음 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const box = doc.getElementById('productionWorkers');
     expect(box).not.toBeNull();
@@ -370,7 +370,7 @@ describe('자리 · 이름', () => {
     expect(box.closest('section').id).toBe('partner');
     expect(box.classList.contains('od')).toBe(true);
     expect(box.classList.contains('pw')).toBe(true);
-    expect(box.previousElementSibling.id).toBe('productionPlan');
+    expect(box.previousElementSibling.id).toBe('productionSettings');
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
     );
@@ -651,13 +651,19 @@ describe('화면', () => {
     expect(text(more().querySelector('.me-empty'))).toBe('아직 없습니다.');
   });
 
-  test('표준시간 · 인력 설정은 아직 PC 화면 — 링크 하나', async () => {
+  test('표준시간 · 인력 설정은 앱 안 「생산 설정」 화면 — 링크 하나 (PC 화면으로 보내지 않는다)', async () => {
     await load();
-    const a = part('calib').querySelector('a[data-desktop-tab]');
-    expect(a.getAttribute('href')).toBe('../production.html');
-    expect(a.className).toBe('od-pc');
-    expect(text(a)).toBe('표준시간 · 인력 설정 →');
-    expect(text(part('calib'))).toContain('표준시간 · 인력 설정은 아직 PC 생산 현황판에서 합니다.');
+    const links = part('calib').querySelectorAll('a.od-pc');
+    expect(links.length).toBe(1);
+    const a = links[0];
+    expect(a.getAttribute('href')).toBe('#p-config');
+    expect(a.hasAttribute('data-desktop-tab')).toBe(false);
+    expect(a.hasAttribute('target')).toBe(false);
+    expect(text(a)).toBe('생산 설정 →');
+    expect(text(part('calib'))).toContain(
+      '표준시간 · 인력 설정은 생산 › 「생산 설정」에서 합니다.'
+    );
+    expect($('productionWorkers').innerHTML).not.toContain('production.html');
   });
 
   test('이름 속 꺾쇠는 글자로만 그린다', async () => {
