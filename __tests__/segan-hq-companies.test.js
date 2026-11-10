@@ -214,9 +214,9 @@ afterEach(() => {
 });
 
 describe('자리 · 이름', () => {
-  test('me.html — 본사 › 업체관리 첫 줄 「등록 업체」(#companies), 칸은 처음엔 감춘다 · 스크립트 차례 · 서비스 워커', () => {
+  test('me.html — 관리 › 플랫폼 첫 줄 「등록 업체」(#companies), 칸은 처음엔 감춘다 · 스크립트 차례 · 서비스 워커', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
-    const first = doc.querySelector('#meSubHqCompanies > li');
+    const first = doc.querySelector('#meSubPlatform > li');
     expect(first.getAttribute('data-me-item')).toBe('companies');
     expect(first.hasAttribute('hidden')).toBe(true);
     expect(first.querySelector('a').getAttribute('href')).toBe('#companies');

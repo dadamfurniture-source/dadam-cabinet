@@ -16,7 +16,7 @@
    화면 (위에서부터 먼저 맞는 것)
      업체 있음         업체 이름 · 등급(다음 결제일부터 바뀌는 등급) · 상태 · 내 역할 · 크레딧
                        대표: 등급 바꾸기 · 결제 관리(segan/billing.html)
-                       Agent 대표: 직원(내보내기) · 직원 초대(링크) — .me-pt-staff 한 덩이, 마이페이지 인력 관리 › 직원(#staff)
+                       Agent 대표: 직원(내보내기) · 직원 초대(링크) — .me-pt-staff 한 덩이, 마이페이지 인사 › 직원(#staff)
                        화면에서만 보인다 (segan/me.js · shell.css data-me-view). Manager · Expert 는 인력 도구가 없다
                        (2026-11-09 대표님 결정 — account-api STAFF_TOOL_PLANS)
                        실장 · 직원: 업체 이름 · 내 역할 · 크레딧만

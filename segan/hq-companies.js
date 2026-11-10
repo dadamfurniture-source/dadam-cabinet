@@ -1,5 +1,5 @@
 /* ============================================================
-   segan/hq-companies.js — 마이페이지 본사 › 업체관리 › 등록 업체 (segan/me.html #hqCompanies, 주소 #companies)
+   segan/hq-companies.js — 마이페이지 관리 › 플랫폼 › 등록 업체 (segan/me.html #hqCompanies, 주소 #companies)
 
    누가 보나  다담 본사 구성원 (account-api GET /partner/me 의 platform_member) — 서버가 본사 대표 · 실장만 연다.
              segan/me.js 가 업체 칸을 읽은 뒤 SeganHqCompanies.load(sb, session, partnerMe) 를 부른다.

@@ -714,8 +714,8 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink);
 }
 
-/* 메뉴 나무 (segan/me.js) — 큰 메뉴(캔버스 용어) · 그 아래 하위 줄.
-   폰 · 태블릿: 큰 메뉴를 누르면 그 자리에 펼친다(.is-open, 한 번에 하나). PC 1100px~: 늘 펼친다 (아래 미디어) */
+/* 메뉴 나무 (segan/me.js) — B안 큰 메뉴 · 그 아래 하위 줄.
+   큰 메뉴 이름(.me-menu-name — <main class="me-main"> 과 다른 이름)은 그 대시보드로, 옆 ▾(.me-chev)는 하위 줄만 접고 편다(.is-open, 한 번에 하나 — 폰 · PC 같다) */
 .me-menus {
   margin: 0;
   padding: 0;
@@ -727,11 +727,17 @@ a.sg-row.ad-row::after {
   border-bottom: 1px solid var(--v5-line);
 }
 
-.me-main {
+.me-menu-head {
   display: flex;
+  align-items: stretch;
+}
+
+.me-menu-name {
+  display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  min-width: 0;
   min-height: 54px;
   padding: 0;
   border: 0;
@@ -743,16 +749,23 @@ a.sg-row.ad-row::after {
   cursor: pointer;
 }
 
-.me-main::after {
-  content: '▾';
-  margin-left: auto;
-  padding-left: 12px;
-  font-size: 12px;
+.me-chev {
+  flex: none;
+  width: 48px;
+  border: 0;
+  background: none;
   color: var(--v5-ink-45);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.me-chev::before {
+  content: '▾';
+  display: inline-block;
   transition: transform var(--sg-spring-ms) var(--sg-spring);
 }
 
-.me-menu.is-open > .me-main::after {
+.me-menu.is-open .me-chev::before {
   transform: rotate(180deg);
 }
 
@@ -778,19 +791,98 @@ a.sg-row.ad-row::after {
   border-bottom: 0;
 }
 
-.me-soon-tag {
-  padding: 1px 6px;
-  background: var(--v5-well);
-  color: var(--v5-ink-60);
-  font-size: 11px;
-  font-weight: 300;
-}
-
 .me-row-soon {
   color: var(--v5-ink-45);
 }
 
-/* 준비 중 안내 (재고 관리 · 일정 · 작업자 · Manager A/S) — 하위 화면 자리의 한 칸 */
+/* 구역 단추 (#meParts) — 프로젝트 관리 하위 줄이 묶은 화면들 · 설계의 플래너 */
+.me-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.me-part {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink-60);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.me-part[aria-current='page'] {
+  border-color: var(--v5-navy);
+  color: var(--v5-ink);
+  font-weight: 400;
+}
+
+.me-part-soon {
+  color: var(--v5-ink-45);
+}
+
+.me-part-link::after {
+  content: '↗';
+  margin-left: 6px;
+  color: var(--v5-ink-45);
+}
+
+/* 대시보드 (#meDash) — 하위 줄마다 칸 하나 (프로젝트 관리는 수), 칸 사이는 가는 선 (빈 자리는 바탕 그대로) */
+.me-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin: 0 0 24px;
+  border-top: 1px solid var(--v5-line);
+  border-left: 1px solid var(--v5-line);
+}
+
+.me-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  min-height: 88px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  text-decoration: none;
+}
+
+.me-tile-k {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.me-tile-k::after {
+  content: ' ›';
+  color: var(--v5-ink-45);
+}
+
+.me-tile-n {
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-tile-d {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+.me-tile-soon .me-tile-k {
+  color: var(--v5-ink-45);
+}
+
+/* 준비 중 안내 (구매 · 재고 · 근무 일정 · 작업자 · 수금 · 고객 · Manager A/S) — 하위 화면 자리의 한 칸 */
 .me-pane-note.me-soon {
   padding: 18px 16px;
   border: 1px dashed var(--v5-line-25);
@@ -798,7 +890,7 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-60);
 }
 
-/* 업체 칸 안 직원 · 초대 (segan/partner.js .me-pt-staff) — 인력 관리 › 직원 화면에서만, 그 화면은 그것만 */
+/* 업체 칸 안 직원 · 초대 (segan/partner.js .me-pt-staff) — 인사 › 직원 화면에서만, 그 화면은 그것만 */
 #partner:not([data-me-view='staff']) .me-pt-staff {
   display: none;
 }
@@ -807,7 +899,7 @@ a.sg-row.ad-row::after {
   display: none;
 }
 
-/* 본사 › 업체관리 › 등록 업체 (segan/hq-companies.js) — 목록 줄 · 「‹ 등록 업체」 · 탭 셋(프로젝트 · 회계 · 인력) */
+/* 관리 › 플랫폼 › 등록 업체 (segan/hq-companies.js) — 목록 줄 · 「‹ 등록 업체」 · 탭 셋(프로젝트 · 회계 · 인력) */
 .me-hc-row {
   gap: 12px;
   cursor: pointer;
@@ -921,28 +1013,32 @@ a.sg-row.ad-row::after {
     padding: 0 12px;
   }
 
-  /* 메뉴 나무 — 큰 메뉴는 머리글처럼, 하위 줄은 늘 펼친다 */
-  .me-main {
+  /* 메뉴 나무 — 큰 메뉴는 머리글처럼 (펼치기는 폰과 같다) */
+  .me-menu-name {
     min-height: 44px;
     padding: 0 12px;
     font-size: 15px;
-    cursor: default;
   }
 
-  .me-main::after {
-    content: none;
+  .me-chev {
+    width: 44px;
   }
 
-  .me-subs,
-  .me-menu.is-open > .me-subs {
-    display: block;
+  .me-subs {
     margin-left: 12px;
     padding-left: 0;
   }
 
-  .me-hub .sg-row[aria-current='page'] {
+  .me-hub .sg-row[aria-current='page'],
+  .me-hub .me-menu-name[aria-current='page'],
+  .me-hub .me-menu-name[aria-current='page'] + .me-chev {
     background: var(--v5-paper);
     font-weight: 400;
+  }
+
+  .me-parts {
+    margin-top: 0;
+    margin-bottom: 16px;
   }
 
   .me-hub .me-profile,
