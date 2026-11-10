@@ -12,7 +12,8 @@
  *   - 받을 날 order_payments.due_on (source payment) — 아직 안 받은 줄, 취소 수주 뺌 = 영업. 금액이 있어 대표 · 실장에게만
  *   - A/S 접수 as_requests.created_at (source as) — 거둔 접수 뺌 = A/S. 표가 아직 없으면(DB 0045 전) 건너뛴다
  *   - 설계 마감 (source design_due) = 설계(design) — 계약금 입금날 당일 (2026-11-10 대표님 결정). 수주마다 한 줄:
- *     계약금을 받았으면 받은 날(paid_on, status deposit_paid), 아직이면 계약금 받을 날(due_on, status deposit_due = 예정).
+ *     계약금을 받은 날(가장 이른 paid_on, status deposit_paid). 아직 안 받은 수주는 싣지 않는다 — 입금된 뒤에만 보인다
+ *     (2026-11-10 대표님 결정. 받을 날은 영업의 「계약금 받을 날」 줄로 대표 · 실장에게만 간다).
  *     취소 수주 뺌. 날짜만 싣고 금액은 읽지도 않는다 — 구성원 모두에게
  *
  * can_manage: 일정을 넣고 고칠 수 있나 (대표 · 실장 — src/schedules.js 가 서버에서 다시 막는다).
@@ -96,18 +97,7 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
   const co = `eq.${company.id}`;
   const limit = String(SCHEDULE_FETCH);
 
-  // 계약금 줄 — 설계 마감에 쓴다. 금액은 읽지 않는다 (직원도 본다)
-  const depositRows = (extra) =>
-    selectMany(env, 'order_payments', {
-      select: 'order_id,due_on,paid_on,orders!inner(company_id,order_no,status,project_id,design_id)',
-      stage: 'eq.deposit',
-      'orders.company_id': co,
-      'orders.status': 'neq.cancelled',
-      ...extra,
-      limit,
-    });
-
-  const [schedules, consults, payments, asRows, depositPaid, depositDue] = await Promise.all([
+  const [schedules, consults, payments, asRows, depositPaid] = await Promise.all([
     selectMany(env, 'design_schedules', {
       scheduled_at: `gte.${fromIso}`,
       select:
@@ -144,32 +134,38 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
       if (isMissingRelation(e)) return null;
       throw e;
     }),
-    depositRows({ paid_on: `gte.${range.from}`, order: 'paid_on.asc' }),
-    depositRows({ paid_on: 'is.null', due_on: `gte.${range.from}`, order: 'due_on.asc' }),
+    // 받은 계약금 줄 — 설계 마감에 쓴다. 금액은 읽지 않는다 (직원도 본다)
+    selectMany(env, 'order_payments', {
+      select: 'order_id,paid_on,orders!inner(company_id,order_no,status,project_id,design_id)',
+      stage: 'eq.deposit',
+      'orders.company_id': co,
+      'orders.status': 'neq.cancelled',
+      paid_on: `gte.${range.from}`,
+      order: 'paid_on.asc',
+      limit,
+    }),
   ]);
-  const truncated = [schedules, consults, payments, asRows, depositPaid, depositDue].some(
+  const truncated = [schedules, consults, payments, asRows, depositPaid].some(
     (rows) => (rows || []).length >= SCHEDULE_FETCH,
   );
 
-  // 설계 마감 = 계약금 입금날 — 수주마다 하나. 기간에 걸린 수주의 계약금 줄을 모두 읽어 날짜를 정한다
-  // (받은 줄이 하나라도 있으면 가장 이른 받은 날, 없으면 가장 이른 받을 날)
+  // 설계 마감 = 계약금 입금날 — 수주마다 하나, 받은 뒤에만. 기간에 받은 줄이 걸린 수주의 받은 계약금 줄을
+  // 모두 읽어 가장 이른 받은 날로 정한다 (기간 앞에 먼저 받았으면 그날이 마감이라 이 기간에는 없다)
   const dueOrderOf = new Map();
   for (const p of depositPaid || []) if (p.paid_on <= range.to) dueOrderOf.set(p.order_id, p.orders || {});
-  for (const p of depositDue || []) if (p.due_on && p.due_on <= range.to) dueOrderOf.set(p.order_id, p.orders || {});
   const depositAll = dueOrderOf.size
     ? (await selectMany(env, 'order_payments', {
       order_id: `in.(${[...dueOrderOf.keys()].join(',')})`,
       stage: 'eq.deposit',
-      select: 'order_id,due_on,paid_on',
+      paid_on: 'not.is.null',
+      select: 'order_id,paid_on',
     })) || []
     : [];
   const deadlineOf = new Map();
   for (const p of depositAll) {
-    const day = p.paid_on || p.due_on;
-    if (!day) continue;
-    const paid = !!p.paid_on;
+    if (!p.paid_on) continue;
     const cur = deadlineOf.get(p.order_id);
-    if (!cur || (paid && !cur.paid) || (paid === cur.paid && day < cur.day)) deadlineOf.set(p.order_id, { day, paid });
+    if (!cur || p.paid_on < cur) deadlineOf.set(p.order_id, p.paid_on);
   }
   const dueDesignIds = [...new Set([...dueOrderOf.values()].map((o) => o.design_id).filter(Boolean))];
   const dueDesigns = dueDesignIds.length
@@ -264,8 +260,8 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
     });
   }
   for (const [orderId, o] of dueOrderOf) {
-    const dl = deadlineOf.get(orderId);
-    if (!dl || dl.day < range.from || dl.day > range.to) continue;
+    const day = deadlineOf.get(orderId);
+    if (!day || day < range.from || day > range.to) continue;
     items.push({
       key: `design_due:${orderId}`,
       source: 'design_due',
@@ -273,11 +269,11 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
       kind: 'design',
       type: 'design_due',
       label: '설계 마감',
-      day: dl.day,
+      day,
       at: null,
       time: null,
       title: null,
-      status: dl.paid ? 'deposit_paid' : 'deposit_due',
+      status: 'deposit_paid',
       location: null,
       design: o.design_id ? { id: o.design_id, name: designNameOf.get(o.design_id) || null } : null,
       project_id: o.project_id || null,
