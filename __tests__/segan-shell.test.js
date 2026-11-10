@@ -76,6 +76,7 @@ const CURRENT = {
   'ledger.html': ['me', 'me'],
   'ledger-board.html': ['me', 'me'],
   'ledger-report.html': ['me', 'me'],
+  'hq-board.html': ['me', 'me'], // 마이페이지 › 본사 — 경영 대시보드 조각 넷
 };
 /** 막대에서 뺀 탭 — 화면은 남는다 (마이페이지에서 간다) */
 const GONE = ['renders', 'assistant', 'admin', 'work'];
