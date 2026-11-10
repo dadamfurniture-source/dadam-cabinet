@@ -7,7 +7,7 @@
  *   바인딩이 없으면(로컬 · 시험) 한 번만 적고 건너뛴다 — 사진 올리기 · 확인은 그대로 된다.
  *
  *   올린 직후   새 사진이면 uploadDocument(documents.js)가 ctx.waitUntil(requestExtractIfAi) — 같은 사진을 다시 올린 reused 는 걸지 않는다
- *   AI 읽기 자격  사진 AI 읽기는 Agent · 시험 업체만 (DB 0038 ledger_ai). 올린 직후 · 다시 읽기는 requestExtractIfAi 가 먼저 보고,
+ *   AI 읽기 자격  사진 AI 읽기는 Agent · 다담 공장 · 다담 본사 · 시험 업체만 (DB 0038 · 0056 · 0057 ledger_ai). 올린 직후 · 다시 읽기는 requestExtractIfAi 가 먼저 보고,
  *               매분 cron 은 DB ledger_extract_due 가 ledger_ai 업체 사진만 준다. Expert 사진은 사람이 직접 적는다
  *   매분 cron   runExtractDue — rpc ledger_extract_due(DUE_LIMIT 장, DUE_WAIT_SEC 기다림, DUE_STUCK_SEC 멈춤, MAX_ATTEMPTS,
  *               REREAD_BELOW 판)가 준 사진마다 건다 (올린 직후 걸기가 실패했거나 읽기가 실패 · 멈춘 사진,
