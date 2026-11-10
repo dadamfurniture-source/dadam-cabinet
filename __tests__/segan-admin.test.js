@@ -221,7 +221,7 @@ describe('첫 화면 — 오늘 할 일만', () => {
     const me = read('segan/me.html');
     for (const href of [
       'admin.html#members',
-      '../admin/management.html',
+      '../admin/management.html?part=profit', // 경영 대시보드는 조각으로 메뉴마다
       '../admin/counterparties.html',
       '../admin/gallery.html',
       '../admin/reference-images.html',

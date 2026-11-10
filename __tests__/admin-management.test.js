@@ -1170,3 +1170,59 @@ describe('분기 목표 (3단계 PR-13)', () => {
     expect(HTML).toMatch(/\.okr-bar \.fill \{ display: block;/);
   });
 });
+
+describe('조각 보기 (?part=) — 마이페이지 본사 메뉴마다 한 조각', () => {
+  const PIECES = ['tree', 'okrSection', ...BODY.match(/<article class="card" id="card[A-Za-z]+"/g).map((m) => m.match(/id="([^"]+)"/)[1])];
+  const shownPieces = () => PIECES.filter((id) => {
+    const el = document.getElementById(id);
+    return !el.classList.contains('part-off') && !el.closest('.part-off');
+  });
+  async function openPart(part) {
+    window.history.replaceState(null, '', '/admin/management.html' + (part ? `?part=${part}` : ''));
+    const api = fakeApi();
+    boot(api);
+    await window.Management.init();
+    await settle();
+    return api;
+  }
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  test('조각마다 그 카드만 — 요약은 한 번만 부르고, 머리글 · 탭 이름은 그 조각', async () => {
+    const api0 = await openPart('');
+    const PARTS = window.Management.PARTS;
+    // 한 장 (PC 관리자 메뉴) — 다 보인다
+    expect(shownPieces()).toEqual(PIECES);
+    expect(text('pageTitle')).toBe('경영 대시보드');
+    expect(document.body.classList.contains('is-part')).toBe(false);
+    expect(api0.calls.filter((c) => typeof c === 'string' && c.startsWith('/management/summary'))).toHaveLength(1);
+    for (const [key, p] of Object.entries(PARTS)) {
+      const api = await openPart(key);
+      expect([key, shownPieces()]).toEqual([key, PIECES.filter((id) => p.ids.includes(id))]);
+      expect(text('pageTitle')).toBe(p.title);
+      expect(document.title).toBe(`${p.title} - 다담가구 관리자`);
+      expect(document.body.classList.contains('is-part')).toBe(true);
+      expect(document.getElementById('basis').classList.contains('part-off')).toBe(!p.basis);
+      expect(api.calls.filter((c) => typeof c === 'string' && c.startsWith('/management/summary'))).toHaveLength(1);
+    }
+  });
+
+  test('카드는 모두 한 조각에 한 번씩 — 빠진 카드도 두 번 나오는 카드도 없다', async () => {
+    await openPart('');
+    const all = Object.values(window.Management.PARTS).flatMap((p) => p.ids);
+    expect([...all].sort()).toEqual([...PIECES].sort());
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  test('모르는 조각이면 한 장 그대로', async () => {
+    await openPart('nope');
+    expect(shownPieces()).toEqual(PIECES);
+    expect(text('pageTitle')).toBe('경영 대시보드');
+  });
+
+  test('마이페이지 본사 메뉴 — 조각마다 줄 하나, 한 장 줄은 없다', async () => {
+    await openPart('');
+    const me = fs.readFileSync(path.join(ROOT, 'segan/me.html'), 'utf8');
+    const links = me.split('href="../admin/management.html').slice(1).map((t) => t.slice(0, t.indexOf('"')));
+    expect(links.sort()).toEqual(Object.keys(window.Management.PARTS).map((k) => `?part=${k}`).sort());
+  });
+});
