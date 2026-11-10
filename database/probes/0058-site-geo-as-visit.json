@@ -1,0 +1,230 @@
+{
+  "title": "0058 현장 좌표 + A/S 방문 일정 — 현장 정보에 시도 · 구군 · 좌표(둘 다 있거나 없음 · 대한민국 범위 · 바꾼 주소와 같이), A/S 접수에 방문 일정 한 줄(서버만 · 한 일정 한 접수 · 일정이 지워지면 비움), 읽기 규칙은 그대로 (scripts/rls-probe.mjs --migration database/migrations/0058_site_geo_as_visit.sql)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "design_x",
+    "snap_x",
+    "doc_x",
+    "order_x",
+    "as_a",
+    "as_b",
+    "sched_x"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "y_owner_user",
+    "customer_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.as_requests (id, company_id, order_id, customer_user_id, body, route, assignee_id) VALUES ({{as_a}}, {{company_x}}, {{order_x}}, {{customer_user}}, '문이 안 닫혀요', 'assignee', {{x_staff_user}})",
+    "INSERT INTO public.as_requests (id, company_id, order_id, customer_user_id, body, route) VALUES ({{as_b}}, {{company_x}}, {{order_x}}, {{customer_user}}, '서랍이 걸려요', 'owners')",
+    "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_x}}, {{design_x}}, gen_random_uuid(), 'as_visit', 'A/S 방문', timestamptz '2026-11-20 10:00+09')",
+    "INSERT INTO public.design_site_info (design_id, address, sido, gugun, lat, lng, geo_address, geocoded_at) VALUES ({{design_x}}, '시험시 시험구 시험로 1', '시험시', '시험구', 37.5, 127.0, '시험시 시험구 시험로 1', now())"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "customer": {
+      "role": "authenticated",
+      "user": "customer_user"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "y_owner": {
+      "role": "authenticated",
+      "user": "y_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "현장 좌표 읽기 — 그 업체 구성원 · 서버만 (남의 업체 · 고객 없음, 익명 deny) — 읽기 규칙 그대로",
+      "sql": "select sido || ' ' || gugun || ' ' || lat::text || ',' || lng::text from public.design_site_info where design_id = {{design_x}}",
+      "expect": {
+        "x_staff": "시험시 시험구 37.5,127",
+        "service_role": "시험시 시험구 37.5,127",
+        "y_owner": "(없음)",
+        "customer": "(없음)",
+        "anon": "deny"
+      }
+    },
+    {
+      "name": "구성원은 좌표를 직접 못 고친다 (쓰기 정책 없음 — 0줄)",
+      "sql": "update public.design_site_info set lat = 36.0, lng = 128.0 where design_id = {{design_x}}",
+      "roles": [
+        "x_staff",
+        "y_owner"
+      ],
+      "expect": {
+        "x_staff": "rows:0",
+        "y_owner": "rows:0"
+      }
+    },
+    {
+      "name": "서버 — 좌표 고치기",
+      "sql": "update public.design_site_info set lat = 35.1, lng = 129.0, sido = '시험도', gugun = '시험군', geo_address = address, geocoded_at = now() where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "위도 · 경도는 둘 다 있거나 둘 다 없다 — 한쪽만 비우면 거절",
+      "sql": "update public.design_site_info set lng = null where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "둘 다 비우기는 된다 (주소 글자 · 지역은 남아도 된다)",
+      "sql": "update public.design_site_info set lat = null, lng = null where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "대한민국 밖 좌표는 거절 (위도)",
+      "sql": "update public.design_site_info set lat = 10.0 where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "대한민국 밖 좌표는 거절 (경도)",
+      "sql": "update public.design_site_info set lng = 140.0 where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "좌표가 있으면 바꾼 주소 글자도 있어야 한다",
+      "sql": "update public.design_site_info set geo_address = null where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "시도 20자 넘으면 거절",
+      "sql": "update public.design_site_info set sido = repeat('가', 21) where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "주소만 고쳐도 된다 — 좌표는 그대로 남고 geo_address 와 달라진다 (앱 · 서버가 「좌표 없음」으로 읽는다)",
+      "sql": "update public.design_site_info set address = '시험시 시험구 다른로 2' where design_id = {{design_x}}; select (address is distinct from geo_address)::text || '/' || (lat is not null)::text from public.design_site_info where design_id = {{design_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/true"
+      }
+    },
+    {
+      "name": "A/S 접수 — 처음에는 방문 일정이 없다 (고객 · 구성원 읽기는 그대로)",
+      "sql": "select (visit_schedule_id is null)::text from public.as_requests where id = {{as_a}}",
+      "expect": {
+        "customer": "true",
+        "x_staff": "true",
+        "service_role": "true",
+        "y_owner": "(없음)",
+        "anon": "deny"
+      }
+    },
+    {
+      "name": "고객 · 구성원은 방문 일정을 못 잇는다",
+      "sql": "update public.as_requests set visit_schedule_id = {{sched_x}} where id = {{as_a}}",
+      "roles": [
+        "customer",
+        "x_staff"
+      ],
+      "expect": {
+        "customer": "deny",
+        "x_staff": "deny"
+      }
+    },
+    {
+      "name": "서버 — 방문 일정 잇기 (지킴이 트리거가 막지 않는다)",
+      "sql": "update public.as_requests set visit_schedule_id = {{sched_x}} where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "방문 일정을 이은 뒤에도 상태는 정해진 차례로 바뀐다 (requested → received)",
+      "sql": "update public.as_requests set visit_schedule_id = {{sched_x}} where id = {{as_a}}; update public.as_requests set state = 'received', received_by = {{x_staff_user}} where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "한 일정은 한 접수에만",
+      "sql": "update public.as_requests set visit_schedule_id = {{sched_x}} where id = {{as_a}}; update public.as_requests set visit_schedule_id = {{sched_x}} where id = {{as_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "없는 일정은 못 잇는다",
+      "sql": "update public.as_requests set visit_schedule_id = gen_random_uuid() where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "일정이 지워지면 접수의 방문 일정 칸이 비워진다 (접수는 남는다)",
+      "sql": "update public.as_requests set visit_schedule_id = {{sched_x}} where id = {{as_a}}; delete from public.design_schedules where id = {{sched_x}}; select (visit_schedule_id is null)::text || '/' || state from public.as_requests where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/requested"
+      }
+    }
+  ]
+}
