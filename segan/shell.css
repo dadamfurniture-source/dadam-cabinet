@@ -883,10 +883,11 @@ a.sg-row.ad-row::after {
 }
 
 /* 업무 달력 (#meCalendar — segan/calendar.js) — 프로젝트 관리 대시보드. 각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음.
-   종류 색 넷은 흰 바탕에서 모든 짝이 색각 검사를 통과한 값이다 (영업 · 생산 · 설치 · A/S) — 바꾸면 다시 검사한다.
+   종류 색 다섯은 흰 바탕에서 모든 짝이 색각 검사를 통과한 값이다 (영업 · 설계 · 생산 · 설치 · A/S) — 바꾸면 다시 검사한다.
    색만으로 가리지 않는다: 단추 · 줄에는 이름이 있고, 폰 월 달력의 네모는 종류마다 자리가 정해져 있다 */
 .cal {
   --cal-sales: #2f6fb0;
+  --cal-design: #8a7ff4;
   --cal-make: #c96a2b;
   --cal-install: #1f9a86;
   --cal-as: #9b3b3b;
@@ -986,6 +987,10 @@ a.sg-row.ad-row::after {
   background: var(--cal-sales);
 }
 
+.cal-sw--design {
+  background: var(--cal-design);
+}
+
 .cal-sw--make {
   background: var(--cal-make);
 }
@@ -1070,7 +1075,7 @@ a.sg-row.ad-row::after {
 
 .cal-dots {
   display: flex;
-  gap: 3px;
+  gap: 2px;
   padding-left: 4px;
 }
 
