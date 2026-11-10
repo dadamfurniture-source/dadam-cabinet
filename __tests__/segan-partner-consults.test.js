@@ -313,6 +313,7 @@ describe('자리 · 이름', () => {
       'factory-requests', // 받은 제작 의뢰 (segan/factory-requests.js)
       'production-requests', // Manager 제작 의뢰 (segan/production-requests.js — 프로젝트 관리 › 제작)
       'productionPlan', // 생산 계획 (segan/production-plan.js — 프로젝트 관리 › 생산 › 생산 계획)
+      'outsourceOrders', // 외주 발주 (segan/outsource-orders.js — 프로젝트 관리 › 생산 › 외주 발주)
       'productionSettings', // 생산 설정 (segan/production-settings.js — 프로젝트 관리 › 생산 › 생산 설정)
       'productionWorkers', // 작업자 (segan/production-workers.js — 인사 › 작업자, 다담 공장)
       'orders', // 수주 (segan/orders.js — 프로젝트 관리 › 영업 › 계약)

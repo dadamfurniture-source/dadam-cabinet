@@ -2934,6 +2934,44 @@ button.sm-num[aria-pressed='true'] {
   border-top: 1px solid var(--v5-line-12);
 }
 
+/* 업체 › 외주 발주 (#outsourceOrders — segan/outsource-orders.js) — 외주 · 상판 발주 줄 · 입고 처리 · 발주 취소.
+   줄 · 상세는 상담 줄(.me-cs-item · .ad-pick · .me-facts), 되묻는 칸은 작업자 화면(.pw-ask)과 같은 것을 쓴다 */
+.oo-filter {
+  margin-top: 12px;
+}
+
+.oo-list {
+  margin-top: 12px;
+}
+
+/* 발주 제목은 길다 (꾸러미 · 업체 · 문서 번호) — 자르지 않고 줄을 바꾼다 */
+.oo-item .me-c-main b {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.oo-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.oo-late {
+  margin-left: 0;
+  border-color: var(--v5-tan);
+  color: var(--v5-ink);
+}
+
+.oo-facts dd {
+  overflow-wrap: anywhere;
+}
+
+.oo-ask {
+  margin-top: 0;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
