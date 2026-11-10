@@ -33,6 +33,7 @@
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
  *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
+ *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
  *
  *   GET  /ledger/me · /ledger/accounts · /ledger/book · GET|PUT /ledger/settings
  *   POST /ledger/entries · /ledger/entries/:id/void · /ledger/entries/:id/correct
@@ -231,6 +232,7 @@ import {
   myScore,
 } from './distribution/company.js';
 import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
+import { listCompanySchedules } from './company-schedules.js';
 import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
 import { setProjectAssignee, assigneeCandidates } from './company-assignee.js';
 import {
@@ -1460,6 +1462,7 @@ const router = createRouter([
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
   { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
   { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
+  { method: 'GET',  path: '/company/schedules',                   auth: 'jwt', handler: workRoute((env, a) => listCompanySchedules(env, a)) },
 
   // Manager 업체 제작 의뢰 (src/production-requests/, DB 0050) — 내기 · 고르기 · 거두기는 Manager 업체 대표 · 실장,
   // 본사 추천은 관리자, 받기 · 못 받음은 고른 팩토리의 대표 · 실장

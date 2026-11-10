@@ -73,7 +73,7 @@ export function canHoldProjects(company) {
   );
 }
 
-async function projectCompanyOf(env, user, { manage = false } = {}) {
+export async function projectCompanyOf(env, user, { manage = false } = {}) {
   const { companyId, canAct } = await companyOf(env, user, { manage });
   const company = await selectOne(env, 'companies', {
     id: `eq.${companyId}`,

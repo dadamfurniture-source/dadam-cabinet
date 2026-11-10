@@ -569,12 +569,24 @@ const ITEMS = [{ type: 'measurement', scheduled_at: '2026-11-03T01:00:00Z' }];
 
 test('일정 등록 — 협력업체 설계면 일정만 넣고 본사 Slack 은 보내지 않는다 (알림 기록도 없음)', async () => {
   await withFetch(scheduleRoute(), async (calls) => {
-    const out = await createSchedules(ENV, null, { designId: 'd-p', user: { id: P_STAFF }, body: { items: ITEMS } });
+    const out = await createSchedules(ENV, null, { designId: 'd-p', user: { id: P_OWNER }, body: { items: ITEMS } });
     assert.equal(out.schedules.length, 1);
     assert.equal(out.slack, null);
     assert.ok(calls.some((c) => c.method === 'POST' && c.url.endsWith('/design_schedules')));
     assert.ok(!calls.some((c) => c.url.includes('slack_notifications')));
     assert.ok(!calls.some((c) => c.url === ENV.SLACK_WEBHOOK_URL));
+  });
+});
+
+test('일정 등록 — 대표 · 실장만 (2026-11-10): 직원은 자기가 만든 설계여도 403 not_manager, 아무것도 쓰지 않는다', async () => {
+  await withFetch(scheduleRoute(), async (calls) => {
+    await assert.rejects(
+      createSchedules(ENV, null, { designId: 'd-p', user: { id: P_STAFF }, body: { items: ITEMS } }),
+      (e) => e.statusCode === 403 && e.code === 'not_manager',
+    );
+    assert.ok(!calls.some((c) => c.method === 'POST'));
+    const out = await createSchedules(ENV, null, { designId: 'd-p', user: { id: P_MANAGER }, body: { items: ITEMS } });
+    assert.equal(out.schedules.length, 1);
   });
 });
 
@@ -617,7 +629,7 @@ test('새 수주 → 생산 계획 제안(본사 Slack)은 본사 수주일 때�
 test('설치 일정 등록 → 다시 계획하기도 본사 설계일 때만', async () => {
   const items = [{ type: 'installation', scheduled_at: '2026-11-10T01:00:00Z' }];
   const route = (u, method, body) => scheduleRoute()(u, method, body) || planRoute('d-hq')(u, method, body);
-  const partner = await callWorker('/designs/d-p/schedules', P_STAFF, route, { method: 'POST', body: { items } });
+  const partner = await callWorker('/designs/d-p/schedules', P_MANAGER, route, { method: 'POST', body: { items } });
   assert.equal(partner.status, 201, partner.text);
   assert.equal(slackPosts(partner.calls).length, 0, '일정 알림도 계획 제안도 없다');
   assert.equal(proposals(partner.calls).length, 0);
