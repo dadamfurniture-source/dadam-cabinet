@@ -423,20 +423,32 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
     expect($('meCompany').textContent).toBe('다담 공장');
   });
 
-  test('관리자 — 본사 묶음: 종합 대시보드 · 계정관리 · 업체관리 · DB관리 · 인력관리 (회계관리는 본사 구성원만)', async () => {
+  test('관리자 — 본사 묶음: 경영 대시보드는 조각으로 메뉴마다 (회계관리 장부 줄은 본사 구성원만)', async () => {
     await load({ partner: HQ, isAdmin: true });
     expect(groups()).toEqual(['업무', '본사', '']);
     const hq = menus().slice(3, -1); // 업무 셋(프로젝트 · 재고 · 인력) 다음
     expect(hq).toEqual([
-      ['종합 대시보드', ['오늘 현황', '경영 대시보드']],
-      ['계정관리', ['회원', '관리자 계정', '활동 로그']],
+      ['종합 대시보드', ['오늘 현황', '이익 · 목표']],
+      ['계정관리', ['회원', '고객 흐름', '관리자 계정', '활동 로그']],
       [
         '업체관리',
-        ['상담 배정', '제작 의뢰 추천', '팩토리 신청', '팩토리 평가', '완료 보고', 'A/S 현황'],
+        [
+          '상담 배정',
+          '제작 의뢰 추천',
+          '팩토리 신청',
+          '팩토리 평가',
+          '완료 보고',
+          'A/S 현황',
+          '거래처 · 공급처 성적',
+        ],
       ],
       ['DB관리', ['시공사례', '참고 이미지', '학습 데이터셋', '가전 모델', '거래처 · 공급처']],
-      ['인력관리', ['작업자 · 작업 배정', '작업 지시 보고']],
+      ['회계관리', ['손익 분석', '현금 · 미수', '매출 예측']],
+      ['인력관리', ['작업자 · 작업 배정', '작업 지시 보고', '공정 · 품질']],
     ]);
+    expect(row('이익 · 목표').getAttribute('href')).toBe('../admin/management.html?part=profit');
+    expect(row('공정 · 품질').getAttribute('href')).toBe('../admin/management.html?part=process');
+    expect(document.querySelector('#meHub a[href="../admin/management.html"]')).toBeNull();
     expect(row('오늘 현황').getAttribute('href')).toBe('admin.html');
     expect(row('상담 배정').getAttribute('href')).toBe('admin.html#consults');
     expect(row('제작 의뢰 추천').getAttribute('href')).toBe('admin.html#production');
@@ -467,8 +479,12 @@ describe('메뉴 — 캔버스 용어 큰 메뉴 · 하위 줄, 쓸 수 있는 �
       '인력관리',
       '기본 정보',
     ]);
-    // 공장 장부를 열 수 있어도 「공장 장부 보기」 줄은 없다 — 업체관리 › 등록 업체 › 다담 공장 › 회계와 겹친다
-    expect(menus()[4]).toEqual(['회계관리', ['한눈에', '매출', '매입', '사진', '보고서']]);
+    // 공장 장부를 열 수 있어도 「공장 장부 보기」 줄은 없다 — 업체관리 › 등록 업체 › 다담 공장 › 회계와 겹친다.
+    // 장부 줄 다음에 경영 대시보드 조각 (관리자)
+    expect(menus()[4]).toEqual([
+      '회계관리',
+      ['한눈에', '매출', '매입', '사진', '보고서', '손익 분석', '현금 · 미수', '매출 예측'],
+    ]);
     expect(document.querySelector('#meHub a[href*="company=' + HQ_CO + '"]')).toBeNull();
     expect(row('한눈에', 'hq-ledger').getAttribute('href')).toBe('ledger.html#board');
     expect(menus()[6]).toEqual(['기본 정보', BASIC]);
