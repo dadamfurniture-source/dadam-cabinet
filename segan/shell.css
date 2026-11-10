@@ -2347,6 +2347,204 @@ button.sm-num[aria-pressed='true'] {
   white-space: nowrap;
 }
 
+/* 업체 › 수주 · 수금 (#orders · #ordersCollect · 수주 상세 시트 — segan/orders.js). 각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음.
+   줄은 줄이지 않고 바탕만 바로 바꾼다 (CLAUDE.md 「SEGAN 앱 모션 규칙」 — 목록 줄).
+   밀림 · 확인 필요는 색만으로 가리지 않는다 — 「(밀림)」 글자가 같이 있다. 상세 시트는 업체 칸 밖(body)에 붙는다 */
+.od-detail {
+  --mk-dim: rgba(45, 42, 38, 0.72); /* make.css 의 보조 글자색 (업체 칸 .me-pt 와 같은 값) */
+}
+
+.od-h {
+  margin: 20px 0 6px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.od-req .od-h {
+  margin-top: 0;
+}
+
+.od-tablewrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.od-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.od-table th,
+.od-table td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 300;
+  white-space: nowrap;
+}
+
+.od-table thead th {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom-color: var(--v5-line-25);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--v5-ink-60);
+}
+
+.od-table th:first-child,
+.od-table td:first-child {
+  padding-left: 0;
+}
+
+.od-table .od-num {
+  text-align: right;
+}
+
+.od-dim {
+  color: var(--v5-ink-45);
+}
+
+.od-row {
+  cursor: pointer;
+}
+
+.od-row--on {
+  background: var(--v5-well);
+}
+
+/* 수주번호 · 받을 날 줄 — 누르면 상세. 글자처럼 보이는 단추 (누르는 곳 40px) */
+.od-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--v5-navy);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.od-open.me-c-main {
+  align-items: flex-start;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.od-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 11px;
+  color: var(--v5-ink-60);
+}
+
+.od-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0 16px;
+  margin: 12px 0 0;
+  border-top: 1px solid var(--v5-line);
+}
+
+.od-kpi > div {
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.od-kpi dt {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.od-kpi dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.od-dues .me-pt-row {
+  padding: 2px 0;
+}
+
+.od-day {
+  flex: none;
+  min-width: 124px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.od-late {
+  color: var(--v5-tan);
+}
+
+.od-sec + .od-sec {
+  margin-top: 28px;
+}
+
+.od-sec[hidden] + .od-sec {
+  margin-top: 0;
+}
+
+.od-now {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.od-now b {
+  font-weight: 400;
+}
+
+.od-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.od .rd-acts,
+.od-detail .rd-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.od-form .rd-acts {
+  margin-top: 0;
+}
+
+.od-ask {
+  font-size: 13px;
+}
+
+.od-detail > .mk-error,
+.od-detail .od-sec > .mk-note,
+.od-detail [data-od='body'] > .mk-note {
+  margin-top: 10px;
+}
+
+.od-pc {
+  color: var(--v5-navy);
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;

@@ -526,11 +526,9 @@
     'p-make': { title: '제작', pick: stageScreen('make') },
     'p-install': { title: '설치', pick: stageScreen('install') },
     'p-as': { title: 'A/S', pick: stageScreen('as') },
-    // 영업 › 수금 · 고객 (업체) — 준비 중
-    'p-collect': {
-      title: '수금',
-      soon: '수금은 준비 중입니다. 계약금 · 중도금 · 잔금의 낼 날과 받은 돈을 한 표로 보게 됩니다.',
-    },
+    // 영업 › 수금 (업체) — 수금 표 (segan/orders.js)
+    'p-collect': { title: '수금', pick: collectScreen },
+    // 영업 › 고객 (업체) — 준비 중
     'p-customers': {
       title: '고객',
       soon: '고객 목록은 준비 중입니다. 업체 고객의 연락처와 프로젝트를 모아 보고 고치게 됩니다.',
@@ -631,7 +629,7 @@
     'pj-install': ['p-install'],
     'pj-as': ['p-as'],
   };
-  var MEMBER_PARTS = ['p-collect', 'p-customers']; // 업체 구성원만 (준비 중)
+  var MEMBER_PARTS = ['p-collect', 'p-customers']; // 업체 구성원만 (수금 = 수금 표 · 고객 = 준비 중)
   // 대시보드 칸 — 프로젝트 관리 하위 줄마다 셀 단계 · 작은 글 (A/S 는 처리 중 접수)
   var DASH_COUNT = {
     'pj-sales': { stages: ['consult', 'quote', 'contract'], note: '상담 · 견적 · 계약' },
@@ -658,6 +656,8 @@
     'factory-requests',
     'production-requests',
     'siteInstall',
+    'orders',
+    'ordersCollect',
     'partnerProjects',
     'partnerConsultSettings',
     'siteAs',
@@ -680,6 +680,7 @@
     noAsMine: '접수한 A/S가 없습니다. 설치가 끝난 프로젝트의 「설치」 화면에서 A/S를 신청합니다.',
     managerAs:
       'A/S는 준비 중입니다. 내 고객의 A/S 접수를 확인하고 제작한 팩토리로 전달하게 됩니다.',
+    noCollect: '수금을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.',
     stageEmpty: '이 단계의 프로젝트가 없습니다.',
     projectEmpty: '진행 중인 프로젝트가 없습니다.',
     noJob: '없음',
@@ -766,6 +767,7 @@
   /**
    * 프로젝트 관리 하위 화면 — 고객은 내 상담 · 내 프로젝트 · 내 A/S, 업체 구성원은 업체 칸.
    *   상담: 팩토리 = 배정 상담 · 상담 단계 프로젝트 · 상담 설정, Manager = 상담 단계 프로젝트
+   *   계약: 수주 표 · 계약 단계 프로젝트
    *   제작: 팩토리 = 받은 제작 의뢰 · 제작 단계 프로젝트, Manager = 제작 의뢰 · 제작 단계 프로젝트
    *   설치: 설치 현장 지도 + 표 · 설치 단계 프로젝트
    *   A/S: 팩토리 = A/S 현장 지도 + 표 · A/S함, Manager = 준비 중
@@ -784,6 +786,8 @@
         parts = ['partner-consults', 'partnerProjects', 'partnerConsultSettings'];
       if (stage === 'make')
         parts = [v.factory ? 'factory-requests' : 'production-requests', 'partnerProjects'];
+      // 계약 = 수주 표(누르면 상세 시트) · 계약 단계 프로젝트 (segan/orders.js)
+      if (stage === 'contract') parts = ['orders', 'partnerProjects'];
       // 설치 = 설치 현장 지도 + 표 · 설치 단계 프로젝트, A/S = A/S 현장 지도 + 표 · A/S함 (segan/site-map.js)
       if (stage === 'install') parts = ['siteInstall', 'partnerProjects'];
       if (stage === 'as')
@@ -792,6 +796,18 @@
           : { title: title, soon: TEXT.managerAs };
       return { title: title, section: 'partner', parts: parts, stage: stage };
     };
+  }
+
+  /** 영업 › 수금 — 업체 구성원의 수금 표 (segan/orders.js). 못 읽으면 그 말을, 구성원이 아니면 「볼 수 있는 내용이 없습니다」 */
+  function collectScreen() {
+    var s = {
+      title: SCREENS['p-collect'].title,
+      section: 'partner',
+      parts: ['ordersCollect'],
+      label: 'ordersCollectTitle',
+    };
+    if (viewer().member) s.empty = TEXT.noCollect;
+    return s;
   }
 
   /** 프로젝트 관리 대시보드 — 아래에 모든 단계 프로젝트 (고객은 내 프로젝트, 업체는 업체 프로젝트) */
@@ -1572,6 +1588,7 @@
     var Production = window.SeganProduction;
     var Factory = window.SeganFactoryRequests;
     var HqCo = window.SeganHqCompanies;
+    var Orders = window.SeganOrders;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1588,6 +1605,8 @@
           synced(Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null),
           synced(Books && Books.load ? Books.load(auth.sb, auth.session, me) : null),
           synced(Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null),
+          // 수주 · 수금 = 프로젝트를 보는 사람과 같다, 금액은 대표 · 실장 (segan/orders.js — 계약 · 수금 화면)
+          synced(Orders && Orders.load ? Orders.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
           synced(Cal && Cal.load ? Cal.load(auth.sb, auth.session, me) : null),
           // 설치 · A/S 지도 + 표 = 업무 달력 · A/S함을 보는 사람 (segan/site-map.js — 설치 · A/S 화면)

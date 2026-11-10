@@ -753,7 +753,8 @@ describe('구역 — 프로젝트 관리 하위 줄이 묶은 화면 (같은 기
     expect($('meTitle').textContent).toBe('계약');
     expect(chipOn()).toBe('계약');
     chip('수금').click();
-    expect($('mePaneNote').textContent).toContain('수금은 준비 중입니다.');
+    // 수금 표는 수주 스크립트(orders.js)가 그린다 — 여기서는 올리지 않아 「불러오지 못했습니다」 (표는 segan-orders 시험)
+    expect($('mePaneNote').textContent).toContain('수금을 불러오지 못했습니다.');
     expect(chips()).toHaveLength(5);
     // 「‹ 마이페이지」 — 바로 온 기록이라 메뉴로 바꾼다
     $('meBack').click();
