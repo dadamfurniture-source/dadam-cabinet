@@ -229,7 +229,7 @@ afterEach(() => {
 });
 
 describe('자리 · 이름', () => {
-  test('me.html — 업체 칸(#partner) 안, 생산 계획 다음 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
+  test('me.html — 업체 칸(#partner) 안, 외주 발주 다음 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const el = doc.getElementById('productionSettings');
     expect(el).not.toBeNull();
@@ -237,7 +237,7 @@ describe('자리 · 이름', () => {
     expect(el.closest('section').id).toBe('partner');
     expect(el.classList.contains('od')).toBe(true);
     expect(el.classList.contains('ps')).toBe(true);
-    expect(el.previousElementSibling.id).toBe('productionPlan');
+    expect(el.previousElementSibling.id).toBe('outsourceOrders');
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
     );
