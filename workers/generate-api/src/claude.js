@@ -1,14 +1,14 @@
 /**
  * Claude 호출 — 이미지 한 장 + 프롬프트 → 스키마대로 된 JSON (gen-to-planner).
  *
- * 공식 SDK(@anthropic-ai/sdk)를 쓴다. 모델은 wrangler.toml 의 ANTHROPIC_MODEL (기본 claude-opus-5).
+ * 공식 SDK(@anthropic-ai/sdk)를 쓴다. 모델은 wrangler.toml 의 ANTHROPIC_MODEL (기본 claude-fable-5-2).
  * 키는 시크릿 ANTHROPIC_API_KEY.
  *
  * 발신 지역: 워커가 HKG 콜로에서 뜨면 api.anthropic.com 이 403 "Request not allowed" 로 막는다
  * (2026-09-12 실측 — Gemini 와 같은 문제). 그래서 SDK 의 fetch 를 미국 콜로 Durable Object
  * (proxy.js) 로 갈아끼운다. 바인딩이 없으면(테스트·로컬) 직접 부른다.
  *
- * - 사고(thinking)는 Opus 5 기본값(adaptive)이라 파라미터를 보내지 않는다.
+ * - 사고(thinking)는 Fable 5.2 에서 늘 켜져 있다(adaptive) — 파라미터를 보내지 않는다 (disabled 는 400).
  * - 구조화 출력: output_config.format = json_schema — 본문이 곧 JSON 이다.
  * - 안전 분류기가 거절하면(stop_reason 'refusal') 서버가 기본 대체 모델로 다시 돈다
  *   (fallbacks 'default' + beta server-side-fallback-2026-07-01). 그래도 거절이면 422.
@@ -17,7 +17,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { proxyStub } from './proxy.js';
 
-export const CLAUDE_MODEL_DEFAULT = 'claude-opus-5';
+export const CLAUDE_MODEL_DEFAULT = 'claude-fable-5-2';
 
 /**
  * SDK 가 쓸 fetch — 요청을 통째로 미국 콜로 DO 에 넘긴다. 바인딩이 없으면 undefined(기본 fetch).

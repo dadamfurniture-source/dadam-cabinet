@@ -3,7 +3,7 @@
  * 플래너 모드 재채점 (2026-10-19) — 이미 만든 결과 사진을 새 역판독(layout.js §4)으로 다시 읽어 점수를 낸다.
  * 워커가 잡에서 하는 것과 같은 함수(buildPlannerReadPrompt · normalizePlannerRead · compareLayoutToSpec)를 부른다.
  *
- * 키는 환경 변수 ANTHROPIC_API_KEY 에서만 읽는다 (저장소에 두지 않는다). 모델은 ANTHROPIC_MODEL (기본 claude-opus-5).
+ * 키는 환경 변수 ANTHROPIC_API_KEY 에서만 읽는다 (저장소에 두지 않는다). 모델은 ANTHROPIC_MODEL (기본 claude-fable-5-2).
  * 사용법은 같은 폴더 README.md.
  *
  *   node scripts/rescore-planner.mjs --spec d1.json --folder <공개 폴더 URL> [--old] [--out r.json]
