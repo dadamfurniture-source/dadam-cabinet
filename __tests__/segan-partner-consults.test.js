@@ -312,6 +312,8 @@ describe('자리 · 이름', () => {
       'partner-consults', // 배정 상담
       'factory-requests', // 받은 제작 의뢰 (segan/factory-requests.js)
       'production-requests', // Manager 제작 의뢰 (segan/production-requests.js — 프로젝트 관리 › 제작)
+      'orders', // 수주 (segan/orders.js — 프로젝트 관리 › 영업 › 계약)
+      'ordersCollect', // 수금 (segan/orders.js — 프로젝트 관리 › 영업 › 수금)
       'siteInstall', // 설치 현장 지도 + 표 (segan/site-map.js — 프로젝트 관리 › 설치)
       'partnerProjects', // 그 단계 프로젝트 (segan/partner-projects.js)
       'partnerConsultSettings', // 상담 설정 — 상담 화면 맨 아래
