@@ -44,6 +44,7 @@
          기준정보      관리자 — 시공사례 · 참고 이미지 · 학습 데이터셋 · 가전 모델 (PC 관리자 화면)
          플랫폼        등록 업체(#companies — 본사 대표 · 실장, segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력),
                         팩토리 평가(#partner-eval — 사이트 관리자, segan/partner-eval.js — 못 읽으면 PC 화면 줄),
+                        완료 보고(#done-reports — 사이트 관리자, segan/done-reports.js — 못 읽으면 PC 화면 줄),
                         관리자 — 팩토리 신청 · 평가 · 상담 배정 · 제작 의뢰 추천 · 완료 보고 · A/S 현황 · 거래처 · 공급처 성적 ·
                         회원 · 관리자 계정 · 활동 로그 (앱 관리 admin.html#… 또는 PC 관리자 화면)
        내 계정 (누구나) — 내 연출컷 · 좋아요 #likes · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
@@ -619,6 +620,8 @@
     companies: { title: '등록 업체', section: 'hqCompanies' },
     // 플랫폼 — 팩토리 평가 (segan/partner-eval.js)
     'partner-eval': { title: '팩토리 평가', section: 'partnerEval' },
+    // 플랫폼 — 완료 보고 (segan/done-reports.js)
+    'done-reports': { title: '완료 보고', section: 'doneReports' },
     // 내 계정
     partner: {
       title: '내 팩토리',
@@ -690,6 +693,7 @@
     'meDash',
     'hqCompanies',
     'partnerEval',
+    'doneReports',
     'meProjectSection',
     'meAsSection',
     'partner',
@@ -1456,6 +1460,11 @@
         return roles.admin === true && available(key);
       case 'hq-eval':
         return roles.admin === true && !rowOn('partner-eval', v, roles, ledger);
+      // 플랫폼 › 완료 보고 — 사이트 관리자, 읽혔을 때만. 못 읽은 관리자에게는 PC 화면 줄 하나
+      case 'done-reports':
+        return roles.admin === true && available(key);
+      case 'hq-done':
+        return roles.admin === true && !rowOn('done-reports', v, roles, ledger);
       // 내 계정
       case 'partner':
       case 'likes':
@@ -1653,6 +1662,7 @@
     var Factory = window.SeganFactoryRequests;
     var HqCo = window.SeganHqCompanies;
     var Eval = window.SeganPartnerEval;
+    var Done = window.SeganDoneReports;
     var Orders = window.SeganOrders;
     var Plan = window.SeganProductionPlan;
     var Workers = window.SeganProductionWorkers;
@@ -1703,6 +1713,12 @@
           synced(
             Eval && Eval.load
               ? Eval.load(auth.sb, auth.session, me, { admin: !!(auth.roles && auth.roles.admin) })
+              : null
+          ),
+          // 완료 보고 = 사이트 관리자 (segan/done-reports.js — 플랫폼 › 완료 보고 화면)
+          synced(
+            Done && Done.load
+              ? Done.load(auth.sb, auth.session, me, { admin: !!(auth.roles && auth.roles.admin) })
               : null
           ),
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
