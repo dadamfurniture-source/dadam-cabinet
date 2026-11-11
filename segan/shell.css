@@ -3483,6 +3483,90 @@ button.sm-num[aria-pressed='true'] {
   font-weight: 500;
 }
 
+/* 기준정보 › 가전 모델 (#applianceList — segan/appliance-list.js) — 종류 단추 · 찾기 · 모델 줄 (보기만).
+   종류 단추 · 줄은 완료 보고(.dr-*), 찾는 칸은 만들기 탭 입력 칸(.mk-input)과 같은 것을 쓴다 */
+.al-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.al .al-cat {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.al-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 16px;
+  margin-top: 14px;
+}
+
+.al-field {
+  min-width: 0;
+}
+
+.al-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 12px;
+}
+
+.al-head .me-c-main {
+  flex: 1 1 160px;
+}
+
+/* 모델명은 자르지 않고 줄을 바꾼다 */
+.al-head .me-c-main b,
+.al-head .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.al-photo {
+  flex: none;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  object-fit: contain;
+}
+
+.al-head .al-badge {
+  margin-left: 0;
+}
+
+/* 검증된 모델 — 색만으로 알리지 않는다 (글 + 진한 테두리) */
+.al .al-ok {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
+.al-facts {
+  margin-top: 0;
+}
+
+.al-facts dd {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.al-more {
+  margin-top: 12px;
+}
+
+.al-pc {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
