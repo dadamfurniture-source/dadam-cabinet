@@ -3081,6 +3081,9 @@ button.sm-num[aria-pressed='true'] {
 
 .pe-rowbtn {
   flex-wrap: wrap;
+  row-gap: 8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
   width: 100%;
   text-align: left;
 }
