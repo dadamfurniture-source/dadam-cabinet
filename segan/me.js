@@ -41,7 +41,8 @@
                         작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 근무 일정(준비 중) · 작업자(준비 중 —
                         다담 공장은 #workers-hq = 공장 배정 · 작업자 링크 · 실측 보정, segan/production-workers.js),
                         관리자 — 작업자 · 작업 배정 · 작업 지시 보고
-         기준정보      관리자 — 시공사례 · 참고 이미지 · 학습 데이터셋 · 가전 모델 (PC 관리자 화면)
+         기준정보      관리자 — 시공사례 · 참고 이미지 · 학습 데이터셋 (PC 관리자 화면),
+                        가전 모델(#appliances — 사이트 관리자, segan/appliance-list.js — 보기 · 찾기만, 고치기는 PC 화면)
          플랫폼        등록 업체(#companies — 본사 대표 · 실장, segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력),
                         팩토리 평가(#partner-eval — 사이트 관리자, segan/partner-eval.js — 못 읽으면 PC 화면 줄),
                         완료 보고(#done-reports — 사이트 관리자, segan/done-reports.js — 못 읽으면 PC 화면 줄),
@@ -625,6 +626,8 @@
     'done-reports': { title: '완료 보고', section: 'doneReports' },
     // 플랫폼 — A/S 현황 (segan/as-status.js)
     'as-status': { title: 'A/S 현황', section: 'asStatus' },
+    // 기준정보 — 가전 모델 (segan/appliance-list.js — 보기 · 찾기)
+    appliances: { title: '가전 모델', section: 'applianceList' },
     // 내 계정
     partner: {
       title: '내 팩토리',
@@ -698,6 +701,7 @@
     'partnerEval',
     'doneReports',
     'asStatus',
+    'applianceList',
     'meProjectSection',
     'meAsSection',
     'partner',
@@ -1474,6 +1478,11 @@
         return roles.admin === true && available(key);
       case 'hq-as':
         return roles.admin === true && !rowOn('as-status', v, roles, ledger);
+      // 기준정보 › 가전 모델 — 사이트 관리자, 칸이 열렸을 때만 (보기 · 찾기). 못 연 관리자에게는 PC 화면 줄 하나
+      case 'appliances':
+        return roles.admin === true && available(key);
+      case 'hq-appliances':
+        return roles.admin === true && !rowOn('appliances', v, roles, ledger);
       // 내 계정
       case 'partner':
       case 'likes':
@@ -1673,6 +1682,7 @@
     var Eval = window.SeganPartnerEval;
     var Done = window.SeganDoneReports;
     var AsStat = window.SeganAsStatus;
+    var Appl = window.SeganApplianceList;
     var Orders = window.SeganOrders;
     var Plan = window.SeganProductionPlan;
     var Workers = window.SeganProductionWorkers;
@@ -1737,6 +1747,12 @@
               ? AsStat.load(auth.sb, auth.session, me, {
                   admin: !!(auth.roles && auth.roles.admin),
                 })
+              : null
+          ),
+          // 가전 모델 = 사이트 관리자 (segan/appliance-list.js — 기준정보 › 가전 모델 화면, 열었을 때 읽는다)
+          synced(
+            Appl && Appl.load
+              ? Appl.load(auth.sb, auth.session, me, { admin: !!(auth.roles && auth.roles.admin) })
               : null
           ),
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
