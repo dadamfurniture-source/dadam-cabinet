@@ -411,9 +411,9 @@ describe('자리 · 이름', () => {
       expect(el.closest('section').id).toBe('partner');
       expect(el.classList.contains('od')).toBe(true);
     }
-    // 수주 표 다음은 견적서 목록(segan/quotes.js), 그다음이 수금
+    // 수주 표 다음은 견적서 목록(segan/quotes.js) · 고객(segan/customers.js), 그다음이 수금
     expect(orders.nextElementSibling.id).toBe('quotes');
-    expect(orders.nextElementSibling.nextElementSibling.id).toBe('ordersCollect');
+    expect(collect.previousElementSibling.id).toBe('customers');
     // 계약 화면은 칸 차례대로 — 수주가 그 단계 프로젝트보다 먼저다
     expect(orders.compareDocumentPosition(doc.getElementById('partnerProjects')) & 4).toBe(4);
     const srcs = [...doc.querySelectorAll('script[src]')].map(

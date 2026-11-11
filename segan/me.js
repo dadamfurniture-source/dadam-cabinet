@@ -564,11 +564,8 @@
     },
     // 영업 › 수금 (업체) — 수금 표 (segan/orders.js)
     'p-collect': { title: '수금', pick: collectScreen },
-    // 영업 › 고객 (업체) — 준비 중
-    'p-customers': {
-      title: '고객',
-      soon: '고객 목록은 준비 중입니다. 업체 고객의 연락처와 프로젝트를 모아 보고 고치게 됩니다.',
-    },
+    // 영업 › 고객 (업체) — 고객 목록 · 이름 · 전화 고치기 (segan/customers.js)
+    'p-customers': { title: '고객', pick: customersScreen },
     // 구매 · 재고 (Expert 이상 · 공장) — 준비 중
     'stock-board': {
       title: '기본 자재',
@@ -691,7 +688,7 @@
     'pj-install': ['p-install'],
     'pj-as': ['p-as'],
   };
-  var MEMBER_PARTS = ['p-collect', 'p-customers']; // 업체 구성원만 (수금 = 수금 표 · 고객 = 준비 중)
+  var MEMBER_PARTS = ['p-collect', 'p-customers']; // 업체 구성원만 (수금 = 수금 표 · 고객 = 고객 목록)
   // 대시보드 칸 — 프로젝트 관리 하위 줄마다 셀 단계 · 작은 글 (A/S 는 처리 중 접수)
   var DASH_COUNT = {
     'pj-sales': { stages: ['consult', 'quote', 'contract'], note: '상담 · 견적 · 계약' },
@@ -731,6 +728,7 @@
     'siteInstall',
     'orders',
     'quotes',
+    'customers',
     'ordersCollect',
     'partnerProjects',
     'partnerConsultSettings',
@@ -755,6 +753,7 @@
     managerAs:
       'A/S는 준비 중입니다. 내 고객의 A/S 접수를 확인하고 제작한 팩토리로 전달하게 됩니다.',
     noCollect: '수금을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.',
+    noCustomers: '고객을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.',
     stageEmpty: '이 단계의 프로젝트가 없습니다.',
     projectEmpty: '진행 중인 프로젝트가 없습니다.',
     noJob: '없음',
@@ -883,6 +882,18 @@
       label: 'ordersCollectTitle',
     };
     if (viewer().member) s.empty = TEXT.noCollect;
+    return s;
+  }
+
+  /** 영업 › 고객 — 업체 구성원의 고객 목록 (segan/customers.js). 못 읽으면 그 말을, 구성원이 아니면 「볼 수 있는 내용이 없습니다」 */
+  function customersScreen() {
+    var s = {
+      title: SCREENS['p-customers'].title,
+      section: 'partner',
+      parts: ['customers'],
+      label: 'customersTitle',
+    };
+    if (viewer().member) s.empty = TEXT.noCustomers;
     return s;
   }
 
@@ -1713,6 +1724,7 @@
     var Outsource = window.SeganOutsourceOrders;
     var Vendors = window.SeganCounterparties;
     var Quotes = window.SeganQuotes;
+    var Customers = window.SeganCustomers;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1733,6 +1745,8 @@
           synced(Orders && Orders.load ? Orders.load(auth.sb, auth.session, me) : null),
           // 견적서 = 프로젝트를 가지는 업체 구성원 (segan/quotes.js — 영업 › 견적 화면)
           synced(Quotes && Quotes.load ? Quotes.load(auth.sb, auth.session, me) : null),
+          // 고객 = 프로젝트를 가지는 업체 구성원, 고치기는 대표 · 실장 (segan/customers.js — 영업 › 고객 화면)
+          synced(Customers && Customers.load ? Customers.load(auth.sb, auth.session, me) : null),
           // 생산 계획 = 다담 공장 구성원 (segan/production-plan.js — 생산 › 생산 계획 화면)
           synced(Plan && Plan.load ? Plan.load(auth.sb, auth.session, me) : null),
           // 작업자 = 다담 공장 대표 · 실장 · 관리자 (segan/production-workers.js — 인사 › 작업자 화면)
