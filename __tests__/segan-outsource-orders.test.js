@@ -484,6 +484,25 @@ describe('화면', () => {
     expect(act('more')).toBeNull();
   });
 
+  test('업체 대표 · 실장(서버 scope company) — 우리 팩토리 발주 전체라고 적는다. 모르는 scope 는 내 발주로 본다', async () => {
+    await load({
+      partner: partnerOf('agent', 'owner'),
+      list: () => ok({ items: [order('031')], hasMore: false, scope: 'company' }),
+    });
+    expect(seen('outsourceOrders')).toBe(true);
+    expect(text(box().querySelector('p.mk-note'))).toContain(
+      '우리 팩토리의 외주 · 상판 발주 전체입니다. 남이 낸 발주는 보기만 합니다.'
+    );
+    expect(window.SeganOutsourceOrders.state.scope).toBe('company');
+    await load({
+      partner: partnerOf('agent', 'owner'),
+      list: () => ok({ items: [order('031')], hasMore: false, scope: 'everyone' }),
+    });
+    expect(text(box().querySelector('p.mk-note'))).toContain(
+      '내가 낸 외주 · 상판 발주만 보입니다.'
+    );
+  });
+
   test('협력업체(Expert · Agent) 구성원 — 내가 낸 발주만이라고 적는다. 외주 · 상판 발주가 아닌 줄은 버린다', async () => {
     for (const plan of ['expert', 'agent']) {
       const calls = await load({
