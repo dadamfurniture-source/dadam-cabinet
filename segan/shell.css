@@ -3567,6 +3567,77 @@ button.sm-num[aria-pressed='true'] {
   border-top: 1px solid var(--v5-line-12);
 }
 
+/* 기준정보 › 시공사례 (#galleryView — segan/gallery-view.js) — 품목 · 쓰임 · 찾기 · 사진 칸 (보기만).
+   고르는 칸 · 더 보기 · PC 링크는 가전 모델(.al-*)과 같은 것을 쓴다 */
+.gv-find {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gv-find .al-field {
+  flex: 1 1 auto;
+}
+
+.gv-find .mk-btn {
+  flex: none;
+  min-height: 48px;
+}
+
+.gv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gv-tile {
+  min-width: 0;
+}
+
+.gv-tile a {
+  display: block;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  line-height: 0;
+}
+
+.gv-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.gv-cap {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.gv-cap b {
+  font-weight: 400;
+}
+
+.gv-cap small {
+  display: block;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.gv-cap .gv-badge {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
