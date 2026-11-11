@@ -43,6 +43,7 @@
                         관리자 — 작업자 · 작업 배정 · 작업 지시 보고
          기준정보      관리자 — 시공사례 · 참고 이미지 · 학습 데이터셋 · 가전 모델 (PC 관리자 화면)
          플랫폼        등록 업체(#companies — 본사 대표 · 실장, segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력),
+                        팩토리 평가(#partner-eval — 사이트 관리자, segan/partner-eval.js — 못 읽으면 PC 화면 줄),
                         관리자 — 팩토리 신청 · 평가 · 상담 배정 · 제작 의뢰 추천 · 완료 보고 · A/S 현황 · 거래처 · 공급처 성적 ·
                         회원 · 관리자 계정 · 활동 로그 (앱 관리 admin.html#… 또는 PC 관리자 화면)
        내 계정 (누구나) — 내 연출컷 · 좋아요 #likes · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
@@ -616,6 +617,8 @@
     },
     // 플랫폼 — 등록 업체 (segan/hq-companies.js)
     companies: { title: '등록 업체', section: 'hqCompanies' },
+    // 플랫폼 — 팩토리 평가 (segan/partner-eval.js)
+    'partner-eval': { title: '팩토리 평가', section: 'partnerEval' },
     // 내 계정
     partner: {
       title: '내 팩토리',
@@ -686,6 +689,7 @@
   var SECTIONS = [
     'meDash',
     'hqCompanies',
+    'partnerEval',
     'meProjectSection',
     'meAsSection',
     'partner',
@@ -1447,6 +1451,11 @@
       // 플랫폼 › 등록 업체 — 본사 대표 · 실장 (칸을 연 때만)
       case 'companies':
         return v.platform && available(key);
+      // 플랫폼 › 팩토리 평가 — 사이트 관리자, 읽혔을 때만. 못 읽은 관리자에게는 PC 화면 줄 하나
+      case 'partner-eval':
+        return roles.admin === true && available(key);
+      case 'hq-eval':
+        return roles.admin === true && !rowOn('partner-eval', v, roles, ledger);
       // 내 계정
       case 'partner':
       case 'likes':
@@ -1643,6 +1652,7 @@
     var Production = window.SeganProduction;
     var Factory = window.SeganFactoryRequests;
     var HqCo = window.SeganHqCompanies;
+    var Eval = window.SeganPartnerEval;
     var Orders = window.SeganOrders;
     var Plan = window.SeganProductionPlan;
     var Workers = window.SeganProductionWorkers;
@@ -1689,6 +1699,12 @@
           synced(Factory && Factory.load ? Factory.load(auth.sb, auth.session, me) : null),
           // 등록 업체 = 다담 본사 구성원 (segan/hq-companies.js — 서버가 대표 · 실장만)
           synced(HqCo && HqCo.load ? HqCo.load(auth.sb, auth.session, me) : null),
+          // 팩토리 평가 = 사이트 관리자 (segan/partner-eval.js — 플랫폼 › 팩토리 평가 화면)
+          synced(
+            Eval && Eval.load
+              ? Eval.load(auth.sb, auth.session, me, { admin: !!(auth.roles && auth.roles.admin) })
+              : null
+          ),
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
           synced(
             Push && Push.load

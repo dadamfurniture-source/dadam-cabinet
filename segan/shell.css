@@ -3065,6 +3065,292 @@ button.sm-num[aria-pressed='true'] {
   overflow-wrap: anywhere;
 }
 
+/* 플랫폼 › 팩토리 평가 (#partnerEval — segan/partner-eval.js) — 팩토리 줄 · 평가표 · 평가 이력.
+   줄 · 돌아가기는 등록 업체(.me-hc-*), 묶음 제목 · 저장 줄은 수주 · 생산 설정(.od-h · .ps-bar)과 같은 것을 쓴다 */
+.pe-count {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-list {
+  margin-top: 6px;
+}
+
+.pe-rowbtn {
+  flex-wrap: wrap;
+  width: 100%;
+  text-align: left;
+}
+
+.pe-rowbtn .me-c-main {
+  flex: 1 1 200px;
+}
+
+/* 팩토리 이름은 자르지 않고 줄을 바꾼다 */
+.pe-rowbtn .me-c-main b,
+.pe-rowbtn .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.pe-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pe-badges .pe-badge {
+  margin-left: 0;
+}
+
+.pe-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-ink);
+  font-size: 13.5px;
+}
+
+.pe-ask > span {
+  flex: 1 1 180px;
+}
+
+.pe-links {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.pe-group {
+  margin-top: 22px;
+  padding-top: 4px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.pe-group .od-h {
+  margin-top: 14px;
+}
+
+.pe-hint {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pe-sub {
+  margin: 14px 0 2px;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pe-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  min-height: 48px;
+  padding: 6px 0;
+  border-top: 1px solid var(--v5-line-12);
+  font-size: 14px;
+}
+
+.pe-group .od-h + .pe-row,
+.pe-sub + .pe-row,
+.pe-gradeline + .pe-row {
+  border-top: 0;
+}
+
+.pe-name {
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pe-ctl {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.pe-score {
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.pe-opt,
+.pe-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pe-opt input,
+.pe-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--v5-ink);
+}
+
+.pe-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 20px;
+}
+
+.pe-num,
+.pe-date,
+.pe-sup select,
+.pe-sup input[type='text'] {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.pe-num {
+  width: 84px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-sups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+
+.pe-sup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.pe-sup select,
+.pe-sup input[type='text'] {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.pe .pe-mini {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.pe-text {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.pe-text--tall {
+  min-height: 120px;
+}
+
+.pe-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pe-metrics b {
+  font-weight: 400;
+  color: var(--v5-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-gradeline {
+  margin: 6px 0 4px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-grade {
+  display: inline-block;
+  min-width: 28px;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--v5-ink);
+  font-weight: 500;
+  text-align: center;
+}
+
+.pe-bar {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.pe .mk-error {
+  margin: 16px 0 0;
+}
+
+.pe-history {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pe-history li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 8px 0;
+  border-top: 1px solid var(--v5-line-12);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-history li:first-child {
+  border-top: 0;
+}
+
+.pe-who {
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
