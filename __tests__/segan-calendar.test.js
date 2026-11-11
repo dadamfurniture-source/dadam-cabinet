@@ -326,7 +326,9 @@ describe('자리 · 이름', () => {
     expect(el).not.toBeNull();
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('meDash');
-    expect(el.previousElementSibling.id).toBe('meDashBody');
+    // 대시보드 칸 → 우리 팩토리 숫자(segan/company-summary.js) → 업무 달력
+    expect(el.previousElementSibling.id).toBe('meNumbers');
+    expect(el.previousElementSibling.previousElementSibling.id).toBe('meDashBody');
     expect(el.getAttribute('aria-label')).toBe('업무 달력');
     const at = (name) => html.indexOf('src="' + name);
     expect(at('calendar.js')).toBeGreaterThan(at('partner-projects.js'));

@@ -3696,6 +3696,45 @@ button.sm-num[aria-pressed='true'] {
   font-variant-numeric: tabular-nums;
 }
 
+/* 프로젝트 관리 대시보드 › 우리 팩토리 숫자 (#meNumbers — segan/company-summary.js) — 달 고르기 · 숫자 칸 · 한 줄 글.
+   숫자 칸 · 묶음은 A/S 현황(.od-kpi · .as-kpi · .as-sec), 단추 줄은 완료 보고(.dr-bar)와 같은 것을 쓴다 */
+.cs {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.cs-bar {
+  align-items: center;
+}
+
+.cs-month {
+  min-width: 7.5em;
+  font-size: 15px;
+  font-weight: 400;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-line {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 묶음 안 둘째 제목(설치 납기) — 윗줄과 띄운다 */
+.cs .as-sec .cs-sub {
+  margin-top: 22px;
+}
+
+.cs .as-sec .od-h + .od-kpi {
+  margin-top: 6px;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
