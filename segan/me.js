@@ -32,7 +32,9 @@
                         대시보드(#dash-project) = 단계별 수 + 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js) + 프로젝트 목록.
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
        관리
-         구매 · 재고   팩토리 — 기본 자재 · 자투리 자재 · 철물 (준비 중 — 안내 한 줄), 관리자 — 거래처 · 공급처
+         구매 · 재고   팩토리 — 기본 자재 · 자투리 자재 · 철물 (준비 중 — 안내 한 줄),
+                        거래처 · 공급처 (#counterparties — segan/counterparties.js, 다담 공장 · Expert · Agent 의 대표 · 실장.
+                        그 화면을 못 쓰는 관리자에게는 PC 화면 줄)
          회계          segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 (+ 업체는 설정),
                         사진만 올리면 영수증 올리기 (업체만). 본사 대표 · 실장은 본사 장부 — 공장 장부는 플랫폼 › 등록 업체 › 다담 공장 › 회계
          인사          Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
@@ -574,6 +576,13 @@
       title: '철물',
       soon: '재고 관리는 준비 중입니다. 경첩 · 서랍 레일 · 리프트업 철물 수량을 관리하게 됩니다.',
     },
+    // 구매 · 재고 › 거래처 · 공급처 — 넣기 · 고치기 · 숨기기 (segan/counterparties.js)
+    counterparties: {
+      title: '거래처 · 공급처',
+      section: 'partner',
+      parts: ['counterparties'],
+      label: 'counterpartiesTitle',
+    },
     // 인사 (Agent · 공장)
     staff: {
       title: '직원',
@@ -694,6 +703,7 @@
     'outsourceOrders',
     'productionSettings',
     'productionWorkers',
+    'counterparties',
     'siteInstall',
     'orders',
     'ordersCollect',
@@ -1402,6 +1412,11 @@
       case 'stock-scrap':
       case 'stock-hardware':
         return v.factory && !v.platform;
+      // 거래처 · 공급처 — 읽혔을 때만 (대표 · 실장). 못 쓰는 관리자에게는 PC 화면 줄 하나
+      case 'counterparties':
+        return v.factory && !v.platform && available(key);
+      case 'hq-counterparties':
+        return roles.admin === true && !rowOn('counterparties', v, roles, ledger);
       // 회계 — 장부를 열면 (본사 대표 · 실장은 본사 장부), 설정 · 영수증 올리기는 업체만
       case 'lg-board':
       case 'lg-sales':
@@ -1633,6 +1648,7 @@
     var Workers = window.SeganProductionWorkers;
     var Settings = window.SeganProductionSettings;
     var Outsource = window.SeganOutsourceOrders;
+    var Vendors = window.SeganCounterparties;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1657,6 +1673,8 @@
           synced(Workers && Workers.load ? Workers.load(auth.sb, auth.session, me) : null),
           // 외주 발주 = 다담 공장 · Expert · Agent 업체 구성원 (segan/outsource-orders.js — 생산 › 외주 발주 화면)
           synced(Outsource && Outsource.load ? Outsource.load(auth.sb, auth.session, me) : null),
+          // 거래처 · 공급처 = 다담 공장 · Expert · Agent 업체의 대표 · 실장 (segan/counterparties.js — 구매 · 재고 › 거래처 · 공급처 화면)
+          synced(Vendors && Vendors.load ? Vendors.load(auth.sb, auth.session, me) : null),
           // 생산 설정 = 다담 공장 · 협력업체의 대표 · 실장 (segan/production-settings.js — 생산 › 생산 설정 화면)
           synced(Settings && Settings.load ? Settings.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)

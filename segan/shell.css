@@ -2972,6 +2972,99 @@ button.sm-num[aria-pressed='true'] {
   margin-top: 0;
 }
 
+/* 업체 › 거래처 · 공급처 (#counterparties — segan/counterparties.js) — 넣는 칸 · 거래처 줄 · 공급처 줄.
+   칸은 생산 설정(.ps-grid · .ps-field · .ps-bar), 줄은 상담 줄(.me-cs-item)과 같은 것을 쓴다 */
+.cp-form {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.cp-form .od-h {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 고칠 때 종류 밑에 안내 한 줄이 붙는다 — 칸을 위에 맞춰 이름 · 갈래가 내려앉지 않게 */
+.cp-grid {
+  align-items: start;
+}
+
+.cp-field input {
+  font-variant-numeric: normal;
+}
+
+.cp-wide {
+  grid-column: 1 / -1;
+}
+
+.cp-hint {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.cp-form .mk-error {
+  margin: 12px 0 0;
+}
+
+.cp-sec {
+  margin-top: 24px;
+}
+
+.cp-count {
+  margin-left: 6px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp-list {
+  margin-top: 10px;
+}
+
+.cp-item {
+  gap: 8px;
+}
+
+/* 고치는 중인 줄 — 색만으로 알리지 않는다 (넣는 칸 제목에 이름을 적는다) */
+.cp-item--on {
+  border-color: var(--v5-ink);
+}
+
+.cp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.cp-row .me-c-main {
+  flex: 1 1 180px;
+}
+
+/* 업체 이름은 자르지 않고 줄을 바꾼다 */
+.cp-row .me-c-main b,
+.cp-row .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.cp .cp-acts {
+  flex: none;
+  margin-top: 0;
+}
+
+.cp-memo {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
