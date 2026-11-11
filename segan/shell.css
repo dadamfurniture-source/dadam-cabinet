@@ -3444,6 +3444,45 @@ button.sm-num[aria-pressed='true'] {
   object-fit: cover;
 }
 
+/* 플랫폼 › A/S 현황 (#asStatus — segan/as-status.js) — 숫자 다섯 · 팩토리마다 표 · 접수 줄.
+   기간 단추 · 접수 줄은 완료 보고(.dr-*), 숫자 칸 · 표는 수주(.od-kpi · .od-table)와 같은 것을 쓴다 */
+.as-kpi {
+  margin-top: 14px;
+}
+
+/* 늦은 접수가 있다 — 색만으로 알리지 않는다 (굵은 글 + 왼쪽 굵은 선) */
+.as-kpi .as-warn {
+  padding-left: 10px;
+  border-left: 3px solid var(--v5-ink);
+}
+
+.as-kpi .as-warn dd {
+  font-weight: 500;
+}
+
+.as-sec {
+  margin-top: 26px;
+}
+
+.as-sec .od-h {
+  margin-top: 0;
+}
+
+.as-table {
+  min-width: 440px;
+}
+
+.as-table tbody th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.as .as-late {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+  font-weight: 500;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
