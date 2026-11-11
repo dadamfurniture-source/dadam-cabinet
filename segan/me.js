@@ -730,6 +730,7 @@
     'counterparties',
     'siteInstall',
     'orders',
+    'quotes',
     'ordersCollect',
     'partnerProjects',
     'partnerConsultSettings',
@@ -861,6 +862,8 @@
         parts = [v.factory ? 'factory-requests' : 'production-requests', 'partnerProjects'];
       // 계약 = 수주 표(누르면 상세 시트) · 계약 단계 프로젝트 (segan/orders.js)
       if (stage === 'contract') parts = ['orders', 'partnerProjects'];
+      // 견적 = 보낸 견적서 목록 · 견적 단계 프로젝트 (segan/quotes.js)
+      if (stage === 'quote') parts = ['quotes', 'partnerProjects'];
       // 설치 = 설치 현장 지도 + 표 · 설치 단계 프로젝트, A/S = A/S 현장 지도 + 표 · A/S함 (segan/site-map.js)
       if (stage === 'install') parts = ['siteInstall', 'partnerProjects'];
       if (stage === 'as')
@@ -1709,6 +1712,7 @@
     var Settings = window.SeganProductionSettings;
     var Outsource = window.SeganOutsourceOrders;
     var Vendors = window.SeganCounterparties;
+    var Quotes = window.SeganQuotes;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1727,6 +1731,8 @@
           synced(Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null),
           // 수주 · 수금 = 프로젝트를 보는 사람과 같다, 금액은 대표 · 실장 (segan/orders.js — 계약 · 수금 화면)
           synced(Orders && Orders.load ? Orders.load(auth.sb, auth.session, me) : null),
+          // 견적서 = 프로젝트를 가지는 업체 구성원 (segan/quotes.js — 영업 › 견적 화면)
+          synced(Quotes && Quotes.load ? Quotes.load(auth.sb, auth.session, me) : null),
           // 생산 계획 = 다담 공장 구성원 (segan/production-plan.js — 생산 › 생산 계획 화면)
           synced(Plan && Plan.load ? Plan.load(auth.sb, auth.session, me) : null),
           // 작업자 = 다담 공장 대표 · 실장 · 관리자 (segan/production-workers.js — 인사 › 작업자 화면)
