@@ -318,6 +318,7 @@ describe('자리 · 이름', () => {
       'productionWorkers', // 작업자 (segan/production-workers.js — 인사 › 작업자, 다담 공장)
       'counterparties', // 거래처 · 공급처 (segan/counterparties.js — 구매 · 재고 › 거래처 · 공급처)
       'orders', // 수주 (segan/orders.js — 프로젝트 관리 › 영업 › 계약)
+      'quotes', // 견적서 (segan/quotes.js — 프로젝트 관리 › 영업 › 견적)
       'ordersCollect', // 수금 (segan/orders.js — 프로젝트 관리 › 영업 › 수금)
       'siteInstall', // 설치 현장 지도 + 표 (segan/site-map.js — 프로젝트 관리 › 설치)
       'partnerProjects', // 그 단계 프로젝트 (segan/partner-projects.js)
