@@ -13,7 +13,8 @@
              부른다. 이 칸을 그렸을 때 업체 칸(#partner)을 연다.
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message })
                GET   /reports?kind=outsource_order,countertop_order[&status=ordered|received|cancelled]&page=N
-                     { items, hasMore, scope } — scope 'all' = 관리자(다담 공장 전체 발주), 'mine' = 내가 낸 발주만
+                     { items, hasMore, scope } — scope 'all' = 관리자(다담 공장 전체 발주),
+                     'company' = 그 업체 대표 · 실장(내 업체 발주 전체 — 남이 낸 발주는 보기만), 'mine' = 내가 낸 발주만
                GET   /reports/:id   한 건 (본문 body.doc_no · can_edit — 낸 사람 또는 admin 이상)
                PATCH /reports/:id   { status: 'received' | 'cancelled' } — 입고로 바꾸면 서버가 오늘을 입고한 날로 남긴다
    화면      상태 거르기(발주 중 · 입고 · 취소 · 전체) → 발주 줄(누르면 그 자리에 상세) → 「입고 처리」 · 「발주 취소」.
@@ -47,6 +48,7 @@
     detailFail: '이 발주를 불러오지 못했습니다.',
     loading: '불러오는 중…',
     scopeAll: '다담 공장의 외주 · 상판 발주 전체입니다.',
+    scopeCompany: '우리 팩토리의 외주 · 상판 발주 전체입니다. 남이 낸 발주는 보기만 합니다.',
     scopeMine: '내가 낸 외주 · 상판 발주만 보입니다.',
     help: '물건이 들어오면 「입고 처리」, 발주를 물렀으면 「발주 취소」를 누르세요. 새 발주는 상세설계 4단계(작업지시서)에서 냅니다 (PC).',
     late: '예정일 지남',
@@ -77,7 +79,7 @@
     filter: 'ordered',
     page: 1,
     hasMore: false,
-    scope: '', // 'all' | 'mine' (서버가 정한다)
+    scope: '', // 'all' | 'company' | 'mine' (서버가 정한다)
     items: null, // 목록 | null(못 읽음)
     openId: null,
     detail: null, // 한 건 | 'loading' | null(못 읽음)
@@ -248,7 +250,7 @@
         );
       }),
       hasMore: d.hasMore === true,
-      scope: d.scope === 'all' ? 'all' : 'mine',
+      scope: d.scope === 'all' || d.scope === 'company' ? d.scope : 'mine',
     };
   }
   /** 첫 쪽부터 다시 읽는다 — 열어 둔 줄이 목록에서 빠졌으면 닫는다 */
@@ -403,7 +405,15 @@
       '<h3 class="me-pt-sub" id="outsourceOrdersTitle">' +
       esc(TEXT.title) +
       '</h3><p class="mk-note">' +
-      esc((J.scope === 'all' ? TEXT.scopeAll : TEXT.scopeMine) + ' ' + TEXT.help) +
+      esc(
+        (J.scope === 'all'
+          ? TEXT.scopeAll
+          : J.scope === 'company'
+            ? TEXT.scopeCompany
+            : TEXT.scopeMine) +
+          ' ' +
+          TEXT.help
+      ) +
       '</p>' +
       filterHtml() +
       '<p class="me-pt-msg" data-oo="msg" role="status">' +
