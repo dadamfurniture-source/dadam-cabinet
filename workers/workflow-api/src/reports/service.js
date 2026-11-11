@@ -16,6 +16,8 @@ import {
   updateBy,
   updateById,
   hqCompanyId,
+  activeMemberships,
+  MONEY_ROLES,
 } from '../supabase.js';
 import { isMissingRelation } from '../work-order-data.js';
 import { adminRoleOf, assertAdminEditor, canEditRole } from './admin.js';
@@ -82,11 +84,13 @@ export async function safeSyncStatus(env, filter, status) {
  * 보관함 쿼리 → PostgREST 필터 (순수, 시험용으로 노출).
  * all(관리자 전체 보기)은 본사 보고만 — hq 를 꼭 준다 (협력업체 외주 발주 · 지시서 보고는 관리자 보관함에 없다).
  */
-export function buildListQuery({ userId, all, hq = null, query = {} }) {
+export function buildListQuery({ userId, all, hq = null, companyId = null, query = {} }) {
   const q = { select: LIST_COLUMNS, order: 'pinned.desc,created_at.desc' };
   const and = [];
-  if (!all) q.owner_id = `eq.${userId}`;
-  else q.company_id = `eq.${hq}`;
+  if (all) q.company_id = `eq.${hq}`;
+  // 업체 대표 · 실장의 외주 · 상판 발주 — 내 업체 것 전체 (companyScopeOf 가 정한다)
+  else if (companyId) q.company_id = `eq.${companyId}`;
+  else q.owner_id = `eq.${userId}`;
   const kinds = String(query.kind || '').split(',').map((k) => k.trim()).filter((k) => REPORT_KINDS.includes(k));
   if (kinds.length === 1) q.kind = `eq.${kinds[0]}`;
   else if (kinds.length > 1) q.kind = `in.(${kinds.join(',')})`;
@@ -109,18 +113,42 @@ export function buildListQuery({ userId, all, hq = null, query = {} }) {
   return { q, page };
 }
 
-/** 목록. 관리자는 `owner=all` 이 기본(본사 보고 전체), 그 밖은 본인 것만. */
+/** 물은 종류가 모두 외주 · 상판 발주인가 (kind 를 주지 않았거나 다른 종류가 섞이면 아니다) */
+export function ordersOnly(query = {}) {
+  const kinds = String(query.kind || '').split(',').map((k) => k.trim()).filter(Boolean);
+  return kinds.length > 0 && kinds.every((k) => ORDER_KINDS.has(k));
+}
+
+/** 내가 대표 · 실장인 업체 id 들 */
+async function managedCompanies(env, user) {
+  return (await activeMemberships(env, user)).filter((m) => MONEY_ROLES.includes(m.role)).map((m) => m.company_id);
+}
+
+/**
+ * 업체 전체 보기 — 외주 · 상판 발주만 물었고(kind), 내가 그 업체의 대표 · 실장이면 그 업체 id.
+ * 그 밖(다른 종류 · 직원 · `owner=mine`)은 null → 본인 것만. (마이페이지 5단계 — 2026-11-11)
+ */
+async function companyScopeOf(env, user, query) {
+  if (query.owner === 'mine' || !ordersOnly(query)) return null;
+  return (await managedCompanies(env, user))[0] || null;
+}
+
+/**
+ * 목록. 관리자는 `owner=all` 이 기본(본사 보고 전체), 그 밖은 본인 것만.
+ * 단, 외주 · 상판 발주만 물은 업체 대표 · 실장은 내 업체 발주 전체 (scope 'company' — 남의 발주는 보기만, 바꾸는 것은 낸 사람 · 관리자).
+ */
 export async function listReports(env, { user, query = {} }) {
   const role = await adminRoleOf(env, user);
   const all = Boolean(role) && query.owner !== 'mine';
-  const { q, page } = buildListQuery({ userId: user.id, all, hq: all ? await hqCompanyId(env) : null, query });
+  const companyId = all ? null : await companyScopeOf(env, user, query);
+  const { q, page } = buildListQuery({ userId: user.id, all, hq: all ? await hqCompanyId(env) : null, companyId, query });
   const rows = (await selectMany(env, TABLE, q)) || [];
   return {
     items: rows.slice(0, PAGE_SIZE),
     page,
     pageSize: PAGE_SIZE,
     hasMore: rows.length > PAGE_SIZE,
-    scope: all ? 'all' : 'mine',
+    scope: all ? 'all' : companyId ? 'company' : 'mine',
     role: role || null,
   };
 }
@@ -131,6 +159,8 @@ async function loadVisible(env, user, id) {
   if (!row) throw new NotFoundError('보고를 찾을 수 없습니다');
   if (row.owner_id === user.id) return { row, role: await adminRoleOf(env, user) };
   const role = await adminRoleOf(env, user);
+  // 업체 대표 · 실장은 내 업체의 외주 · 상판 발주를 연다 (보기 — 바꾸는 것은 낸 사람 · 관리자, updateReportMeta)
+  if (ORDER_KINDS.has(row.kind) && (await managedCompanies(env, user)).includes(row.company_id)) return { row, role };
   // 관리자가 남의 보고를 여는 것은 본사 보고만
   if (!role || row.company_id !== (await hqCompanyId(env))) throw new NotFoundError('보고를 찾을 수 없습니다');
   return { row, role };

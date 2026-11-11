@@ -8,7 +8,7 @@ import {
   REPORT_KINDS, reportFromProposal, reportFromDecision, reportFromDailyBrief, reportFromDocument, reportNote, isUuid,
 } from '../src/reports/record.js';
 import {
-  buildListQuery, recordReport, safeRecord, listReports, getReport, updateReportMeta, recordDocumentIssued, backfillReports, reportSummary,
+  buildListQuery, ordersOnly, recordReport, safeRecord, listReports, getReport, updateReportMeta, recordDocumentIssued, backfillReports, reportSummary,
 } from '../src/reports/service.js';
 import { clearAdminCache, canEditRole } from '../src/reports/admin.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
@@ -175,6 +175,101 @@ test('목록 — 관리자는 본사 보고 전체(주인 필터 없음), 관리
   });
 });
 
+// ── 업체 전체 외주 · 상판 발주 (마이페이지 5단계) ──────────────────────
+
+const members = (rows) => (u) => (u.includes('/company_members?') ? json(rows) : null);
+
+test('ordersOnly — 외주 · 상판 발주만 물었을 때만 참', () => {
+  assert.equal(ordersOnly({ kind: 'outsource_order' }), true);
+  assert.equal(ordersOnly({ kind: 'outsource_order, countertop_order' }), true);
+  assert.equal(ordersOnly({ kind: 'outsource_order,production_plan' }), false);
+  assert.equal(ordersOnly({ kind: 'daily_brief' }), false);
+  assert.equal(ordersOnly({ kind: '' }), false);
+  assert.equal(ordersOnly({}), false);
+  assert.equal(ordersOnly(), false);
+});
+
+test('buildListQuery — 업체 전체 보기는 업체로 거르고 주인으로 거르지 않는다 (관리자 전체가 먼저)', () => {
+  const co = buildListQuery({ userId: U1, all: false, companyId: PARTNER, query: { kind: 'outsource_order' } }).q;
+  assert.equal(co.company_id, `eq.${PARTNER}`);
+  assert.equal(co.owner_id, undefined);
+  const admin = buildListQuery({ userId: U1, all: true, hq: HQ, companyId: PARTNER, query: {} }).q;
+  assert.equal(admin.company_id, `eq.${HQ}`);
+  const mine = buildListQuery({ userId: U1, all: false, query: {} }).q;
+  assert.equal(mine.owner_id, `eq.${U1}`);
+  assert.equal(mine.company_id, undefined);
+});
+
+test('목록 — 업체 대표 · 실장이 외주 · 상판 발주만 물으면 내 업체 발주 전체 (scope company)', async () => {
+  for (const role of ['owner', 'manager']) {
+    await withFetch(route({ role: null, reports: [], extra: members([{ company_id: PARTNER, role }]) }), async (calls) => {
+      const out = await listReports(ENV, { user: { id: U2 }, query: { kind: 'outsource_order,countertop_order' } });
+      assert.equal(out.scope, 'company', role);
+      const url = calls.find((c) => c.url.includes('/work_reports?')).url;
+      assert.ok(url.includes(`company_id=eq.${PARTNER}`), role);
+      assert.ok(!url.includes('owner_id='), role);
+    });
+    clearAdminCache();
+  }
+});
+
+test('목록 — 직원 · 업체 없는 사람 · owner=mine · 다른 종류는 본인 것만 (scope mine)', async () => {
+  const cases = [
+    [[{ company_id: PARTNER, role: 'staff' }], { kind: 'outsource_order' }],
+    [[], { kind: 'outsource_order' }],
+    [[{ company_id: PARTNER, role: 'owner' }], { kind: 'outsource_order', owner: 'mine' }],
+    [[{ company_id: PARTNER, role: 'owner' }], { kind: 'outsource_order,production_plan' }],
+    [[{ company_id: PARTNER, role: 'owner' }], { kind: 'daily_brief' }],
+    [[{ company_id: PARTNER, role: 'owner' }], {}],
+  ];
+  for (const [rows, query] of cases) {
+    await withFetch(route({ role: null, reports: [], extra: members(rows) }), async (calls) => {
+      const out = await listReports(ENV, { user: { id: U2 }, query });
+      assert.equal(out.scope, 'mine', JSON.stringify(query));
+      const url = calls.find((c) => c.url.includes('/work_reports?')).url;
+      assert.ok(url.includes(`owner_id=eq.${U2}`), JSON.stringify(query));
+      assert.ok(!url.includes('company_id='), JSON.stringify(query));
+    });
+    clearAdminCache();
+  }
+});
+
+test('목록 — 관리자는 외주 발주를 물어도 전처럼 본사 전체 (업체 구성원인지 묻지 않는다)', async () => {
+  await withFetch(route({ role: 'admin', reports: [] }), async (calls) => {
+    const out = await listReports(ENV, { user: { id: U1 }, query: { kind: 'outsource_order' } });
+    assert.equal(out.scope, 'all');
+    assert.equal(calls.some((c) => c.url.includes('/company_members?')), false);
+  });
+});
+
+test('한 건 — 업체 대표 · 실장은 내 업체의 남이 낸 발주를 연다 (보기만), 바꾸지는 못한다', async () => {
+  const order = { id: R1, owner_id: U1, kind: 'outsource_order', company_id: PARTNER, title: 't', status: 'ordered', body: {}, metrics: {} };
+  await withFetch(route({ role: null, reports: [order], extra: members([{ company_id: PARTNER, role: 'manager' }]) }), async (calls) => {
+    const r = await getReport(ENV, { user: { id: U2 }, id: R1 });
+    assert.equal(r.id, R1);
+    assert.equal(r.can_edit, false, '낸 사람 · 관리자만 바꾼다');
+    await assert.rejects(updateReportMeta(ENV, { user: { id: U2 }, id: R1, body: { status: 'received' } }), /관리자\(admin 이상\)만 바꿀 수 있습니다/);
+    assert.equal(calls.some((c) => c.method !== 'GET'), false, '쓰지 않는다');
+  });
+});
+
+test('한 건 — 직원 · 다른 업체의 대표 · 발주가 아닌 보고는 전처럼 못 연다', async () => {
+  const order = { id: R1, owner_id: U1, kind: 'outsource_order', company_id: PARTNER, title: 't', body: {} };
+  const plan = { ...order, kind: 'production_plan' };
+  const cases = [
+    [order, [{ company_id: PARTNER, role: 'staff' }]],
+    [order, [{ company_id: HQ, role: 'owner' }]],
+    [order, []],
+    [plan, [{ company_id: PARTNER, role: 'owner' }]],
+  ];
+  for (const [row, rows] of cases) {
+    await withFetch(route({ role: null, reports: [row], extra: members(rows) }), async () => {
+      await assert.rejects(getReport(ENV, { user: { id: U2 }, id: R1 }), /찾을 수 없습니다/, JSON.stringify(rows));
+    });
+    clearAdminCache();
+  }
+});
+
 test('목록 위 숫자 — 관리자 전체 보기는 본사 보고만, 본인 보기는 내 것', async () => {
   await withFetch(route({ role: 'admin', reports: [] }), async (calls) => {
     await reportSummary(ENV, { user: { id: U1 } });
@@ -189,7 +284,7 @@ test('목록 위 숫자 — 관리자 전체 보기는 본사 보고만, 본인 
 
 test('한 건 — 관리자도 협력업체 보고(남의 것)는 못 연다, 내 보고는 업체와 상관없이 연다', async () => {
   const partnerRow = { id: R1, owner_id: U1, kind: 'outsource_order', company_id: PARTNER, title: 't', body: {} };
-  await withFetch(route({ role: 'super_admin', reports: [partnerRow] }), async () => {
+  await withFetch(route({ role: 'super_admin', reports: [partnerRow], extra: (u) => (u.includes('/company_members?') ? json([]) : null) }), async () => {
     await assert.rejects(getReport(ENV, { user: { id: U2 }, id: R1 }), /찾을 수 없습니다/);
     await assert.rejects(updateReportMeta(ENV, { user: { id: U2 }, id: R1, body: { note: 'x' } }), /찾을 수 없습니다/);
   });
