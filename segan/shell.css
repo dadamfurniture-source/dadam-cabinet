@@ -3671,6 +3671,31 @@ button.sm-num[aria-pressed='true'] {
   color: var(--v5-ink);
 }
 
+/* 업체 › 고객 (#customers — segan/customers.js) — 찾기 · 고객 줄 · 그 줄에서 고치는 칸.
+   줄 · 고치는 칸은 거래처(.cp-* · .ps-*), 찾는 칸은 가전 모델(.al-*)과 같은 것을 쓴다 */
+.cu-form {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.cu-form .ps-grid {
+  margin-top: 0;
+  align-items: start;
+}
+
+.cu-form .mk-error {
+  margin: 12px 0 0;
+}
+
+.cu .cu-badge {
+  margin-left: 0;
+}
+
+.cu .cp-row .me-c-main small a {
+  font-variant-numeric: tabular-nums;
+}
+
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
 .me-pr-status {
   margin-left: auto;
