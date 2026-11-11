@@ -41,7 +41,8 @@
                         작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 근무 일정(준비 중) · 작업자(준비 중 —
                         다담 공장은 #workers-hq = 공장 배정 · 작업자 링크 · 실측 보정, segan/production-workers.js),
                         관리자 — 작업자 · 작업 배정 · 작업 지시 보고
-         기준정보      관리자 — 참고 이미지 · 학습 데이터셋 (PC 관리자 화면),
+         기준정보      관리자 — 학습 데이터셋 (PC 관리자 화면),
+                        참고 이미지(#ref-images — 사이트 관리자, segan/theme-images-view.js — 보기 · 찾기만, 확정 · 수정은 PC 화면),
                         시공사례(#gallery-list — 사이트 관리자, segan/gallery-view.js — 보기 · 찾기만, 올리기 · 지우기는 PC 화면),
                         가전 모델(#appliances — 사이트 관리자, segan/appliance-list.js — 보기 · 찾기만, 고치기는 PC 화면)
          플랫폼        등록 업체(#companies — 본사 대표 · 실장, segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력),
@@ -631,6 +632,8 @@
     appliances: { title: '가전 모델', section: 'applianceList' },
     // 기준정보 — 시공사례 (segan/gallery-view.js — 보기 · 찾기)
     'gallery-list': { title: '시공사례', section: 'galleryView' },
+    // 기준정보 — 참고 이미지 (segan/theme-images-view.js — 보기 · 찾기)
+    'ref-images': { title: '참고 이미지', section: 'themeImages' },
     // 내 계정
     partner: {
       title: '내 팩토리',
@@ -706,6 +709,7 @@
     'asStatus',
     'applianceList',
     'galleryView',
+    'themeImages',
     'meProjectSection',
     'meAsSection',
     'partner',
@@ -1492,6 +1496,11 @@
         return roles.admin === true && available(key);
       case 'hq-gallery':
         return roles.admin === true && !rowOn('gallery-list', v, roles, ledger);
+      // 기준정보 › 참고 이미지 — 사이트 관리자, 칸이 열렸을 때만 (보기 · 찾기). 못 연 관리자에게는 PC 화면 줄 하나
+      case 'ref-images':
+        return roles.admin === true && available(key);
+      case 'hq-refs':
+        return roles.admin === true && !rowOn('ref-images', v, roles, ledger);
       // 내 계정
       case 'partner':
       case 'likes':
@@ -1693,6 +1702,7 @@
     var AsStat = window.SeganAsStatus;
     var Appl = window.SeganApplianceList;
     var Gal = window.SeganGalleryView;
+    var Refs = window.SeganThemeImagesView;
     var Orders = window.SeganOrders;
     var Plan = window.SeganProductionPlan;
     var Workers = window.SeganProductionWorkers;
@@ -1769,6 +1779,12 @@
           synced(
             Gal && Gal.load
               ? Gal.load(auth.sb, auth.session, me, { admin: !!(auth.roles && auth.roles.admin) })
+              : null
+          ),
+          // 참고 이미지 = 사이트 관리자 (segan/theme-images-view.js — 기준정보 › 참고 이미지 화면, 열었을 때 읽는다)
+          synced(
+            Refs && Refs.load
+              ? Refs.load(auth.sb, auth.session, me, { admin: !!(auth.roles && auth.roles.admin) })
               : null
           ),
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다

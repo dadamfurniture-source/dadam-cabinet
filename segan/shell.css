@@ -3598,7 +3598,7 @@ button.sm-num[aria-pressed='true'] {
   min-width: 0;
 }
 
-.gv-tile a {
+.gv-tile > a {
   display: block;
   border: 1px solid var(--v5-line-18);
   background: var(--v5-paper);
@@ -3635,6 +3635,39 @@ button.sm-num[aria-pressed='true'] {
   margin-left: 4px;
   padding: 1px 6px;
   border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
+/* 기준정보 › 참고 이미지 (#themeImages — segan/theme-images-view.js) — 상태 단추 · 테마 · 사진 칸 (보기만).
+   단추 · 고르는 칸 · 사진 칸은 가전 모델 · 시공사례(.al-* · .gv-*)와 같은 것을 쓴다 */
+.tv-pic {
+  display: block;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  line-height: 0;
+}
+
+/* 확정 전 사진 — 그림 대신 글 (바깥 서버에 요청하지 않는다) */
+.tv-nopic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  padding: 10px;
+  border-style: dashed;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--v5-ink-60);
+  text-align: center;
+}
+
+/* 숨긴 사진 — 색만으로 알리지 않는다 (「숨김」 표시가 함께 붙는다) */
+.tv-off .tv-pic img {
+  opacity: 0.45;
+}
+
+.tv .gv-cap small.tv-title {
   color: var(--v5-ink);
 }
 
