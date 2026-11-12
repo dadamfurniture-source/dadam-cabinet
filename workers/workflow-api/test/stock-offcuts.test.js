@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
-import { codeOf, labelUrl, offcutInput, offcutPatch, canMove, LABELS_MAX, SIDE_MAX, OFFCUT_OLD_DAYS } from '../src/stock-offcuts.js';
+import { codeOf, labelUrl, offcutInput, offcutPatch, canMove, LABELS_MAX, SIDE_MAX, OFFCUT_OLD_DAYS, kstMonthOf } from '../src/stock-offcuts.js';
 import { createFake, callWorker } from './helpers/distribution-fake.js';
 import { HQ as FACTORY } from './fixtures/company.js';
 
@@ -84,6 +84,18 @@ function tables() {
       { id: rid(64), company_id: A, kind: 'board', name: 'PB 그레이', spec: '18T', unit: '장', qty: 0, safety_qty: 20, expected_qty: 30, active: true },
       { id: rid(65), company_id: A, kind: 'board', name: '옛 판재', spec: '', unit: '장', qty: 0, safety_qty: 9, expected_qty: null, active: false },
       { id: rid(66), company_id: B, kind: 'board', name: 'B 판재', spec: '', unit: '장', qty: 999, safety_qty: 0, expected_qty: null, active: true, unit_price: 99999 },
+    ],
+    // 지금 = 11-12 12:00 KST. 이번 달은 11-01 00:00 KST(= 10-31 15:00Z)부터
+    stock_moves: [
+      { id: rid(71), company_id: A, item_id: rid(63), kind: 'in', qty: 10, qty_after: 126, created_at: '2026-11-03T02:00:00.000Z' },
+      { id: rid(72), company_id: A, item_id: rid(61), kind: 'in', qty: 100, qty_after: 140, created_at: '2026-10-31T15:00:00.000Z' },
+      { id: rid(73), company_id: A, item_id: rid(63), kind: 'in', qty: 50, qty_after: 116, created_at: '2026-10-31T14:59:59.000Z' },
+      { id: rid(74), company_id: A, item_id: rid(63), kind: 'out', qty: 4, qty_after: 122, created_at: '2026-11-04T02:00:00.000Z' },
+      { id: rid(75), company_id: A, item_id: rid(63), kind: 'adjust', qty: 3, qty_after: 125, created_at: '2026-11-05T02:00:00.000Z' },
+      { id: rid(76), company_id: A, item_id: rid(62), kind: 'in', qty: 20, qty_after: 30, created_at: '2026-11-06T02:00:00.000Z' },
+      { id: rid(77), company_id: A, item_id: rid(62), kind: 'in', qty: 5, qty_after: 35, created_at: '2026-11-07T02:00:00.000Z' },
+      { id: rid(78), company_id: A, item_id: rid(65), kind: 'in', qty: 2, qty_after: 2, created_at: '2026-11-08T02:00:00.000Z' },
+      { id: rid(79), company_id: B, item_id: rid(66), kind: 'in', qty: 7, qty_after: 999, created_at: '2026-11-08T02:00:00.000Z' },
     ],
   };
 }
@@ -280,6 +292,19 @@ test('재고 금액 — 대표 · 실장에게만. 남은 수량 × 단가, 단�
   assert.equal(OWNER_ONLY.length, 36);
 });
 
+test('이번 달 매입 — 대표 · 실장에게만. 이번 달(KST) 입고 × 지금 단가, 출고 · 실사 조정 · 지난달 · 남의 업체는 뺀다', async () => {
+  assert.deepEqual(kstMonthOf(NOW), { month: '2026-11', fromIso: '2026-10-31T15:00:00.000Z' });
+  assert.equal(kstMonthOf(Date.parse('2026-12-31T15:00:00.000Z')).month, '2027-01');
+  const fake = fakeOf();
+  const o = (await call(fake, '/stock/summary', OWNER_A)).json.data;
+  // PB 화이트 10 × 18,500 = 185,000 · 경첩 100 × 850 = 85,000 (11-01 0시 KST 정각은 이번 달) · 레일(단가 없음) · 옛 판재(숨김)는 빼고 센다
+  assert.deepEqual(o.bought, { month: '2026-11', total: 270000, unpriced: 2 });
+  const s = (await call(fake, '/stock/summary', STAFF_A)).json;
+  assert.equal(JSON.stringify(s).includes('bought'), false);
+  const b = (await call(fake, '/stock/summary', OWNER_B)).json.data;
+  assert.deepEqual(b.bought, { month: '2026-11', total: 699993, unpriced: 0 });
+});
+
 test('재고 금액 — DB 0061 적용 전이면 금액 없이 나머지 숫자만', async () => {
   const fake = fakeOf({
     before: (m, t, params) => (t === 'stock_items' && (params.get('select') || '').includes('unit_price') ? json({ code: '42703', message: 'column stock_items.unit_price does not exist' }, 400) : null),
@@ -287,5 +312,6 @@ test('재고 금액 — DB 0061 적용 전이면 금액 없이 나머지 숫자�
   const r = await call(fake, '/stock/summary', OWNER_A);
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal('value' in r.json.data, false);
+  assert.equal('bought' in r.json.data, false);
   assert.deepEqual(r.json.data.short, { board: 1, hardware: 1 });
 });

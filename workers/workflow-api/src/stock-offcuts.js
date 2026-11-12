@@ -18,6 +18,9 @@
  *       boards [{ name, spec, unit, qty }] (남은 수량 많은 판재부터 BOARDS_TOP),
  *       value { total, board, hardware, unpriced } }   재고 금액(원) = 남은 수량 × 단가 — 대표 · 실장에게만, 단가 칸이 있을 때만(DB 0061).
  *                                                      unpriced = 남은 수량이 있는데 단가가 없는 품목 수 (금액에서 빠진다)
+ *       bought { month, total, unpriced } }            이번 달(KST) 매입 금액(원) = 이번 달 입고 수량 × 지금 단가 — value 와 같은 사람 · 같은 때에만.
+ *                                                      입고할 때의 값은 적어 두지 않으므로 지금 단가로 셈한 어림이다. 실사 조정은 세지 않는다.
+ *                                                      unpriced = 이번 달 입고가 있는데 단가가 없는(또는 숨긴) 품목 수 (금액에서 빠진다)
  *     old = 들어온 지 OFFCUT_OLD_DAYS 일이 넘은 남음 · 예약 조각.
  *
  * 누가       stock.js 와 같다 — 다담 공장 · active Expert · Agent 구성원 (stockCompanyOf). 자투리는 등록 · 바꾸기 모두 구성원 누구나
@@ -50,6 +53,8 @@ export const THICKNESS_MAX = 100;
 /** 「3달 넘음」 */
 export const OFFCUT_OLD_DAYS = 90;
 export const BOARDS_TOP = 8;
+/** 이번 달 입고 기록을 이만큼까지 읽어 매입 금액을 셈한다 */
+export const MONTH_MOVES_LIMIT = 5000;
 /** 번호가 겹쳤을 때 다시 해 보는 횟수 (둘이 동시에 등록) */
 const SEQ_TRIES = 4;
 /** 라벨 QR 이 여는 앱 주소 */
@@ -297,13 +302,20 @@ export async function makeOffcutLabels(env, { user, body }) {
   };
 }
 
+const KST_MS = 9 * 3600 * 1000;
+/** 이번 달(KST) — { month: 'YYYY-MM', fromIso: 그 달 1일 0시(KST) } */
+export function kstMonthOf(nowMs) {
+  const month = new Date(nowMs + KST_MS).toISOString().slice(0, 7);
+  return { month, fromIso: new Date(Date.parse(`${month}-01T00:00:00Z`) - KST_MS).toISOString() };
+}
+
 /** GET /stock/summary */
 export async function getStockSummary(env, { user, nowMs = Date.now() }) {
   const { company, canAct } = await stockCompanyOf(env, user);
   const itemQuery = {
     company_id: `eq.${company.id}`,
     active: 'eq.true',
-    select: 'kind,name,spec,unit,qty,safety_qty,expected_qty',
+    select: 'id,kind,name,spec,unit,qty,safety_qty,expected_qty',
     limit: String(STOCK_ITEMS_LIMIT),
   };
   const [read, cuts] = await Promise.all([
@@ -350,6 +362,27 @@ export async function getStockSummary(env, { user, nowMs = Date.now() }) {
       if (has(value, i.kind)) value[i.kind] += won;
     }
     out.value = value;
+
+    // 이번 달 매입 — 입고 기록 × 지금 단가 (대표 · 실장만 여기까지 온다)
+    const { month, fromIso } = kstMonthOf(nowMs);
+    const ins = await db(() =>
+      selectMany(env, 'stock_moves', {
+        company_id: `eq.${company.id}`,
+        kind: 'eq.in',
+        created_at: `gte.${fromIso}`,
+        select: 'item_id,qty',
+        limit: String(MONTH_MOVES_LIMIT),
+      })
+    );
+    const priceBy = new Map(items.map((i) => [i.id, i.unit_price]));
+    const noPrice = new Set();
+    let total = 0;
+    for (const m of ins || []) {
+      const p = priceBy.get(m.item_id);
+      if (p === null || p === undefined) noPrice.add(m.item_id);
+      else total += Math.round((Number(m.qty) || 0) * Number(p));
+    }
+    out.bought = { month, total, unpriced: noPrice.size };
   }
   return out;
 }
