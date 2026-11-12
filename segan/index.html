@@ -15,13 +15,13 @@
     <meta name="theme-color" content="#F6F3EE" />
     <title>SEGAN</title>
     <!-- 옛 만들기 주소(?g= · ?ref= · #result …)로 들어오면 그리기 전에 make.html 로 넘긴다 -->
-    <script src="forward.js?v=2026111308"></script>
+    <script src="forward.js?v=2026111309"></script>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026111308" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026111308" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026111308" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111308" />
+    <link rel="icon" href="icons/icon.svg?v=2026111309" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111309" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111309" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111309" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -31,17 +31,17 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026111308" />
-    <link rel="stylesheet" href="home.css?v=2026111308" />
+    <link rel="stylesheet" href="shell.css?v=2026111309" />
+    <link rel="stylesheet" href="home.css?v=2026111309" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026111308"></script>
+    <script src="../js/config.js?v=2026111309"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026111308"></script>
-    <script src="shell.js?v=2026111308" defer blocking="render"></script>
+    <script src="motion.js?v=2026111309"></script>
+    <script src="shell.js?v=2026111309" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026111308" defer></script>
+    <script src="guide.js?v=2026111309" defer></script>
   </head>
   <body class="sg-app" data-tab="home">
     <div data-segan-shell="header"></div>
@@ -62,7 +62,7 @@
           />
         </picture>
         <div class="hm-hero-in">
-          <h1 class="hm-h1" id="hmTitle">공간을 읽고 <br />가구를 짓습니다</h1>
+          <h1 class="hm-h1" id="hmTitle" data-bar-title="">공간을 읽고 <br />가구를 짓습니다</h1>
           <p class="hm-lead">방 사진 한 장으로 맞춤 가구 연출컷을 받아 보세요.</p>
           <a class="hm-cta" href="make.html">방 사진 올리기</a>
         </div>
@@ -72,17 +72,17 @@
       <div class="hm-in">
         <!-- 차례가 있는 세 걸음 — 만들기 화면의 진행 단계와 같은 순서 -->
         <ol class="hm-steps" aria-label="이용 순서">
-          <li>
+          <li data-reveal>
             <i aria-hidden="true">01</i>
             <b>사진 올리기</b>
             <span>가구를 놓을 방을 찍어 올립니다.</span>
           </li>
-          <li>
+          <li data-reveal>
             <i aria-hidden="true">02</i>
             <b>AI 연출컷</b>
             <span>가구가 놓인 모습을 사진으로 받아 봅니다.</span>
           </li>
-          <li>
+          <li data-reveal>
             <i aria-hidden="true">03</i>
             <b>상담 신청</b>
             <span>마음에 들면 그 사진 그대로 상담을 신청합니다.</span>
@@ -97,7 +97,7 @@
         </div>
         <!-- 자체 시공 사진 여섯 장 (segan/collection.js STATIC 과 같은 사진 · 지역) — 누르면 시공사례 탭 -->
         <div class="hm-works">
-          <a class="hm-work" href="collection.html">
+          <a class="hm-work" href="collection.html" data-reveal>
             <picture>
               <source srcset="../app/portfolio/display/kitchen-n7-1.avif" type="image/avif" />
               <img
@@ -112,7 +112,7 @@
             </picture>
             <span>하남 위례 · 주방</span>
           </a>
-          <a class="hm-work" href="collection.html">
+          <a class="hm-work" href="collection.html" data-reveal>
             <picture>
               <source srcset="../app/portfolio/display/kitchen-n1-1.avif" type="image/avif" />
               <img
@@ -127,7 +127,7 @@
             </picture>
             <span>서울 논현 · 주방</span>
           </a>
-          <a class="hm-work" href="collection.html">
+          <a class="hm-work" href="collection.html" data-reveal>
             <picture>
               <source srcset="../app/portfolio/display/kitchen-n6-1.avif" type="image/avif" />
               <img
@@ -142,7 +142,7 @@
             </picture>
             <span>고양 일산 · 주방</span>
           </a>
-          <a class="hm-work" href="collection.html">
+          <a class="hm-work" href="collection.html" data-reveal>
             <picture>
               <source srcset="../app/portfolio/display/kitchen-n3-2.avif" type="image/avif" />
               <img
@@ -157,7 +157,7 @@
             </picture>
             <span>성남 분당 · 주방</span>
           </a>
-          <a class="hm-work" href="collection.html">
+          <a class="hm-work" href="collection.html" data-reveal>
             <picture>
               <source srcset="../app/portfolio/display/funiture-n4-1.avif" type="image/avif" />
               <img
@@ -172,7 +172,7 @@
             </picture>
             <span>서울 논현 · 붙박이 가구</span>
           </a>
-          <a class="hm-work" href="collection.html">
+          <a class="hm-work" href="collection.html" data-reveal>
             <picture>
               <source srcset="../app/portfolio/display/kitchen-n7-3.avif" type="image/avif" />
               <img
@@ -196,25 +196,25 @@
           <a href="blog.html">전체 보기</a>
         </div>
         <ul class="hm-posts">
-          <li>
+          <li data-reveal>
             <a class="hm-post" href="blog-materials.html">
               <small>자재</small>
               <b>보드부터 엣지까지, 가구 자재 읽는 법</b>
             </a>
           </li>
-          <li>
+          <li data-reveal>
             <a class="hm-post" href="blog-edge-finish.html">
               <small>설치</small>
               <b>몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
             </a>
           </li>
-          <li>
+          <li data-reveal>
             <a class="hm-post" href="blog-hardware.html">
               <small>하드웨어</small>
               <b>서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
             </a>
           </li>
-          <li>
+          <li data-reveal>
             <a class="hm-post" href="blog-kitchen-appliances.html">
               <small>주방기기</small>
               <b>싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>

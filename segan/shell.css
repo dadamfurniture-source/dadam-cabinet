@@ -5741,6 +5741,50 @@ html:active-view-transition-type(sg-back)::view-transition-new(root) {
   }
 }
 
+/* ── 막대 제목 — 본문 큰 제목이 위 막대 밑으로 들어가면 가운데에 작게 (segan/shell.js barTitle) ──
+   폰 · 태블릿만 — PC 는 위 메뉴가 그 자리에 있다. 왼쪽 워드마크 · 오른쪽 「비서」 단추를 피해 폭을 둔다 */
+.sg-bar-title {
+  display: none;
+}
+
+@media (max-width: 1023.98px) {
+  .sg-bar-title {
+    position: absolute;
+    top: env(safe-area-inset-top);
+    left: 50%;
+    display: block;
+    max-width: calc(100% - 268px);
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: var(--sg-bar);
+    letter-spacing: 0.02em;
+    color: var(--v5-ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, 6px);
+    transition:
+      opacity 160ms ease,
+      transform var(--sg-spring-ms) var(--sg-spring);
+  }
+
+  .sg-header--titled .sg-bar-title {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* 동작 줄이기 — 오르지 않고 흐려지기만 */
+@media (prefers-reduced-motion: reduce) {
+  .sg-bar-title,
+  .sg-header--titled .sg-bar-title {
+    transform: translate(-50%, 0);
+    transition: opacity 200ms ease;
+  }
+}
+
 /* 인쇄 — 비서 버튼 · 입력 줄은 종이에 넣지 않는다 (회계 보고서 등) */
 @media print {
   .sg-ai-btn,

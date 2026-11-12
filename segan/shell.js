@@ -236,7 +236,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111308" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111309" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +
@@ -1066,11 +1066,111 @@
     });
   }
 
+  // ── 막대 제목 · 스크롤로 들어오는 칸 ─────────────────────
+  /*
+     막대 제목   본문 큰 제목(#main h1 — 지금 보이는 것)이 위 막대 밑으로 다 들어가면 막대 가운데에 같은 글을
+                 작게 띄운다 (폰 · 태블릿 — PC 는 위 메뉴가 있어 shell.css 가 감춘다).
+                 h1 에 data-bar-title 을 적으면 그 글, 빈 값이면 띄우지 않는다
+     들어오는 칸 [data-reveal] 은 스크롤로 처음 화면에 들어올 때 한 번 살짝 떠오른다 (segan/motion.js enter —
+                 멈춘 모습이 최종 모습). 처음부터 보이던 칸은 움직이지 않는다
+     둘 다 IntersectionObserver 가 없는 브라우저에서는 아무것도 하지 않는다 (화면은 그대로 다 보인다)
+  */
+  function barTitle() {
+    var header = document.querySelector('.sg-header');
+    var main = document.getElementById('main');
+    if (!header || !main || typeof window.IntersectionObserver !== 'function') return;
+    var label = document.createElement('span');
+    label.className = 'sg-bar-title';
+    label.setAttribute('aria-hidden', 'true'); // 같은 글이 본문 제목에 있다
+    header.appendChild(label);
+    var watched = [];
+
+    function shown() {
+      var list = main.querySelectorAll('h1');
+      for (var i = 0; i < list.length; i++) if (list[i].getClientRects().length) return list[i];
+      return null;
+    }
+
+    function update() {
+      var h = shown();
+      var text = '';
+      var under = false;
+      if (h) {
+        text = h.hasAttribute('data-bar-title') ? h.getAttribute('data-bar-title') : h.textContent;
+        text = String(text || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        under = h.getBoundingClientRect().bottom <= header.getBoundingClientRect().bottom;
+      }
+      if (label.textContent !== text) label.textContent = text;
+      header.classList.toggle('sg-header--titled', under && !!text);
+    }
+
+    var io = new window.IntersectionObserver(update, {
+      rootMargin: '-' + header.offsetHeight + 'px 0px 0px 0px',
+      threshold: [0, 1],
+    });
+
+    function observe() {
+      var list = main.querySelectorAll('h1');
+      for (var i = 0; i < list.length; i++) {
+        if (watched.indexOf(list[i]) >= 0) continue;
+        watched.push(list[i]);
+        io.observe(list[i]);
+      }
+      update();
+    }
+
+    observe();
+    // 화면 안에서 제목이 바뀌는 화면 (만들기 단계 · 마이페이지 하위 화면) — 한 화면 주기에 한 번만 다시 본다
+    if (typeof window.MutationObserver === 'function') {
+      var queued = false;
+      new window.MutationObserver(function () {
+        if (queued) return;
+        queued = true;
+        window.setTimeout(function () {
+          queued = false;
+          observe();
+        }, 50);
+      }).observe(main, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['hidden', 'class'],
+      });
+    }
+    window.addEventListener('hashchange', update);
+  }
+
+  function reveals() {
+    var M = window.SeganMotion;
+    var list = document.querySelectorAll('[data-reveal]');
+    if (!list.length || !M || typeof M.enter !== 'function') return;
+    if (typeof window.IntersectionObserver !== 'function') return;
+    var first = true;
+    var io = new window.IntersectionObserver(
+      function (entries) {
+        var n = 0;
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          io.unobserve(entry.target);
+          if (first) return; // 처음부터 보이던 칸
+          M.enter(entry.target, { opacity: 0, transform: 'translateY(14px)' }, n++ * 60);
+        });
+        first = false;
+      },
+      { rootMargin: '0px 0px -8% 0px' }
+    );
+    for (var i = 0; i < list.length; i++) io.observe(list[i]);
+  }
+
   var ready = new Promise(function (resolve) {
     var run = function () {
       mount().then(resolve, function () {
         resolve({ session: null });
       });
+      barTitle();
+      reveals();
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
     else run();
