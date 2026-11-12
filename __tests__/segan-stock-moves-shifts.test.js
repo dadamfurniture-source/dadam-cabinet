@@ -414,6 +414,7 @@ describe('구매 · 재고 대시보드 숫자', () => {
       reserved: 0,
       old: 0,
       boards: [{ name: 'PB · 18T', unit: '장', qty: 7 }],
+      value: null,
     });
   });
 
@@ -459,6 +460,41 @@ describe('구매 · 재고 대시보드 숫자', () => {
     expect(seen('meStockNumbers')).toBe(false);
     await load({ hash: '#dash-stock', summary: () => fail(409, 'db_pending', 'x') });
     expect(seen('meStockNumbers')).toBe(false);
+  });
+});
+
+describe('재고 금액 (대표 · 실장 답에만 온다)', () => {
+  test('valueOf — 꼴이 아니면 null', () => {
+    const M = mod('segan/stock-moves.js', 'SeganStockMoves');
+    expect(M.valueOf(undefined)).toBeNull();
+    expect(M.valueOf({ total: -1 })).toBeNull();
+    expect(M.valueOf({ total: '2365000', board: 2331000, hardware: 34000, unpriced: 1 })).toEqual({
+      total: 2365000,
+      board: 2331000,
+      hardware: 34000,
+      unpriced: 1,
+    });
+  });
+
+  test('서버가 value 를 주면 맨 위에 금액 칸, 안 주면 없다', async () => {
+    await load({
+      hash: '#dash-stock',
+      summary: () =>
+        ok({
+          ...SUMMARY(),
+          value: { total: 2365000, board: 2331000, hardware: 34000, unpriced: 1 },
+        }),
+    });
+    const worth = $('meStockNumbers').querySelector('[data-sn="worth"]');
+    expect([...worth.children].map(text)).toEqual([
+      '재고 금액 (판재 · 철물)2,365,000원',
+      '판재2,331,000원',
+      '철물34,000원',
+      '단가 없는 품목1종',
+    ]);
+    expect(worth.nextElementSibling.classList.contains('od-kpi')).toBe(true);
+    await load({ hash: '#dash-stock' });
+    expect($('meStockNumbers').querySelector('[data-sn="worth"]')).toBeNull();
   });
 });
 
@@ -616,6 +652,50 @@ describe('근무 일정', () => {
     open();
     await flush();
     expect(calls.fetch.filter((c) => c.method === 'PUT')).toHaveLength(1);
+  });
+
+  test('월 보기 — 여섯 주를 한 번에 읽어 날마다 쉬는 사람을 적는다. 달 넘기기 · 날을 누르면 그 주로', async () => {
+    const calls = await load({ hash: '#schedule' });
+    expect(
+      [...box().querySelectorAll('[data-act="view"]')].map((b) => [
+        text(b),
+        b.getAttribute('aria-pressed'),
+      ])
+    ).toEqual([
+      ['주', 'true'],
+      ['월', 'false'],
+    ]);
+    await press(box().querySelector('[data-act="view"][data-view="month"]'));
+    expect(asked(calls, '/company/shifts').pop()).toBe(
+      'GET /company/shifts?from=2026-10-26&to=2026-12-06'
+    );
+    expect(range()).toBe('2026년 11월');
+    expect(box().querySelectorAll('.ws-month tbody tr')).toHaveLength(6);
+    const day = (d) => box().querySelector(`[data-act="day"][data-date="${d}"]`);
+    expect(text(day('2026-11-13'))).toBe('13이름 없음 연차');
+    expect(day('2026-11-13').getAttribute('aria-label')).toBe('11.13 이름 없음 연차 — 그 주 열기');
+    expect(day('2026-11-12').closest('td').classList.contains('ws-today')).toBe(true);
+    expect(day('2026-10-26').closest('td').classList.contains('ws-out')).toBe(true);
+    expect(text(box().querySelector('[data-ws="count"]'))).toBe('이 달 쉬는 날 3건');
+    expect(box().querySelector('[data-act="pick"]')).toBeNull();
+    expect(box().querySelector('[data-act="today"]')).toBeNull();
+    await press(box().querySelector('[data-act="next"]'));
+    expect(range()).toBe('2026년 12월');
+    expect(asked(calls, '/company/shifts').pop()).toBe(
+      'GET /company/shifts?from=2026-11-30&to=2027-01-10'
+    );
+    await press(box().querySelector('[data-act="today"]'));
+    expect(range()).toBe('2026년 11월');
+    await press(day('2026-11-18'));
+    expect(range()).toBe('11.16 ~ 11.22');
+    expect(
+      box().querySelector('[data-act="view"][data-view="week"]').getAttribute('aria-pressed')
+    ).toBe('true');
+    expect(text(cell('member:u-1', 2))).toBe('휴무');
+    const W = S();
+    expect(W.monthStart('2026-11-18')).toBe('2026-11-01');
+    expect(W.addMonths('2026-12-01', 1)).toBe('2027-01-01');
+    expect(W.addMonths('2026-01-01', -1)).toBe('2025-12-01');
   });
 
   test('직원(can_manage 아님) — 보기만. 누르는 칸이 없고, Agent 직원에게도 메뉴 줄이 나온다', async () => {

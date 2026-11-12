@@ -9,12 +9,13 @@
              segan/me.js 가 업체 칸을 읽은 뒤 SeganStockMoves.load(sb, session, partnerMe) 를 부른다.
    서버      workflow-api (본인 토큰 · 응답은 { success, data })
                GET /stock/moves     { items[{ id, item_name, item_spec, unit, kind, qty, qty_after, ref, note, by, created_at }] } 새 것부터 200건
-               GET /stock/summary   { short { board, hardware }, expected, offcuts { left, reserved, old }, boards[{ name, spec, unit, qty }] }
+               GET /stock/summary   { short { board, hardware }, expected, offcuts { left, reserved, old }, boards[{ name, spec, unit, qty }],
+                                      value { total, board, hardware, unpriced } — 재고 금액(원), 대표 · 실장 답에만 }
    화면      입출고 — 종류(전체 · 입고 · 출고 · 실사 조정)로 거르는 표: 때 · 품목 · 종류 · 수량 · 남은 수량 · 어디에 · 적은 사람.
              숫자 — 안전 재고 아래(판재 · 철물) · 입고 예정 · 자투리(남음 · 예약 · 3달 넘음) 칸과 재질별 판재 줄.
              칸을 누르면 그 화면으로 간다.
    못 읽으면  그 칸만 감춘다 (입출고는 메뉴 줄도 없다, 숫자는 대시보드에 안 나온다).
-   없는 것    재고 금액 · 이번 달 매입 (단가가 없다) · 작업지시 자재 상태.
+   없는 것    이번 달 매입 · 작업지시 자재 상태. 재고 금액은 서버가 줄 때만(대표 · 실장 · 단가 칸이 있을 때) 그린다.
    정보      품목 이름 · 메모는 화면에만 그린다 — 알림 · 기기 저장에 싣지 않는다. 고객 정보는 다루지 않는다.
    ============================================================ */
 /* global window, document, fetch */
@@ -44,6 +45,10 @@
     pieces: '조각',
     boards: '판재 재고',
     boardsNone: '쓰는 판재가 없습니다.',
+    worth: '재고 금액 (판재 · 철물)',
+    won: '원',
+    worthParts: ['판재', '철물'],
+    unpriced: '단가 없는 품목',
   };
 
   var J = { base: '', sb: null, session: null, moves: null, filter: 'all', sum: null };
@@ -153,7 +158,25 @@
           return name ? { name: name, unit: str(b.unit).trim(), qty: num(b.qty) || 0 } : null;
         })
         .filter(Boolean),
+      value: valueOf(d.value),
     };
+  }
+
+  /** 재고 금액 — 대표 · 실장 답에만 온다. 꼴이 아니면 null (칸을 그리지 않는다) */
+  function valueOf(v) {
+    var o = obj(v);
+    var total = num(o.total);
+    if (total === null || total < 0) return null;
+    return {
+      total: Math.round(total),
+      board: Math.round(num(o.board) || 0),
+      hardware: Math.round(num(o.hardware) || 0),
+      unpriced: count(o.unpriced),
+    };
+  }
+
+  function wonText(n) {
+    return Math.round(n).toLocaleString('ko-KR') + TEXT.won;
   }
 
   async function token() {
@@ -301,7 +324,32 @@
     b.innerHTML =
       '<h3 class="me-pt-sub" id="meStockNumbersTitle">' +
       esc(TEXT.numbers) +
-      '</h3><dl class="od-kpi as-kpi">' +
+      '</h3>' +
+      (s.value
+        ? '<dl class="od-kpi as-kpi sn-worth" data-sn="worth"><div><dt>' +
+          esc(TEXT.worth) +
+          '</dt><dd>' +
+          esc(wonText(s.value.total)) +
+          '</dd></div><div><dt>' +
+          esc(TEXT.worthParts[0]) +
+          '</dt><dd>' +
+          esc(wonText(s.value.board)) +
+          '</dd></div><div><dt>' +
+          esc(TEXT.worthParts[1]) +
+          '</dt><dd>' +
+          esc(wonText(s.value.hardware)) +
+          '</dd></div>' +
+          (s.value.unpriced
+            ? '<div><dt>' +
+              esc(TEXT.unpriced) +
+              '</dt><dd>' +
+              s.value.unpriced +
+              esc(TEXT.kinds) +
+              '</dd></div>'
+            : '') +
+          '</dl>'
+        : '') +
+      '<dl class="od-kpi as-kpi">' +
       kpi(
         'short-board',
         TEXT.shortBoard,
@@ -390,6 +438,7 @@
     movesOf: movesOf,
     signed: signed,
     summaryOf: summaryOf,
+    valueOf: valueOf,
     whenText: whenText,
     state: J,
     load: load,

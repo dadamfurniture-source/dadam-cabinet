@@ -9,7 +9,8 @@
              다담 본사 구성원 · Manager 업체 · 고객에게는 묻지도 않는다. 대표 · 실장인지는 서버 답(can_manage)을 따른다.
              segan/me.js 가 업체 칸(segan/partner.js)을 읽은 뒤 SeganStock.load(sb, session, partnerMe) 를 부른다.
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
-               GET   /stock/items               { can_manage, suppliers[{ id, name }], items[…] }
+               GET   /stock/items               { can_manage, priced, suppliers[{ id, name }], items[…] }
+                                                단가(unit_price) · priced 는 대표 · 실장 답에만 온다 — 왔을 때만 단가 칸을 그린다
                POST  /stock/items               품목 더하기 (대표 · 실장)
                PATCH /stock/items/:id           고치기 · 숨기기 · 입고 예정 (대표 · 실장)
                POST  /stock/items/:id/moves     { kind: in|out|adjust, qty, ref?, note? } → { move, item }
@@ -56,6 +57,11 @@
     safety: '안전 재고',
     supplier: '공급처 (선택)',
     first: '지금 수량 (선택)',
+    price: '단가 (원, 선택)',
+    priceFact: '단가',
+    worth: '재고 금액',
+    won: '원',
+    needPrice: '단가는 0 이상의 원 단위 숫자로 적어 주세요.',
     memo: '메모 (선택)',
     expectedQty: '입고 예정 수량',
     expectedOn: '받을 날',
@@ -108,6 +114,7 @@
     me: null,
     ready: false,
     canManage: false,
+    priced: false, // 단가 칸을 쓰나 — 서버가 대표 · 실장에게 priced: true 라고 했을 때만
     items: [],
     suppliers: [],
     view: { board: fresh(), hardware: fresh() },
@@ -214,6 +221,7 @@
       expectedQty: eq !== null && eq > 0 && dayText(r.expected_on) ? eq : null,
       expectedOn: eq !== null && eq > 0 && dayText(r.expected_on) ? r.expected_on : '',
       memo: str(r.memo).trim(),
+      price: num(r.unit_price), // 대표 · 실장 답에만 온다 (없으면 null)
       active: active,
     };
   }
@@ -310,7 +318,7 @@
   }
 
   /** 품목 칸 → 서버로 보낼 몸 (id 가 있으면 고치기). 틀리면 { error, focus } */
-  function itemBody(kind, form, editing) {
+  function itemBody(kind, form, editing, priced) {
     var f = obj(form);
     var name = str(f.name).trim();
     var unit = str(f.unit).trim();
@@ -326,6 +334,16 @@
       supplier_id: str(f.supplier) || null,
       memo: str(f.memo).trim() || null,
     };
+    if (priced) {
+      var pt = str(f.price).trim().replace(/,/g, '');
+      if (!pt) body.unit_price = null;
+      else {
+        var price = num(pt);
+        if (price === null || price < 0 || Math.round(price) !== price)
+          return { error: TEXT.needPrice, focus: 'price' };
+        body.unit_price = price;
+      }
+    }
     if (editing) {
       var eq = str(f.expectedQty).trim();
       var eo = str(f.expectedOn).trim();
@@ -500,6 +518,7 @@
         ? input(kind, 'expectedQty', TEXT.expectedQty, f.expectedQty, { num: true }) +
           input(kind, 'expectedOn', TEXT.expectedOn, f.expectedOn, { type: 'date' })
         : input(kind, 'first', TEXT.first, f.first, { num: true })) +
+      (J.priced ? input(kind, 'price', TEXT.price, f.price, { num: true }) : '') +
       input(kind, 'memo', TEXT.memo, f.memo, { max: LIMIT.memo, wide: true }) +
       '</div>' +
       (editing ? '<small class="cp-hint">' + esc(TEXT.expectedHint) + '</small>' : '') +
@@ -607,6 +626,10 @@
         qtyText(c.expectedQty) + c.unit + ' · ' + dayText(c.expectedOn),
       ]);
     if (c.supplier) facts.push(['공급처', c.supplier.name]);
+    if (J.priced && c.price !== null) {
+      facts.push([TEXT.priceFact, qtyText(c.price) + TEXT.won]);
+      facts.push([TEXT.worth, qtyText(Math.round(c.qty * c.price)) + TEXT.won]);
+    }
     if (c.memo) facts.push(['메모', c.memo]);
     return (
       '<div class="st-detail" data-st="detail"><dl class="me-facts">' +
@@ -842,6 +865,7 @@
     var d = obj(r.body.data);
     J.items = list;
     J.canManage = d.can_manage === true;
+    J.priced = J.canManage && d.priced === true;
     J.suppliers = (Array.isArray(d.suppliers) ? d.suppliers : [])
       .map(function (s) {
         return { id: str(obj(s).id), name: str(obj(s).name) };
@@ -909,6 +933,7 @@
       expectedQty: c.expectedQty === null ? '' : String(c.expectedQty),
       expectedOn: c.expectedOn,
       memo: c.memo,
+      price: c.price === null ? '' : String(c.price),
     };
     clearNote(v);
     render(kind);
@@ -929,7 +954,7 @@
     keep(kind);
     var v = J.view[kind];
     var editing = v.mode === 'edit' && !!v.open;
-    var made = itemBody(kind, v.form, editing);
+    var made = itemBody(kind, v.form, editing, J.priced);
     clearNote(v);
     if (made.error) {
       v.err = made.error;
@@ -1081,6 +1106,7 @@
     J.items = [];
     J.suppliers = [];
     J.canManage = false;
+    J.priced = false;
     J.view = { board: fresh(), hardware: fresh() };
     J.busy = false;
     if (!J.base || !session || !canSee(me)) return;

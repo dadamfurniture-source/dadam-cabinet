@@ -10,7 +10,8 @@
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET /company/shifts?from=&to=   { can_manage, today, people[{ kind, id, name, role }], items[{ person_kind, person_id, date, kind, note }] }
                PUT /company/shifts             { person_kind, person_id, date, kind | null, note? } — null 이면 지운다(다시 근무)
-   화면      한 주(월 ~ 일) 표 — 줄 = 사람, 칸 = 그날. 칸에 쉬는 종류가 글자로 적힌다 (빈 칸 = 근무). 오늘 칸은 굵은 선.
+   화면      주 보기 · 월 보기. 월 보기는 여섯 주 달력에 날마다 쉬는 사람을 적는다(보기만) — 날을 누르면 그 주로 간다.
+             주 보기: 한 주(월 ~ 일) 표 — 줄 = 사람, 칸 = 그날. 칸에 쉬는 종류가 글자로 적힌다 (빈 칸 = 근무). 오늘 칸은 굵은 선.
              지난 주 · 다음 주 · 이번 주 단추. 대표 · 실장은 칸을 눌러 그 아래에서 종류와 메모를 고른다.
    못 읽으면  칸째 감춘다 — 그때 메뉴는 「준비 중」 안내로 남는다 (segan/me.js).
    정보      사람 이름 · 메모는 화면에만 그린다 — 알림 · 기기 저장에 싣지 않는다.
@@ -48,6 +49,16 @@
     today: '오늘',
     count: '이 주 쉬는 날',
     countUnit: '건',
+    viewWeek: '주',
+    viewMonth: '월',
+    prevMonth: '지난 달',
+    nextMonth: '다음 달',
+    thisMonth: '이번 달',
+    countMonth: '이 달 쉬는 날',
+    noteMonth: '날마다 쉬는 사람이 적힙니다. 날을 누르면 그 주가 열립니다.',
+    allWork: '모두 근무',
+    openWeek: '그 주 열기',
+    more: '명 더',
   };
 
   var J = {
@@ -58,6 +69,8 @@
     canManage: false,
     today: '',
     from: '',
+    view: 'week', // week | month
+    month: '', // 월 보기의 그 달 첫날
     people: [],
     items: {},
     pick: null,
@@ -301,6 +314,7 @@
   function render() {
     var b = box();
     if (!b || !J.ready) return;
+    if (J.view === 'month') return renderMonth();
     var days = weekOf(J.from);
     var n = 0;
     J.people.forEach(function (p) {
@@ -314,7 +328,9 @@
       '</h3><p class="mk-note">' +
       esc(J.canManage ? TEXT.noteManage : TEXT.note) +
       '</p>' +
-      '<div class="ps-bar ws-nav"><button type="button" class="mk-btn" data-act="prev"' +
+      '<div class="ps-bar ws-nav">' +
+      viewToggleHtml() +
+      '<button type="button" class="mk-btn" data-act="prev"' +
       dis() +
       '>‹ ' +
       esc(TEXT.prev) +
@@ -401,8 +417,12 @@
   }
 
   /** 그 주를 읽는다 — 읽었으면 true */
-  async function readWeek(from) {
-    var r = await call('GET', '/company/shifts?from=' + from + '&to=' + addDays(from, 6));
+  /** from 부터 span 일(기본 한 주)을 읽는다 */
+  async function readWeek(from, span) {
+    var r = await call(
+      'GET',
+      '/company/shifts?from=' + from + '&to=' + addDays(from, (span || 7) - 1)
+    );
     var d = r.ok ? obj(r.body.data) : null;
     if (!d || !Array.isArray(d.people) || !Array.isArray(d.items)) return false;
     J.from = from;
@@ -413,18 +433,176 @@
     return true;
   }
 
-  async function go(from) {
+  async function go(from, span) {
     if (J.busy) return;
     J.busy = true;
     J.msg = '';
     J.err = '';
     render();
-    var ok = await readWeek(from);
+    var ok = await readWeek(from, span);
     J.busy = false;
     if (ok) J.pick = null;
     else J.err = TEXT.generic;
     render();
     focusOn('[data-ws="range"]');
+  }
+
+  // ── 월 보기 ───────────────────────────────────────────────────
+
+  /** 그날이 든 달의 첫날 */
+  function monthStart(d) {
+    return d.slice(0, 7) + '-01';
+  }
+  /** 그 달 첫날에서 n 달 뒤 첫날 */
+  function addMonths(first, n) {
+    var t = new Date(ms(first));
+    return iso(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + n, 1));
+  }
+  /** 달 이름 — '2026년 11월' */
+  function monthName(first) {
+    return Number(first.slice(0, 4)) + '년 ' + Number(first.slice(5, 7)) + '월';
+  }
+  /** 그날 쉬는 사람들 — [{ name, kind }] (사람 차례 그대로) */
+  function offOn(d) {
+    var out = [];
+    J.people.forEach(function (p) {
+      var s = J.items[keyOf(p.kind, p.id, d)];
+      if (s) out.push({ name: nameOf(p), kind: s.kind });
+    });
+    return out;
+  }
+
+  function viewToggleHtml() {
+    return (
+      '<div class="cs-choices ws-view" role="group" aria-label="보기">' +
+      ['week', 'month']
+        .map(function (v) {
+          var on = J.view === v;
+          return (
+            '<button type="button" class="mk-btn' +
+            (on ? ' mk-btn--solid' : '') +
+            '" data-act="view" data-view="' +
+            v +
+            '" aria-pressed="' +
+            on +
+            '"' +
+            dis() +
+            '>' +
+            esc(v === 'week' ? TEXT.viewWeek : TEXT.viewMonth) +
+            '</button>'
+          );
+        })
+        .join('') +
+      '</div>'
+    );
+  }
+
+  /** 월 보기 — 여섯 주 달력. 날마다 쉬는 사람을 적는다. 날을 누르면 그 주(주 보기)로 간다 */
+  function renderMonth() {
+    var b = box();
+    var first = J.month;
+    var n = 0;
+    var weeks = [];
+    for (var w = 0; w < 6; w++) weeks.push(weekOf(addDays(J.from, w * 7)));
+    var body = weeks
+      .map(function (days) {
+        return (
+          '<tr>' +
+          days
+            .map(function (d) {
+              var inMonth = d.slice(0, 7) === first.slice(0, 7);
+              var list = offOn(d);
+              if (inMonth) n += list.length;
+              var label =
+                md(d) +
+                ' ' +
+                (list.length
+                  ? list
+                      .map(function (x) {
+                        return x.name + ' ' + KIND_NAME[x.kind];
+                      })
+                      .join(', ')
+                  : TEXT.allWork);
+              return (
+                '<td class="ws-mcell' +
+                (inMonth ? '' : ' ws-out') +
+                (d === J.today ? ' ws-today' : '') +
+                '"><button type="button" class="ws-mbtn" data-act="day" data-date="' +
+                d +
+                '" aria-label="' +
+                esc(label + ' — ' + TEXT.openWeek) +
+                '"' +
+                dis() +
+                '><b>' +
+                Number(d.slice(8, 10)) +
+                '</b>' +
+                list
+                  .slice(0, 3)
+                  .map(function (x) {
+                    return '<span>' + esc(x.name) + ' <i>' + esc(KIND_NAME[x.kind]) + '</i></span>';
+                  })
+                  .join('') +
+                (list.length > 3
+                  ? '<span class="ws-more">+' + (list.length - 3) + esc(TEXT.more) + '</span>'
+                  : '') +
+                '</button></td>'
+              );
+            })
+            .join('') +
+          '</tr>'
+        );
+      })
+      .join('');
+    b.innerHTML =
+      '<h3 class="me-pt-sub" id="workShiftsTitle">' +
+      esc(TEXT.title) +
+      '</h3><p class="mk-note">' +
+      esc(TEXT.noteMonth) +
+      '</p><div class="ps-bar ws-nav">' +
+      viewToggleHtml() +
+      '<button type="button" class="mk-btn" data-act="prev"' +
+      dis() +
+      '>‹ ' +
+      esc(TEXT.prevMonth) +
+      '</button><b class="ws-range" data-ws="range">' +
+      esc(monthName(first)) +
+      '</b><button type="button" class="mk-btn" data-act="next"' +
+      dis() +
+      '>' +
+      esc(TEXT.nextMonth) +
+      ' ›</button>' +
+      (monthStart(J.today) === first
+        ? ''
+        : '<button type="button" class="mk-btn" data-act="today"' +
+          dis() +
+          '>' +
+          esc(TEXT.thisMonth) +
+          '</button>') +
+      '<p class="me-pt-msg ps-msg" data-ws="count">' +
+      esc(TEXT.countMonth + ' ' + n + TEXT.countUnit) +
+      '</p></div><p class="mk-error" data-ws="err" role="alert"' +
+      (J.err ? '' : ' hidden') +
+      '>' +
+      esc(J.err) +
+      '</p><div class="od-tablewrap"><table class="od-table ws-month"><thead><tr>' +
+      DOW.map(function (x) {
+        return '<th scope="col">' + esc(x) + '</th>';
+      }).join('') +
+      '</tr></thead><tbody>' +
+      body +
+      '</tbody></table></div>';
+    if (J.busy) b.setAttribute('aria-busy', 'true');
+    else b.removeAttribute('aria-busy');
+    b.hidden = false;
+    var sec = $('partner');
+    if (sec) sec.hidden = false;
+  }
+
+  /** 그 달(여섯 주)을 읽어 월 보기로 */
+  function goMonth(first) {
+    J.view = 'month';
+    J.month = first;
+    return go(mondayOf(first), 42);
   }
 
   async function setKind(to) {
@@ -459,10 +637,26 @@
     var el = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el || el.disabled || J.busy) return;
     var act = el.getAttribute('data-act');
-    if (act === 'prev') go(addDays(J.from, -7));
-    else if (act === 'next') go(addDays(J.from, 7));
-    else if (act === 'today') go(mondayOf(J.today));
-    else if (act === 'close') {
+    var month = J.view === 'month';
+    if (act === 'view') {
+      if (el.getAttribute('data-view') === 'month')
+        goMonth(monthStart(month ? J.month : addDays(J.from, 3)));
+      else {
+        // 주 보기로 — 이번 달이면 이번 주, 아니면 그 달의 첫 주
+        J.view = 'week';
+        go(mondayOf(month && monthStart(J.today) !== J.month ? J.month : J.today));
+      }
+    } else if (act === 'day') {
+      J.view = 'week';
+      go(mondayOf(el.getAttribute('data-date') || J.today));
+    } else if (act === 'prev' || act === 'next') {
+      var step = act === 'prev' ? -1 : 1;
+      if (month) goMonth(addMonths(J.month, step));
+      else go(addDays(J.from, step * 7));
+    } else if (act === 'today') {
+      if (month) goMonth(monthStart(J.today));
+      else go(mondayOf(J.today));
+    } else if (act === 'close') {
       J.pick = null;
       J.msg = '';
       J.err = '';
@@ -500,6 +694,8 @@
     J.err = '';
     J.busy = false;
     J.canManage = false;
+    J.view = 'week';
+    J.month = '';
     // 한국 시간의 오늘 — 서버가 답하면 그 값으로 바꾼다
     J.today = iso(Date.now() + 9 * 3600 * 1000);
     if (!J.base || !session || !canSee(me)) return;
@@ -522,6 +718,8 @@
     mondayOf: mondayOf,
     addDays: addDays,
     weekOf: weekOf,
+    monthStart: monthStart,
+    addMonths: addMonths,
     personOf: personOf,
     itemsOf: itemsOf,
     state: J,
