@@ -7,10 +7,12 @@
  *       items [{ id, kind, name, spec, unit, qty, safety_qty, short, supplier { id, name } | null,
  *                expected_qty, expected_on, memo, active, updated_at }] }
  *     short = 쓰는 품목이고 남은 수량이 안전 재고보다 적다. 안 쓰는(숨긴) 품목은 대표 · 실장에게만 싣는다.
+ *     단가 unit_price(원)는 원가라서 대표 · 실장에게만 싣는다 (직원 답에는 칸이 없다). priced = 단가 칸이 있나 (DB 0061).
+ *     0061 적용 전이면 단가 없이 읽고 priced: false — 그때 단가를 보내면 409 db_pending.
  *   POST  /stock/items                         품목 더하기 (대표 · 실장)
- *     { kind, name, spec?, unit, safety_qty?, supplier_id?, memo?, qty? } — qty 가 있으면 처음 수량을 실사 조정 기록으로 넣는다
+ *     { kind, name, spec?, unit, safety_qty?, supplier_id?, memo?, unit_price?, qty? } — qty 가 있으면 처음 수량을 실사 조정 기록으로 넣는다
  *   PATCH /stock/items/:id                     품목 고치기 (대표 · 실장)
- *     { name?, spec?, unit?, safety_qty?, supplier_id?, memo?, active?, expected_qty?, expected_on? }
+ *     { name?, spec?, unit?, safety_qty?, supplier_id?, memo?, unit_price?, active?, expected_qty?, expected_on? }
  *     입고 예정은 수량 · 받을 날을 같이 보낸다 (둘 다 null 이면 지운다). 남은 수량(qty)은 여기서 못 바꾼다 — 입출고로만.
  *   POST  /stock/items/:id/moves               입출고 한 번 { kind: in|out|adjust, qty, ref?, note? }
  *     입고 · 출고는 구성원 누구나, 실사 조정(adjust — 더하거나 빼는 양)은 대표 · 실장만.
@@ -63,6 +65,8 @@ export const REF_MAX = 60;
 export const NOTE_MAX = 200;
 /** 수량 한도 — numeric(12,2) 안쪽 */
 export const QTY_MAX = 9999999;
+/** 단가 한도(원) — DB 0061 제약과 같다 */
+export const PRICE_MAX = 100000000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const ITEM_COLUMNS =
@@ -75,6 +79,13 @@ function dbPending() {
 }
 /** 표 · 칸 · 함수가 아직 없다 (0059 전) */
 const isMissing = (e) => e instanceof DbError && /PGRST20[245]|42P01|42703|42883/.test(String(e.message || ''));
+/** 단가 칸만 없다 (0059 는 적용, 0061 전) */
+export const isPriceMissing = (e) => isMissing(e) && String(e.message || '').includes('unit_price');
+function pricePending() {
+  const err = new ConflictError('DB 0061 적용 전입니다 — 단가는 적용 뒤에 적을 수 있습니다');
+  err.code = 'db_pending';
+  return err;
+}
 const codeIn = (e, code) => e instanceof DbError && String(e.message || '').includes(`"${code}"`);
 async function db(fn) {
   try {
@@ -144,6 +155,16 @@ export function itemInput(body, { partial = false } = {}) {
       throw new ValidationError('공급처를 다시 골라 주세요', { field: 'supplier_id' });
     out.supplier_id = body.supplier_id;
   }
+  if (has(body, 'unit_price')) {
+    const v = body.unit_price;
+    if (v === null || (typeof v === 'string' && !v.trim())) out.unit_price = null;
+    else {
+      const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+      if (!Number.isInteger(n) || n < 0 || n > PRICE_MAX)
+        throw new ValidationError('단가는 0 이상의 원 단위 숫자입니다', { field: 'unit_price' });
+      out.unit_price = n;
+    }
+  }
   if (partial) {
     if (has(body, 'active')) {
       if (typeof body.active !== 'boolean') throw new ValidationError('active 는 true · false 입니다', { field: 'active' });
@@ -182,10 +203,12 @@ export function moveInput(body) {
 
 const num = (v) => (v === null || v === undefined ? null : Number(v));
 
-function itemOut(r, supplierName) {
+/** price — 단가를 싣는가 (대표 · 실장이고 칸이 있을 때만) */
+function itemOut(r, supplierName, { price = false } = {}) {
   const qty = num(r.qty) || 0;
   const safety = num(r.safety_qty) || 0;
   return {
+    ...(price ? { unit_price: num(r.unit_price) } : {}),
     id: r.id,
     kind: r.kind,
     name: r.name,
@@ -228,6 +251,7 @@ async function assertSupplier(env, companyId, id) {
 }
 
 function mapItemWrite(e) {
+  if (isPriceMissing(e)) return pricePending();
   if (isMissing(e)) return dbPending();
   if (e instanceof ConflictError || codeIn(e, PG_UNIQUE_VIOLATION)) {
     const err = new ConflictError('같은 이름 · 규격의 품목이 이미 있습니다');
@@ -252,17 +276,33 @@ export async function listStockItems(env, { user, query = {} }) {
   };
   if (kind) q.kind = `eq.${kind}`;
   if (!canAct) q.active = 'eq.true';
-  const [rows, suppliers] = await Promise.all([
-    db(() => selectMany(env, 'stock_items', q)),
+  const [read, suppliers] = await Promise.all([
+    canAct ? selectPriced(env, q) : db(() => selectMany(env, 'stock_items', q)).then((rows) => ({ rows, priced: false })),
     suppliersOf(env, company.id),
   ]);
   const supplierName = new Map(suppliers.map((s) => [s.id, s.name]));
-  return {
+  const out = {
     company: { id: company.id, name: company.name },
     can_manage: canAct,
     suppliers: canAct ? suppliers.filter((s) => s.active !== false).map((s) => ({ id: s.id, name: s.name })) : [],
-    items: (rows || []).map((r) => itemOut(r, supplierName)),
+    items: (read.rows || []).map((r) => itemOut(r, supplierName, { price: read.priced })),
   };
+  if (canAct) out.priced = read.priced;
+  return out;
+}
+
+/** 단가 칸까지 읽는다 — 칸이 아직 없으면(0061 전) 빼고 다시 읽는다. { rows, priced } */
+export async function selectPriced(env, query) {
+  try {
+    const rows = await selectMany(env, 'stock_items', { ...query, select: `${query.select},unit_price` });
+    return { rows: rows || [], priced: true };
+  } catch (e) {
+    if (!isPriceMissing(e)) {
+      if (isMissing(e)) throw dbPending();
+      throw e;
+    }
+  }
+  return { rows: (await db(() => selectMany(env, 'stock_items', query))) || [], priced: false };
 }
 
 async function itemOf(env, companyId, id) {
@@ -276,6 +316,7 @@ async function itemOf(env, companyId, id) {
 }
 
 async function oneItemOut(env, companyId, row) {
+  const price = has(row, 'unit_price');
   const supplierName = new Map();
   if (row.supplier_id) {
     const s = await selectOne(env, 'counterparties', {
@@ -285,7 +326,7 @@ async function oneItemOut(env, companyId, row) {
     });
     if (s) supplierName.set(s.id, s.name);
   }
-  return itemOut(row, supplierName);
+  return itemOut(row, supplierName, { price });
 }
 
 async function runMove(env, companyId, itemId, move, userId) {

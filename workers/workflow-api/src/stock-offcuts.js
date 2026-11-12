@@ -15,7 +15,9 @@
  *     「라벨 인쇄」 기록을 조각마다 남긴다.
  *   GET   /stock/summary                 구매 · 재고 숫자 (구성원)
  *     { short { board, hardware }, expected, offcuts { left, reserved, old },
- *       boards [{ name, spec, unit, qty }] (남은 수량 많은 판재부터 BOARDS_TOP) }
+ *       boards [{ name, spec, unit, qty }] (남은 수량 많은 판재부터 BOARDS_TOP),
+ *       value { total, board, hardware, unpriced } }   재고 금액(원) = 남은 수량 × 단가 — 대표 · 실장에게만, 단가 칸이 있을 때만(DB 0061).
+ *                                                      unpriced = 남은 수량이 있는데 단가가 없는 품목 수 (금액에서 빠진다)
  *     old = 들어온 지 OFFCUT_OLD_DAYS 일이 넘은 남음 · 예약 조각.
  *
  * 누가       stock.js 와 같다 — 다담 공장 · active Expert · Agent 구성원 (stockCompanyOf). 자투리는 등록 · 바꾸기 모두 구성원 누구나
@@ -27,7 +29,7 @@
  */
 
 import { ConflictError, DbError, NotFoundError, ValidationError, insertMany, insertOne, selectMany, selectOne, updateBy } from './supabase.js';
-import { stockCompanyOf, STOCK_ITEMS_LIMIT } from './stock.js';
+import { stockCompanyOf, selectPriced, STOCK_ITEMS_LIMIT } from './stock.js';
 import { membersOf } from './company-assignee.js';
 import { qrSvg } from './util/qr.js';
 
@@ -297,16 +299,16 @@ export async function makeOffcutLabels(env, { user, body }) {
 
 /** GET /stock/summary */
 export async function getStockSummary(env, { user, nowMs = Date.now() }) {
-  const { company } = await stockCompanyOf(env, user);
-  const [items, cuts] = await Promise.all([
-    db(() =>
-      selectMany(env, 'stock_items', {
-        company_id: `eq.${company.id}`,
-        active: 'eq.true',
-        select: 'kind,name,spec,unit,qty,safety_qty,expected_qty',
-        limit: String(STOCK_ITEMS_LIMIT),
-      })
-    ),
+  const { company, canAct } = await stockCompanyOf(env, user);
+  const itemQuery = {
+    company_id: `eq.${company.id}`,
+    active: 'eq.true',
+    select: 'kind,name,spec,unit,qty,safety_qty,expected_qty',
+    limit: String(STOCK_ITEMS_LIMIT),
+  };
+  const [read, cuts] = await Promise.all([
+    // 단가는 원가 — 대표 · 실장일 때만 읽는다
+    canAct ? selectPriced(env, itemQuery) : db(() => selectMany(env, 'stock_items', itemQuery)).then((rows) => ({ rows, priced: false })),
     db(() =>
       selectMany(env, 'stock_offcuts', {
         company_id: `eq.${company.id}`,
@@ -316,6 +318,7 @@ export async function getStockSummary(env, { user, nowMs = Date.now() }) {
       })
     ),
   ]);
+  const items = read.rows || [];
   const short = { board: 0, hardware: 0 };
   let expected = 0;
   for (const i of items || []) {
@@ -333,5 +336,20 @@ export async function getStockSummary(env, { user, nowMs = Date.now() }) {
     .map((i) => ({ name: i.name, spec: i.spec || '', unit: i.unit, qty: Number(i.qty) || 0 }))
     .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ko'))
     .slice(0, BOARDS_TOP);
-  return { short, expected, offcuts, boards };
+  const out = { short, expected, offcuts, boards };
+  if (read.priced) {
+    const value = { total: 0, board: 0, hardware: 0, unpriced: 0 };
+    for (const i of items) {
+      const qty = Number(i.qty) || 0;
+      if (i.unit_price === null || i.unit_price === undefined) {
+        if (qty > 0) value.unpriced += 1;
+        continue;
+      }
+      const won = Math.round(qty * Number(i.unit_price));
+      value.total += won;
+      if (has(value, i.kind)) value[i.kind] += won;
+    }
+    out.value = value;
+  }
+  return out;
 }

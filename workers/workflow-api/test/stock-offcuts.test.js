@@ -78,18 +78,19 @@ function tables() {
       { id: rid(53), company_id: B, offcut_id: CUT_B, type: 'added', detail: null, actor_user_id: OWNER_B, created_at: daysAgo(1) },
     ],
     stock_items: [
-      { id: rid(61), company_id: A, kind: 'hardware', name: '경첩', spec: '', unit: '개', qty: 40, safety_qty: 120, expected_qty: 100, active: true },
+      { id: rid(61), company_id: A, kind: 'hardware', name: '경첩', spec: '', unit: '개', qty: 40, safety_qty: 120, expected_qty: 100, active: true, unit_price: 850 },
       { id: rid(62), company_id: A, kind: 'hardware', name: '레일', spec: '', unit: '쌍', qty: 30, safety_qty: 20, expected_qty: null, active: true },
-      { id: rid(63), company_id: A, kind: 'board', name: 'PB 화이트', spec: '18T', unit: '장', qty: 126, safety_qty: 60, expected_qty: null, active: true },
+      { id: rid(63), company_id: A, kind: 'board', name: 'PB 화이트', spec: '18T', unit: '장', qty: 126, safety_qty: 60, expected_qty: null, active: true, unit_price: 18500 },
       { id: rid(64), company_id: A, kind: 'board', name: 'PB 그레이', spec: '18T', unit: '장', qty: 0, safety_qty: 20, expected_qty: 30, active: true },
       { id: rid(65), company_id: A, kind: 'board', name: '옛 판재', spec: '', unit: '장', qty: 0, safety_qty: 9, expected_qty: null, active: false },
-      { id: rid(66), company_id: B, kind: 'board', name: 'B 판재', spec: '', unit: '장', qty: 999, safety_qty: 0, expected_qty: null, active: true },
+      { id: rid(66), company_id: B, kind: 'board', name: 'B 판재', spec: '', unit: '장', qty: 999, safety_qty: 0, expected_qty: null, active: true, unit_price: 99999 },
     ],
   };
 }
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const fakeOf = (opts = {}) => createFake({ tables: tables(), nowMs: NOW, ...opts });
+const OWNER_ONLY = uid(15);
 const call = (fake, path, token, opt) => callWorker(worker, fake, path, token, opt);
 const post = (fake, path, body, token = STAFF_A) => call(fake, path, token, { method: 'POST', body });
 const patch = (fake, id, body, token = STAFF_A) => call(fake, `/stock/offcuts/${id}`, token, { method: 'PATCH', body });
@@ -266,4 +267,25 @@ test('DB 0059 적용 전이면 409 db_pending', async () => {
   const fake = fakeOf({ before: (m, t) => (t.startsWith('stock_') ? json({ code: 'PGRST205', message: 'Could not find the table' }, 404) : null) });
   for (const path of ['/stock/offcuts', '/stock/summary']) assert.equal((await call(fake, path, OWNER_A)).json.code, 'db_pending', path);
   assert.equal((await post(fake, '/stock/offcuts', NEW)).json.code, 'db_pending');
+});
+
+test('재고 금액 — 대표 · 실장에게만. 남은 수량 × 단가, 단가 없는 품목은 빼고 센다 (숨긴 품목 · 남의 업체 뺌)', async () => {
+  const fake = fakeOf();
+  const o = (await call(fake, '/stock/summary', OWNER_A)).json.data;
+  // 경첩 40 × 850 = 34,000 · PB 화이트 126 × 18,500 = 2,331,000 · 레일(30개)은 단가 없음 · PB 그레이는 0장이라 세지 않는다
+  assert.deepEqual(o.value, { total: 2365000, board: 2331000, hardware: 34000, unpriced: 1 });
+  const s = (await call(fake, '/stock/summary', STAFF_A)).json;
+  assert.equal(JSON.stringify(s).includes('value'), false);
+  assert.equal(JSON.stringify(s).includes('unit_price'), false);
+  assert.equal(OWNER_ONLY.length, 36);
+});
+
+test('재고 금액 — DB 0061 적용 전이면 금액 없이 나머지 숫자만', async () => {
+  const fake = fakeOf({
+    before: (m, t, params) => (t === 'stock_items' && (params.get('select') || '').includes('unit_price') ? json({ code: '42703', message: 'column stock_items.unit_price does not exist' }, 400) : null),
+  });
+  const r = await call(fake, '/stock/summary', OWNER_A);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal('value' in r.json.data, false);
+  assert.deepEqual(r.json.data.short, { board: 1, hardware: 1 });
 });
