@@ -104,7 +104,11 @@ describe('홈 화면 (segan/index.html)', () => {
   test('홈 탭 · 넘기기 스크립트는 머리에서 바로(defer 없이) · 화면 스크립트는 없다', () => {
     expect(doc.body.getAttribute('data-tab')).toBe('home');
     expect(HTML).toMatch(/<script src="forward\.js\?v=\d+"><\/script>/);
-    expect(HTML.indexOf('forward.js')).toBeLessThan(HTML.indexOf('shell.css'));
+    // 스타일보다 먼저 — 넘길 주소면 그리기 전에 떠난다
+    const fwd = doc.querySelector('script[src^="forward.js"]');
+    const shell = doc.querySelector('link[rel="stylesheet"][href^="shell.css"]');
+    expect(fwd.hasAttribute('defer') || fwd.hasAttribute('async')).toBe(false);
+    expect(fwd.compareDocumentPosition(shell) & 4).toBe(4); // 4 = 뒤따른다 (DOCUMENT_POSITION_FOLLOWING)
     const local = $$('script[src]')
       .map((s) => s.getAttribute('src').replace(/\?v=\d+$/, ''))
       .filter((s) => !/^https:/.test(s));
