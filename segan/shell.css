@@ -3424,6 +3424,81 @@ button.sm-num[aria-pressed='true'] {
   max-width: 420px;
 }
 
+.ws-view {
+  margin-right: 8px;
+}
+
+/* 월 보기 — 여섯 주 달력. 날마다 쉬는 사람 이름과 종류를 글자로 */
+.ws-month {
+  min-width: 560px;
+  table-layout: fixed;
+}
+
+.ws-month th {
+  text-align: center;
+}
+
+.ws-month .ws-mcell {
+  height: 84px;
+  padding: 0;
+  vertical-align: top;
+  border-left: 1px solid var(--v5-line-12);
+}
+
+.ws-mbtn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 84px;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 300;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ws-mbtn:hover,
+.ws-mbtn:focus-visible {
+  background: var(--v5-line-12);
+}
+
+.ws-mbtn b {
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-mbtn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-mbtn i {
+  font-style: normal;
+  font-weight: 400;
+}
+
+.ws-more {
+  color: var(--v5-ink-60);
+}
+
+/* 오늘 — 굵은 테두리 */
+.ws-month .ws-today {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+/* 그 달이 아닌 날 — 흐리게 */
+.ws-out .ws-mbtn {
+  color: var(--v5-ink-60);
+}
+
 /* 라벨 인쇄 칸 — 화면에서는 감추고, 인쇄할 때는 이것만 보인다 */
 .so-print {
   display: none;

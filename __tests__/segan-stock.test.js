@@ -200,6 +200,7 @@ async function load(options = {}) {
     return ok({
       company: { id: CO, name: 'x' },
       can_manage: opts.manage,
+      ...(opts.manage && opts.priced ? { priced: true } : {}),
       suppliers: opts.manage ? [SUP, SUP2] : [],
       items: store.items.filter((i) => opts.manage || i.active).map(shortOf),
     });
@@ -440,6 +441,7 @@ describe('순수 함수', () => {
       expectedQty: 50,
       expectedOn: '2026-11-15',
       memo: '',
+      price: null,
       active: true,
     });
     expect(S.rowOf({ id: 'a', kind: 'board', name: '가', expected_qty: 5 }).expectedQty).toBeNull();
@@ -959,5 +961,58 @@ describe('안 보이는 때 — 메뉴는 「준비 중」으로 남는다', () 
     const calls = await load({ noWork: true });
     expect(asked(calls)).toEqual([]);
     expect(seen('stockHardware')).toBe(false);
+  });
+});
+
+describe('단가 (대표 · 실장 · 서버가 priced 라고 했을 때만)', () => {
+  const PRICED = () =>
+    ITEMS().map((i) => (i.id === 's-1' ? { ...i, unit_price: 850 } : { ...i, unit_price: null }));
+
+  test('itemBody — priced 일 때만 단가를 보낸다. 비우면 null, 쉼표는 떼고, 음수 · 소수 · 글자는 막는다', () => {
+    const S = mod();
+    const f = { name: 'PB', unit: '장' };
+    expect('unit_price' in S.itemBody('board', { ...f, price: '18500' }, false).body).toBe(false);
+    expect(S.itemBody('board', { ...f, price: '18,500' }, false, true).body.unit_price).toBe(18500);
+    expect(S.itemBody('board', { ...f, price: '' }, true, true).body.unit_price).toBeNull();
+    expect(S.itemBody('board', { ...f, price: '0' }, true, true).body.unit_price).toBe(0);
+    for (const bad of ['-1', '10.5', 'abc'])
+      expect(S.itemBody('board', { ...f, price: bad }, false, true)).toEqual({
+        error: S.TEXT.needPrice,
+        focus: 'price',
+      });
+  });
+
+  test('단가 칸 · 단가 · 재고 금액 줄이 나오고, 고치면 unit_price 를 보낸다', async () => {
+    const calls = await load({ priced: true, items: PRICED() });
+    await openRow('s-1');
+    expect(text(row('s-1').querySelector('.me-facts'))).toContain('단가850원재고 금액34,000원');
+    await press(act('edit'));
+    expect(field('price').value).toBe('850');
+    field('price').value = '900';
+    await press(act('save-item'));
+    expect(last(calls, 'PATCH').body.unit_price).toBe(900);
+    await openRow('s-1');
+    await openRow('s-2');
+    expect(text(row('s-2').querySelector('.me-facts'))).not.toContain('단가');
+    await press(act('add'));
+    expect(field('price')).not.toBeNull();
+  });
+
+  test('서버가 priced 라고 하지 않으면(DB 0061 전 · 직원) — 단가 칸도 줄도 없고 보내지도 않는다', async () => {
+    const calls = await load({ items: PRICED() });
+    await openRow('s-1');
+    expect(text(row('s-1').querySelector('.me-facts'))).not.toContain('단가');
+    await press(act('edit'));
+    expect(field('price')).toBeNull();
+    await press(act('save-item'));
+    expect('unit_price' in last(calls, 'PATCH').body).toBe(false);
+    await load({
+      partner: partnerOf('expert', 'staff'),
+      manage: false,
+      priced: true,
+      items: PRICED(),
+    });
+    await openRow('s-1');
+    expect(text(row('s-1').querySelector('.me-facts'))).not.toContain('단가');
   });
 });
