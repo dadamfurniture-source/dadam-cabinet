@@ -1,0 +1,65 @@
+{
+  "title": "0060 근무 일정 — 서버만(구성원도 못 읽음), 사람은 구성원 또는 작업자 하나, 한 사람 하루에 한 줄, 서버는 지울 수 있다 (scripts/rls-probe.mjs --migration database/migrations/0060_work_shifts.sql)",
+  "ids": ["company_x", "shift_a"],
+  "users": ["x_owner_user", "x_staff_user"],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active')",
+    "INSERT INTO public.work_shifts (id, company_id, member_user_id, work_date, kind, created_by) VALUES ({{shift_a}}, {{company_x}}, {{x_staff_user}}, current_date + 1, 'leave', {{x_owner_user}})"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "x_owner": { "role": "authenticated", "user": "x_owner_user" },
+    "x_staff": { "role": "authenticated", "user": "x_staff_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "읽기 — 서버만 (대표 · 본인도 브라우저로는 못 읽는다)",
+      "sql": "select count(*) from public.work_shifts where id = {{shift_a}}",
+      "expect": { "anon": "deny", "x_owner": "deny", "x_staff": "deny", "service_role": "1" }
+    },
+    {
+      "name": "구성원은 쓰지 못한다",
+      "sql": "insert into public.work_shifts (company_id, member_user_id, work_date, kind) values ({{company_x}}, {{x_staff_user}}, current_date + 2, 'off')",
+      "roles": ["x_owner", "x_staff"],
+      "expect": { "x_owner": "deny", "x_staff": "deny" }
+    },
+    {
+      "name": "한 사람 하루에 한 줄",
+      "sql": "insert into public.work_shifts (company_id, member_user_id, work_date, kind) values ({{company_x}}, {{x_staff_user}}, current_date + 1, 'off')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "같은 사람 다른 날은 된다",
+      "sql": "insert into public.work_shifts (company_id, member_user_id, work_date, kind) values ({{company_x}}, {{x_staff_user}}, current_date + 2, 'half')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "사람이 없으면 거절",
+      "sql": "insert into public.work_shifts (company_id, work_date, kind) values ({{company_x}}, current_date + 3, 'off')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "종류는 넷만",
+      "sql": "insert into public.work_shifts (company_id, member_user_id, work_date, kind) values ({{company_x}}, {{x_owner_user}}, current_date + 3, 'work')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "종류 바꾸기 — 서버는 고친다",
+      "sql": "with a as (update public.work_shifts set kind = 'out' where id = {{shift_a}} returning kind) select kind from a",
+      "roles": ["service_role"],
+      "expect": { "service_role": "out" }
+    },
+    {
+      "name": "쉬는 날 지우기 — 서버는 지운다",
+      "sql": "with a as (delete from public.work_shifts where id = {{shift_a}} returning 1) select count(*) from a",
+      "roles": ["service_role"],
+      "expect": { "service_role": "1" }
+    }
+  ]
+}
