@@ -672,7 +672,7 @@ describe('숨김 · 접근성 · 안전 영역', () => {
   test.each(TAB_PAGES)('%s — 공용 셸(shell.css · shell.js)과 자리표시 4종', (page) => {
     const html = read(`segan/${page}`);
     expect(html).toMatch(/<link rel="stylesheet" href="shell\.css\?v=\d+" \/>/);
-    expect(html).toMatch(/<script src="shell\.js\?v=\d+" defer><\/script>/);
+    expect(html).toMatch(/<script src="shell\.js\?v=\d+" defer blocking="render"><\/script>/);
     for (const slot of ['header', 'footer', 'tabbar'])
       expect(html).toContain(`data-segan-shell="${slot}"`);
     expect(html).toMatch(/<body class="sg-app" data-tab="\w+">/);

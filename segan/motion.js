@@ -19,8 +19,17 @@
      grow(el, scale, axis, delay)      막대 자라기 (transform scaleX · scaleY — 멈춘 모습은 scale 그대로)
      draw(path, delay)                 선 그리기 (stroke-dashoffset)
      rubber(over, dim) · project(v)    끌기 — 끝에서 고무줄 · 놓은 속도로 멈출 곳 (애플 WWDC 2018 식)
+     navType(from, to)                 화면 바꾸기 방향 — 'sg-forward' · 'sg-back' · '' (흐려지기)
+
+   화면 바꾸기 (문서 사이 — segan/shell.css 「화면 바꾸기」 칸과 짝)
+     들어온 쪽으로 나간다. 방향은 두 화면의 자리만으로 정한다 — 뒤로 가기에도 같은 셈이 거꾸로 맞는다.
+       탭 → 탭              폰 아래 탭 차례(홈 · 연출컷 · 시공사례 · 매거진 · 마이)대로 좌우
+       탭 → 하위 화면       오른쪽에서 들어온다 (sg-forward)
+       하위 화면 → 탭       왼쪽에서 돌아온다 (sg-back)
+       그 밖 · PC · 동작 줄이기   0.2초 흐려지기 (방향을 정하지 않는다)
+     첫 그림 전에 정해야 하므로 모든 앱 화면이 이 파일을 머리에서 바로(defer 없이) 싣는다.
    ============================================================ */
-/* global window, document, performance, CSS */
+/* global window, document, location, performance, CSS, URL */
 (function () {
   'use strict';
 
@@ -277,7 +286,76 @@
     return ((velocity / 1000) * d) / (1 - d);
   }
 
+  // ── 화면 바꾸기 (문서 사이) ─────────────────────────────
+  var TAB_ORDER = ['', 'make', 'collection', 'blog', 'me']; // 폰 아래 탭 차례 — '' = 홈 (/segan/ · index)
+  var WIDE = '(min-width: 1024px)'; // shell.css — 위 메뉴가 보이는 폭 (PC 는 흐려지기만)
+  var FORWARD = 'sg-forward';
+  var BACK = 'sg-back';
+
+  /** 주소 → 화면 이름 (파일 이름에서 .html 을 뗀 것, 홈은 '') — 이 앱 폴더 밖이면 null */
+  function screenOf(url, base) {
+    var u;
+    var b;
+    try {
+      b = new URL(base);
+      u = new URL(String(url || ''), b);
+    } catch {
+      return null;
+    }
+    var dir = b.pathname.replace(/[^/]*$/, '');
+    if (u.origin !== b.origin || u.pathname.indexOf(dir) !== 0) return null;
+    var name = u.pathname.slice(dir.length);
+    if (name.indexOf('/') >= 0) return null; // 더 깊은 곳(플래너 등)은 다른 앱
+    name = name.replace(/\.html$/, '');
+    return name === 'index' ? '' : name;
+  }
+
+  /** from 화면에서 to 화면으로 — 'sg-forward'(오른쪽에서) · 'sg-back'(왼쪽에서) · ''(흐려지기) */
+  function navType(from, to) {
+    var a = screenOf(from, to);
+    var b = screenOf(to, to);
+    if (a == null || b == null || a === b) return '';
+    var ia = TAB_ORDER.indexOf(a);
+    var ib = TAB_ORDER.indexOf(b);
+    if (ia >= 0 && ib >= 0) return ib > ia ? FORWARD : BACK;
+    if (ia >= 0) return FORWARD;
+    if (ib >= 0) return BACK;
+    return '';
+  }
+
+  function wide() {
+    try {
+      return !!(window.matchMedia && window.matchMedia(WIDE).matches);
+    } catch {
+      return false;
+    }
+  }
+
+  /** 떠나온 화면 주소 — 모르면 '' (뒤로 가기인데 어디서 왔는지 모르면 방향을 정하지 않는다) */
+  function cameFrom() {
+    var act = window.navigation && window.navigation.activation;
+    if (act) return (act.from && act.from.url) || '';
+    try {
+      var nav = performance.getEntriesByType('navigation')[0];
+      if (nav && nav.type === 'back_forward') return '';
+    } catch {
+      /* noop */
+    }
+    return document.referrer || '';
+  }
+
+  // 새 화면의 첫 그림 직전 — 방향을 화면 바꾸기에 붙인다 (shell.css 가 그 이름으로 민다)
+  function onReveal(e) {
+    var vt = e && e.viewTransition;
+    if (!vt || !vt.types || reduced() || wide()) return;
+    var type = navType(cameFrom(), location.href);
+    if (type) vt.types.add(type);
+  }
+  if (typeof window.addEventListener === 'function')
+    window.addEventListener('pagereveal', onReveal);
+
   window.SeganMotion = {
+    navType: navType,
     reduced: reduced,
     spring: spring,
     curve: curve,

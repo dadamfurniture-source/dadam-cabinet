@@ -330,6 +330,7 @@ describe('AI 시스템 소개 (about.html)', () => {
     expect(scripts.map((s) => s.split('?')[0])).toEqual([
       '../js/config.js',
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45',
+      'motion.js', // 움직임 한 벌 — 화면 바꾸기
       'shell.js',
       'guide.js',
     ]);
@@ -420,6 +421,7 @@ describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min) 
     expect(scripts.map((s) => s.split('?')[0])).toEqual([
       '../js/config.js',
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45',
+      'motion.js', // 움직임 한 벌 — 화면 바꾸기
       'shell.js',
       'guide.js',
     ]);
