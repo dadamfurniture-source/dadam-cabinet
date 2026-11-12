@@ -1,0 +1,34 @@
+{
+  "title": "0061 재고 품목 단가 — 칸 하나(없어도 됨 · 0 이상), 읽기 · 쓰기는 0059 그대로 서버만 (scripts/rls-probe.mjs --migration database/migrations/0061_stock_unit_price.sql — 0059 적용 뒤)",
+  "ids": ["company_x", "item_a"],
+  "users": ["x_owner_user"],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.stock_items (id, company_id, kind, name, unit, qty) VALUES ({{item_a}}, {{company_x}}, 'hardware', 'probe 경첩', '개', 40)"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "x_owner": { "role": "authenticated", "user": "x_owner_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "단가는 처음에 비어 있다 · 브라우저로는 여전히 못 읽는다",
+      "sql": "select unit_price is null from public.stock_items where id = {{item_a}}",
+      "expect": { "anon": "deny", "x_owner": "deny", "service_role": "true" }
+    },
+    {
+      "name": "서버는 단가를 적는다",
+      "sql": "with a as (update public.stock_items set unit_price = 850 where id = {{item_a}} returning unit_price * qty as v) select v from a",
+      "roles": ["service_role"],
+      "expect": { "service_role": "34000.00" }
+    },
+    {
+      "name": "음수는 거절",
+      "sql": "update public.stock_items set unit_price = -1 where id = {{item_a}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    }
+  ]
+}
