@@ -730,7 +730,7 @@
 
   /** 재고가 바뀌었다 — 재고 화면들이 다음에 다시 읽게 한다 */
   function touchStock() {
-    ['SeganStock', 'SeganStockMoves'].forEach(function (name) {
+    ['SeganStock', 'SeganStockMoves', 'SeganStockNeeds'].forEach(function (name) {
       var m = window[name];
       if (m && typeof m.refresh === 'function') m.refresh();
     });

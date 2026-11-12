@@ -3551,6 +3551,44 @@ button.sm-num[aria-pressed='true'] {
   font-variant-numeric: tabular-nums;
 }
 
+/* 업체 › 작업 자재 (#stockNeeds — segan/stock-needs.js) — 줄 · 표는 재고 · 발주(.st-* · .po-*)와 같은 것을 쓴다 */
+.sn2-view {
+  margin-top: 12px;
+}
+
+.sn2-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.sn2-name b {
+  font-weight: 400;
+}
+
+.sn2-name small {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sn2-pick {
+  width: 100%;
+  min-width: 160px;
+  max-width: 320px;
+  padding: 8px;
+  border: 1px solid var(--v5-line-18);
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.sn2-links th .od-badge {
+  margin-left: 6px;
+}
+
 /* 라벨 인쇄 칸 — 화면에서는 감추고, 인쇄할 때는 이것만 보인다 */
 .so-print {
   display: none;

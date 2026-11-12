@@ -590,6 +590,13 @@
       },
       soon0: '재고 관리는 준비 중입니다. 경첩 · 서랍 레일 · 리프트업 철물 수량을 관리하게 됩니다.',
     },
+    // 구매 · 재고 › 작업 자재 — 수주별 자재 상태 · 출고 · 자투리 후보 · 짝표 (segan/stock-needs.js)
+    'stock-needs': {
+      title: '작업 자재',
+      section: 'partner',
+      parts: ['stockNeeds'],
+      label: 'stockNeedsTitle',
+    },
     // 구매 · 재고 › 발주 — 철물 · 판재 구매 발주 · 입고 · 발주서 인쇄 (segan/stock-orders.js)
     'stock-orders': {
       title: '발주',
@@ -760,6 +767,7 @@
     'stockMoves',
     'workShifts',
     'stockOrders',
+    'stockNeeds',
     'siteInstall',
     'orders',
     'quotes',
@@ -1503,6 +1511,7 @@
       // 입출고 · 발주 — 읽혔을 때만 (segan/stock-moves.js · segan/stock-orders.js)
       case 'stock-moves':
       case 'stock-orders':
+      case 'stock-needs':
         return v.factory && !v.platform && available(key);
       // 거래처 · 공급처 — 읽혔을 때만 (대표 · 실장). 못 쓰는 관리자에게는 PC 화면 줄 하나
       case 'counterparties':
@@ -1788,6 +1797,7 @@
     var Moves = window.SeganStockMoves;
     var Shifts = window.SeganWorkShifts;
     var POrders = window.SeganStockOrders;
+    var Needs = window.SeganStockNeeds;
     var Quotes = window.SeganQuotes;
     var Customers = window.SeganCustomers;
     var Numbers = window.SeganCompanySummary;
@@ -1833,6 +1843,8 @@
           synced(Shifts && Shifts.load ? Shifts.load(auth.sb, auth.session, me) : null),
           // 구매 발주 = 재고와 같은 사람, 적기 · 취소는 대표 · 실장 (segan/stock-orders.js — 구매 · 재고 › 발주)
           synced(POrders && POrders.load ? POrders.load(auth.sb, auth.session, me) : null),
+          // 작업 자재 = 재고와 같은 사람, 짝 정하기는 대표 · 실장 (segan/stock-needs.js — 구매 · 재고 › 작업 자재)
+          synced(Needs && Needs.load ? Needs.load(auth.sb, auth.session, me) : null),
           // 생산 설정 = 다담 공장 · 협력업체의 대표 · 실장 (segan/production-settings.js — 생산 › 생산 설정 화면)
           synced(Settings && Settings.load ? Settings.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
