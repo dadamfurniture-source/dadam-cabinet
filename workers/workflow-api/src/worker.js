@@ -36,6 +36,7 @@
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
+ *   GET|PUT /company/shifts — 근무 일정(쉬는 날), 구성원이 보고 대표 · 실장이 적는다 (src/work-shifts.js, DB 0060)
  *   GET|POST /stock/items · PATCH /stock/items/:id · POST /stock/items/:id/moves · GET /stock/moves — 재고 품목 · 입출고 (src/stock.js, DB 0059)
  *   GET|POST /stock/offcuts · PATCH /stock/offcuts/:id · GET /stock/offcuts/:id/events · POST /stock/offcuts/labels · GET /stock/summary — 자투리 · 재고 숫자 (src/stock-offcuts.js, DB 0059)
  *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
@@ -242,6 +243,7 @@ import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesi
 import { listCompanyQuotes } from './company-quotes.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
+import { listShifts, putShift } from './work-shifts.js';
 import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
 import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
 import { listCompanySchedules } from './company-schedules.js';
@@ -1482,6 +1484,9 @@ const router = createRouter([
   { method: 'PATCH', path: '/company/customers/:id',              auth: 'jwt', handler: workRoute((env, a) => updateCompanyCustomer(env, a)) },
   // 업체 숫자 — 견적 흐름 · 리드타임 (src/company-summary.js)
   { method: 'GET',  path: '/company/summary',                     auth: 'jwt', handler: workRoute((env, a) => getCompanySummary(env, a)) },
+  // 근무 일정 — 쉬는 날만 (src/work-shifts.js, DB 0060)
+  { method: 'GET',  path: '/company/shifts',                      auth: 'jwt', handler: workRoute((env, a) => listShifts(env, a)) },
+  { method: 'PUT',  path: '/company/shifts',                      auth: 'jwt', handler: workRoute((env, a) => putShift(env, a)) },
   // 재고 — 판재 · 철물 품목과 입출고 (src/stock.js, DB 0059)
   { method: 'GET',  path: '/stock/items',                         auth: 'jwt', handler: workRoute((env, a) => listStockItems(env, a)) },
   { method: 'POST', path: '/stock/items',                         auth: 'jwt', handler: workRoute((env, a) => createStockItem(env, a), 201) },
