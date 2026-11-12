@@ -40,6 +40,7 @@
  *   GET|POST /stock/items · PATCH /stock/items/:id · POST /stock/items/:id/moves · GET /stock/moves — 재고 품목 · 입출고 (src/stock.js, DB 0059)
  *   GET|POST /stock/offcuts · PATCH /stock/offcuts/:id · GET /stock/offcuts/:id/events · POST /stock/offcuts/labels · GET /stock/summary — 자투리 · 재고 숫자 (src/stock-offcuts.js, DB 0059)
  *   GET|POST /stock/orders · POST /stock/orders/:id/receive · POST /stock/orders/:id/cancel — 재고 구매 발주 (src/stock-orders.js, DB 0062)
+ *   GET /stock/needs · PUT /stock/links · POST /stock/needs/:orderId/issue · GET /stock/needs/:orderId/offcuts — 작업지시 자재 ↔ 재고 (src/stock-needs.js, DB 0063)
  *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
  *   GET  /company/sites?kind=install|as · PUT /company/sites/geo · PUT /company/as-requests/:id/visit —
  *                                 설치 · A/S 지도 + 표: 현장 좌표 · A/S 방문 일정 (src/company-sites.js, DB 0058)
@@ -248,6 +249,7 @@ import { listShifts, putShift } from './work-shifts.js';
 import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
 import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
 import { listStockOrders, createStockOrder, receiveStockOrder, cancelStockOrder } from './stock-orders.js';
+import { listStockNeeds, putStockLink, issueStockForOrder, listOffcutCandidates } from './stock-needs.js';
 import { listCompanySchedules } from './company-schedules.js';
 import { listCompanySites, saveSiteGeo, setAsVisit } from './company-sites.js';
 import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
@@ -1507,6 +1509,11 @@ const router = createRouter([
   { method: 'POST', path: '/stock/orders',                        auth: 'jwt', handler: workRoute((env, a) => createStockOrder(env, a), 201) },
   { method: 'POST', path: '/stock/orders/:id/receive',            auth: 'jwt', handler: workRoute((env, a) => receiveStockOrder(env, a)) },
   { method: 'POST', path: '/stock/orders/:id/cancel',             auth: 'jwt', handler: workRoute((env, a) => cancelStockOrder(env, a)) },
+  // 작업지시 자재 ↔ 재고 — 수주별 자재 상태 · 짝표 · 수주 자재 출고 · 자투리 후보 (src/stock-needs.js, DB 0063)
+  { method: 'GET',  path: '/stock/needs',                         auth: 'jwt', handler: workRoute((env, a) => listStockNeeds(env, a)) },
+  { method: 'PUT',  path: '/stock/links',                         auth: 'jwt', handler: workRoute((env, a) => putStockLink(env, a)) },
+  { method: 'POST', path: '/stock/needs/:orderId/issue',          auth: 'jwt', handler: workRoute((env, a) => issueStockForOrder(env, a), 201) },
+  { method: 'GET',  path: '/stock/needs/:orderId/offcuts',        auth: 'jwt', handler: workRoute((env, a) => listOffcutCandidates(env, a)) },
   { method: 'GET',  path: '/company/schedules',                   auth: 'jwt', handler: workRoute((env, a) => listCompanySchedules(env, a)) },
   // 설치 · A/S 지도 + 표 (src/company-sites.js, DB 0058)
   { method: 'GET',  path: '/company/sites',                       auth: 'jwt', handler: workRoute((env, a) => listCompanySites(env, a)) },
