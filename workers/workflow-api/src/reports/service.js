@@ -135,7 +135,7 @@ async function companyScopeOf(env, user, query) {
 
 /**
  * 목록. 관리자는 `owner=all` 이 기본(본사 보고 전체), 그 밖은 본인 것만.
- * 단, 외주 · 상판 발주만 물은 업체 대표 · 실장은 내 업체 발주 전체 (scope 'company' — 남의 발주는 보기만, 바꾸는 것은 낸 사람 · 관리자).
+ * 단, 외주 · 상판 발주만 물은 업체 대표 · 실장은 내 업체 발주 전체 (scope 'company' — 남이 낸 발주도 입고 · 취소는 한다, 메모 · 고정 · 보관은 낸 사람 · 관리자).
  */
 export async function listReports(env, { user, query = {} }) {
   const role = await adminRoleOf(env, user);
@@ -159,8 +159,8 @@ async function loadVisible(env, user, id) {
   if (!row) throw new NotFoundError('보고를 찾을 수 없습니다');
   if (row.owner_id === user.id) return { row, role: await adminRoleOf(env, user) };
   const role = await adminRoleOf(env, user);
-  // 업체 대표 · 실장은 내 업체의 외주 · 상판 발주를 연다 (보기 — 바꾸는 것은 낸 사람 · 관리자, updateReportMeta)
-  if (ORDER_KINDS.has(row.kind) && (await managedCompanies(env, user)).includes(row.company_id)) return { row, role };
+  // 업체 대표 · 실장은 내 업체의 외주 · 상판 발주를 연다 — 입고 · 취소까지 (2026-11-12 사장님 「진행」). 메모 · 고정 · 보관은 낸 사람 · 관리자
+  if (ORDER_KINDS.has(row.kind) && (await managedCompanies(env, user)).includes(row.company_id)) return { row, role, manages: true };
   // 관리자가 남의 보고를 여는 것은 본사 보고만
   if (!role || row.company_id !== (await hqCompanyId(env))) throw new NotFoundError('보고를 찾을 수 없습니다');
   return { row, role };
@@ -168,7 +168,7 @@ async function loadVisible(env, user, id) {
 
 /** 한 건 (본문 포함). 인력 승인은 지시의 **지금 상태**(지시/완료/취소)를 함께 준다. */
 export async function getReport(env, { user, id }) {
-  const { row, role } = await loadVisible(env, user, id);
+  const { row, role, manages } = await loadVisible(env, user, id);
   let live = null;
   if (row.kind === 'staffing_decision' && row.source_id) {
     try {
@@ -179,13 +179,21 @@ export async function getReport(env, { user, id }) {
       live = null;
     }
   }
-  return { ...row, live, can_edit: row.owner_id === user.id || canEditRole(role) };
+  const canEdit = row.owner_id === user.id || canEditRole(role);
+  // can_status — 발주 상태(입고 · 취소)를 바꿀 수 있나. 낸 사람 · 관리자에 더해 그 업체 대표 · 실장
+  return { ...row, live, can_edit: canEdit, can_status: ORDER_KINDS.has(row.kind) && (canEdit || manages === true) };
 }
 
-/** 메모 · 고정 · 보관 처리만 바꾼다 (본문·숫자는 바꾸지 않는다). 주인 또는 admin 이상. */
+/**
+ * 메모 · 고정 · 보관 처리만 바꾼다 (본문·숫자는 바꾸지 않는다). 주인 또는 admin 이상.
+ * 그 업체 대표 · 실장은 남이 낸 외주 · 상판 발주의 상태(입고 · 취소)만 바꾼다 — 다른 칸이 섞이면 거절.
+ */
 export async function updateReportMeta(env, { user, id, body = {} }) {
-  const { row, role } = await loadVisible(env, user, id);
-  if (row.owner_id !== user.id && !canEditRole(role)) throw new ForbiddenError('관리자(admin 이상)만 바꿀 수 있습니다');
+  const { row, role, manages } = await loadVisible(env, user, id);
+  if (row.owner_id !== user.id && !canEditRole(role)) {
+    const statusOnly = body.status !== undefined && body.note === undefined && body.pinned === undefined && body.archived === undefined;
+    if (!(manages === true && statusOnly)) throw new ForbiddenError('관리자(admin 이상)만 바꿀 수 있습니다');
+  }
   const patch = {};
   if (typeof body.note === 'string') patch.note = body.note.slice(0, 4000);
   if (typeof body.pinned === 'boolean') patch.pinned = body.pinned;
