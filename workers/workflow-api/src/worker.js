@@ -36,6 +36,7 @@
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
+ *   GET|POST /stock/items · PATCH /stock/items/:id · POST /stock/items/:id/moves · GET /stock/moves — 재고 품목 · 입출고 (src/stock.js, DB 0059)
  *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
  *   GET  /company/sites?kind=install|as · PUT /company/sites/geo · PUT /company/as-requests/:id/visit —
  *                                 설치 · A/S 지도 + 표: 현장 좌표 · A/S 방문 일정 (src/company-sites.js, DB 0058)
@@ -240,6 +241,7 @@ import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesi
 import { listCompanyQuotes } from './company-quotes.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
+import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
 import { listCompanySchedules } from './company-schedules.js';
 import { listCompanySites, saveSiteGeo, setAsVisit } from './company-sites.js';
 import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
@@ -1478,6 +1480,12 @@ const router = createRouter([
   { method: 'PATCH', path: '/company/customers/:id',              auth: 'jwt', handler: workRoute((env, a) => updateCompanyCustomer(env, a)) },
   // 업체 숫자 — 견적 흐름 · 리드타임 (src/company-summary.js)
   { method: 'GET',  path: '/company/summary',                     auth: 'jwt', handler: workRoute((env, a) => getCompanySummary(env, a)) },
+  // 재고 — 판재 · 철물 품목과 입출고 (src/stock.js, DB 0059)
+  { method: 'GET',  path: '/stock/items',                         auth: 'jwt', handler: workRoute((env, a) => listStockItems(env, a)) },
+  { method: 'POST', path: '/stock/items',                         auth: 'jwt', handler: workRoute((env, a) => createStockItem(env, a), 201) },
+  { method: 'PATCH', path: '/stock/items/:id',                    auth: 'jwt', handler: workRoute((env, a) => updateStockItem(env, a)) },
+  { method: 'POST', path: '/stock/items/:id/moves',               auth: 'jwt', handler: workRoute((env, a) => addStockMove(env, a), 201) },
+  { method: 'GET',  path: '/stock/moves',                         auth: 'jwt', handler: workRoute((env, a) => listStockMoves(env, a)) },
   { method: 'GET',  path: '/company/schedules',                   auth: 'jwt', handler: workRoute((env, a) => listCompanySchedules(env, a)) },
   // 설치 · A/S 지도 + 표 (src/company-sites.js, DB 0058)
   { method: 'GET',  path: '/company/sites',                       auth: 'jwt', handler: workRoute((env, a) => listCompanySites(env, a)) },
