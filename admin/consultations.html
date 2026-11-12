@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111311"></script>
+    <script src="../js/admin-access.js?v=2026111312"></script>
     <style>
       * {
         margin: 0;
@@ -21,7 +21,7 @@
       }
       body {
         font-family: 'Noto Sans KR', sans-serif;
-        background-color: #f5f5f5;
+        background-color: #f6f3ee;
         min-height: 100vh;
       }
 
@@ -32,8 +32,8 @@
         top: 0;
         width: 250px;
         height: 100vh;
-        background: #1a1a2e;
-        color: white;
+        background: #2d2a26;
+        color: rgba(246, 243, 238, 0.92);
         padding: 20px 0;
         z-index: 1000;
       }
@@ -48,7 +48,7 @@
       }
       .sidebar-logo span {
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(246, 243, 238, 0.42);
       }
       .nav-menu {
         list-style: none;
@@ -58,17 +58,17 @@
         align-items: center;
         gap: 12px;
         padding: 12px 20px;
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
         transition: all 0.3s;
       }
       .nav-menu li a:hover,
       .nav-menu li a.active {
         background: rgba(255, 255, 255, 0.1);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
       .nav-menu li a.active {
-        border-left: 3px solid #007bff;
+        border-left: 3px solid #8a7457;
       }
       .nav-icon {
         width: 20px;
@@ -86,14 +86,13 @@
         padding: 10px;
         text-align: center;
         background: rgba(255, 255, 255, 0.1);
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
-        border-radius: 5px;
         font-size: 0.9rem;
       }
       .sidebar-footer a:hover {
         background: rgba(255, 255, 255, 0.2);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
 
       /* Main Content */
@@ -109,25 +108,24 @@
         align-items: center;
         margin-bottom: 30px;
         padding-bottom: 20px;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.18);
       }
       .header h2 {
         font-size: 1.5rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       /* 상담 분배 안내 */
       .dist-notice {
-        background: #eef4ff;
-        color: #24527a;
-        border: 1px solid #c9dbf5;
-        border-radius: 8px;
+        background: #eceef2;
+        color: #0b2545;
+        border: 1px solid rgba(11, 37, 69, 0.3);
         padding: 10px 14px;
         font-size: 0.9rem;
         margin: -10px 0 20px;
       }
       .dist-notice a {
-        color: #007bff;
+        color: #0b2545;
         font-weight: 500;
       }
       .consultation-actions a.btn {
@@ -145,7 +143,6 @@
       .stat-tab {
         padding: 12px 20px;
         background: white;
-        border-radius: 8px;
         border: 2px solid transparent;
         cursor: pointer;
         transition: all 0.3s;
@@ -154,11 +151,11 @@
         gap: 10px;
       }
       .stat-tab:hover {
-        border-color: #ddd;
+        border-color: rgba(45, 42, 38, 0.18);
       }
       .stat-tab.active {
-        border-color: #007bff;
-        background: #e3f2fd;
+        border-color: #0b2545;
+        background: #eceef2;
       }
       .stat-tab .count {
         font-size: 1.3rem;
@@ -166,19 +163,19 @@
       }
       .stat-tab .label {
         font-size: 0.85rem;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
       .stat-tab.pending .count {
-        color: #f57c00;
+        color: #6f4c0c;
       }
       .stat-tab.confirmed .count {
-        color: #1976d2;
+        color: #0b2545;
       }
       .stat-tab.completed .count {
-        color: #388e3c;
+        color: #2f6b4f;
       }
       .stat-tab.cancelled .count {
-        color: #c62828;
+        color: #93301f;
       }
 
       /* Filters */
@@ -195,13 +192,12 @@
       }
       .filter-group label {
         font-size: 0.9rem;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
       .filter-group select,
       .filter-group input {
         padding: 8px 12px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         font-size: 0.9rem;
         font-family: inherit;
       }
@@ -213,36 +209,35 @@
       .btn {
         padding: 8px 16px;
         border: none;
-        border-radius: 5px;
         font-size: 0.9rem;
         cursor: pointer;
         font-family: inherit;
         transition: all 0.3s;
       }
       .btn-primary {
-        background: #007bff;
+        background: #0b2545;
         color: white;
       }
       .btn-primary:hover {
-        background: #0056b3;
+        background: #2d2a26;
       }
       .btn-success {
-        background: #28a745;
+        background: #2f6b4f;
         color: white;
       }
       .btn-success:hover {
-        background: #1e7e34;
+        background: #2f6b4f;
       }
       .btn-warning {
-        background: #ffc107;
-        color: #333;
+        background: #c9952b;
+        color: #2d2a26;
       }
       .btn-danger {
-        background: #dc3545;
+        background: #93301f;
         color: white;
       }
       .btn-secondary {
-        background: #6c757d;
+        background: #5f5a53;
         color: white;
       }
       .btn-sm {
@@ -253,8 +248,6 @@
       /* Card */
       .card {
         background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       }
       .card-body {
         padding: 0;
@@ -265,15 +258,13 @@
         padding: 20px;
       }
       .consultation-card {
-        border: 1px solid #eee;
-        border-radius: 10px;
+        border: 1px solid rgba(45, 42, 38, 0.1);
         padding: 20px;
         margin-bottom: 15px;
         transition: all 0.3s;
       }
       .consultation-card:hover {
-        border-color: #ddd;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border-color: rgba(45, 42, 38, 0.18);
       }
 
       .consultation-header {
@@ -291,12 +282,12 @@
         width: 45px;
         height: 45px;
         border-radius: 50%;
-        background: #e0e0e0;
+        background: #f1ece4;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 700;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
       .user-details h4 {
         font-size: 1rem;
@@ -304,40 +295,38 @@
       }
       .user-details span {
         font-size: 0.85rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       .badge {
         display: inline-block;
         padding: 5px 12px;
-        border-radius: 20px;
         font-size: 0.8rem;
         font-weight: 500;
       }
       .badge.pending {
-        background: #fff3e0;
-        color: #f57c00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .badge.confirmed {
-        background: #e3f2fd;
-        color: #1976d2;
+        background: #eceef2;
+        color: #0b2545;
       }
       .badge.completed {
-        background: #e8f5e9;
-        color: #388e3c;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
       .badge.cancelled {
-        background: #ffebee;
-        color: #c62828;
+        background: #f8ece9;
+        color: #93301f;
       }
 
       .type-badge {
         display: inline-block;
         padding: 3px 8px;
-        border-radius: 4px;
         font-size: 0.75rem;
-        background: #f5f5f5;
-        color: #666;
+        background: #f6f3ee;
+        color: rgba(45, 42, 38, 0.62);
         margin-left: 10px;
       }
 
@@ -347,27 +336,25 @@
         gap: 15px;
         margin-bottom: 15px;
         padding: 15px;
-        background: #fafafa;
-        border-radius: 8px;
+        background: #f7f4ef;
       }
       .info-item label {
         display: block;
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
         margin-bottom: 3px;
       }
       .info-item p {
         font-size: 0.95rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       .consultation-description {
         padding: 15px;
-        background: #f9f9f9;
-        border-radius: 8px;
+        background: #f7f4ef;
         margin-bottom: 15px;
         font-size: 0.9rem;
-        color: #555;
+        color: rgba(45, 42, 38, 0.62);
         line-height: 1.6;
       }
 
@@ -375,7 +362,7 @@
         display: flex;
         gap: 10px;
         padding-top: 15px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid rgba(45, 42, 38, 0.1);
         flex-wrap: wrap;
       }
 
@@ -383,11 +370,11 @@
       .empty-state {
         text-align: center;
         padding: 60px 20px;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
       .empty-state h4 {
         margin-bottom: 10px;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
 
       /* Access Denied */
@@ -398,7 +385,7 @@
       }
       .access-denied h2 {
         font-size: 1.5rem;
-        color: #c62828;
+        color: #93301f;
         margin-bottom: 15px;
       }
 
@@ -420,7 +407,6 @@
       }
       .modal-content {
         background: white;
-        border-radius: 10px;
         width: 90%;
         max-width: 500px;
         max-height: 90vh;
@@ -431,7 +417,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
       .modal-header h3 {
         font-size: 1.2rem;
@@ -441,7 +427,7 @@
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
       .modal-body {
         padding: 20px;
@@ -453,7 +439,7 @@
         display: block;
         margin-bottom: 8px;
         font-size: 0.9rem;
-        color: #333;
+        color: #2d2a26;
         font-weight: 500;
       }
       .form-group input,
@@ -461,8 +447,7 @@
       .form-group textarea {
         width: 100%;
         padding: 10px 12px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         font-size: 0.95rem;
         font-family: inherit;
       }
@@ -474,7 +459,7 @@
         justify-content: flex-end;
         gap: 10px;
         padding: 20px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       /* Responsive */
@@ -504,7 +489,7 @@
         <span>관리자 패널</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111311"></script>
+      <script src="../js/admin-shell.js?v=2026111312"></script>
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
       </div>
@@ -617,14 +602,14 @@
               <option value="assigned" disabled>배정됨 (상담 분배)</option>
             </select>
           </div>
-          <div class="form-group" style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;">
+          <div class="form-group" style="background:#f7f4ef;border:1px solid rgba(45, 42, 38, 0.1);padding:12px;">
             <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
               <input type="checkbox" id="editRequestDetailDesign" style="width:auto;" disabled />
               <span>상세설계(CAD/BOM) 권한 신청 (고객 요청)</span>
             </label>
-            <div style="font-size:0.8rem;color:#666;margin-top:6px;">
+            <div style="font-size:0.8rem;color:rgba(45, 42, 38, 0.62);margin-top:6px;">
               이 체크 상태는 읽기 전용 참고용입니다. 실제 승인은
-              <a href="users.html" style="color:#007bff;">회원 관리</a> 에서 진행하세요.
+              <a href="users.html" style="color:#0b2545;">회원 관리</a> 에서 진행하세요.
             </div>
           </div>
         </div>
@@ -856,7 +841,7 @@
                     <div class="empty-state">
                         <h4>데이터를 불러올 수 없습니다</h4>
                         <p>${esc(e.message)}</p>
-                        <p style="font-size:0.85rem;color:#888;margin-top:10px;">
+                        <p style="font-size:0.85rem;color:rgba(45, 42, 38, 0.55);margin-top:10px;">
                             consultations 테이블이 생성되어 있는지 확인하세요.
                         </p>
                     </div>
@@ -904,7 +889,7 @@
           ? `${c.space_width_mm || '?'} × ${c.space_height_mm || '?'} × ${c.space_depth_mm || '?'} mm`
           : '-';
         const ddRequested = c.request_detail_design
-          ? '<span style="color:#e65100;font-weight:600;margin-left:4px;">상세설계 권한 신청</span>'
+          ? '<span style="color:#6f4c0c;font-weight:600;margin-left:4px;">상세설계 권한 신청</span>'
           : '';
 
         // 단추의 상담 id 는 data-id 로만 싣는다 — 인라인 onclick 의 JS 문자열에 DB 값을 넣지 않는다.
@@ -1000,7 +985,7 @@
                     ${
                       c.admin_memo
                         ? `
-                    <div class="consultation-description" style="background:#fff3e0;">
+                    <div class="consultation-description" style="background:#fbefd4;">
                         <strong>관리자 메모:</strong> ${esc(c.admin_memo)}
                     </div>
                     `

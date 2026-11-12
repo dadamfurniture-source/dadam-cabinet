@@ -15,7 +15,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111311"></script>
+    <script src="../js/admin-access.js?v=2026111312"></script>
     <!--
       상담 분배 — 고객 상담은 다담 본사로 들어온다. 본사(관리자)가 여기서 업체 풀(활동 중인 Expert · Agent 협력업체 · 다담 공장)의
       1~3순위와 점수 내역을 보고 한 업체를 골라 배정한다. 업체는 24시간 안에 받기 · 못 받음을 고르고,
@@ -34,8 +34,8 @@
       }
       body {
         font-family: 'Noto Sans KR', sans-serif;
-        background: #f5f5f5;
-        color: #333;
+        background: #f6f3ee;
+        color: #2d2a26;
       }
       .sidebar {
         position: fixed;
@@ -43,8 +43,8 @@
         top: 0;
         width: 250px;
         height: 100vh;
-        background: #1a1a2e;
-        color: white;
+        background: #2d2a26;
+        color: rgba(246, 243, 238, 0.92);
         padding: 20px 0;
         overflow-y: auto;
       }
@@ -59,7 +59,7 @@
       }
       .sidebar-logo span {
         font-size: 12px;
-        color: #888;
+        color: rgba(246, 243, 238, 0.42);
       }
       .nav-menu {
         list-style: none;
@@ -69,17 +69,17 @@
         align-items: center;
         gap: 12px;
         padding: 12px 20px;
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
         transition: all 0.3s;
       }
       .nav-menu li a:hover,
       .nav-menu li a.active {
         background: rgba(255, 255, 255, 0.1);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
       .nav-menu li a.active {
-        border-left: 3px solid #007bff;
+        border-left: 3px solid #8a7457;
       }
       .nav-icon {
         font-size: 18px;
@@ -97,9 +97,8 @@
         padding: 10px;
         text-align: center;
         background: rgba(255, 255, 255, 0.1);
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
-        border-radius: 8px;
         font-size: 13px;
       }
       .main-content {
@@ -116,7 +115,7 @@
         flex-wrap: wrap;
         margin-bottom: 16px;
         padding-bottom: 16px;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.18);
       }
       .header h2 {
         font-size: 24px;
@@ -130,21 +129,20 @@
         align-items: center;
       }
       .muted {
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
         font-size: 12px;
         line-height: 1.6;
       }
       .status-line {
         font-size: 13px;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
         min-height: 18px;
         margin-bottom: 8px;
       }
       .notice {
-        background: #fff3e0;
-        color: #8a4b00;
-        border: 1px solid #ffd8a8;
-        border-radius: 8px;
+        background: #fbefd4;
+        color: #6f4c0c;
+        border: 1px solid #c9952b;
         padding: 10px 14px;
         font-size: 13px;
         line-height: 1.6;
@@ -159,29 +157,28 @@
         margin-bottom: 10px;
       }
       .access-denied a {
-        color: #007bff;
+        color: #0b2545;
       }
       .btn {
         display: inline-block;
         padding: 8px 14px;
         border: none;
-        border-radius: 6px;
         cursor: pointer;
         font-size: 13px;
         font-family: inherit;
         text-decoration: none;
       }
       .btn-primary {
-        background: #007bff;
+        background: #0b2545;
         color: #fff;
       }
       .btn-primary:hover {
-        background: #0056b3;
+        background: #2d2a26;
       }
       .btn-light {
         background: #fff;
-        color: #333;
-        border: 1px solid #ddd;
+        color: #2d2a26;
+        border: 1px solid rgba(45, 42, 38, 0.18);
       }
       .btn-sm {
         padding: 5px 10px;
@@ -199,22 +196,19 @@
       }
       .tab {
         padding: 6px 14px;
-        border-radius: 99px;
-        border: 1px solid #ddd;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         background: #fff;
         cursor: pointer;
         font-size: 13px;
         font-family: inherit;
       }
       .tab.active {
-        background: #007bff;
-        border-color: #007bff;
+        background: #0b2545;
+        border-color: #0b2545;
         color: #fff;
       }
       .card {
         background: #fff;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         padding: 16px 18px;
         margin-bottom: 14px;
       }
@@ -223,7 +217,7 @@
         margin-bottom: 10px;
       }
       .empty-mini {
-        color: #999;
+        color: rgba(45, 42, 38, 0.45);
         font-size: 13px;
         padding: 10px 2px;
       }
@@ -244,8 +238,7 @@
         width: 100%;
         text-align: left;
         background: #fff;
-        border: 1px solid #eee;
-        border-radius: 8px;
+        border: 1px solid rgba(45, 42, 38, 0.1);
         padding: 10px 12px;
         margin-bottom: 6px;
         cursor: pointer;
@@ -253,11 +246,11 @@
         color: inherit;
       }
       .consult-item:hover {
-        border-color: #9ec5fe;
+        border-color: rgba(11, 37, 69, 0.3);
       }
       .consult-item.active {
-        border-color: #007bff;
-        background: #f3f8ff;
+        border-color: #0b2545;
+        background: #eceef2;
       }
       .ci-top {
         display: flex;
@@ -272,41 +265,40 @@
       }
       .ci-meta {
         font-size: 12px;
-        color: #777;
+        color: rgba(45, 42, 38, 0.55);
         word-break: break-word;
       }
       .left-time {
-        color: #e65100;
+        color: #6f4c0c;
         font-weight: 500;
       }
       .badge {
         display: inline-block;
         padding: 2px 9px;
-        border-radius: 99px;
         font-size: 12px;
         white-space: nowrap;
-        background: #eef1f5;
-        color: #555;
+        background: #f1ece4;
+        color: rgba(45, 42, 38, 0.62);
       }
       .st-pending {
-        background: #fff3e0;
-        color: #e65100;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .st-assigned {
-        background: #e3f2fd;
-        color: #1565c0;
+        background: #eceef2;
+        color: #0b2545;
       }
       .st-accepted,
       .st-confirmed,
       .st-completed {
-        background: #e8f5e9;
-        color: #2e7d32;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
       .st-declined,
       .st-expired,
       .st-cancelled {
-        background: #ffebee;
-        color: #c62828;
+        background: #f8ece9;
+        color: #93301f;
       }
 
       /* 상세 */
@@ -318,7 +310,7 @@
       }
       .info dt {
         font-size: 12px;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
         margin-bottom: 2px;
       }
       .info dd {
@@ -327,36 +319,33 @@
       .chip {
         display: inline-block;
         padding: 1px 8px;
-        border-radius: 99px;
         font-size: 12px;
-        background: #f1f3f5;
-        color: #444;
+        background: #f1ece4;
+        color: #2d2a26;
         margin: 1px 4px 1px 0;
       }
       .kind-chip {
         display: inline-block;
         padding: 1px 8px;
-        border-radius: 99px;
         font-size: 11px;
-        background: #e3f2fd;
-        color: #1565c0;
+        background: #eceef2;
+        color: #0b2545;
       }
       .assign-now {
         font-size: 14px;
         margin-bottom: 8px;
       }
       .no-cand {
-        background: #ffebee;
-        color: #8e1b1b;
-        border: 1px solid #f5c2c2;
-        border-radius: 8px;
+        background: #f8ece9;
+        color: #93301f;
+        border: 1px solid rgba(147, 48, 31, 0.3);
         padding: 12px 14px;
         font-size: 14px;
         font-weight: 500;
       }
       .no-cand .muted {
         font-weight: 400;
-        color: #8e1b1b;
+        color: #93301f;
       }
 
       /* 후보 */
@@ -366,8 +355,7 @@
         gap: 12px;
       }
       .cand {
-        border: 1px solid #e3e6ea;
-        border-radius: 10px;
+        border: 1px solid rgba(45, 42, 38, 0.12);
         padding: 12px 14px;
         display: grid;
         gap: 10px;
@@ -383,8 +371,7 @@
         font-size: 12px;
         font-weight: 700;
         color: #fff;
-        background: #1a1a2e;
-        border-radius: 99px;
+        background: #2d2a26;
         padding: 1px 8px;
       }
       .cand-name {
@@ -395,11 +382,11 @@
       .total {
         margin-left: auto;
         font-size: 13px;
-        color: #555;
+        color: rgba(45, 42, 38, 0.62);
       }
       .total b {
         font-size: 22px;
-        color: #007bff;
+        color: #0b2545;
       }
       .sg {
         display: grid;
@@ -413,19 +400,17 @@
       }
       .bar {
         height: 6px;
-        background: #eef1f5;
-        border-radius: 99px;
+        background: #f1ece4;
         overflow: hidden;
       }
       .bar i {
         display: block;
         height: 100%;
-        background: #4d94ff;
-        border-radius: 99px;
+        background: #0b2545;
       }
       .sg-parts {
         font-size: 12px;
-        color: #777;
+        color: rgba(45, 42, 38, 0.55);
       }
       .cand-actions {
         display: flex;
@@ -435,7 +420,7 @@
       }
       .cand-actions a {
         font-size: 12px;
-        color: #007bff;
+        color: #0b2545;
       }
       .filtered {
         list-style: none;
@@ -443,7 +428,7 @@
       }
       .filtered li {
         padding: 6px 0;
-        border-bottom: 1px solid #f1f1f1;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
@@ -455,10 +440,9 @@
       .reason {
         display: inline-block;
         padding: 1px 8px;
-        border-radius: 99px;
         font-size: 12px;
-        background: #fff3e0;
-        color: #8a4b00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       details summary {
         cursor: pointer;
@@ -484,7 +468,6 @@
       }
       .modal-content {
         background: #fff;
-        border-radius: 12px;
         max-width: 440px;
         margin: 0 auto;
       }
@@ -531,7 +514,7 @@
         <span>관리자 패널</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111311"></script>
+      <script src="../js/admin-shell.js?v=2026111312"></script>
       <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
     </nav>
 
