@@ -1060,6 +1060,16 @@
     }
   }
 
+  /** 다른 화면(작업 자재의 자투리 후보 등록)이 조각을 더했다 — 조용히 다시 읽어 그린다 */
+  async function refresh() {
+    if (!J.ready || J.busy) return;
+    try {
+      if (await reloadList()) render();
+    } catch {
+      /* 다음에 다시 읽는다 */
+    }
+  }
+
   window.SeganStockOffcuts = {
     STATE_NAME: STATE_NAME,
     EVENT_NAME: EVENT_NAME,
@@ -1077,5 +1087,6 @@
     safeQr: safeQr,
     state: J,
     load: load,
+    refresh: refresh,
   };
 })();

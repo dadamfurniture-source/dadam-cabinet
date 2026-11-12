@@ -324,7 +324,7 @@ describe('자리 · 이름', () => {
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('partner');
     expect(el.previousElementSibling.id).toBe('workShifts');
-    expect(el.nextElementSibling.id).toBe('orders');
+    expect(el.nextElementSibling.id).toBe('stockNeeds'); // 작업 자재 다음이 수주 (segan/stock-needs.js)
     const li = doc.querySelector('#meSubStock li[data-me-item="stock-orders"]');
     expect(li.previousElementSibling.getAttribute('data-me-item')).toBe('stock-moves');
     expect(li.hasAttribute('hidden')).toBe(true);
