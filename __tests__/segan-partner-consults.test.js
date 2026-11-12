@@ -319,6 +319,7 @@ describe('자리 · 이름', () => {
       'counterparties', // 거래처 · 공급처 (segan/counterparties.js — 구매 · 재고 › 거래처 · 공급처)
       'stockBoard', // 기본 자재 (segan/stock.js — 구매 · 재고 › 기본 자재)
       'stockHardware', // 철물 (segan/stock.js — 구매 · 재고 › 철물)
+      'stockOffcuts', // 자투리 자재 (segan/stock-offcuts.js — 구매 · 재고 › 자투리 자재)
       'orders', // 수주 (segan/orders.js — 프로젝트 관리 › 영업 › 계약)
       'quotes', // 견적서 (segan/quotes.js — 프로젝트 관리 › 영업 › 견적)
       'customers', // 고객 (segan/customers.js — 프로젝트 관리 › 영업 › 고객)
