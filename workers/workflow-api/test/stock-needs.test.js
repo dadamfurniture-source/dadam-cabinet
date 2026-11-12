@@ -47,6 +47,8 @@ const O_DONE = rid(34);
 const O_B = rid(35);
 
 const NOW = Date.parse('2026-11-12T03:00:00.000Z');
+// 서버는 지금 시각을 Date.now() 로 읽는다 — 시험이 실제 날짜에 흔들리지 않게 고정한다 (파일마다 따로 도는 프로세스)
+Date.now = () => NOW;
 const HW = (qty) => [
   { category: '경첩', item: 'H052W-5 105도 저압 경첩', spec: '2구', qty, unit: 'EA', module: '#1' },
   { category: '경첩', item: 'H052W-5 105도 저압 경첩', spec: '2구', qty: 2, unit: 'EA', module: '#2' },
