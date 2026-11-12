@@ -267,7 +267,7 @@ describe('자리 · 이름', () => {
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('partner');
     expect(el.previousElementSibling.id).toBe('stockHardware');
-    expect(el.nextElementSibling.id).toBe('orders');
+    expect(el.nextElementSibling.id).toBe('stockMoves'); // 입출고 · 근무 일정 다음이 수주
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
     );

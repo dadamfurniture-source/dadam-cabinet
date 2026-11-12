@@ -3274,6 +3274,156 @@ button.sm-num[aria-pressed='true'] {
   flex-wrap: wrap;
 }
 
+/* 업체 › 입출고 (#stockMoves — segan/stock-moves.js) · 재고 한눈에 (#meStockNumbers) — 표는 수주 표(.od-table), 칸은 .od-kpi */
+.sm-table th[scope='row'] {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.sm-table td {
+  overflow-wrap: anywhere;
+}
+
+.sn .od-kpi a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 살필 것 — 색만으로 알리지 않는다 (굵은 글 + 왼쪽 선) */
+.sn-warn {
+  padding-left: 10px !important;
+  border-left: 2px solid var(--v5-ink);
+}
+
+.sn-warn dd {
+  font-weight: 500;
+}
+
+.sn-bars {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sn-bars li {
+  display: grid;
+  grid-template-columns: minmax(96px, 200px) minmax(40px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--v5-line-12);
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.sn-name {
+  overflow-wrap: anywhere;
+}
+
+.sn-bar {
+  height: 8px;
+  background: var(--v5-line-12);
+}
+
+.sn-bar i {
+  display: block;
+  height: 100%;
+  background: var(--v5-ink);
+}
+
+.sn-qty {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 업체 › 근무 일정 (#workShifts — segan/work-shifts.js) — 한 주 표. 줄 = 사람, 칸 = 그날 (빈 칸 = 근무) */
+.ws-nav {
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.ws-range {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-table {
+  min-width: 620px;
+  table-layout: fixed;
+}
+
+.ws-table th:first-child {
+  width: 120px;
+}
+
+.ws-table th small {
+  display: block;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.ws-table th[scope='row'] {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.ws-table .ws-day,
+.ws-table .ws-cell {
+  padding: 0;
+  text-align: center;
+  border-left: 1px solid var(--v5-line-12);
+}
+
+.ws-table .ws-day {
+  padding: 8px 4px;
+}
+
+.ws-cell {
+  height: 44px;
+  font-size: 13px;
+}
+
+.ws-btn {
+  display: block;
+  width: 100%;
+  height: 44px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ws-btn:hover,
+.ws-btn:focus-visible {
+  background: var(--v5-line-12);
+}
+
+/* 쉬는 날 — 글자로 적고 바탕도 한 톤 */
+.ws-off {
+  background: var(--v5-line-12);
+  font-weight: 400;
+}
+
+/* 오늘 — 굵은 선 (머리 칸에는 「오늘」 글도) */
+.ws-table .ws-today {
+  border-left: 2px solid var(--v5-ink);
+  border-right: 2px solid var(--v5-ink);
+}
+
+.ws-on {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+.ws-editor .ws-note {
+  margin-top: 12px;
+  max-width: 420px;
+}
+
 /* 라벨 인쇄 칸 — 화면에서는 감추고, 인쇄할 때는 이것만 보인다 */
 .so-print {
   display: none;
