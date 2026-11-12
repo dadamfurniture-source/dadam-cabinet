@@ -1309,3 +1309,32 @@ describe('페이지 — 공장 탭', () => {
     expect(document.querySelector('#appBody a.big').getAttribute('href')).toBe('me.html');
   });
 });
+
+describe('작업 화면 꾸밈 — 앱과 같은 색 · 글꼴 · 각진 모서리 (segan/work.css)', () => {
+  test('바탕 · 글 · 선 · 주 단추는 v5 토큰, 모서리 · 그림자 없음', () => {
+    const vars = Object.fromEntries(
+      [...CSS.matchAll(/^\s+(--[a-z]+): ([^;]+);/gm)].map((m) => [m[1], m[2]])
+    );
+    expect(vars).toMatchObject({
+      '--bg': 'var(--v5-well)',
+      '--panel': 'var(--v5-paper)',
+      '--border': 'var(--v5-line-18)',
+      '--text': 'var(--v5-ink)',
+      '--muted': 'var(--v5-ink-62)',
+      '--accent': 'var(--v5-ink)',
+      '--info': 'var(--v5-navy)',
+    });
+    expect(CSS).not.toMatch(/border-radius|box-shadow/);
+    expect(CSS).toMatch(/font-family: var\(--v5-sans\);/);
+    expect(CSS).not.toMatch(/#fff\b(?![0-9a-f])/i);
+  });
+
+  test('주의 · 위험 색은 회계 · 본사 대시보드와 같은 값', () => {
+    const ledger = fs.readFileSync(path.join(ROOT, 'segan/ledger.css'), 'utf8');
+    const val = (css, name) => css.match(new RegExp(name + ': (#[0-9a-f]{6});'))[1];
+    expect(val(CSS, '--warn')).toBe(val(ledger, '--lg-warn'));
+    expect(val(CSS, '--danger')).toBe(val(ledger, '--lg-crit'));
+    expect(CSS).toContain(val(ledger, '--lg-warn-bg'));
+  });
+});
+

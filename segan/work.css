@@ -1,19 +1,21 @@
 /* ============================================================
    segan/work.css — 「작업」 탭 (segan/work.html) 의 작업자 화면 꾸밈
-   예전 worker.html 의 꾸밈 그대로 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼.
+   예전 worker.html 의 틀 그대로 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼.
+   색 · 글꼴 · 모서리는 앱과 같다 (v5 토큰 · 각진 모서리 · 그림자 없음). 상태를 알리는 색(정상 · 주의 · 위험 ·
+   알림)만 따로 둔다 — 주의 · 위험은 회계 · 본사 대시보드와 같은 값.
    앱 셸(shell.css)과 섞이지 않게 규칙마다 #workerApp 안으로 묶었다.
    ============================================================ */
 /* production-worker.html 의 틀 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼 */
 #workerApp {
-  --bg: #f3f4f6;
-  --panel: #fff;
-  --border: #d6dae0;
-  --text: #111827;
-  --muted: #5b6270;
-  --accent: #147a3d;
-  --danger: #a02020;
-  --warn: #8a5300;
-  --info: #1f56b8;
+  --bg: var(--v5-well);
+  --panel: var(--v5-paper);
+  --border: var(--v5-line-18);
+  --text: var(--v5-ink);
+  --muted: var(--v5-ink-62);
+  --accent: var(--v5-ink);
+  --danger: #93301f;
+  --warn: #6f4c0c;
+  --info: var(--v5-navy);
 }
 #workerApp,
 #workerApp * {
@@ -21,7 +23,7 @@
 }
 #workerApp {
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+  font-family: var(--v5-sans);
   font-size: 16px;
   line-height: 1.55;
 }
@@ -56,7 +58,6 @@
   display: block;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 14px;
   margin-bottom: 10px;
   color: var(--text);
@@ -68,12 +69,10 @@
 #workerApp .note {
   background: #eef4ff;
   color: #173d80;
-  border-radius: 10px;
   padding: 10px 12px;
 }
 #workerApp .alert {
   padding: 12px;
-  border-radius: 10px;
   margin: 10px 0;
   font-size: 16px;
 }
@@ -86,7 +85,7 @@
   color: #14562c;
 }
 #workerApp .alert.warn {
-  background: #fff1d6;
+  background: #fbefd4;
   color: var(--warn);
   font-weight: 600;
 }
@@ -114,8 +113,7 @@
   min-height: 58px;
   padding: 6px 2px;
   border: 2px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
+  background: var(--panel);
   color: var(--text);
   text-decoration: none;
   font-size: 16px;
@@ -125,7 +123,7 @@
 #workerApp .tab.on {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--v5-invert);
 }
 #workerApp .tab .n {
   font-size: 16px;
@@ -136,8 +134,7 @@
   grid-column: 1 / -1;
   display: block;
   padding: 8px 12px;
-  border-radius: 10px;
-  background: #fff1d6;
+  background: #fbefd4;
   color: var(--warn);
   font-weight: 600;
   text-decoration: none;
@@ -153,11 +150,10 @@
 #workerApp .chip {
   display: inline-block;
   padding: 1px 9px;
-  border-radius: 999px;
   font-size: 16px;
   font-weight: 600;
-  background: #eef1f4;
-  color: #374151;
+  background: var(--v5-well);
+  color: var(--v5-ink);
 }
 #workerApp .chip.k-install {
   background: #e4eefc;
@@ -177,23 +173,23 @@
 }
 #workerApp .chip.t-run {
   background: var(--accent);
-  color: #fff;
+  color: var(--v5-invert);
 }
 #workerApp .chip.t-wait {
   background: #e8effc;
   color: var(--info);
 }
 #workerApp .chip.t-warn {
-  background: #fff1d6;
+  background: #fbefd4;
   color: var(--warn);
 }
 #workerApp .chip.t-off {
-  background: #eef0f2;
-  color: #4b5563;
+  background: var(--v5-well);
+  color: var(--v5-ink-62);
 }
 #workerApp .chip.t-dday {
-  background: #111827;
-  color: #fff;
+  background: var(--v5-ink);
+  color: var(--v5-invert);
 }
 #workerApp .job .jt,
 #workerApp h2.jt {
@@ -215,9 +211,8 @@
 #workerApp .dl-tag.dl-today {
   display: inline-block;
   padding: 0 8px;
-  border-radius: 6px;
   background: var(--danger);
-  color: #fff;
+  color: var(--v5-invert);
 }
 #workerApp .dl-tag.dl-over {
   color: var(--danger);
@@ -255,8 +250,7 @@
 #workerApp .site-note {
   margin: 10px 0 0;
   padding: 10px 12px;
-  border-radius: 10px;
-  background: #f6f7f9;
+  background: var(--v5-work);
   color: var(--muted);
 }
 
@@ -268,9 +262,8 @@
   margin: 8px 0;
   font-size: 17px;
   font-weight: 700;
-  border-radius: 10px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--panel);
   color: var(--text);
   text-align: center;
   text-decoration: none;
@@ -280,12 +273,12 @@
 #workerApp .big.go {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--v5-invert);
 }
 #workerApp .big.stop {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: var(--v5-invert);
 }
 #workerApp .big:disabled {
   opacity: 0.55;
@@ -314,9 +307,8 @@
   padding: 11px 10px;
   font-size: 17px;
   border: 1px solid var(--border);
-  border-radius: 8px;
   font-family: inherit;
-  background: #fff;
+  background: var(--panel);
   color: var(--text);
 }
 #workerApp textarea {
@@ -324,7 +316,6 @@
 }
 #workerApp fieldset {
   border: 1px solid var(--border);
-  border-radius: 10px;
   margin: 6px 0;
   padding: 8px 12px;
   min-width: 0;
@@ -357,10 +348,9 @@
 }
 #workerApp .consent {
   border: 1px solid var(--border);
-  border-radius: 10px;
   padding: 12px;
   margin: 12px 0;
-  background: #fafbfc;
+  background: var(--v5-work);
 }
 #workerApp .consent dl {
   display: grid;
@@ -377,7 +367,6 @@
 #workerApp .fold {
   margin: 10px 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
   padding: 0 12px;
 }
 #workerApp .fold summary {
@@ -458,9 +447,8 @@
   padding: 11px 10px;
   font-size: 17px;
   border: 1px solid var(--border);
-  border-radius: 8px;
   font-family: inherit;
-  background: #fff;
+  background: var(--panel);
   color: var(--text);
 }
 #workerApp .check.done span {
