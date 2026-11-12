@@ -149,8 +149,8 @@
   /** 「이 스타일로 연출컷」 주소 — AI 연출컷 · 모르는 것은 '' (단추 없음) */
   function refHref(p) {
     if (!p || p.source === 'ai_render') return '';
-    if (p.id && UUID_RE.test(p.id)) return './?ref=' + encodeURIComponent(p.id);
-    if (!p.id && p.stem) return './?ref=' + encodeURIComponent(p.stem);
+    if (p.id && UUID_RE.test(p.id)) return 'make.html?ref=' + encodeURIComponent(p.id);
+    if (!p.id && p.stem) return 'make.html?ref=' + encodeURIComponent(p.stem);
     return '';
   }
 

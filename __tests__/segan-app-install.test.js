@@ -22,6 +22,7 @@ const MANIFEST = JSON.parse(read('segan/manifest.webmanifest'));
 /** 검색에 여는 앱 화면 — 사이트맵 · _redirects 의 대상과 같다 */
 const PUBLIC_PAGES = [
   'segan/index.html',
+  'segan/make.html',
   'segan/collection.html',
   'segan/consult.html',
   'segan/about.html',
@@ -340,7 +341,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
   test('_redirects — 옛 주소마다 .html 과 확장자 없는 것 둘 다 앱 짝으로 301', () => {
     const map = Object.fromEntries(REDIRECTS.map(([from, to, status]) => [from, `${to} ${status}`]));
     const want = {
-      '/': '/segan/', index: '/segan/', 'ai-design': '/segan/', collection: '/segan/collection',
+      '/': '/segan/', index: '/segan/', 'ai-design': '/segan/make', collection: '/segan/collection',
       material: '/segan/blog', consultation: '/segan/consult', 'partner-recommendation': '/segan/consult',
       'my-designs': '/segan/renders', mypage: '/segan/me', pricing: '/segan/plans', billing: '/segan/billing', worker: '/segan/work',
     };
@@ -378,6 +379,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
     const locs = [...read('sitemap.xml').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
     expect(locs).toEqual([
       'https://dadamfurniture.com/segan/',
+      'https://dadamfurniture.com/segan/make',
       'https://dadamfurniture.com/segan/collection',
       'https://dadamfurniture.com/segan/consult',
       'https://dadamfurniture.com/segan/about',

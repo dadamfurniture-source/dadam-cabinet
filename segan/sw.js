@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026111303';
+const ASSET_VERSION = '2026111306';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -33,7 +33,8 @@ const OFFLINE = SCOPE + 'offline.html';
 const versioned = (p) => `${p}?v=${ASSET_VERSION}`;
 
 const SHELL = [
-  SCOPE, // AI 연출컷 — 만들기 (index.html = start_url)
+  SCOPE, // 홈 (index.html = start_url)
+  SCOPE + 'make.html', // AI 연출컷 — 만들기
   SCOPE + 'collection.html', // 시공사례
   SCOPE + 'blog.html', // 매거진 — 분류마다 글 목록
   SCOPE + 'blog-materials.html', // 매거진 › 자재 글
@@ -63,6 +64,8 @@ const SHELL = [
   versioned(SCOPE + 'shell.js'),
   versioned(SCOPE + 'guide.js'), // SEGAN 비서 — 셸 화면마다 (위 막대 「비서」 · PC 아래 입력 줄)
   versioned(SCOPE + 'motion.js'), // 움직임 한 벌 (CLAUDE.md 「SEGAN 모션 규칙」)
+  versioned(SCOPE + 'home.css'), // 홈
+  versioned(SCOPE + 'forward.js'), // 홈 머리 — 옛 만들기 주소를 make.html 로
   versioned(SCOPE + 'info.css'),
   versioned(SCOPE + 'plans.js'),
   versioned(SCOPE + 'make.css'),

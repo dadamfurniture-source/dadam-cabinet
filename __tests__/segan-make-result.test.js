@@ -100,7 +100,7 @@ async function load(options = {}) {
     gets: [RUNNING, DONE],
     ...options,
   };
-  const doc = new DOMParser().parseFromString(read('segan/index.html'), 'text/html');
+  const doc = new DOMParser().parseFromString(read('segan/make.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   window.history.replaceState(null, '', opts.url);
   sessionStorage.clear();
@@ -517,11 +517,11 @@ describe('두 번 차감하지 않는다 · 저절로 생성하지 않는다', (
     expect(visible($('mkManage'))).toBe(false);
     const href = $('mkResLogin').getAttribute('href');
     expect(href).toBe(
-      '../login.html?redirect=' + encodeURIComponent(`segan/index.html?g=${ID}#result`)
+      '../login.html?redirect=' + encodeURIComponent(`segan/make.html?g=${ID}#result`)
     );
     // login.html 이 받는 같은 사이트 주소 (js/auth-redirect.js) — 그대로 돌아온다
     const target = new URLSearchParams(href.split('?')[1]).get('redirect');
-    expect(AuthRedirect.sanitize(target)).toBe(`segan/index.html?g=${ID}#result`);
+    expect(AuthRedirect.sanitize(target)).toBe(`segan/make.html?g=${ID}#result`);
   });
 
   test('로그인 없이 결과 주소를 연 뒤 사진을 골라 생성 → 사진은 이 기기에 담고 로그인으로', async () => {
@@ -533,7 +533,7 @@ describe('두 번 차감하지 않는다 · 저절로 생성하지 않는다', (
     $('mkNext').click();
     $('mkNext').click();
     $('mkRun').click();
-    expect(M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Findex.html');
+    expect(M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Fmake.html');
     expect(JSON.parse(sessionStorage.getItem(KEY)).photo).toEqual(PHOTO);
   });
 

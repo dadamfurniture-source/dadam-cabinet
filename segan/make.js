@@ -42,7 +42,7 @@
    누르기만 하면 된다. 저절로 생성하지 않는다. 로그인 전에는 아무것도 올리지 않는다.
    담아 둔 사진은 생성이 시작되면, 또는 사진을 버리면(다시 선택) 지운다.
 
-   쓰는 페이지: segan/index.html (data-tab="make")
+   쓰는 페이지: segan/make.html (data-tab="make")
    의존: js/config.js · supabase-js (없으면 로그인 안 된 것으로 본다)
    ============================================================ */
 /* global window, document, location, history, navigator, sessionStorage, FileReader, Image, URL, URLSearchParams, atob, fetch, setTimeout, CustomEvent */
@@ -128,7 +128,7 @@
   var MAX_EDGE = 1600; // 업로드 전 축소 (ai-design.html 과 같다)
   var DRAFT_KEY = 'segan.make.draft.v1';
   var LOGIN_PAGE = '../login.html';
-  var RETURN_TARGET = 'segan/index.html'; // login.html ?redirect= — js/auth-redirect.js 가 받는 같은 사이트 *.html
+  var RETURN_TARGET = 'segan/make.html'; // login.html ?redirect= — js/auth-redirect.js 가 받는 같은 사이트 *.html
   var STEPS = ['photo', 'kind', 'refs', 'result'];
   // 진행 단계 줄 6칸 — 4 생성 · 5 견적서는 결과 화면(result) 안, 6 상담 신청은 consult.html
   var MARKS = ['photo', 'kind', 'refs', 'make', 'quote', 'consult'];
@@ -1389,7 +1389,7 @@
       if (!res.ok || !data.success || !data.id)
         throw new Error((data && data.error) || '다시 생성하지 못했습니다');
       // 새 결과 주소 — 이 화면이 읽어 진행을 보여 준다 (읽기만 한다)
-      api.go('./?g=' + encodeURIComponent(data.id) + '#result');
+      api.go('make.html?g=' + encodeURIComponent(data.id) + '#result');
     } catch (e) {
       S.regenAsk = '';
       boxMsg(e.message || '다시 생성하지 못했습니다');

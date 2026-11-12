@@ -411,11 +411,11 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     expect(likeBtn()).toBeNull();
   });
 
-  test('「이 스타일로 연출컷」 — 직접 올린 사진 ./?ref=<id> · 자체 시공 ./?ref=<파일 이름> · AI 연출컷은 없음', async () => {
+  test('「이 스타일로 연출컷」 — 직접 올린 사진 make.html?ref=<id> · 자체 시공 make.html?ref=<파일 이름> · AI 연출컷은 없음', async () => {
     await load();
     const make = () => sheet().querySelector('a.pv-make');
     await openTile(0);
-    expect(make().getAttribute('href')).toBe('./?ref=' + uid(0));
+    expect(make().getAttribute('href')).toBe('make.html?ref=' + uid(0));
     expect(make().textContent).toBe('이 스타일로 연출컷');
     await openTile(1);
     expect(make()).toBeNull();
@@ -423,7 +423,7 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     expect(make()).toBeNull();
     await moreAll();
     await openTile(44);
-    expect(make().getAttribute('href')).toBe('./?ref=funiture-n4-1');
+    expect(make().getAttribute('href')).toBe('make.html?ref=funiture-n4-1');
     // 만들기가 받는 모양 (segan/make.js takeLinkRefs · STATIC_STEM_RE · UUID_RE)
     const V = window.SeganPostView;
     expect(V.refHref({ id: 'not-a-uuid', source: 'upload' })).toBe('');
@@ -528,7 +528,7 @@ describe('다운로드 없음 · 관리자 내리기 없음', () => {
     expect(document.querySelectorAll('a[download]')).toHaveLength(0);
     expect($('clTiles').querySelectorAll('a')).toHaveLength(0);
     expect([...sheet().querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
-      './?ref=' + uid(0),
+      'make.html?ref=' + uid(0),
     ]);
     expect(document.body.textContent).not.toMatch(/내리기|다운로드/);
     expect(document.querySelectorAll('[data-take-down]')).toHaveLength(0);
@@ -577,7 +577,7 @@ describe('페이지', () => {
     const keys = [...document.querySelectorAll('nav.sg-tabbar a:not([hidden])')].map((a) =>
       a.getAttribute('data-tab-link')
     );
-    expect(keys).toEqual(['make', 'collection', 'blog', 'about', 'me']);
+    expect(keys).toEqual(['home', 'make', 'collection', 'blog', 'me']);
     expect(
       document.querySelector('nav.sg-tabbar [aria-current="page"]').getAttribute('data-tab-link')
     ).toBe('collection');

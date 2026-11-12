@@ -15,31 +15,31 @@
     <title>구독 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026111303" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026111303" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026111303" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111303" />
+    <link rel="icon" href="icons/icon.svg?v=2026111306" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111306" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111306" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111306" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026111303" />
-    <link rel="stylesheet" href="info.css?v=2026111303" />
+    <link rel="stylesheet" href="shell.css?v=2026111306" />
+    <link rel="stylesheet" href="info.css?v=2026111306" />
     <!-- 금액 · 이름은 payments-api GET /plans, 월 크레딧은 credit_plans · credit_costs (로그인 없이 읽는다) -->
-    <script src="../js/config.js?v=2026111303"></script>
+    <script src="../js/config.js?v=2026111306"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="shell.js?v=2026111303" defer></script>
+    <script src="shell.js?v=2026111306" defer></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026111303" defer></script>
-    <script src="plans.js?v=2026111303" defer></script>
+    <script src="guide.js?v=2026111306" defer></script>
+    <script src="plans.js?v=2026111306" defer></script>
   </head>
   <body class="sg-app" data-tab="plans">
     <div data-segan-shell="header"></div>
 
     <main class="sg-main" id="main">
-      <!-- 폰 · 태블릿 — 아래 탭 SEGAN 하나에 소개 · 구독 (PC 는 위 메뉴에 둘 다 있어 감춘다) -->
+      <!-- 폰 · 태블릿 — 홈 안의 줄로 들어온 소개 · 구독을 오간다 (PC 는 위 메뉴에 둘 다 있어 감춘다) -->
       <nav class="in-seg" aria-label="SEGAN">
         <a href="about.html">소개</a>
         <a href="plans.html" aria-current="page">구독</a>
@@ -65,7 +65,7 @@
             <li>상담 신청</li>
             <li>업체 추천</li>
           </ul>
-          <a class="in-btn" href="./">AI 연출컷 시작</a>
+          <a class="in-btn" href="make.html">AI 연출컷 시작</a>
         </article>
 
         <article class="pl-tier" data-tier="manager" aria-labelledby="plName-manager">

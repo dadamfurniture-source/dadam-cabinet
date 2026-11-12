@@ -237,7 +237,7 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
     const like = sheet().querySelector('.pv-like');
     expect(like.getAttribute('aria-pressed')).toBe('true');
     expect(like.querySelector('.pv-count').textContent).toBe('3');
-    expect(sheet().querySelector('a.pv-make').getAttribute('href')).toBe('./?ref=' + uid(0));
+    expect(sheet().querySelector('a.pv-make').getAttribute('href')).toBe('make.html?ref=' + uid(0));
   });
 
   test('업체 없는 AI 연출컷 — 업체 「AI 연출컷」, 연출컷 단추 없음', async () => {

@@ -47,6 +47,7 @@
   /** 답 안에서 링크로 바꾸는 앱 주소 — 정확히 이 글자만 (워커 guide-prompt.js GUIDE_PAGES 의 주소) */
   var LINK_PATHS = [
     './',
+    'make.html',
     'collection.html',
     'blog.html',
     'about.html',
@@ -59,7 +60,7 @@
   ];
   // 앞 · 뒤가 주소 글자(영숫자 _ . / -)가 아닐 때만 — 「../login.html」 · 「https://x/plans.html」 · 「home.html」 은 안 바꾼다
   var LINK_RE =
-    /(^|[^A-Za-z0-9_./-])(\.\/|(?:collection|blog|about|plans|me|renders|consult|billing|settings)\.html)(?![A-Za-z0-9_/-])/g;
+    /(^|[^A-Za-z0-9_./-])(\.\/|(?:make|collection|blog|about|plans|me|renders|consult|billing|settings)\.html)(?![A-Za-z0-9_/-])/g;
 
   var TXT = {
     title: 'SEGAN 비서',

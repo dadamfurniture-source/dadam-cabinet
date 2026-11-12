@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, File, Event, Storage, setTimeout, URL */
 /**
- * SEGAN 만들기 — 진행 단계 6칸 · ① 사진 · ② 품목 · 로그인 전 임시 보관 (segan/index.html + segan/make.js).
+ * SEGAN 만들기 — 진행 단계 6칸 · ① 사진 · ② 품목 · 로그인 전 임시 보관 (segan/make.html + segan/make.js).
  * ③ 참고 사진은 segan-make-refs.test.js, 결과(4 생성 · 5 견적서)는 segan-make-result*.test.js.
  *
  *   - 품목 · 스타일 · 도어 색 · 냉장고 선택지가 ai-design.html 과 같다 (새 선택지를 만들지 않는다)
@@ -111,10 +111,10 @@ function fakeClient(opts, calls) {
   };
 }
 
-/** segan/index.html 을 올리고 make.js 를 돌린다 */
+/** segan/make.html 을 올리고 make.js 를 돌린다 */
 async function load(options = {}) {
   const opts = { session: null, draft: null, ...options };
-  const doc = new DOMParser().parseFromString(read('segan/index.html'), 'text/html');
+  const doc = new DOMParser().parseFromString(read('segan/make.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   window.history.replaceState(null, '', '/segan/' + (opts.hash || ''));
   sessionStorage.clear();
@@ -544,7 +544,7 @@ describe('크레딧 안내 — 생성 버튼 위 (③ 참고 사진 단계)', ()
 });
 
 describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
-  test('로그인 전 생성 → 이 기기에만 담고 login.html?redirect=segan/index.html, 아무것도 올리지 않는다', async () => {
+  test('로그인 전 생성 → 이 기기에만 담고 login.html?redirect=segan/make.html, 아무것도 올리지 않는다', async () => {
     const { M, calls } = await load();
     await choose('mkAlbumInput');
     $('mkNext').click();
@@ -555,10 +555,10 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     await flush();
     expect(M.go).toHaveBeenCalledTimes(1);
     const href = M.go.mock.calls[0][0];
-    expect(href).toBe('../login.html?redirect=segan%2Findex.html');
-    const url = new URL(href, 'https://dadamfurniture.com/segan/index.html');
+    expect(href).toBe('../login.html?redirect=segan%2Fmake.html');
+    const url = new URL(href, 'https://dadamfurniture.com/segan/make.html');
     expect(url.pathname).toBe('/login.html');
-    expect(AuthRedirect.fromSearch(url.search)).toBe('segan/index.html');
+    expect(AuthRedirect.fromSearch(url.search)).toBe('segan/make.html');
     expect(draft()).toMatchObject({
       v: 1,
       step: 'refs',
@@ -679,7 +679,7 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
 
 describe('페이지 · 서비스 워커', () => {
   test('index.html 이 config · supabase · shell · make 를 싣는다', () => {
-    const html = read('segan/index.html');
+    const html = read('segan/make.html');
     expect(html).toMatch(/<script src="\.\.\/js\/config\.js\?v=\d+"><\/script>/);
     expect(html).toContain(
       '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>'

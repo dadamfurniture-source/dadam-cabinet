@@ -58,9 +58,24 @@
 
   // ── 정본 ─────────────────────────────────────────────
   // label = PC 위 메뉴 글, short = 폰 아래 탭 글(없으면 label), pages = 이 탭이 켜지는 다른 화면(body data-tab),
-  // phone: false = PC 위 메뉴에만, end: true = PC 위 메뉴 오른쪽 끝
+  // phone: false = PC 위 메뉴에만, pc: false = 폰 아래 탭에만, end: true = PC 위 메뉴 오른쪽 끝
   var TABS = [
-    { key: 'make', label: 'AI 연출컷', short: '연출컷', href: './', target: 'segan/index.html' },
+    // 홈 — 폰 아래 탭 첫 칸 (PC 는 워드마크가 홈). 폰은 소개 · 구독도 홈 안의 줄로 간다
+    {
+      key: 'home',
+      label: '홈',
+      href: './',
+      target: 'segan/index.html',
+      pages: ['about', 'plans'],
+      pc: false,
+    },
+    {
+      key: 'make',
+      label: 'AI 연출컷',
+      short: '연출컷',
+      href: 'make.html',
+      target: 'segan/make.html',
+    },
     {
       key: 'collection',
       label: '시공사례',
@@ -68,14 +83,13 @@
       target: 'segan/collection.html',
     },
     { key: 'blog', label: '매거진', href: 'blog.html', target: 'segan/blog.html' },
-    // 폰은 SEGAN 하나가 소개 · 구독 둘 다 (두 화면 위 [소개 | 구독])
+    // 소개 · 구독 — PC 위 메뉴에만 (폰은 홈 안의 줄 → 두 화면 위 [소개 | 구독])
     {
       key: 'about',
       label: 'AI 시스템 소개',
-      short: 'SEGAN',
       href: 'about.html',
       target: 'segan/about.html',
-      pages: ['plans'],
+      phone: false,
     },
     { key: 'plans', label: '구독', href: 'plans.html', target: 'segan/plans.html', phone: false },
     {
@@ -177,12 +191,12 @@
 
   // ── 그리기 ───────────────────────────────────────────
   var ICON_PATHS = {
+    home: '<path d="M4.5 11 12 4.5l7.5 6.5v8.5h-15z"/><path d="M10 19.5v-5h4v5"/>',
     make: '<rect x="4.5" y="4.5" width="15" height="15"/><path d="M12 8.5v7M8.5 12h7"/>',
     collection:
       '<rect x="4.5" y="4.5" width="6.5" height="6.5"/><rect x="13" y="4.5" width="6.5" height="6.5"/>' +
       '<rect x="4.5" y="13" width="6.5" height="6.5"/><rect x="13" y="13" width="6.5" height="6.5"/>',
     blog: '<rect x="5.5" y="4.5" width="13" height="15"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/>',
-    about: '<circle cx="12" cy="12" r="7.5"/><path d="M12 11v5M12 8.2v.6"/>',
     me: '<circle cx="12" cy="8.4" r="3.4"/><path d="M5 19.5c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/>',
   };
 
@@ -222,7 +236,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111303" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111306" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +

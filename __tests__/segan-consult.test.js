@@ -240,7 +240,7 @@ describe('신청서', () => {
     expect($('csPhone').value).toBe('010-2222-3333');
     expect($('csSido').value).toBe('대구광역시');
     expect($('csGugun').value).toBe('북구');
-    expect($('csBack').getAttribute('href')).toBe(`./?g=${ID}#result`);
+    expect($('csBack').getAttribute('href')).toBe(`make.html?g=${ID}#result`);
     expect(document.querySelector('[aria-current="page"]').getAttribute('data-tab-link')).toBe(
       'make'
     );
@@ -495,7 +495,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       '다담 본사가 확인한 뒤 남기신 연락처로 직접 연락드립니다.'
     );
     expect($('csDoneTel').querySelector('a').getAttribute('href')).toBe('tel:01077386822');
-    expect($('csDoneBack').getAttribute('href')).toBe(`./?g=${ID}#result`);
+    expect($('csDoneBack').getAttribute('href')).toBe(`make.html?g=${ID}#result`);
   });
 
   test('시공 사진 학습 동의 — 같은 시각으로 photo_learn_agreed_at, 업체 제공 동의와 따로 (2026-11-06 작업 분배 ⑥)', async () => {
@@ -871,7 +871,7 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect(calls.updates).toEqual([]);
     expect(view()).toEqual(['done']);
     expect($('csDoneText').textContent).toBe(window.SeganConsult.DONE_TEXT.hq);
-    expect($('csDoneBack').getAttribute('href')).toBe('./');
+    expect($('csDoneBack').getAttribute('href')).toBe('make.html');
     expect($('csDoneBack').textContent).toBe('만들기로 가기');
   });
 

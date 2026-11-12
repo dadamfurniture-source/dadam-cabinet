@@ -6,7 +6,7 @@
  * my-designs.html 과 같은 데이터 · 호출인지 확인한다 (my-designs.html 은 고치지 않는다):
  *   generations 목록(같은 칸 · internal_only 거르기 · 최신순 200) · js/storage-urls.js 서명 · 5초 다시 읽기
  *   collection_posts(ai_render) 표시
- * 하나를 누르면 만들기 ③ 결과 화면(./?g=<id>#result)으로 간다 — 결과 화면은 그것 하나다
+ * 하나를 누르면 만들기 ③ 결과 화면(make.html?g=<id>#result)으로 간다 — 결과 화면은 그것 하나다
  * (컷 · 견적 · 상담 신청 · 공유 · 내리기 · 학습 동의 · 다시 생성 · 삭제는 segan-make-result-manage.test.js).
  * 옛 주소 renders.html?g=<id> 는 목록을 그리기 전에 그 결과 주소로 넘긴다.
  */
@@ -220,26 +220,26 @@ describe('목록 — my-designs.html 과 같은 읽기', () => {
   test('없으면 만들기로 가는 안내', async () => {
     await load({ rows: [], posts: [] });
     expect(visible($('rdEmpty'))).toBe(true);
-    expect($('rdEmpty').querySelector('a').getAttribute('href')).toBe('./');
+    expect($('rdEmpty').querySelector('a').getAttribute('href')).toBe('make.html');
   });
 });
 
 describe('하나 열기 = 만들기 ③ 결과 화면 (결과 화면은 하나)', () => {
-  test('카드는 ./?g=<id>#result 로 가는 링크 — 진행 중 · 실패한 것도 같은 화면', async () => {
+  test('카드는 make.html?g=<id>#result 로 가는 링크 — 진행 중 · 실패한 것도 같은 화면', async () => {
     await load();
     for (const id of [ID1, ID2, ID3]) {
       const a = card(id).querySelector('a.rd-thumb');
-      expect(a.getAttribute('href')).toBe(`./?g=${id}#result`);
+      expect(a.getAttribute('href')).toBe(`make.html?g=${id}#result`);
     }
     expect(card(ID2).querySelector('a.rd-thumb').getAttribute('aria-label')).toBe(
       '붙박이장 연출컷 열기'
     );
-    expect(window.SeganRenders.resultHref(ID2)).toBe(`./?g=${ID2}#result`);
-    // ./ 는 segan/index.html (만들기) — 상담 신청의 「결과로 돌아가기」와 같은 주소 모양
-    expect(new URL(`./?g=${ID2}#result`, 'https://x.example/segan/renders.html').pathname).toBe(
-      '/segan/'
+    expect(window.SeganRenders.resultHref(ID2)).toBe(`make.html?g=${ID2}#result`);
+    // make.html 은 만들기 — 상담 신청의 「결과로 돌아가기」와 같은 주소 모양
+    expect(new URL(`make.html?g=${ID2}#result`, 'https://x.example/segan/renders.html').pathname).toBe(
+      '/segan/make.html'
     );
-    expect(read('segan/consult.js')).toContain("'./?g=' + encodeURIComponent(C.id) + '#result'");
+    expect(read('segan/consult.js')).toContain("'make.html?g=' + encodeURIComponent(C.id) + '#result'");
   });
 
   test('목록 화면에는 하나 열기 화면이 없다 (#rdDetail · 관리 칸 · 화면 안 확인 줄 없음)', async () => {
@@ -314,11 +314,11 @@ ${read('segan/renders.js')}
     return loc;
   }
 
-  test('올바른 id 면 목록을 그리기 전에 ./?g=<id>#result 로 바꿔 넘긴다 (기록 칸을 바꾼다)', async () => {
+  test('올바른 id 면 목록을 그리기 전에 make.html?g=<id>#result 로 바꿔 넘긴다 (기록 칸을 바꾼다)', async () => {
     await load({ rows: [], posts: [] }); // 페이지 · 셸만 올려 둔다
     const loc = runWith(`?g=${ID2}`);
     expect(loc.replace).toHaveBeenCalledTimes(1);
-    expect(loc.replace).toHaveBeenCalledWith(`./?g=${ID2}#result`);
+    expect(loc.replace).toHaveBeenCalledWith(`make.html?g=${ID2}#result`);
     expect(loc.assign).not.toHaveBeenCalled();
     expect(window.SeganRenders).toBeUndefined(); // 목록을 시작하지 않는다
   });
