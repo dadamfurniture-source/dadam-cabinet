@@ -415,6 +415,7 @@ describe('구매 · 재고 대시보드 숫자', () => {
       old: 0,
       boards: [{ name: 'PB · 18T', unit: '장', qty: 7 }],
       value: null,
+      bought: null,
     });
   });
 
@@ -495,6 +496,35 @@ describe('재고 금액 (대표 · 실장 답에만 온다)', () => {
     expect(worth.nextElementSibling.classList.contains('od-kpi')).toBe(true);
     await load({ hash: '#dash-stock' });
     expect($('meStockNumbers').querySelector('[data-sn="worth"]')).toBeNull();
+  });
+
+  test('이번 달 매입 — 서버가 bought 를 주면 금액 칸 다음에, 안 주면 없다. 어림이라고 이름에 적는다', async () => {
+    const M = mod('segan/stock-moves.js', 'SeganStockMoves');
+    expect(M.boughtOf(undefined)).toBeNull();
+    expect(M.boughtOf({ month: '2026-11', total: -1 })).toBeNull();
+    expect(M.boughtOf({ month: '11월', total: 1 })).toBeNull();
+    expect(M.boughtOf({ month: '2026-11', total: '270000', unpriced: 2 })).toEqual({
+      month: 11,
+      total: 270000,
+      unpriced: 2,
+    });
+    await load({
+      hash: '#dash-stock',
+      summary: () =>
+        ok({
+          ...SUMMARY(),
+          value: { total: 2365000, board: 2331000, hardware: 34000, unpriced: 0 },
+          bought: { month: '2026-11', total: 270000, unpriced: 2 },
+        }),
+    });
+    const bought = $('meStockNumbers').querySelector('[data-sn="bought"]');
+    expect([...bought.children].map(text)).toEqual([
+      '11월 매입 (입고 × 지금 단가)270,000원',
+      '단가 없어 빠진 품목2종',
+    ]);
+    expect(bought.previousElementSibling.getAttribute('data-sn')).toBe('worth');
+    await load({ hash: '#dash-stock' });
+    expect($('meStockNumbers').querySelector('[data-sn="bought"]')).toBeNull();
   });
 });
 

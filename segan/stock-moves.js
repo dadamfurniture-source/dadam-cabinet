@@ -10,12 +10,14 @@
    서버      workflow-api (본인 토큰 · 응답은 { success, data })
                GET /stock/moves     { items[{ id, item_name, item_spec, unit, kind, qty, qty_after, ref, note, by, created_at }] } 새 것부터 200건
                GET /stock/summary   { short { board, hardware }, expected, offcuts { left, reserved, old }, boards[{ name, spec, unit, qty }],
-                                      value { total, board, hardware, unpriced } — 재고 금액(원), 대표 · 실장 답에만 }
+                                      value { total, board, hardware, unpriced } — 재고 금액(원), 대표 · 실장 답에만,
+                                      bought { month 'YYYY-MM', total, unpriced } — 이번 달 매입(원) = 입고 × 지금 단가, 대표 · 실장 답에만 }
    화면      입출고 — 종류(전체 · 입고 · 출고 · 실사 조정)로 거르는 표: 때 · 품목 · 종류 · 수량 · 남은 수량 · 어디에 · 적은 사람.
              숫자 — 안전 재고 아래(판재 · 철물) · 입고 예정 · 자투리(남음 · 예약 · 3달 넘음) 칸과 재질별 판재 줄.
              칸을 누르면 그 화면으로 간다.
    못 읽으면  그 칸만 감춘다 (입출고는 메뉴 줄도 없다, 숫자는 대시보드에 안 나온다).
-   없는 것    이번 달 매입. (작업지시 자재 상태는 바로 아래 칸 — segan/stock-needs.js 가 그린다.) 재고 금액은 서버가 줄 때만(대표 · 실장 · 단가 칸이 있을 때) 그린다.
+   이번 달 매입  서버가 줄 때만 그린다. 입고할 때의 값이 아니라 지금 단가로 셈한 어림이라고 칸 이름에 적는다.
+   없는 것    (작업지시 자재 상태는 바로 아래 칸 — segan/stock-needs.js 가 그린다.) 재고 금액은 서버가 줄 때만(대표 · 실장 · 단가 칸이 있을 때) 그린다.
    정보      품목 이름 · 메모는 화면에만 그린다 — 알림 · 기기 저장에 싣지 않는다. 고객 정보는 다루지 않는다.
    ============================================================ */
 /* global window, document, fetch */
@@ -49,6 +51,8 @@
     won: '원',
     worthParts: ['판재', '철물'],
     unpriced: '단가 없는 품목',
+    bought: '월 매입 (입고 × 지금 단가)',
+    boughtUnpriced: '단가 없어 빠진 품목',
   };
 
   var J = { base: '', sb: null, session: null, moves: null, filter: 'all', sum: null };
@@ -159,7 +163,17 @@
         })
         .filter(Boolean),
       value: valueOf(d.value),
+      bought: boughtOf(d.bought),
     };
+  }
+
+  /** 이번 달 매입 — 대표 · 실장 답에만 온다. 꼴이 아니면 null (칸을 그리지 않는다) */
+  function boughtOf(v) {
+    var o = obj(v);
+    var total = num(o.total);
+    var m = /^\d{4}-(\d{2})$/.exec(str(o.month));
+    if (total === null || total < 0 || !m) return null;
+    return { month: Number(m[1]), total: Math.round(total), unpriced: count(o.unpriced) };
   }
 
   /** 재고 금액 — 대표 · 실장 답에만 온다. 꼴이 아니면 null (칸을 그리지 않는다) */
@@ -349,6 +363,22 @@
             : '') +
           '</dl>'
         : '') +
+      (s.bought
+        ? '<dl class="od-kpi as-kpi sn-worth" data-sn="bought"><div><dt>' +
+          esc(s.bought.month + TEXT.bought) +
+          '</dt><dd>' +
+          esc(wonText(s.bought.total)) +
+          '</dd></div>' +
+          (s.bought.unpriced
+            ? '<div><dt>' +
+              esc(TEXT.boughtUnpriced) +
+              '</dt><dd>' +
+              s.bought.unpriced +
+              esc(TEXT.kinds) +
+              '</dd></div>'
+            : '') +
+          '</dl>'
+        : '') +
       '<dl class="od-kpi as-kpi">' +
       kpi(
         'short-board',
@@ -445,6 +475,7 @@
     signed: signed,
     summaryOf: summaryOf,
     valueOf: valueOf,
+    boughtOf: boughtOf,
     whenText: whenText,
     state: J,
     load: load,
