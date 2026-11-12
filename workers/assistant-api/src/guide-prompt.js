@@ -42,7 +42,8 @@ export const GUIDE_TIERS = Object.freeze([
 
 /** 화면 이름 · 주소 (앱 안 상대 주소) — 안내에 쓰는 주소는 이것뿐 */
 export const GUIDE_PAGES = Object.freeze([
-  ['AI 연출컷', './', '현장 사진으로 가구가 들어간 모습(연출컷)을 만든다'],
+  ['홈', './', '앱 첫 화면. 폰에서는 이 화면 아래쪽 줄에서 AI 시스템 소개 · 구독으로 간다'],
+  ['AI 연출컷', 'make.html', '현장 사진으로 가구가 들어간 모습(연출컷)을 만든다'],
   ['시공사례', 'collection.html', '다담의 시공 사례를 본다'],
   ['블로그', 'blog.html', '다담 블로그 글을 본다'],
   ['AI 시스템 소개', 'about.html', 'SEGAN 의 AI 기능 소개'],
