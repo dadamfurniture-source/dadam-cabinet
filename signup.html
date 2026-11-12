@@ -21,23 +21,23 @@
         padding: 0;
         box-sizing: border-box;
       }
-      /* 레거시 색상 변수 복원 — dadam-system.css 가 --d-* 만 정의하므로
-         var(--charcoal) 등 옛 참조가 풀리지 않는 회귀 방지. */
+      /* 색 · 모서리는 앱과 같다 — css/dadam-v5.css 의 값 (각진 모서리 · 그림자 없음 · 가는 선).
+         변수 이름은 이 화면이 쓰던 그대로 둔다 (금색 자리는 v5 의 tan). */
       :root {
-        --white: #fafafa;
-        --cream: #f8f7f4;
-        --warm: #ebe8e2;
-        --gray: #8b8680;
+        --white: #ffffff;
+        --cream: #f6f3ee;
+        --warm: rgba(45, 42, 38, 0.16);
+        --gray: rgba(45, 42, 38, 0.62);
         --charcoal: #2d2a26;
-        --black: #1a1918;
-        --gold: #b8956c;
-        --gold-light: #d4b896;
-        --expert: #6366f1;
-        --business: #059669;
+        --black: #2d2a26;
+        --gold: #8a7457;
+        --gold-light: #8a7457;
+        --expert: #0b2545;
+        --business: #2f6b4f;
       }
       body {
         font-family:
-          'Pretendard',
+          'Noto Sans KR',
           -apple-system,
           BlinkMacSystemFont,
           system-ui,
@@ -52,8 +52,8 @@
       h2,
       h3,
       h4 {
-        font-family: var(--d-font-display);
-        font-weight: 500;
+        font-family: inherit;
+        font-weight: 400;
       }
       a {
         text-decoration: none;
@@ -76,9 +76,7 @@
         background: var(--charcoal);
       }
       .brand-bg {
-        position: absolute;
-        inset: 0;
-        opacity: 0.2;
+        display: none;
       }
       .brand-bg::before {
         content: '';
@@ -123,7 +121,9 @@
         height: 40px;
       }
       .brand-logo span {
-        font-family: 'Playfair Display', serif;
+        font-family: inherit;
+        font-weight: 300;
+        letter-spacing: 0.08em;
         font-size: 28px;
       }
       .brand-content h1 {
@@ -189,7 +189,9 @@
         height: 32px;
       }
       .mobile-logo span {
-        font-family: 'Playfair Display', serif;
+        font-family: inherit;
+        font-weight: 300;
+        letter-spacing: 0.08em;
         font-size: 24px;
       }
 
@@ -216,19 +218,18 @@
       .success-message {
         display: none;
         padding: 16px;
-        border-radius: 12px;
         font-size: 14px;
         margin-bottom: 24px;
       }
       .error-message {
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #dc2626;
+        background: #f8ece9;
+        border: 1px solid rgba(147, 48, 31, 0.3);
+        color: #93301f;
       }
       .success-message {
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        color: #16a34a;
+        background: #eaf2ed;
+        border: 1px solid rgba(47, 107, 79, 0.3);
+        color: #2f6b4f;
       }
       .error-message.show,
       .success-message.show {
@@ -244,7 +245,6 @@
       .btn-social {
         flex: 1;
         padding: 14px;
-        border-radius: 12px;
         font-size: 14px;
         font-weight: 500;
         cursor: pointer;
@@ -283,9 +283,8 @@
       .inapp-notice {
         margin-bottom: 16px;
         padding: 14px 16px;
-        background: #fffbea;
-        border: 1px solid #f3e3a3;
-        border-radius: 12px;
+        background: #fbefd4;
+        border: 1px solid #c9952b;
         font-size: 14px;
         line-height: 1.6;
         color: var(--charcoal);
@@ -297,7 +296,6 @@
         background: var(--charcoal);
         color: #fff;
         border: none;
-        border-radius: 10px;
         font-size: 14px;
         font-weight: 500;
         cursor: pointer;
@@ -319,7 +317,6 @@
         width: 100%;
         padding: 10px 12px;
         border: 1px solid var(--warm);
-        border-radius: 8px;
         background: #fff;
         font-family: inherit;
         font-size: 16px;
@@ -382,7 +379,6 @@
         padding: 14px 14px 14px 44px;
         background: #fff;
         border: 1px solid var(--warm);
-        border-radius: 10px;
         font-size: 15px;
         color: var(--charcoal);
         transition: all 0.3s;
@@ -398,7 +394,6 @@
       .input-wrapper select:focus {
         outline: none;
         border-color: var(--gold);
-        box-shadow: 0 0 0 3px rgba(184, 149, 108, 0.15);
       }
       .input-wrapper input::placeholder {
         color: rgba(139, 134, 128, 0.5);
@@ -438,7 +433,6 @@
         position: relative;
         padding: 16px;
         border: 2px solid var(--warm);
-        border-radius: 12px;
         cursor: pointer;
         transition: all 0.3s;
         background: #fff;
@@ -485,7 +479,6 @@
       .tier-badge {
         font-size: 11px;
         padding: 3px 8px;
-        border-radius: 20px;
         font-weight: 500;
       }
       .tier-card.standard .tier-badge {
@@ -515,7 +508,6 @@
         margin-top: 8px;
         padding: 8px 12px;
         background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(184, 149, 108, 0.1));
-        border-radius: 8px;
         font-size: 12px;
         color: var(--expert);
       }
@@ -536,7 +528,7 @@
         transition: color 0.3s;
       }
       .password-reqs .req.valid {
-        color: #16a34a;
+        color: #2f6b4f;
       }
       .password-reqs .req svg {
         width: 14px;
@@ -565,7 +557,7 @@
         flex-shrink: 0;
       }
       .terms-group .required {
-        color: #dc2626;
+        color: #93301f;
       }
       .terms-group a {
         color: var(--gold);
@@ -584,7 +576,6 @@
         background: var(--charcoal);
         color: #fff;
         border: none;
-        border-radius: 12px;
         font-size: 16px;
         font-weight: 500;
         cursor: pointer;

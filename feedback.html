@@ -7,14 +7,15 @@
     <meta name="referrer" content="no-referrer" />
     <title>설치 후 한 가지 질문 · 다담가구</title>
     <style>
+      /* 색 · 모서리는 앱과 같다 — css/dadam-v5.css 의 값 (각진 모서리 · 그림자 없음 · 가는 선) */
       :root {
-        --bg: #eef0f3;
-        --panel: #fff;
-        --border: #d6dae0;
-        --text: #1a1d21;
-        --muted: #6b7280;
-        --accent: #147a3d;
-        --danger: #a02020;
+        --bg: #f6f3ee;
+        --panel: #ffffff;
+        --border: rgba(45, 42, 38, 0.18);
+        --text: #2d2a26;
+        --muted: rgba(45, 42, 38, 0.62);
+        --accent: #2d2a26;
+        --danger: #93301f;
       }
       * {
         box-sizing: border-box;
@@ -23,7 +24,7 @@
         margin: 0;
         background: var(--bg);
         color: var(--text);
-        font-family: 'Pretendard', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Noto Sans KR', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
         line-height: 1.5;
         /* 한국어는 낱말 중간에서 줄을 바꾸지 않게 ("다담가구 / 를" 방지) */
         word-break: keep-all;
@@ -52,7 +53,6 @@
       .card {
         background: var(--panel);
         border: 1px solid var(--border);
-        border-radius: 10px;
         padding: 20px;
       }
       .card h2 {
@@ -73,7 +73,6 @@
       .scale button {
         padding: 10px 0;
         border: 1px solid var(--border);
-        border-radius: 6px;
         background: #fff;
         font-size: 15px;
         font-family: inherit;
@@ -103,7 +102,6 @@
         margin-top: 16px;
         padding: 10px;
         border: 1px solid var(--border);
-        border-radius: 6px;
         font: inherit;
         resize: vertical;
       }
@@ -112,7 +110,6 @@
         width: 100%;
         padding: 12px;
         border: none;
-        border-radius: 8px;
         background: var(--accent);
         color: #fff;
         font-size: 16px;
