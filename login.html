@@ -22,23 +22,22 @@
         box-sizing: border-box;
       }
 
-      /* 레거시 색상 변수 복원 — dadam-system.css 도입 시 :root 블록이 빠지면서
-         brand-section / 폼 헤더 / 입력 필드 등에서 var(--charcoal) 등이 풀리지 않아
-         텍스트가 투명해지는 회귀 발생 (login.html 만의 문제). */
+      /* 색 · 모서리는 앱과 같다 — css/dadam-v5.css 의 값 (각진 모서리 · 그림자 없음 · 가는 선).
+         변수 이름은 이 화면이 쓰던 그대로 둔다 (금색 자리는 v5 의 tan). */
       :root {
-        --white: #fafafa;
-        --cream: #f8f7f4;
-        --warm: #ebe8e2;
-        --gray: #8b8680;
+        --white: #ffffff;
+        --cream: #f6f3ee;
+        --warm: rgba(45, 42, 38, 0.16);
+        --gray: rgba(45, 42, 38, 0.62);
         --charcoal: #2d2a26;
-        --black: #1a1918;
-        --gold: #b8956c;
-        --gold-light: #d4b896;
+        --black: #2d2a26;
+        --gold: #8a7457;
+        --gold-light: #8a7457;
       }
 
       body {
         font-family:
-          'Pretendard',
+          'Noto Sans KR',
           -apple-system,
           BlinkMacSystemFont,
           system-ui,
@@ -54,8 +53,8 @@
       h2,
       h3,
       h4 {
-        font-family: var(--d-font-display);
-        font-weight: 500;
+        font-family: inherit;
+        font-weight: 400;
       }
 
       a {
@@ -80,9 +79,7 @@
       }
 
       .brand-bg {
-        position: absolute;
-        inset: 0;
-        opacity: 0.2;
+        display: none;
       }
 
       .brand-bg::before {
@@ -133,7 +130,9 @@
       }
 
       .brand-logo span {
-        font-family: 'Playfair Display', serif;
+        font-family: inherit;
+        font-weight: 300;
+        letter-spacing: 0.08em;
         font-size: 28px;
       }
 
@@ -201,7 +200,9 @@
       }
 
       .mobile-logo span {
-        font-family: 'Playfair Display', serif;
+        font-family: inherit;
+        font-weight: 300;
+        letter-spacing: 0.08em;
         font-size: 24px;
       }
 
@@ -231,10 +232,9 @@
       .error-message {
         display: none;
         padding: 16px;
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-        border-radius: 12px;
-        color: #dc2626;
+        background: #f8ece9;
+        border: 1px solid rgba(147, 48, 31, 0.3);
+        color: #93301f;
         font-size: 14px;
         margin-bottom: 24px;
       }
@@ -247,10 +247,9 @@
       .success-message {
         display: none;
         padding: 16px;
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-radius: 12px;
-        color: #16a34a;
+        background: #eaf2ed;
+        border: 1px solid rgba(47, 107, 79, 0.3);
+        color: #2f6b4f;
         font-size: 14px;
         margin-bottom: 24px;
       }
@@ -296,7 +295,6 @@
         padding: 16px 16px 16px 48px;
         background: #fff;
         border: 1px solid var(--warm);
-        border-radius: 12px;
         font-size: 16px;
         color: var(--charcoal);
         transition: all 0.3s;
@@ -305,7 +303,6 @@
       .input-wrapper input:focus {
         outline: none;
         border-color: var(--gold);
-        box-shadow: 0 0 0 3px rgba(184, 149, 108, 0.15);
       }
 
       .input-wrapper input::placeholder {
@@ -361,7 +358,6 @@
         font-size: 13px;
         color: var(--gray);
         cursor: pointer;
-        border-radius: 8px;
       }
       .resend-link:hover:not([disabled]) {
         color: var(--charcoal);
@@ -392,7 +388,6 @@
         background: var(--charcoal);
         color: #fff;
         border: none;
-        border-radius: 12px;
         font-size: 16px;
         font-weight: 500;
         cursor: pointer;
@@ -448,7 +443,6 @@
       .btn-social {
         width: 100%;
         padding: 16px;
-        border-radius: 12px;
         font-size: 15px;
         font-weight: 500;
         cursor: pointer;
@@ -494,9 +488,8 @@
       .inapp-notice {
         margin-bottom: 16px;
         padding: 14px 16px;
-        background: #fffbea;
-        border: 1px solid #f3e3a3;
-        border-radius: 12px;
+        background: #fbefd4;
+        border: 1px solid #c9952b;
         font-size: 14px;
         line-height: 1.6;
         color: var(--charcoal);
@@ -509,7 +502,6 @@
         background: var(--charcoal);
         color: #fff;
         border: none;
-        border-radius: 10px;
         font-size: 14px;
         font-weight: 500;
         cursor: pointer;
@@ -535,7 +527,6 @@
         width: 100%;
         padding: 10px 12px;
         border: 1px solid var(--warm);
-        border-radius: 8px;
         background: #fff;
         font-family: inherit;
         font-size: 16px;
