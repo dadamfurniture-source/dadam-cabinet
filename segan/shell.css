@@ -4940,10 +4940,26 @@ body.sg-locked {
   max-height: 90vh;
   max-height: 90dvh;
   border-top: 1px solid var(--v5-line-18);
-  background: var(--v5-paper);
+  /* 유리 — 시트 · 옆 패널은 떠 있는 층 (가운데 창은 막는 확인이라 불투명 그대로) */
+  background: var(--v5-glass);
+  -webkit-backdrop-filter: var(--v5-blur);
+  backdrop-filter: var(--v5-blur);
   color: var(--v5-ink);
   outline: none;
   animation: sg-sheet-up var(--sg-spring-ms) var(--sg-spring);
+}
+
+/* 닫히는 창 — 그림만 나가는 중이다. 누를 수 없다 (segan/shell.js leave) */
+.sg-sheet-wrap--out {
+  pointer-events: none;
+}
+
+/* 유리 위에 유리를 겹치지 않는다 — 창이 열려 있는 동안 위 막대 · 아래 탭은 불투명 */
+body.sg-locked .sg-header,
+body.sg-locked .sg-tabbar {
+  background: var(--v5-glass-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .sg-sheet-head {
@@ -5024,6 +5040,9 @@ body.sg-locked {
   max-width: 400px;
   max-height: 100%;
   border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   animation: none;
 }
 
@@ -5654,12 +5673,22 @@ body.sg-locked {
   .sg-tabbar {
     background: var(--v5-glass-solid);
   }
+
+  .sg-sheet {
+    background: var(--v5-paper);
+  }
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .sg-header,
   .sg-tabbar {
     background: var(--v5-glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .sg-sheet {
+    background: var(--v5-paper);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
