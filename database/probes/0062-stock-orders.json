@@ -1,0 +1,83 @@
+{
+  "title": "0062 재고 구매 발주 — 두 표 모두 서버만, 발주 넣기 · 입고 · 취소가 입고 예정 · 재고와 같이 움직인다 (scripts/rls-probe.mjs --migration database/migrations/0062_stock_orders.sql — 0059 적용 뒤)",
+  "ids": ["company_x", "company_y", "item_a", "item_b", "item_off", "item_y"],
+  "users": ["x_owner_user"],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.stock_items (id, company_id, kind, name, unit, qty, active) VALUES ({{item_a}}, {{company_x}}, 'hardware', 'probe 경첩', '개', 40, true), ({{item_b}}, {{company_x}}, 'hardware', 'probe 레일', '쌍', 5, true), ({{item_off}}, {{company_x}}, 'hardware', 'probe 숨김', '개', 0, false), ({{item_y}}, {{company_y}}, 'board', 'probe PB', '장', 5, true)",
+    "SELECT public.stock_order_place({{company_x}}, NULL, current_date + 3, 'probe', jsonb_build_array(jsonb_build_object('item_id', {{item_a}}, 'qty', 100), jsonb_build_object('item_id', {{item_b}}, 'qty', 20)), {{x_owner_user}})"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "x_owner": { "role": "authenticated", "user": "x_owner_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "발주 읽기 — 서버만 (대표도 브라우저로는 못 읽는다). 번호는 1부터",
+      "sql": "select seq || '/' || state from public.stock_orders where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": "deny", "service_role": "1/ordered" }
+    },
+    {
+      "name": "발주 넣기 함수 — 구성원은 못 부른다",
+      "sql": "select (public.stock_order_place({{company_x}}, NULL, current_date + 3, NULL, jsonb_build_array(jsonb_build_object('item_id', {{item_a}}, 'qty', 1)), NULL)).seq",
+      "roles": ["x_owner"],
+      "expect": { "x_owner": "deny" }
+    },
+    {
+      "name": "발주를 넣으면 품목의 입고 예정이 그만큼 는다",
+      "sql": "select expected_qty || '/' || (expected_on = current_date + 3) from public.stock_items where id = {{item_a}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "100.00/true" }
+    },
+    {
+      "name": "다음 발주 번호는 2",
+      "sql": "select (public.stock_order_place({{company_x}}, NULL, current_date + 1, NULL, jsonb_build_array(jsonb_build_object('item_id', {{item_a}}, 'qty', 10)), NULL)).seq",
+      "roles": ["service_role"],
+      "expect": { "service_role": "2" }
+    },
+    {
+      "name": "숨긴 품목 · 남의 업체 품목은 발주 못 한다",
+      "sql": "select public.stock_order_place({{company_x}}, NULL, current_date + 1, NULL, jsonb_build_array(jsonb_build_object('item_id', {{item_off}}, 'qty', 1)), NULL)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:P0002" }
+    },
+    {
+      "name": "남의 업체 품목",
+      "sql": "select public.stock_order_place({{company_x}}, NULL, current_date + 1, NULL, jsonb_build_array(jsonb_build_object('item_id', {{item_y}}, 'qty', 1)), NULL)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23503" }
+    },
+    {
+      "name": "입고(그대로) — 재고가 늘고 입고 예정이 지워지고 발주가 닫힌다",
+      "sql": "select (public.stock_order_receive({{company_x}}, id, {{x_owner_user}})).state || '/' || (select qty || '/' || coalesce(expected_qty::text, '-') from public.stock_items where id = {{item_a}}) from public.stock_orders where company_id = {{company_x}} and seq = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "received/140.00/-" }
+    },
+    {
+      "name": "입고(덜 옴) — 들어온 만큼만 늘고, 덜 온 만큼도 입고 예정에서 빠진다",
+      "sql": "select (public.stock_order_receive({{company_x}}, o.id, NULL, (select jsonb_object_agg(l.id::text, 5) from public.stock_order_lines l where l.order_id = o.id and l.item_id = {{item_b}}))).state || '/' || (select qty || '/' || coalesce(expected_qty::text, '-') from public.stock_items where id = {{item_b}}) from public.stock_orders o where o.company_id = {{company_x}} and o.seq = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "received/10.00/-" }
+    },
+    {
+      "name": "취소 — 입고 예정에서 빠지고 닫힌다",
+      "sql": "select (public.stock_order_cancel({{company_x}}, id, NULL)).state || '/' || (select coalesce(expected_qty::text, '-') from public.stock_items where id = {{item_b}}) from public.stock_orders where company_id = {{company_x}} and seq = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "cancelled/-" }
+    },
+    {
+      "name": "남의 업체 id 로는 없는 발주",
+      "sql": "select public.stock_order_receive({{company_y}}, id, NULL) from public.stock_orders where company_id = {{company_x}} and seq = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:P0002" }
+    },
+    {
+      "name": "발주는 서버도 지우지 못한다",
+      "sql": "delete from public.stock_orders where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "deny" }
+    }
+  ]
+}
