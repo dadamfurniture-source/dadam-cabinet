@@ -16,12 +16,12 @@
 /* 모바일: fade-in 비활성화 (깜빡임 방지) */
 
 :root {
-  --nav-white: #fafafa;
-  --nav-cream: #f8f7f4;
-  --nav-warm: #ebe8e2;
-  --nav-gray: #8b8680;
+  --nav-white: #ffffff;
+  --nav-cream: #f6f3ee;
+  --nav-warm: #f1ece4;
+  --nav-gray: rgba(45, 42, 38, 0.62);
   --nav-charcoal: #2d2a26;
-  --nav-gold: #b8956c;
+  --nav-gold: #8a7457;
 }
 
 /* ── Base Nav ── */
@@ -43,14 +43,14 @@
 .nav.nav-solid {
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(45, 42, 38, 0.1);
 }
 
 /* index.html 스크롤 시 */
 .nav.scrolled {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(45, 42, 38, 0.1);
 }
 
 /* ── Logo ── */
@@ -87,7 +87,6 @@
   transition: all 0.3s;
   text-decoration: none;
   padding: 6px 14px;
-  border-radius: 20px;
 }
 .nav.nav-solid .nav-menu a,
 .nav.scrolled .nav-menu a {
@@ -139,7 +138,6 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border-radius: 20px;
   background: rgba(255, 255, 255, 0.1);
   border: none;
   color: inherit;
@@ -184,8 +182,7 @@
   right: 0;
   min-width: 180px;
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(45, 42, 38, 0.16);
   opacity: 0;
   visibility: hidden;
   transform: translateY(-10px);
@@ -219,10 +216,8 @@
   background: var(--nav-cream);
 }
 .user-dropdown a:first-child {
-  border-radius: 12px 12px 0 0;
 }
 .user-dropdown button:last-child {
-  border-radius: 0 0 12px 12px;
   border-top: 1px solid var(--nav-warm);
   color: var(--nav-gray);
 }
@@ -237,7 +232,6 @@
   padding: 8px 16px;
   background: transparent;
   border: 1px solid currentColor;
-  border-radius: 8px;
   font-size: 13px;
   transition: all 0.3s;
   text-decoration: none;
@@ -263,7 +257,6 @@
   width: 24px;
   height: 2px;
   background: #fff;
-  border-radius: 2px;
   transition: all 0.3s;
 }
 .nav.nav-solid .hamburger span,
@@ -304,7 +297,6 @@
 .mobile-menu a {
   padding: 18px 20px;
   font-size: 18px;
-  border-radius: 12px;
   transition: background 0.3s;
   color: var(--nav-charcoal);
   text-decoration: none;

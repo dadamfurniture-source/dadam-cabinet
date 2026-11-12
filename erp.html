@@ -7,25 +7,27 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>수주 · 원가 · 마진 · 다담가구</title>
-    <link rel="stylesheet" href="css/nav.css?v=2026111312" />
+    <link rel="stylesheet" href="css/nav.css?v=2026111313" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026111312"></script>
+    <script src="js/config.js?v=2026111313"></script>
     <style>
       :root {
-        --bg: #eef0f3;
-        --panel: #fff;
-        --border: #d6dae0;
-        --text: #1a1d21;
-        --muted: #6b7280;
-        --accent: #147a3d;
-        --danger: #a02020;
+        --bg: #f6f3ee;
+        --panel: #ffffff;
+        --border: rgba(45, 42, 38, 0.18);
+        --text: #2d2a26;
+        --muted: rgba(45, 42, 38, 0.62);
+        --accent: #2d2a26;
+        --danger: #93301f;
       }
       * { box-sizing: border-box; }
+      /* 링크 — 브라우저 기본 파랑 대신 남색 (앱과 같다) */
+      a { color: #0b2545; }
       body {
         margin: 0;
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+        font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
         font-size: 14px;
       }
       .wrap { max-width: 1180px; margin: 0 auto; padding: 76px 16px 60px; }
@@ -34,39 +36,37 @@
       .card {
         background: var(--panel);
         border: 1px solid var(--border);
-        border-radius: 10px;
         padding: 16px;
         margin-bottom: 16px;
       }
       table { width: 100%; border-collapse: collapse; font-size: 13px; }
       th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
-      th { background: #f6f7f9; font-weight: 600; white-space: nowrap; }
+      th { background: #f7f4ef; font-weight: 600; white-space: nowrap; }
       td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       .scroll { overflow-x: auto; }
       button {
         padding: 7px 13px;
         border: 1px solid var(--border);
         background: #fff;
-        border-radius: 6px;
         cursor: pointer;
         font-size: 13px;
       }
       button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
       button:disabled { opacity: 0.5; cursor: default; }
-      input, select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+      input, select { padding: 6px 8px; border: 1px solid var(--border); font-size: 13px; }
       .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-      .kpi div { background: #f6f7f9; border-radius: 8px; padding: 10px 12px; }
+      .kpi div { background: #f7f4ef; padding: 10px 12px; }
       .kpi b { display: block; font-size: 18px; margin-top: 2px; font-variant-numeric: tabular-nums; }
       .neg { color: var(--danger); }
       .pos { color: var(--accent); }
       .muted { color: var(--muted); }
-      .alert { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
-      .alert-err { background: #fdecec; border: 1px solid #f2c2c2; color: #7a1a1a; }
-      .alert-ok { background: #e8f5ec; border: 1px solid #b7dcc3; color: #14562c; }
-      .status { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eef1f4; font-size: 12px; }
-      .status.tier { background: #fff3e0; color: #e65100; }
-      .status.pending { background: #fff8e1; color: #8a5a00; border: 1px solid #f0d58a; }
+      .alert { padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+      .alert-err { background: #f8ece9; border: 1px solid rgba(147, 48, 31, 0.3); color: #93301f; }
+      .alert-ok { background: #eaf2ed; border: 1px solid rgba(47, 107, 79, 0.3); color: #2f6b4f; }
+      .status { display: inline-block; padding: 2px 8px; background: #f1ece4; font-size: 12px; }
+      .status.tier { background: #fbefd4; color: #6f4c0c; }
+      .status.pending { background: #fbefd4; color: #6f4c0c; border: 1px solid #c9952b; }
     </style>
   </head>
   <body>

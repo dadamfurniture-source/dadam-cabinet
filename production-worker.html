@@ -6,40 +6,42 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>오늘 작업 · 다담가구</title>
-    <script src="js/config.js?v=2026111312"></script>
+    <script src="js/config.js?v=2026111313"></script>
     <style>
-      :root { --bg: #f3f4f6; --panel: #fff; --border: #d6dae0; --text: #111827; --muted: #6b7280; --accent: #147a3d; --cut: #2a78d6; --edge: #1baf7a; --asm: #eb6834; --danger: #a02020; }
+      :root { --bg: #f6f3ee; --panel: #ffffff; --border: rgba(45, 42, 38, 0.18); --text: #2d2a26; --muted: rgba(45, 42, 38, 0.62); --accent: #2d2a26; --cut: #2a78d6; --edge: #1baf7a; --asm: #eb6834; --danger: #93301f; }
       * { box-sizing: border-box; }
-      body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; font-size: 16px; }
+      /* 링크 — 브라우저 기본 파랑 대신 남색 (앱과 같다) */
+      a { color: #0b2545; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; font-size: 16px; }
       .wrap { max-width: 560px; margin: 0 auto; padding: 16px 14px 60px; }
       h1 { font-size: 20px; margin: 4px 0 2px; }
       .muted { color: var(--muted); font-size: 14px; }
       .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 14px 0; }
-      .tabs button { padding: 12px 0; font-size: 16px; font-weight: 700; border-radius: 10px; border: 2px solid var(--border); background: #fff; color: var(--text); }
+      .tabs button { padding: 12px 0; font-size: 16px; font-weight: 700; border: 2px solid var(--border); background: #fff; color: var(--text); }
       .tabs button.on[data-r="cutter"] { border-color: var(--cut); background: var(--cut); color: #fff; }
       .tabs button.on[data-r="edge"] { border-color: var(--edge); background: var(--edge); color: #fff; }
       .tabs button.on[data-r="asm"] { border-color: var(--asm); background: var(--asm); color: #fff; }
-      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+      .card { background: var(--panel); border: 1px solid var(--border); padding: 14px; margin-bottom: 10px; }
       .card h2 { font-size: 15px; margin: 0 0 8px; }
       .job .t { font-weight: 700; font-size: 16px; }
       .job .d { color: var(--muted); font-size: 14px; margin: 2px 0 10px; }
       .btns { display: flex; gap: 8px; }
-      button.big { flex: 1; padding: 13px 0; font-size: 16px; font-weight: 700; border-radius: 10px; border: 1px solid var(--border); background: #fff; color: var(--text); }
+      button.big { flex: 1; padding: 13px 0; font-size: 16px; font-weight: 700; border: 1px solid var(--border); background: #fff; color: var(--text); }
       button.go { background: var(--accent); border-color: var(--accent); color: #fff; }
       button.stop { background: var(--danger); border-color: var(--danger); color: #fff; }
       .running { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--danger); margin-bottom: 8px; }
       .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
       .form label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
-      .form input { padding: 11px 10px; font-size: 17px; border: 1px solid var(--border); border-radius: 8px; width: 100%; }
+      .form input { padding: 11px 10px; font-size: 17px; border: 1px solid var(--border); width: 100%; }
       .form .full { grid-column: 1 / -1; }
       .chk { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 15px; }
       .chk:last-child { border-bottom: 0; }
       .chk input { width: 22px; height: 22px; }
       .chk.done span { color: var(--muted); text-decoration: line-through; }
       .log { display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; border-bottom: 1px solid var(--border); }
-      .alert { padding: 12px; border-radius: 10px; margin: 10px 0; font-size: 15px; }
-      .err { background: #fdecec; color: #7a1a1a; }
-      .ok { background: #e8f5ec; color: #14562c; }
+      .alert { padding: 12px; margin: 10px 0; font-size: 15px; }
+      .err { background: #f8ece9; color: #93301f; }
+      .ok { background: #eaf2ed; color: #2f6b4f; }
       .empty { color: var(--muted); font-size: 15px; padding: 6px 0; }
     </style>
   </head>
