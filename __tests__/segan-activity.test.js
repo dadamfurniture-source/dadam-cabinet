@@ -250,7 +250,7 @@ describe('화면 — 내 정보 탭 안', () => {
     const keys = [...document.querySelectorAll('nav.sg-tabbar a:not([hidden])')].map((a) =>
       a.getAttribute('data-tab-link')
     );
-    expect(keys).toEqual(['make', 'collection', 'blog', 'about', 'me']);
+    expect(keys).toEqual(['home', 'make', 'collection', 'blog', 'me']);
     expect(
       document.querySelector('nav.sg-tabbar [aria-current="page"]').getAttribute('data-tab-link')
     ).toBe('me');

@@ -1,0 +1,377 @@
+/* ============================================================
+   segan/home.css — SEGAN 홈 (segan/index.html)
+
+   첫 사진 한 장 + 세 걸음 + 시공사례 줄 + 매거진 줄 + 소개 · 구독 줄.
+   읽기만 하는 화면이라 스크립트가 없다 (옛 만들기 주소 넘기기는 segan/forward.js).
+   v5 규칙: 각진 모서리 · 그림자 없음 · 가는 선. 유리는 위 막대 · 아래 탭뿐 (shell.css).
+   ============================================================ */
+
+.hm {
+  flex: 1;
+  width: 100%;
+  padding-bottom: 48px;
+}
+
+/* 좌우 여백을 가진 안쪽 칸 */
+.hm-in {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding-right: max(var(--sg-px), env(safe-area-inset-right));
+  padding-left: max(var(--sg-px), env(safe-area-inset-left));
+}
+
+/* ── 첫 사진 — 위 막대 높이만큼 끌어올려 유리 밑으로 넣는다 ── */
+.hm-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  height: min(78vh, 560px);
+  min-height: 440px;
+  margin-top: calc(-1 * (var(--sg-bar) + env(safe-area-inset-top)));
+  overflow: hidden;
+  background: var(--v5-photo);
+}
+
+.hm-hero img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 38% center;
+}
+
+/* 글이 읽히게 아래쪽만 어둡게 */
+.hm-hero::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(
+    to top,
+    rgba(45, 42, 38, 0.8) 0%,
+    rgba(45, 42, 38, 0.3) 46%,
+    rgba(45, 42, 38, 0) 72%
+  );
+}
+
+.hm-hero-in {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 0 max(var(--sg-px), env(safe-area-inset-right)) 40px
+    max(var(--sg-px), env(safe-area-inset-left));
+}
+
+.hm-h1 {
+  margin: 0 0 12px;
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: var(--v5-paper);
+}
+
+.hm-lead {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--v5-on-dark);
+}
+
+.hm-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 26px;
+  background: var(--v5-invert);
+  color: var(--v5-ink);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  /* 누름 — 0.97배 · 0.1초, 떼면 스프링 (CLAUDE.md 「SEGAN 앱 모션 규칙」) */
+  transition: transform var(--sg-spring-ms) var(--sg-spring);
+}
+
+.hm-cta:hover,
+.hm-cta:focus-visible {
+  background: var(--v5-paper);
+}
+
+.hm-cta:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+/* 사진을 잘라 쓰는 폭에서는 사진에 찍힌 표시가 잘리므로 글로 적는다 */
+.hm-credit {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: 10px;
+  z-index: 1;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--v5-on-dark-60);
+}
+
+/* ── 세 걸음 ── */
+.hm-steps {
+  margin: 0;
+  padding: 10px 0 0;
+  list-style: none;
+}
+
+.hm-steps li {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.hm-steps i {
+  grid-row: 1 / span 2;
+  font-family: var(--v5-display);
+  font-size: 24px;
+  font-style: normal;
+  font-weight: 300;
+  line-height: 1.1;
+  color: var(--v5-tan);
+}
+
+.hm-steps b {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.hm-steps span {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+}
+
+/* ── 묶음 머리 ── */
+.hm-sec {
+  margin-top: 44px;
+}
+
+.hm-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.hm-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.hm-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -12px 0;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+  text-decoration: none;
+}
+
+.hm-head a::after {
+  content: '›';
+  padding-left: 6px;
+}
+
+.hm-head a:hover,
+.hm-head a:focus-visible {
+  color: var(--v5-ink);
+}
+
+/* ── 시공사례 — 폰은 옆으로 넘기는 줄, PC 는 3칸 ── */
+.hm-works {
+  display: flex;
+  gap: 10px;
+  padding: 0 max(var(--sg-px), env(safe-area-inset-right)) 0
+    max(var(--sg-px), env(safe-area-inset-left));
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-left: max(var(--sg-px), env(safe-area-inset-left));
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hm-works::-webkit-scrollbar {
+  display: none;
+}
+
+.hm-work {
+  flex: 0 0 64%;
+  max-width: 280px;
+  scroll-snap-align: start;
+  color: var(--v5-ink);
+  text-decoration: none;
+}
+
+.hm-work img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: left center;
+  background: var(--v5-photo);
+}
+
+.hm-work span {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+}
+
+/* ── 매거진 ── */
+.hm-posts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.hm-post {
+  display: block;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--v5-line);
+  color: var(--v5-ink);
+  text-decoration: none;
+}
+
+/* 목록 줄 — 줄이지 않고 바탕만 바로 바꾼다 */
+.hm-post:active {
+  background: var(--v5-well);
+}
+
+.hm-post small {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--v5-tan);
+}
+
+.hm-post b {
+  display: block;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+@media (min-width: 768px) {
+  .hm-work {
+    flex-basis: 38%;
+  }
+}
+
+/* PC — 위 메뉴 높이 88px (shell.css), 본문 폭을 넓힌다 */
+@media (min-width: 1024px) {
+  .hm {
+    padding-bottom: 96px;
+  }
+
+  .hm-in {
+    max-width: 1216px;
+    padding-right: 48px;
+    padding-left: 48px;
+  }
+
+  .hm-hero {
+    height: min(72vh, 620px);
+    min-height: 480px;
+    margin-top: -88px;
+  }
+
+  /* 넓은 화면은 사진이 거의 다 보인다 — 사진에 찍힌 표시가 남게 아래에 맞춘다 */
+  .hm-hero img {
+    object-position: center bottom;
+  }
+
+  .hm-credit {
+    display: none;
+  }
+
+  .hm-hero-in {
+    max-width: 1216px;
+    margin: 0 auto;
+    padding: 0 48px 64px;
+  }
+
+  .hm-h1 {
+    font-size: 44px;
+    letter-spacing: 0.01em;
+  }
+
+  .hm-h1 br {
+    display: none;
+  }
+
+  .hm-lead {
+    font-size: 16px;
+  }
+
+  .hm-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 40px;
+    padding-top: 28px;
+  }
+
+  .hm-steps li {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px 0 24px;
+    border-top: 1px solid var(--v5-line);
+    border-bottom: 0;
+  }
+
+  .hm-steps i {
+    grid-row: auto;
+    margin-bottom: 10px;
+    font-size: 30px;
+  }
+
+  .hm-sec {
+    margin-top: 72px;
+  }
+
+  .hm-head h2 {
+    font-size: 20px;
+  }
+
+  .hm-works {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 32px 20px;
+    max-width: 1216px;
+    margin: 0 auto;
+    padding: 0 48px;
+    overflow: visible;
+  }
+
+  .hm-work {
+    max-width: none;
+  }
+
+  .hm-posts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 40px;
+  }
+}

@@ -407,10 +407,10 @@
         (b.hours ? ' (' + b.hours + ')' : '')
       : '';
     if (C.general) {
-      $('csDoneBack').setAttribute('href', './');
+      $('csDoneBack').setAttribute('href', 'make.html');
       $('csDoneBack').textContent = '만들기로 가기';
     } else {
-      $('csDoneBack').setAttribute('href', './?g=' + encodeURIComponent(C.id) + '#result');
+      $('csDoneBack').setAttribute('href', 'make.html?g=' + encodeURIComponent(C.id) + '#result');
     }
   }
 
@@ -544,7 +544,10 @@
   // ── 시작 ───────────────────────────────────────────────
   async function init() {
     C.id = genId();
-    $('csBack').setAttribute('href', C.id ? './?g=' + encodeURIComponent(C.id) + '#result' : './');
+    $('csBack').setAttribute(
+      'href',
+      C.id ? 'make.html?g=' + encodeURIComponent(C.id) + '#result' : 'make.html'
+    );
     var b = biz();
     if (b.tel) {
       $('csTel').setAttribute('href', telHref(b.tel));

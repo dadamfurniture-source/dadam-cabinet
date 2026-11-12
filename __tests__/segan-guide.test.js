@@ -284,7 +284,7 @@ describe('어디에 — 셸 화면마다, 폭에 따라 위 막대 버튼 · PC 
     expect(print).toMatch(/\.sg-ai-btn,\s*\.sg-ai-bar\s*\{\s*display:\s*none !important;/);
     // 회계 알림 한 줄은 PC 입력 줄 위로 · 만들기 · 상담 신청 · 업무 비서에는 감추는 칸이 있다
     expect(read('segan/ledger.css')).toMatch(/body\.sg-ai-on \.lg-state\s*\{\s*bottom:\s*92px;/);
-    expect(read('segan/index.html')).toContain('class="mk-bar"');
+    expect(read('segan/make.html')).toContain('class="mk-bar"');
     expect(read('segan/consult.html')).toContain('class="mk-bar');
     expect(read('segan/assistant.html')).toContain('class="as-form"');
     // 라운드 · 섀도 없음

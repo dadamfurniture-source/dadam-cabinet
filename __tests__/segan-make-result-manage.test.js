@@ -3,7 +3,7 @@
 /**
  * SEGAN 만들기 ③ 결과 — 결과 관리 (예전 내 연출컷 「하나 열기」에서 옮겨 온 것).
  *
- * 연출컷 결과 화면은 ./?g=<id>#result 하나다. 내 연출컷에 있던 것을 같은 호출 · 같은 글로 여기서 한다:
+ * 연출컷 결과 화면은 make.html?g=<id>#result 하나다. 내 연출컷에 있던 것을 같은 호출 · 같은 글로 여기서 한다:
  *   이름 · 날짜 · 공유 링크(POST/DELETE /api/generate/:id/share) · 시공사례에서 내리기(collection_posts 행 → 파일)
  *   · AI 학습 동의(generations.consent_training) · 다시 생성(POST { parent_id, … }) · 삭제(DELETE /api/generate/:id)
  *   · 내려받기(받기 직전 서명 다시 확인) · 실패 · 멈춘 잡의 환불 안내
@@ -56,7 +56,7 @@ async function load(options = {}) {
     posts: [{ id: 'post-1', generation_id: ID, storage_path: 'ai/post-1.jpg' }],
     ...options,
   };
-  const doc = new DOMParser().parseFromString(read('segan/index.html'), 'text/html');
+  const doc = new DOMParser().parseFromString(read('segan/make.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
@@ -442,8 +442,8 @@ describe('내려받기 — 받기 직전 서명 확인 → blob 저장, 못 받�
     expect(open).toHaveBeenCalledWith(`https://signed.example/user-1/${ID}/v0.png?t=1`, '_blank');
   });
 
-  test('index.html 이 서명 도우미(js/storage-urls.js)를 싣는다', () => {
-    expect(read('segan/index.html')).toMatch(
+  test('make.html 이 서명 도우미(js/storage-urls.js)를 싣는다', () => {
+    expect(read('segan/make.html')).toMatch(
       /<script src="\.\.\/js\/storage-urls\.js\?v=\d+"><\/script>/
     );
   });
@@ -508,7 +508,7 @@ describe('다시 생성 — 크레딧이 다시 든다 (화면 안에서 한 번
       design_style: 'classic',
       door_color: 'oak woodgrain',
     });
-    expect(M.go).toHaveBeenCalledWith('./?g=new-gen-id#result');
+    expect(M.go).toHaveBeenCalledWith('make.html?g=new-gen-id#result');
   });
 
   test('취소하면 보내지 않는다, 402 는 크레딧 부족 안내', async () => {

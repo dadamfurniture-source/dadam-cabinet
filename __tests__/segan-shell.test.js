@@ -26,24 +26,25 @@ const AuthRedirect = require('../js/auth-redirect.js');
 
 /** PC 위 메뉴 — [탭, 글, 주소] (오른쪽 끝 마이페이지) */
 const PC_TABS = [
-  ['make', 'AI 연출컷', './'],
+  ['make', 'AI 연출컷', 'make.html'],
   ['collection', '시공사례', 'collection.html'],
   ['blog', '매거진', 'blog.html'],
   ['about', 'AI 시스템 소개', 'about.html'],
   ['plans', '구독', 'plans.html'],
   ['me', '마이페이지', 'me.html'],
 ];
-/** 폰 아래 탭 — 다섯 */
+/** 폰 아래 탭 — 다섯 (홈이 첫 칸 — 소개 · 구독은 홈 안의 줄) */
 const PHONE_TABS = [
-  ['make', '연출컷', './'],
+  ['home', '홈', './'],
+  ['make', '연출컷', 'make.html'],
   ['collection', '시공사례', 'collection.html'],
   ['blog', '매거진', 'blog.html'],
-  ['about', 'SEGAN', 'about.html'],
   ['me', '마이', 'me.html'],
 ];
 /** 탭 화면 (위 메뉴 · 아래 탭의 주소) */
 const TAB_PAGES = [
   'index.html',
+  'make.html',
   'collection.html',
   'blog.html',
   'about.html',
@@ -52,7 +53,8 @@ const TAB_PAGES = [
 ];
 /** 화면 → [PC 위 메뉴에서 켜지는 탭, 폰 아래 탭에서 켜지는 탭] — 셸 막대가 있는 segan 화면 전부 */
 const CURRENT = {
-  'index.html': ['make', 'make'],
+  'index.html': ['', 'home'], // 홈 — PC 는 워드마크가 홈이라 켜지는 메뉴가 없다
+  'make.html': ['make', 'make'],
   'consult.html': ['make', 'make'],
   'collection.html': ['collection', 'collection'],
   'blog.html': ['blog', 'blog'],
@@ -61,8 +63,8 @@ const CURRENT = {
   'blog-edge-finish.html': ['blog', 'blog'],
   'blog-hardware.html': ['blog', 'blog'],
   'blog-kitchen-appliances.html': ['blog', 'blog'],
-  'about.html': ['about', 'about'],
-  'plans.html': ['plans', 'about'],
+  'about.html': ['about', 'home'], // 폰은 홈 안의 줄로 들어온다
+  'plans.html': ['plans', 'home'],
   'me.html': ['me', 'me'],
   'renders.html': ['me', 'me'],
   'assistant.html': ['me', 'me'],
@@ -80,7 +82,7 @@ const CURRENT = {
 };
 /** 막대에서 뺀 탭 — 화면은 남는다 (마이페이지에서 간다) */
 const GONE = ['renders', 'assistant', 'admin', 'work'];
-const PUBLIC = ['index.html', 'collection.html', 'consult.html', 'about.html', 'plans.html'];
+const PUBLIC = ['index.html', 'make.html', 'collection.html', 'consult.html', 'about.html', 'plans.html'];
 const SESSION = { access_token: 'tok-1', user: { id: 'user-1', email: 'customer@example.com' } };
 const ASSISTANT_ME = 'https://dadam-assistant-api.dadamfurniture.workers.dev/assistant/me';
 const FULL = { company_id: 'c1', role: 'owner', money: true, level: 'full', can_chat: true };
@@ -210,7 +212,7 @@ describe('메뉴 — PC 위 메뉴 여섯 · 폰 아래 탭 다섯', () => {
   });
 
   test.each(Object.entries(CURRENT))(
-    '%s — 위 메뉴 · 아래 탭의 순서 · 글 · 주소, 켜진 탭은 하나 (%s)',
+    '%s — 위 메뉴 · 아래 탭의 순서 · 글 · 주소, 켜진 탭은 하나 — 홈의 PC 메뉴만 없음 (%s)',
     async (page, on) => {
       await load(page);
       for (const [sel, tabs, i] of BARS) {
@@ -227,7 +229,7 @@ describe('메뉴 — PC 위 메뉴 여섯 · 폰 아래 탭 다섯', () => {
         ).toEqual(tabs);
         expect(all.every((a) => !a.hidden && visible(a))).toBe(true); // 로그인 전에도 보인다 · 감춘 탭 없음
         const current = all.filter((a) => a.getAttribute('aria-current') === 'page');
-        expect(current.map((a) => a.getAttribute('data-tab-link'))).toEqual([on[i]]);
+        expect(current.map((a) => a.getAttribute('data-tab-link'))).toEqual(on[i] ? [on[i]] : []);
       }
       expect($('main#main')).not.toBeNull();
       expect($$('[data-segan-shell]')).toHaveLength(0); // 자리표시가 모두 채워졌다
@@ -239,19 +241,23 @@ describe('메뉴 — PC 위 메뉴 여섯 · 폰 아래 탭 다섯', () => {
     expect($$('h1').filter(visible)).toHaveLength(1); // 만들기는 단계마다 제목이 있고 지금 단계만 보인다
   });
 
-  test('PC 위 메뉴는 마이페이지만 오른쪽 끝 (sg-nav-end) · 폰 탭에는 구독이 없다 (SEGAN 안 [소개 | 구독])', async () => {
+  test('PC 위 메뉴는 마이페이지만 오른쪽 끝 (sg-nav-end) · 폰 탭에는 소개 · 구독이 없다 (홈 안의 줄)', async () => {
     await load('index.html');
     expect($$('.sg-nav a.sg-nav-end').map((a) => a.getAttribute('data-tab-link'))).toEqual(['me']);
     expect($$('.sg-tabbar a.sg-nav-end')).toHaveLength(0);
     expect($('.sg-tabbar a[data-tab-link="plans"]')).toBeNull();
+    expect($('.sg-tabbar a[data-tab-link="about"]')).toBeNull();
+    expect($('.sg-nav a[data-tab-link="home"]')).toBeNull(); // PC 위 메뉴에는 홈이 없다
     expect($$('.sg-tabbar a')).toHaveLength(5);
   });
 
   test('탭 하나가 여러 화면에서 켜진다 — SeganShell.currentTab (같은 이름의 탭이 먼저)', async () => {
     await load('index.html');
     const { currentTab } = window.SeganShell;
-    expect(currentTab('about', 'phone')).toBe('about');
-    expect(currentTab('plans', 'phone')).toBe('about'); // SEGAN = 소개 · 구독
+    expect(currentTab('about', 'phone')).toBe('home'); // 폰은 홈 안의 줄 — 소개 · 구독
+    expect(currentTab('plans', 'phone')).toBe('home');
+    expect(currentTab('home', 'phone')).toBe('home');
+    expect(currentTab('home', 'pc')).toBe(''); // PC 는 워드마크가 홈
     expect(currentTab('plans', 'pc')).toBe('plans'); // PC 는 「구독」
     expect(currentTab('about', 'pc')).toBe('about');
     for (const page of ['me', 'renders', 'assistant', 'admin', 'work'])
@@ -284,13 +290,13 @@ describe('메뉴 — PC 위 메뉴 여섯 · 폰 아래 탭 다섯', () => {
       expect(sw).toContain(`versioned(SCOPE + '${asset}')`);
   });
 
-  test('탭 주소는 segan/ 안의 실제 페이지다 (AI 연출컷 = start_url /segan/)', () => {
+  test('탭 주소는 segan/ 안의 실제 페이지다 (홈 = start_url /segan/)', () => {
     for (const [, , href] of [...PC_TABS, ...PHONE_TABS]) {
       const file = href === './' ? 'index.html' : href;
       expect([href, fs.existsSync(path.join(ROOT, 'segan', file))]).toEqual([href, true]);
     }
     const manifest = JSON.parse(read('segan/manifest.webmanifest'));
-    expect(new URL(PC_TABS[0][2], 'https://x/segan/').pathname).toBe(manifest.start_url);
+    expect(new URL(PHONE_TABS[0][2], 'https://x/segan/').pathname).toBe(manifest.start_url);
   });
 
   test('아래 탭 아이콘은 꾸밈 (aria-hidden), 이름은 글자로 · 위 메뉴는 글만', async () => {

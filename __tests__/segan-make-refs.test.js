@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, File, Event, setTimeout, URL, Blob */
 /**
- * SEGAN 만들기 — ③ 참고 사진 (segan/index.html + segan/make.js, 고르기 창은 segan/shell.js SeganShell.sheet).
+ * SEGAN 만들기 — ③ 참고 사진 (segan/make.html + segan/make.js, 고르기 창은 segan/shell.js SeganShell.sheet).
  *
  *   - 「참고 사진 고르기」 → 시트 두 칸: 시공사례(collection_posts — AI 연출컷 빼고 · 품목으로 거름 + 자체 시공 사진) ·
  *     테마(theme_images — approved · is_active). 최대 5장(워커 MAX_REFS), 장수 · 고른 차례 번호
@@ -91,7 +91,7 @@ function fakeClient(opts, calls) {
 /** index.html 을 올리고 공용 테마 이름(js/reference-images.js) · 셸 · make.js 를 차례로 돌린다 */
 async function load(options = {}) {
   const opts = { session: null, draft: null, url: '/segan/', ...options };
-  const doc = new DOMParser().parseFromString(read('segan/index.html'), 'text/html');
+  const doc = new DOMParser().parseFromString(read('segan/make.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   window.history.replaceState(null, '', opts.url);
   sessionStorage.clear();
@@ -459,7 +459,7 @@ describe('이 기기에 담기 — 로그인을 다녀와도 고른 참고 사�
     await settled();
     $('mkRun').click();
     await flush();
-    expect(first.M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Findex.html');
+    expect(first.M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Fmake.html');
     const saved = draft();
     expect(saved.step).toBe('refs');
     expect(saved.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:kitchen-n1-1']);
@@ -623,7 +623,7 @@ describe('정본과 같은 값', () => {
   });
 
   test('index.html 이 공용 테마 파일(js/reference-images.js)을 싣는다', () => {
-    expect(read('segan/index.html')).toMatch(
+    expect(read('segan/make.html')).toMatch(
       /<script src="\.\.\/js\/reference-images\.js\?v=\d+"><\/script>/
     );
   });

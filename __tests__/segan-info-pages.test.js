@@ -7,7 +7,7 @@
  *     이름 · 월 금액은 payments-api GET /plans, 월 크레딧은 credit_plans, 연출컷 횟수는 credit_costs(generate) 로 나눈다.
  *     /plans 를 못 읽으면 금액 없이 표만 + 알림 (숫자를 지어내지 않는다). 가입 단추는 모두 me.html#partner
  *   - 소개: 흐름 상자(그림 없이) · 강점 · 「AI 연출컷 시작」 · 「구독 보기」
- *   - 소개 · 구독 위 [소개 | 구독] (폰 · 태블릿만 — PC 는 위 메뉴에 둘 다), 폰 탭 SEGAN 이 두 화면에서 켜진다
+ *   - 소개 · 구독 위 [소개 | 구독] (폰 · 태블릿만 — PC 는 위 메뉴에 둘 다), 폰 탭은 두 화면에서 「홈」이 켜진다 (홈 안의 줄로 들어온다)
  *   - 매거진: 분류 넷마다 그 분류의 글 (제목 · 한 줄 소개 · 읽는 시간 → blog-<이름>.html)
  *   - 매거진 글: 매거진 탭이 켜진다 · 「‹ 매거진」 · 검토용 표시(확인 필요 · 메모 · 그림 제안)가 없다 · 표는 칸마다 옆으로 넘긴다
  *     · 끝에 「고객이 확인할 것」 · 다른 글 링크. 목록도 글도 아직 검색에 내지 않는다 (noindex · 사이트맵 없음)
@@ -237,7 +237,7 @@ describe('구독 (plans.html) — 등급 넷', () => {
     expect(read('segan/me.js')).toContain("encodeURIComponent('segan/me.html#' + name)");
     // Standard 는 무료 — 결제 단추 없이 AI 연출컷으로
     expect(tier('standard').querySelector('[data-signup]')).toBeNull();
-    expect(tier('standard').querySelector('a').getAttribute('href')).toBe('./');
+    expect(tier('standard').querySelector('a').getAttribute('href')).toBe('make.html');
   });
 
   test('금액 · 크레딧 숫자를 화면 · 스크립트에 적어 두지 않는다', () => {
@@ -262,11 +262,11 @@ describe('구독 (plans.html) — 등급 넷', () => {
   });
 });
 
-describe('소개 · 구독 — [소개 | 구독] · 폰 탭 SEGAN', () => {
+describe('소개 · 구독 — [소개 | 구독] · 폰 탭 홈', () => {
   test.each([
     ['about.html', '소개'],
     ['plans.html', '구독'],
-  ])('%s — 위에 [소개 | 구독], 지금 화면이 켜진다 · 폰 탭은 SEGAN', async (page, on) => {
+  ])('%s — 위에 [소개 | 구독], 지금 화면이 켜진다 · 폰 탭은 홈', async (page, on) => {
     await load(page);
     const seg = $('nav.in-seg');
     expect(seg.getAttribute('aria-label')).toBe('SEGAN');
@@ -278,7 +278,7 @@ describe('소개 · 구독 — [소개 | 구독] · 폰 탭 SEGAN', () => {
     expect(
       seg.compareDocumentPosition($('h1')) & window.Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy(); // 맨 위
-    expect(text($('.sg-tabbar a[aria-current="page"]'))).toBe('SEGAN');
+    expect(text($('.sg-tabbar a[aria-current="page"]'))).toBe('홈'); // 폰은 홈 안의 줄로 들어온다
     expect($('.sg-nav a[aria-current="page"]').getAttribute('href')).toBe(page);
   });
 
@@ -320,10 +320,10 @@ describe('AI 시스템 소개 (about.html)', () => {
     ]);
   });
 
-  test('「AI 연출컷 시작」(./) · 「구독 보기」(plans.html) · 셸 + SEGAN 비서만 싣는다 (로그인 · 데이터를 묻지 않는다)', async () => {
+  test('「AI 연출컷 시작」(make.html) · 「구독 보기」(plans.html) · 셸 + SEGAN 비서만 싣는다 (로그인 · 데이터를 묻지 않는다)', async () => {
     const { calls, scripts } = await load('about.html');
     expect($$('.in-acts a').map((a) => [text(a), a.getAttribute('href')])).toEqual([
-      ['AI 연출컷 시작', './'],
+      ['AI 연출컷 시작', 'make.html'],
       ['구독 보기', 'plans.html'],
     ]);
     // 설정 · Supabase 는 SEGAN 비서가 열릴 때만 로그인을 본다 (segan/guide.js) — 화면은 아무것도 묻지 않는다

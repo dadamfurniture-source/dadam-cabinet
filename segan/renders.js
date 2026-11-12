@@ -22,9 +22,9 @@
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  /** 연출컷 결과 화면 — 만들기 ③ (segan/index.html) */
+  /** 연출컷 결과 화면 — 만들기 ③ (segan/make.html) */
   function resultHref(id) {
-    return './?g=' + encodeURIComponent(id) + '#result';
+    return 'make.html?g=' + encodeURIComponent(id) + '#result';
   }
 
   // 옛 「하나 열기」 주소 — 기록 칸을 바꿔 넘긴다 (뒤로 가기가 다시 여기로 오지 않게)
