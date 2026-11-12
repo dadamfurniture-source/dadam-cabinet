@@ -501,10 +501,11 @@ test('시스템 글 — 가격은 정한 넷만, 주소는 정한 화면만, 지
   // 그 밖의 할인 · 퍼센트 · 기간 숫자 같은 것은 없다 (할인은 「지어내지 않는다」 줄에만)
   assert.ok(!/%/.test(sys));
   assert.equal(sys.split('할인').length - 1, 1);
-  // 화면 주소 — 정한 열 개만, 그 밖의 .html 은 없다
+  // 화면 주소 — 정한 열한 개만, 그 밖의 .html 은 없다
   const hrefs = [...sys.matchAll(/\(([a-z]+\.html|\.\/)\)/g)].map((m) => m[1]);
   const allowed = [
     './',
+    'make.html',
     'collection.html',
     'blog.html',
     'about.html',
