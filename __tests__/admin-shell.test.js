@@ -106,8 +106,7 @@ describe('관리자 화면 꾸밈 — 앱과 같은 색 · 각진 모서리 · �
   const fs = require('fs');
   const path = require('path');
   const dir = path.join(__dirname, '..', 'admin');
-  // 작업 배정(work-jobs.html)은 작업자 포털 쪽에서 따로 맞춘다
-  const pages = fs.readdirSync(dir).filter((n) => n.endsWith('.html') && n !== 'work-jobs.html');
+  const pages = fs.readdirSync(dir).filter((n) => n.endsWith('.html'));
   const styles = (page) =>
     [...fs.readFileSync(path.join(dir, page), 'utf8').matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
       .map((m) => m[1])
