@@ -78,7 +78,7 @@ function tables() {
       { id: SUP_B, company_id: B, kind: 'supplier', name: 'B 공급처', active: true },
     ],
     stock_items: [
-      { id: HINGE, company_id: A, kind: 'hardware', name: '경첩 110° 연결형', spec: '35 컵', unit: '개', qty: 40, safety_qty: 120, supplier_id: SUP_A, expected_qty: 100, expected_on: '2026-11-15', memo: null, active: true, updated_at: at(1) },
+      { id: HINGE, company_id: A, kind: 'hardware', name: '경첩 110° 연결형', spec: '35 컵', unit: '개', qty: 40, safety_qty: 120, supplier_id: SUP_A, expected_qty: 100, expected_on: '2026-11-15', memo: null, active: true, updated_at: at(1), unit_price: 850 },
       { id: RAIL, company_id: A, kind: 'hardware', name: '서랍 레일 언더 450', spec: '450', unit: '쌍', qty: 30, safety_qty: 20, supplier_id: null, expected_qty: null, expected_on: null, memo: null, active: true, updated_at: at(1) },
       { id: OLD, company_id: A, kind: 'board', name: '옛 판재', spec: '', unit: '장', qty: 0, safety_qty: 5, supplier_id: null, expected_qty: null, expected_on: null, memo: null, active: false, updated_at: at(1) },
       { id: PB_B, company_id: B, kind: 'board', name: 'PB 18T 화이트', spec: '18T', unit: '장', qty: 12, safety_qty: 0, supplier_id: null, expected_qty: null, expected_on: null, memo: null, active: true, updated_at: at(1) },
@@ -213,6 +213,7 @@ test('품목 목록 — 내 업체 것만. 대표는 숨긴 품목 · 공급처 
   assert.deepEqual(d.items.map((i) => i.id).sort(), [HINGE, OLD, RAIL].sort());
   const hinge = d.items.find((i) => i.id === HINGE);
   assert.deepEqual(hinge, {
+    unit_price: 850,
     id: HINGE, kind: 'hardware', name: '경첩 110° 연결형', spec: '35 컵', unit: '개', qty: 40, safety_qty: 120, short: true,
     supplier: { id: SUP_A, name: '철물 업체 C' }, expected_qty: 100, expected_on: '2026-11-15', memo: null, active: true, updated_at: at(1),
   });
@@ -367,4 +368,57 @@ test('DB 0059 적용 전이면 409 db_pending (표 · 함수가 없다)', async 
   const mv = await post(noFn, `/stock/items/${HINGE}/moves`, { kind: 'in', qty: 1 });
   assert.equal(mv.status, 409);
   assert.equal(mv.json.code, 'db_pending');
+});
+
+// ── 단가 (DB 0061) ────────────────────────────────────────────
+
+test('단가 — 대표 · 실장에게만 싣는다. 직원 답에는 칸이 없다', async () => {
+  const fake = fakeOf();
+  const o = (await call(fake, '/stock/items', OWNER_A)).json.data;
+  assert.equal(o.priced, true);
+  assert.equal(o.items.find((i) => i.id === HINGE).unit_price, 850);
+  assert.equal(o.items.find((i) => i.id === RAIL).unit_price, null);
+  const s = (await call(fake, '/stock/items', STAFF_A)).json;
+  assert.equal(JSON.stringify(s).includes('unit_price'), false);
+  assert.equal('priced' in s.data, false);
+  assert.equal(fake.calls.filter((c) => c.table === 'stock_items').pop().params.get('select').includes('unit_price'), false, '직원 읽기는 단가 칸을 읽지도 않는다');
+});
+
+test('단가 — 더하기 · 고치기로 적는다. 비우면 지우고, 음수 · 소수 · 글자는 422', async () => {
+  const fake = fakeOf();
+  const add = await post(fake, '/stock/items', { kind: 'board', name: 'PB', unit: '장', unit_price: 18500 });
+  assert.equal(add.status, 201, JSON.stringify(add.json));
+  assert.equal(fake.db.stock_items.at(-1).unit_price, 18500);
+  const p = await patch(fake, HINGE, { unit_price: '900' });
+  assert.equal(p.json.data.unit_price, 900);
+  assert.equal((await patch(fake, HINGE, { unit_price: null })).json.data.unit_price, null);
+  for (const bad of [-1, 10.5, 'abc', 100000001, {}]) {
+    const r = await patch(fake, HINGE, { unit_price: bad });
+    assert.equal(r.status, 422, String(bad));
+    assert.equal(r.json.details.field, 'unit_price');
+  }
+  assert.throws(() => itemInput({ unit_price: -1 }, { partial: true }), /단가/);
+});
+
+test('DB 0061 적용 전(단가 칸 없음) — 재고는 단가 없이 그대로 돈다. 단가를 보내면 409 db_pending', async () => {
+  const noCol = (m, t, params, body) => {
+    if (t !== 'stock_items') return null;
+    const sel = (params.get('select') || '').includes('unit_price');
+    const sent = body && !Array.isArray(body) && 'unit_price' in body;
+    return sel || sent ? json({ code: '42703', message: 'column stock_items.unit_price does not exist' }, 400) : null;
+  };
+  const fake = fakeOf({ before: noCol });
+  const r = await call(fake, '/stock/items', OWNER_A);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.data.priced, false);
+  assert.equal(r.json.data.items.length, 3);
+  assert.equal(JSON.stringify(r.json.data.items).includes('unit_price'), false);
+  const ok = await patch(fake, HINGE, { safety_qty: 150 });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  const no = await patch(fake, HINGE, { unit_price: 900 });
+  assert.equal(no.status, 409);
+  assert.equal(no.json.code, 'db_pending');
+  assert.match(JSON.stringify(no.json), /0061/);
+  const mv = await post(fake, `/stock/items/${HINGE}/moves`, { kind: 'in', qty: 1 });
+  assert.equal(mv.status, 201, JSON.stringify(mv.json));
 });
