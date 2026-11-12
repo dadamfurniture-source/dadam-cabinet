@@ -1,113 +1,197 @@
 {
   "title": "0059 재고 — 네 표 모두 서버만(구성원도 못 읽음), 입출고는 stock_move() 로 수량과 기록이 같이, 기록은 추가만, 자투리 씀 · 버림은 끝 (scripts/rls-probe.mjs --migration database/migrations/0059_stock.sql)",
-  "ids": ["company_x", "company_y", "item_a", "item_y", "cut_a", "cut_b"],
-  "users": ["x_owner_user", "y_owner_user"],
+  "ids": [
+    "company_x",
+    "company_y",
+    "item_a",
+    "item_y",
+    "cut_a",
+    "cut_b",
+    "item_c"
+  ],
+  "users": [
+    "x_owner_user",
+    "y_owner_user"
+  ],
   "setup": [
     "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
     "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
     "INSERT INTO public.stock_items (id, company_id, kind, name, spec, unit, qty, safety_qty, expected_qty, expected_on) VALUES ({{item_a}}, {{company_x}}, 'hardware', 'probe 경첩', '35 컵', '개', 40, 120, 100, current_date + 3), ({{item_y}}, {{company_y}}, 'board', 'probe PB', '18T', '장', 5, 0, NULL, NULL)",
     "INSERT INTO public.stock_offcuts (id, company_id, seq, material, thickness_mm, width_mm, height_mm, place) VALUES ({{cut_a}}, {{company_x}}, 1, 'PB 화이트', 18, 820, 460, 'A-2'), ({{cut_b}}, {{company_x}}, 2, 'PB 그레이', 18, 560, 420, 'A-3')",
-    "UPDATE public.stock_offcuts SET state = 'used' WHERE id = {{cut_b}}"
+    "UPDATE public.stock_offcuts SET state = 'used' WHERE id = {{cut_b}}",
+    "INSERT INTO public.stock_items (id, company_id, kind, name, spec, unit, qty, safety_qty, expected_qty, expected_on) VALUES ({{item_c}}, {{company_x}}, 'hardware', 'probe 레일', '450', '쌍', 40, 0, 100, current_date + 3)",
+    "SELECT public.stock_move({{company_x}}, {{item_c}}, 'in', 60, NULL, NULL, {{x_owner_user}})"
   ],
   "roles": {
-    "anon": { "role": "anon" },
-    "x_owner": { "role": "authenticated", "user": "x_owner_user" },
-    "service_role": { "role": "service_role" }
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
   },
   "checks": [
     {
       "name": "품목 읽기 — 서버만 (자기 업체 대표도 브라우저로는 못 읽는다)",
       "sql": "select count(*) from public.stock_items where id = {{item_a}}",
-      "expect": { "anon": "deny", "x_owner": "deny", "service_role": "1" }
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "1"
+      }
     },
     {
       "name": "자투리 읽기 — 서버만",
       "sql": "select count(*) from public.stock_offcuts where company_id = {{company_x}}",
-      "expect": { "anon": "deny", "x_owner": "deny", "service_role": "2" }
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
     },
     {
       "name": "입출고 함수 — 구성원은 못 부른다",
       "sql": "select (public.stock_move({{company_x}}, {{item_a}}, 'in', 10)).qty_after",
-      "roles": ["x_owner"],
-      "expect": { "x_owner": "deny" }
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
     },
     {
       "name": "입고 60 — 남은 수량 100",
       "sql": "select (public.stock_move({{company_x}}, {{item_a}}, 'in', 60, NULL, NULL, {{x_owner_user}})).qty_after",
-      "roles": ["service_role"],
-      "expect": { "service_role": "100.00" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "100.00"
+      }
     },
     {
-      "name": "입고하면 입고 예정이 그만큼 줄고(100 → 40) 받을 날은 남는다",
-      "sql": "select (public.stock_move({{company_x}}, {{item_a}}, 'in', 60)).id is not null and (select expected_qty = 40 and expected_on is not null from public.stock_items where id = {{item_a}})",
-      "roles": ["service_role"],
-      "expect": { "service_role": "true" }
+      "name": "입고하면(준비 단계에서 60) 남은 수량이 늘고 입고 예정이 그만큼 준다(100 → 40), 받을 날은 남는다",
+      "sql": "select qty || '/' || expected_qty || '/' || (expected_on is not null) from public.stock_items where id = {{item_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "100.00/40.00/true"
+      }
     },
     {
       "name": "남은 수량보다 많이 나가면 거절",
       "sql": "select public.stock_move({{company_x}}, {{item_a}}, 'out', 41)",
-      "roles": ["service_role"],
-      "expect": { "service_role": "err:22023" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
     },
     {
       "name": "남의 업체 품목은 없는 것으로",
       "sql": "select public.stock_move({{company_x}}, {{item_y}}, 'in', 1)",
-      "roles": ["service_role"],
-      "expect": { "service_role": "err:P0002" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0002"
+      }
     },
     {
       "name": "실사 조정은 빼기도 된다 (40 − 15 = 25)",
       "sql": "select (public.stock_move({{company_x}}, {{item_a}}, 'adjust', -15)).qty_after",
-      "roles": ["service_role"],
-      "expect": { "service_role": "25.00" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "25.00"
+      }
     },
     {
       "name": "입출고 기록은 서버도 고치지 못한다",
       "sql": "update public.stock_moves set note = '바꿈' where company_id = {{company_x}}",
-      "roles": ["service_role"],
-      "expect": { "service_role": "deny" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
     },
     {
       "name": "품목은 서버도 지우지 못한다",
       "sql": "delete from public.stock_items where id = {{item_a}}",
-      "roles": ["service_role"],
-      "expect": { "service_role": "deny" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
     },
     {
       "name": "같은 업체 · 종류 · 이름 · 규격은 한 번만",
       "sql": "insert into public.stock_items (company_id, kind, name, spec, unit) values ({{company_x}}, 'hardware', 'PROBE 경첩', '35 컵', '개')",
-      "roles": ["service_role"],
-      "expect": { "service_role": "err:23505" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
     },
     {
       "name": "자투리 번호는 업체 안에서 하나",
       "sql": "insert into public.stock_offcuts (company_id, seq, material, thickness_mm, width_mm, height_mm) values ({{company_x}}, 1, 'MDF', 18, 300, 300)",
-      "roles": ["service_role"],
-      "expect": { "service_role": "err:23505" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
     },
     {
       "name": "자투리 크기는 바꾸지 못한다",
       "sql": "update public.stock_offcuts set width_mm = 900 where id = {{cut_a}}",
-      "roles": ["service_role"],
-      "expect": { "service_role": "err:22023" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
     },
     {
       "name": "남음 → 예약 → 씀, 끝난 때가 찍힌다",
       "sql": "with a as (update public.stock_offcuts set state = 'used' where id = {{cut_a}} returning closed_at) select closed_at is not null from a",
-      "roles": ["service_role"],
-      "expect": { "service_role": "true" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
     },
     {
       "name": "쓴 자투리는 되돌리지 못한다",
       "sql": "update public.stock_offcuts set state = 'left' where id = {{cut_b}}",
-      "roles": ["service_role"],
-      "expect": { "service_role": "err:22023" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
     },
     {
       "name": "자투리 기록 — 남의 업체 id 로는 거절",
       "sql": "insert into public.stock_offcut_events (company_id, offcut_id, type) values ({{company_y}}, {{cut_a}}, 'label')",
-      "roles": ["service_role"],
-      "expect": { "service_role": "err:23503" }
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
     }
   ]
 }
