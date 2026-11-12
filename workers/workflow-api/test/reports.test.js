@@ -242,14 +242,42 @@ test('목록 — 관리자는 외주 발주를 물어도 전처럼 본사 전체
   });
 });
 
-test('한 건 — 업체 대표 · 실장은 내 업체의 남이 낸 발주를 연다 (보기만), 바꾸지는 못한다', async () => {
+test('한 건 — 업체 대표 · 실장은 내 업체의 남이 낸 발주를 열고 입고 · 취소한다. 메모 · 고정 · 보관은 못 바꾼다', async () => {
   const order = { id: R1, owner_id: U1, kind: 'outsource_order', company_id: PARTNER, title: 't', status: 'ordered', body: {}, metrics: {} };
-  await withFetch(route({ role: null, reports: [order], extra: members([{ company_id: PARTNER, role: 'manager' }]) }), async (calls) => {
-    const r = await getReport(ENV, { user: { id: U2 }, id: R1 });
-    assert.equal(r.id, R1);
-    assert.equal(r.can_edit, false, '낸 사람 · 관리자만 바꾼다');
-    await assert.rejects(updateReportMeta(ENV, { user: { id: U2 }, id: R1, body: { status: 'received' } }), /관리자\(admin 이상\)만 바꿀 수 있습니다/);
-    assert.equal(calls.some((c) => c.method !== 'GET'), false, '쓰지 않는다');
+  const patched = (u, method) => (method === 'PATCH' && u.includes('/work_reports?') ? json([{ ...order, status: 'received' }]) : null);
+  for (const role of ['owner', 'manager']) {
+    const mem = members([{ company_id: PARTNER, role }]);
+    await withFetch(route({ role: null, reports: [order], extra: (u, m) => mem(u) || patched(u, m) }), async (calls) => {
+      const r = await getReport(ENV, { user: { id: U2 }, id: R1 });
+      assert.equal(r.id, R1);
+      assert.equal(r.can_edit, false, '메모 · 고정 · 보관은 낸 사람 · 관리자만');
+      assert.equal(r.can_status, true, '입고 · 취소는 대표 · 실장도');
+      for (const body of [{ note: 'x' }, { pinned: true }, { archived: true }, { status: 'received', note: 'x' }, {}])
+        await assert.rejects(updateReportMeta(ENV, { user: { id: U2 }, id: R1, body }), /관리자\(admin 이상\)만 바꿀 수 있습니다/, JSON.stringify(body));
+      assert.equal(calls.some((c) => c.method !== 'GET'), false, '아직 쓰지 않았다');
+      await assert.rejects(updateReportMeta(ENV, { user: { id: U2 }, id: R1, body: { status: 'gone' } }), /ordered · received · cancelled/);
+      await updateReportMeta(ENV, { user: { id: U2 }, id: R1, body: { status: 'received' } });
+      const sent = calls.find((c) => c.method === 'PATCH');
+      assert.ok(sent.url.includes(`id=eq.${R1}`));
+      assert.equal(sent.body.status, 'received');
+      assert.match(sent.body.metrics.received_on, /^\d{4}-\d{2}-\d{2}$/);
+      assert.deepEqual(Object.keys(sent.body).sort(), ['metrics', 'status', 'updated_at']);
+    });
+    clearAdminCache();
+  }
+});
+
+test('한 건 — can_status 는 발주에만. 낸 사람은 자기 발주를, 발주가 아닌 보고는 누구도 상태를 못 바꾼다', async () => {
+  const order = { id: R1, owner_id: U1, kind: 'countertop_order', company_id: PARTNER, title: 't', status: 'ordered', body: {}, metrics: {} };
+  await withFetch(route({ role: null, reports: [order] }), async () => {
+    const r = await getReport(ENV, { user: { id: U1 }, id: R1 });
+    assert.equal(r.can_edit, true);
+    assert.equal(r.can_status, true);
+  });
+  clearAdminCache();
+  const plan = { id: R1, owner_id: U1, kind: 'production_plan', company_id: PARTNER, title: 't', body: {} };
+  await withFetch(route({ role: null, reports: [plan] }), async () => {
+    assert.equal((await getReport(ENV, { user: { id: U1 }, id: R1 })).can_status, false);
   });
 });
 
