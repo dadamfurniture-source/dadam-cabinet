@@ -590,6 +590,13 @@
       },
       soon0: '재고 관리는 준비 중입니다. 경첩 · 서랍 레일 · 리프트업 철물 수량을 관리하게 됩니다.',
     },
+    // 구매 · 재고 › 입출고 — 판재 · 철물이 들어오고 나간 기록, 읽기만 (segan/stock-moves.js)
+    'stock-moves': {
+      title: '입출고',
+      section: 'partner',
+      parts: ['stockMoves'],
+      label: 'stockMovesTitle',
+    },
     // 구매 · 재고 › 거래처 · 공급처 — 넣기 · 고치기 · 숨기기 (segan/counterparties.js)
     counterparties: {
       title: '거래처 · 공급처',
@@ -613,9 +620,13 @@
       stage: '',
       assign: true,
     },
+    // 인사 › 근무 일정 — segan/work-shifts.js 가 읽었으면 그 화면(쉬는 날 주간 표), 아니면 준비 중
     schedule: {
       title: '근무 일정',
-      soon: '근무 일정은 준비 중입니다. 직원 · 작업자의 근무와 쉬는 날을 한 표로 보게 됩니다.',
+      pick: function () {
+        return stockScreen('schedule', 'workShifts', 'workShiftsTitle');
+      },
+      soon0: '근무 일정은 준비 중입니다. 직원 · 작업자의 근무와 쉬는 날을 한 표로 보게 됩니다.',
     },
     workers: {
       title: '작업자',
@@ -739,6 +750,8 @@
     'stockBoard',
     'stockHardware',
     'stockOffcuts',
+    'stockMoves',
+    'workShifts',
     'siteInstall',
     'orders',
     'quotes',
@@ -755,6 +768,7 @@
     'stock-board': 'stockBoard',
     'stock-hardware': 'stockHardware',
     'stock-scrap': 'stockOffcuts',
+    schedule: 'workShifts',
   }; // 재고 줄 → 그 화면의 칸 (segan/stock.js)
   var FACTORY_PLANS = ['expert', 'agent']; // 상담 배정 · 받은 제작 의뢰 · A/S함 · 구매 · 재고 (+ 다담 공장)
   var PEOPLE_PLANS = ['agent']; // 인사 (+ 다담 공장) — account-api STAFF_TOOL_PLANS
@@ -1210,6 +1224,7 @@
     if (open && s.dash) renderDash(s.dash);
     off('meCalendar', !(open && s.dash === 'project')); // 업무 달력 — 프로젝트 관리 대시보드에서만
     off('meNumbers', !(open && s.dash === 'project')); // 우리 팩토리 숫자 — 프로젝트 관리 대시보드에서만 (segan/company-summary.js)
+    off('meStockNumbers', !(open && s.dash === 'stock')); // 재고 한눈에 — 구매 · 재고 대시보드에서만 (segan/stock-moves.js)
     renderParts(name);
     var note = $('mePaneNote');
     if (note) {
@@ -1477,6 +1492,9 @@
       case 'stock-scrap':
       case 'stock-hardware':
         return v.factory && !v.platform;
+      // 입출고 — 읽혔을 때만 (segan/stock-moves.js)
+      case 'stock-moves':
+        return v.factory && !v.platform && available(key);
       // 거래처 · 공급처 — 읽혔을 때만 (대표 · 실장). 못 쓰는 관리자에게는 PC 화면 줄 하나
       case 'counterparties':
         return v.factory && !v.platform && available(key);
@@ -1502,8 +1520,9 @@
           pr &&
           !!(window.SeganPartnerProjects && window.SeganPartnerProjects.canAssign())
         );
+      // 근무 일정 — 대표 · 실장 · 공장에게는 늘(못 읽으면 준비 중), 그 밖의 구성원에게는 읽혔을 때 (segan/work-shifts.js)
       case 'schedule':
-        return v.people;
+        return v.people || shown('workShifts');
       case 'workers':
         return v.people && !v.hq;
       // 다담 공장 작업자 — 공장 배정을 읽은 때만 (대표 · 실장 · 관리자, segan/production-workers.js)
@@ -1757,6 +1776,8 @@
     var Vendors = window.SeganCounterparties;
     var Stock = window.SeganStock;
     var Offcuts = window.SeganStockOffcuts;
+    var Moves = window.SeganStockMoves;
+    var Shifts = window.SeganWorkShifts;
     var Quotes = window.SeganQuotes;
     var Customers = window.SeganCustomers;
     var Numbers = window.SeganCompanySummary;
@@ -1796,6 +1817,10 @@
           synced(Stock && Stock.load ? Stock.load(auth.sb, auth.session, me) : null),
           // 자투리 자재 = 재고와 같은 사람 (segan/stock-offcuts.js — 구매 · 재고 › 자투리 자재 화면)
           synced(Offcuts && Offcuts.load ? Offcuts.load(auth.sb, auth.session, me) : null),
+          // 입출고 · 재고 한눈에 = 재고와 같은 사람, 읽기만 (segan/stock-moves.js — 구매 · 재고 › 입출고 · 대시보드)
+          synced(Moves && Moves.load ? Moves.load(auth.sb, auth.session, me) : null),
+          // 근무 일정 = 다담 공장 · Agent 업체 구성원, 적는 것은 대표 · 실장 (segan/work-shifts.js — 인사 › 근무 일정)
+          synced(Shifts && Shifts.load ? Shifts.load(auth.sb, auth.session, me) : null),
           // 생산 설정 = 다담 공장 · 협력업체의 대표 · 실장 (segan/production-settings.js — 생산 › 생산 설정 화면)
           synced(Settings && Settings.load ? Settings.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
