@@ -183,6 +183,7 @@ async function load(options = {}) {
     designs: () => ok(DESIGNS),
     add: () => ok({ batch_id: 'b1', schedules: [{ id: S2 }], slack: null }, 201),
     patch: () => ok({ id: S1 }),
+    shifts: () => fail(404, 'not_found', 'x'),
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -240,6 +241,7 @@ async function load(options = {}) {
     };
     if (url === ACC + '/partner/me') return reply(opts.partner);
     if (url.startsWith(WORK + '/company/schedules')) return reply(await opts.sched(url));
+    if (url.startsWith(WORK + '/company/shifts')) return reply(await opts.shifts(url));
     if (url === WORK + '/company/designs') return reply(await opts.designs());
     if (url === WORK + '/company/projects') return reply(ok(PROJECTS));
     if (url.startsWith(WORK + '/designs/') && url.endsWith('/schedules'))
@@ -815,6 +817,104 @@ describe('옮기기 · 보기 바꾸기', () => {
     await click('.cal-kind[data-kind="install"]');
     await click('.cal-kind[data-kind="as"]');
     expect(box().querySelector('.me-empty').textContent).toBe('이 달 일정이 없습니다.');
+  });
+});
+
+describe('쉬는 날 (근무 일정) — 색 없이 회색 글', () => {
+  const SHIFTS = () => ({
+    can_manage: true,
+    today: '2026-11-10',
+    people: [
+      { kind: 'member', id: 'u-1', name: '김대표', role: 'owner' },
+      { kind: 'member', id: 'u-2', name: '이직원', role: 'staff' },
+      { kind: 'worker', id: 'u-1', name: '', role: 'worker' },
+    ],
+    items: [
+      { person_kind: 'member', person_id: 'u-2', date: '2026-11-10', kind: 'half', note: '병원' },
+      { person_kind: 'member', person_id: 'u-1', date: '2026-11-10', kind: 'leave', note: null },
+      { person_kind: 'worker', person_id: 'u-1', date: '2026-11-18', kind: 'off', note: null },
+      { person_kind: 'member', person_id: 'u-9', date: '2026-11-10', kind: 'off' }, // 모르는 사람 — 뺀다
+      { person_kind: 'member', person_id: 'u-1', date: '2026-11-11', kind: 'sick' }, // 모르는 종류 — 뺀다
+      { person_kind: 'member', person_id: 'u-1', date: '11-12', kind: 'off' }, // 날이 아니다 — 뺀다
+    ],
+  });
+  const shiftCalls = (calls) =>
+    calls.fetch.filter((f) => f.url.startsWith(WORK + '/company/shifts'));
+  const offLines = () => [...box().querySelectorAll('.cal-offline')].map(text);
+  const agent = () => partnerMe({ plan: 'agent' });
+
+  test('순수 — canOff 는 다담 공장 · Agent 구성원만. offsOf 는 아는 사람 · 종류 · 날만, 이름 차례', () => {
+    const L = lib();
+    expect(L.canOff({ hq_member: true })).toBe(true);
+    expect(L.canOff({ hq_member: true, platform_member: true })).toBe(false);
+    expect(L.canOff({ company: { plan: 'agent', role: 'staff' } })).toBe(true);
+    for (const plan of ['expert', 'manager', 'free'])
+      expect(L.canOff({ company: { plan, role: 'owner' } })).toBe(false);
+    expect(L.canOff(null)).toBe(false);
+    expect(L.offsOf(ok(SHIFTS()).body)).toEqual({
+      '2026-11-10': [
+        { name: '김대표', kind: 'leave' },
+        { name: '이직원', kind: 'half' },
+      ],
+      '2026-11-18': [{ name: '이름 없음', kind: 'off' }],
+    });
+    expect(L.offsOf(fail(409, 'db_pending', 'x').body)).toEqual({});
+    expect(L.offsOf(ok({ people: null }).body)).toEqual({});
+  });
+
+  test('Agent — 같은 기간을 한 번 물어 날 칸에 「쉼 N」, 그날 일정 위에 누가 쉬는지. 종류 단추 · 색은 그대로', async () => {
+    const calls = await load({ partner: agent(), shifts: () => ok(SHIFTS()) });
+    expect(shiftCalls(calls).map((c) => c.url)).toEqual([
+      WORK + '/company/shifts?from=2026-11-01&to=2026-12-12',
+    ]);
+    expect(shiftCalls(calls)[0].auth).toBe('Bearer ' + SESSION.access_token);
+    expect(text(cell('2026-11-10').querySelector('.cal-off'))).toBe('쉼 2');
+    expect(text(cell('2026-11-18').querySelector('.cal-off'))).toBe('쉼 1');
+    expect(cell('2026-11-11').querySelector('.cal-off')).toBeNull();
+    expect(cell('2026-11-10').getAttribute('aria-label')).toMatch(/, 쉬는 사람 2명$/);
+    expect(offLines()).toEqual(['쉬는 사람 김대표 연차 · 이직원 반차']);
+    expect(box().querySelectorAll('.cal-kind')).toHaveLength(5);
+    expect(box().innerHTML).not.toContain('병원'); // 메모는 싣지 않는다
+    // 일정 없는 날 — 쉬는 사람 줄과 「일정이 없습니다」가 같이
+    await click('.cal-day[data-day="2026-11-18"]');
+    expect(offLines()).toEqual(['쉬는 사람 이름 없음 휴무']);
+    expect(box().querySelector('.cal-panel .me-empty').textContent).toBe('이날 일정이 없습니다.');
+    // 종류를 모두 꺼도 쉬는 날은 남는다
+    for (const k of ['sales', 'design', 'make', 'install', 'as'])
+      await click(`.cal-kind[data-kind="${k}"]`);
+    expect(text(cell('2026-11-10').querySelector('.cal-off'))).toBe('쉼 2');
+  });
+
+  test('목록 — 쉬는 사람만 있는 날도 나온다', async () => {
+    await load({ partner: agent(), shifts: () => ok(SHIFTS()) });
+    await click('[data-act="view"][data-view="list"]');
+    expect([...box().querySelectorAll('.cal-panel-title')].map(text)).toEqual([
+      '11월 10일 (화) · 오늘',
+      '11월 12일 (목)',
+      '11월 18일 (수)',
+      '11월 20일 (금)',
+    ]);
+    expect(offLines()).toEqual(['쉬는 사람 김대표 연차 · 이직원 반차', '쉬는 사람 이름 없음 휴무']);
+    expect(rows()).toHaveLength(4);
+  });
+
+  test('못 읽으면(DB 전 · 오류 · 끊김) 달력은 그대로, 쉬는 날 글만 없다 · Expert · Manager 는 묻지 않는다', async () => {
+    for (const shifts of [
+      () => fail(409, 'db_pending', 'x'),
+      () => new Error('offline'),
+      () => ok({}),
+    ]) {
+      await load({ partner: agent(), shifts });
+      expect(box().hidden).toBe(false);
+      expect(rows().length).toBeGreaterThan(0);
+      expect(box().querySelector('.cal-off')).toBeNull();
+      expect(offLines()).toEqual([]);
+    }
+    for (const plan of ['expert', 'manager']) {
+      const calls = await load({ partner: partnerMe({ plan }), shifts: () => ok(SHIFTS()) });
+      expect(shiftCalls(calls)).toHaveLength(0);
+      expect(box().querySelector('.cal-off')).toBeNull();
+    }
   });
 });
 

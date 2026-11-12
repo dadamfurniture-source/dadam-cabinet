@@ -12,6 +12,8 @@
                                  kind: sales | design | make | install | as,
                                  type, label, day, at, time, title, status, location, design { id, name } | null,
                                  order_no, amount, project { id, title } | null, duration_min?, assignee_name? }] }
+               GET   /company/shifts?from=&to=    { people[{ kind, id, name }], items[{ person_kind, person_id, date, kind }] }
+                     근무 일정의 쉬는 날 — 다담 공장 · Agent 구성원에게만 묻는다 (segan/work-shifts.js 와 같은 사람). 못 읽으면 그 글만 없다.
                GET   /company/designs            { items[{ id, name, project_id }] } — 「일정 더하기」의 설계 고르기
                POST  /designs/:id/schedules      { items: [{ type, scheduled_at, title? }] }   (대표 · 실장)
                PATCH /schedules/:id              { scheduled_at?, status? }                    (대표 · 실장)
@@ -23,6 +25,8 @@
              영업 일정(상담 희망일 · 실측 · 받을 날)과 A/S 접수는 서버가 자료에서 찾아 준다 — 여기서 넣지 않는다.
              설계 마감 = 계약금 입금날 당일 (2026-11-10 대표님 결정) — 서버가 수주의 계약금에서 찾아 준다.
              입금된 뒤에만 보인다 — 계약금 받은 날에 「계약금 입금」 (아직 안 받은 수주는 줄이 없다). 금액은 오지 않는다 (구성원 모두 본다).
+   쉬는 날    색 · 종류를 더하지 않는다 (2026-11-12 대표님 결정 — 색 없이 회색 글). 쉬는 사람이 있는 날 칸에 「쉼 N」,
+             그날 일정 칸 · 목록에는 「쉬는 사람  이름 종류 · …」 한 줄. 종류 단추와 상관없이 보인다. 적는 것은 인사 › 근무 일정에서.
    색        종류 다섯 — 영업 #2f6fb0 · 설계 #8a7ff4 · 생산 #c96a2b · 설치 #1f9a86 · A/S #9b3b3b (흰 바탕, 모든 짝 색각 검사 통과).
              색만으로 가리지 않는다: 종류 단추 · 줄에는 이름을 적고, 폰 월 달력의 네모는 종류마다 자리가 정해져 있다.
    움직임    없다 — 달 넘기기 · 날 고르기는 자주 누르는 곳이다 (CLAUDE.md 「SEGAN 앱 모션 규칙」).
@@ -70,6 +74,8 @@
   var TITLE_MAX = 200; // 워커 schedules.js toRow
   var CELL_CHIPS = 3; // 월 달력 한 칸에 적는 줄 수 (넘으면 +N)
   var DEFAULT_TIME = '09:00';
+  var OFF_PLANS = ['agent']; // 근무 일정을 쓰는 협력업체 — segan/work-shifts.js PLANS
+  var OFF_NAME = { off: '휴무', leave: '연차', half: '반차', out: '외근' }; // segan/work-shifts.js KIND_NAME
 
   var TEXT = {
     loading: '읽는 중입니다.',
@@ -89,6 +95,9 @@
     noProject: '프로젝트 없는 설계',
     noName: '이름 없는 설계',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    off: '쉼',
+    offWho: '쉬는 사람',
+    offNoName: '이름 없음',
   };
 
   var C = {
@@ -211,6 +220,64 @@
       typeof c === 'object' &&
       PLANS.indexOf(c.plan) >= 0 &&
       MEMBER_ROLES.indexOf(c.role) >= 0
+    );
+  }
+
+  /** 근무 일정(쉬는 날)을 쓰는 사람인가 — 다담 공장 구성원 · Agent 구성원 (segan/work-shifts.js canSee 와 같다) */
+  function canOff(me) {
+    if (!canSee(me) || me.platform_member === true) return false;
+    if (me.hq_member === true) return true;
+    return OFF_PLANS.indexOf(me.company.plan) >= 0;
+  }
+
+  /** GET /company/shifts 본문 → { 'YYYY-MM-DD': [{ name, kind }] } (모양이 틀리면 빈 것). 한 날 안은 이름 차례 */
+  function offsOf(body) {
+    var d = body && body.success === true ? body.data : null;
+    var out = {};
+    if (!d || typeof d !== 'object' || !Array.isArray(d.people) || !Array.isArray(d.items))
+      return out;
+    var names = {};
+    d.people.forEach(function (p) {
+      if (p && typeof p === 'object' && typeof p.id === 'string' && p.id)
+        names[p.kind + ':' + p.id] = typeof p.name === 'string' ? p.name.trim() : '';
+    });
+    d.items.forEach(function (x) {
+      if (!x || typeof x !== 'object' || !isDay(x.date) || !OFF_NAME[x.kind]) return;
+      var key = x.person_kind + ':' + x.person_id;
+      if (!(key in names)) return;
+      (out[x.date] = out[x.date] || []).push({ name: names[key] || TEXT.offNoName, kind: x.kind });
+    });
+    Object.keys(out).forEach(function (day) {
+      out[day].sort(function (a, b) {
+        return a.name.localeCompare(b.name, 'ko');
+      });
+    });
+    return out;
+  }
+
+  /** 그날 쉬는 사람 — [{ name, kind }] */
+  function offsOn(day) {
+    return (C.data && C.data.offs && C.data.offs[day]) || [];
+  }
+
+  /** 「쉬는 사람  이름 종류 · …」 한 줄 (없으면 빈 글) */
+  function offLineHtml(day) {
+    var list = offsOn(day);
+    if (!list.length) return '';
+    return (
+      '<p class="cal-offline" data-cal-off="' +
+      day +
+      '"><span class="cal-offline-k">' +
+      esc(TEXT.offWho) +
+      '</span> ' +
+      esc(
+        list
+          .map(function (x) {
+            return x.name + ' ' + OFF_NAME[x.kind];
+          })
+          .join(' · ')
+      ) +
+      '</p>'
     );
   }
 
@@ -564,13 +631,15 @@
       has[x.kind] = true;
     });
     var shown = o.full ? items : items.slice(0, CELL_CHIPS);
+    var offs = offsOn(day).length;
     var label =
       dayText(day) +
       ' ' +
       WEEKDAYS[weekdayOf(day)] +
       '요일' +
       (today ? ', 오늘' : '') +
-      (items.length ? ', 일정 ' + items.length + '건' : ', 일정 없음');
+      (items.length ? ', 일정 ' + items.length + '건' : ', 일정 없음') +
+      (offs ? ', ' + TEXT.offWho + ' ' + offs + '명' : '');
     return (
       '<button type="button" class="cal-day' +
       (out ? ' cal-day--out' : '') +
@@ -616,6 +685,9 @@
         ? '<span class="cal-more">+' + (items.length - shown.length) + '</span>'
         : '') +
       '</span>' +
+      (offs
+        ? '<span class="cal-off" aria-hidden="true">' + esc(TEXT.off) + ' ' + offs + '</span>'
+        : '') +
       '</button>'
     );
   }
@@ -652,15 +724,23 @@
       esc(dayTitle(C.sel)) +
       (C.data && C.sel === C.data.today ? ' · 오늘' : '') +
       '</h4>' +
+      offLineHtml(C.sel) +
       (items.length ? itemsHtml(items) : '<p class="me-empty">' + esc(TEXT.dayEmpty) + '</p>') +
       '</div>'
     );
   }
 
-  /** 목록 — 그 달의 일정 있는 날만 차례로 */
+  /** 목록 — 그 달의 일정 있는 날(쉬는 사람만 있는 날도)만 차례로 */
   function listHtml(map) {
     var month = C.cursor.slice(0, 7);
+    var seen = {};
     var days = Object.keys(map)
+      .concat(Object.keys((C.data && C.data.offs) || {}))
+      .filter(function (day) {
+        if (seen[day]) return false;
+        seen[day] = true;
+        return true;
+      })
       .filter(function (day) {
         return day.slice(0, 7) === month;
       })
@@ -675,7 +755,8 @@
             esc(dayTitle(day)) +
             (C.data && day === C.data.today ? ' · 오늘' : '') +
             '</h4>' +
-            itemsHtml(map[day]) +
+            offLineHtml(day) +
+            (map[day] ? itemsHtml(map[day]) : '') +
             '</div>'
           );
         })
@@ -820,9 +901,17 @@
     var r = rangeOf(C.view, C.cursor);
     var key = r.from + '~' + r.to;
     if (C.cache[key]) return C.cache[key];
-    var res = await call('GET', '/company/schedules?from=' + r.from + '&to=' + r.to);
-    var d = res.ok ? dataOf(res.body) : null;
-    if (d) C.cache[key] = d;
+    var q = '?from=' + r.from + '&to=' + r.to;
+    // 쉬는 날은 곁들이는 것 — 못 읽어도 달력은 그린다
+    var got = await Promise.all([
+      call('GET', '/company/schedules' + q),
+      canOff(C.me) ? call('GET', '/company/shifts' + q) : null,
+    ]);
+    var d = got[0].ok ? dataOf(got[0].body) : null;
+    if (d) {
+      d.offs = got[1] && got[1].ok ? offsOf(got[1].body) : {};
+      C.cache[key] = d;
+    }
     return d;
   }
 
@@ -1100,6 +1189,8 @@
     titleOf: titleOf,
     scheduledAtOf: scheduledAtOf,
     canSee: canSee,
+    canOff: canOff,
+    offsOf: offsOf,
     dataOf: dataOf,
     byDay: byDay,
     countKinds: countKinds,

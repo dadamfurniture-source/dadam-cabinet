@@ -627,6 +627,9 @@
       if (to) J.items[key] = { kind: to, note: note };
       else delete J.items[key];
       J.msg = to ? TEXT.saved : TEXT.cleared;
+      // 업무 달력도 쉬는 날을 보인다 — 읽어 둔 것을 버리게 한다 (segan/calendar.js)
+      var cal = window.SeganCalendar;
+      if (cal && typeof cal.reload === 'function') cal.reload();
     } else J.err = errText(r);
     J.busy = false;
     render();
