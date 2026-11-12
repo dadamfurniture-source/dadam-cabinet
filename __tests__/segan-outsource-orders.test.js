@@ -427,6 +427,12 @@ describe('순수 함수', () => {
     expect(O.canChange(full(order('1', { status: 'cancelled' })))).toBe(false);
     expect(O.canChange({ ...full(order('1')), kind: 'work_report' })).toBe(false);
     expect(O.canChange({ ...full(order('1')), can_edit: 'true' })).toBe(false);
+    // 그 업체 대표 · 실장 — 남이 낸 발주도 입고 · 취소 (서버가 can_status 로 알린다)
+    expect(O.canChange({ ...full(order('1'), false), can_status: true })).toBe(true);
+    expect(O.canChange({ ...full(order('1'), false), can_status: 'true' })).toBe(false);
+    expect(
+      O.canChange({ ...full(order('1', { status: 'received' }), false), can_status: true })
+    ).toBe(false);
     expect(O.canChange(null)).toBe(false);
   });
 });
@@ -491,7 +497,7 @@ describe('화면', () => {
     });
     expect(seen('outsourceOrders')).toBe(true);
     expect(text(box().querySelector('p.mk-note'))).toContain(
-      '우리 팩토리의 외주 · 상판 발주 전체입니다. 남이 낸 발주는 보기만 합니다.'
+      '우리 팩토리의 외주 · 상판 발주 전체입니다. 남이 낸 발주도 입고 · 취소할 수 있습니다.'
     );
     expect(window.SeganOutsourceOrders.state.scope).toBe('company');
     await load({
@@ -648,7 +654,7 @@ describe('상세', () => {
     expect(act('receive')).toBeNull();
     expect(act('cancel')).toBeNull();
     expect(text(row('015').querySelector('.ad-detail > p.mk-note'))).toBe(
-      '발주를 낸 사람과 관리자만 바꿀 수 있습니다.'
+      '발주를 낸 사람과 대표 · 실장 · 관리자만 바꿀 수 있습니다.'
     );
   });
 
