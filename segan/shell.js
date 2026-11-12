@@ -236,7 +236,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111309" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026111310" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +
@@ -616,6 +616,9 @@
      폰 시트(kind 'sheet', 1100px 미만)는 머리를 끌어 내려 닫는다 — 손가락을 1:1 로 따라가고, 위로는 고무줄,
      놓은 속도로 멈출 곳을 셈해 시트 높이의 40 % 를 넘으면 닫는다 (CLAUDE.md 「SEGAN 모션 규칙」).
      segan/motion.js 를 실은 화면은 스프링으로 돌아오고 · 내려가며, 없으면 바로 자리로
+     닫히는 모습 — 닫으면 창은 바로 「닫힌 것」이 되고(초점 · onClose · 잠금 풀기), 그림만 0.22초 동안 나간다:
+     폰 시트는 아래로, 옆 패널은 오른쪽으로, 가운데 창은 흐려지기만. 나가는 동안 누를 수 없다(입력을 막지 않는다).
+     새 시트가 바꿔 끼우는 때 · 움직일 수 없는 브라우저는 바로 치운다. 새 창을 열면 나가던 창은 바로 치운다
      dismissible: false — Esc · 바깥 누르기 · 닫기 버튼으로 닫지 않는다 (뒤로 가기는 닫는다)
      initialFocus: 창 안의 요소 — 없으면 창 자체에 초점
   */
@@ -667,6 +670,75 @@
     });
   }
 
+  var LEAVE_MS = 220; // 닫히는 그림 — 들어올 때보다 짧게
+  var leaving = []; // 나가는 중인 창 (그림만 남았다)
+
+  function stillMotion() {
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch {
+      return false;
+    }
+  }
+
+  /** 나가던 창을 바로 치운다 */
+  function clearLeaving() {
+    leaving.splice(0).forEach(function (wrap) {
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    });
+  }
+
+  /** 닫힌 창의 그림을 치운다 — 움직일 수 있으면 나가는 모습을 보인 뒤에, 아니면 바로 */
+  function leave(L, why) {
+    var wrap = L.wrap;
+    if (!wrap.parentNode) return;
+    var gone = function () {
+      var i = leaving.indexOf(wrap);
+      if (i >= 0) leaving.splice(i, 1);
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    };
+    if (why === 'replaced' || typeof wrap.animate !== 'function') {
+      gone();
+      return;
+    }
+    leaving.push(wrap);
+    wrap.classList.add('sg-sheet-wrap--out'); // 누를 수 없다 (shell.css)
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.inert = true;
+    var still = stillMotion();
+    var fade = wrap.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: still ? 200 : LEAVE_MS,
+      easing: 'ease-in',
+      fill: 'forwards',
+    });
+    // 끌어 내려 닫은 시트는 이미 내려가 있다 · 가운데 창은 흐려지기만. 지금 자리에서 이어 나간다
+    if (!still && why !== 'drag' && L.kind !== 'dialog' && typeof L.box.animate === 'function') {
+      var side = false;
+      try {
+        side = window.getComputedStyle(L.box).animationName === 'sg-sheet-side';
+      } catch {
+        /* 모르면 아래로 */
+      }
+      L.box.animate([{ transform: side ? 'translateX(100%)' : 'translateY(100%)' }], {
+        duration: LEAVE_MS,
+        easing: 'cubic-bezier(0.4, 0, 1, 1)',
+        fill: 'forwards',
+      });
+    }
+    var timer = window.setTimeout(gone, LEAVE_MS + 200);
+    if (fade && fade.finished && typeof fade.finished.then === 'function') {
+      fade.finished.then(
+        function () {
+          window.clearTimeout(timer);
+          gone();
+        },
+        function () {
+          /* 끊긴 움직임 — 위 타이머가 치운다 */
+        }
+      );
+    }
+  }
+
   /** layers[from..] 를 위에서부터 닫는다 — 방문 기록은 건드리지 않는다. 닫은 창들을 돌려준다 */
   function dropLayers(from, why) {
     var gone = layers.splice(from);
@@ -675,7 +747,7 @@
     for (var i = gone.length - 1; i >= 0; i--) {
       var L = gone[i];
       L.open = false;
-      if (L.wrap.parentNode) L.wrap.parentNode.removeChild(L.wrap);
+      leave(L, why);
       if (why !== 'replaced' && L.opener && L.opener.isConnected && L.opener.focus) {
         try {
           L.opener.focus();
@@ -910,6 +982,7 @@
    */
   function openSheet(opts) {
     opts = opts || {};
+    clearLeaving(); // 나가던 창의 그림이 새 창과 겹치지 않게 (같은 id 가 둘이 되지 않게)
     var kind = SHEET_KINDS[opts.kind] ? opts.kind : 'sheet';
     var opener = document.activeElement;
     var replaced = []; // 바꾼 시트 · 패널이 넣은 표시 칸 — 맨 위면 새 시트가 그 칸을 쓴다
