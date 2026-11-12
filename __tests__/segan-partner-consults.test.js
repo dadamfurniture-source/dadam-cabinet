@@ -322,6 +322,7 @@ describe('자리 · 이름', () => {
       'stockOffcuts', // 자투리 자재 (segan/stock-offcuts.js — 구매 · 재고 › 자투리 자재)
       'stockMoves', // 입출고 (segan/stock-moves.js — 구매 · 재고 › 입출고)
       'workShifts', // 근무 일정 (segan/work-shifts.js — 인사 › 근무 일정)
+      'stockOrders', // 발주 (segan/stock-orders.js — 구매 · 재고 › 발주)
       'orders', // 수주 (segan/orders.js — 프로젝트 관리 › 영업 › 계약)
       'quotes', // 견적서 (segan/quotes.js — 프로젝트 관리 › 영업 › 견적)
       'customers', // 고객 (segan/customers.js — 프로젝트 관리 › 영업 › 고객)
