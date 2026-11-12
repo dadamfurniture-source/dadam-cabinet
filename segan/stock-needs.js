@@ -19,6 +19,7 @@
                줄을 누르면 자재 표(자재 · 필요한 양 · 재고 품목과 남은 수량 · 상태)와 단추:
                「이 작업 자재 출고」 — 짝지은 자재가 필요한 양으로 채워져 나오고, 고친 뒤 「출고 적기」. 0 으로 두면 그 줄은 빼지 않는다.
                「남는 조각 보기」 — 재단 배치에서 남을 조각 후보. 실제로 남은 것만 「등록」(자투리 자재에 들어간다).
+             대시보드: 구매 · 재고 대시보드(#meStockNeedsNumbers)에 상태별 수주 수 — 누르면 그 탭으로 이 화면이 열린다.
              짝표: 자재마다 재고 품목을 고른다 (판재는 기본 자재, 철물은 철물 품목). 「재고에서 다루지 않음」 · 「짝 없음」.
    상태      재고 있음 · 입고 예정(입고 예정까지 치면 됨) · 없음 · 짝 없음 · 다루지 않음. 재고는 납기 빠른 수주부터 채운다.
              색만으로 알리지 않는다 — 글자로 적는다.
@@ -101,6 +102,8 @@
     linked: '짝을 정했습니다.',
     unlinked: '짝을 풀었습니다.',
     ordersUnit: '건',
+    dash: '진행 중 작업 자재',
+    dashNone: '진행 중인 수주가 없습니다.',
   };
 
   var J = {
@@ -711,6 +714,75 @@
     b.hidden = false;
     var sec = $('partner');
     if (sec) sec.hidden = false;
+    renderDash();
+  }
+
+  // ── 구매 · 재고 대시보드의 상태별 수주 수 ─────────────────────
+
+  function dashBox() {
+    return $('meStockNeedsNumbers');
+  }
+
+  function renderDash() {
+    var b = dashBox();
+    if (!b) return;
+    if (!J.ready) {
+      b.hidden = true;
+      b.innerHTML = '';
+      return;
+    }
+    var n = {};
+    J.orders.forEach(function (o) {
+      n[o.state] = (n[o.state] || 0) + 1;
+    });
+    var cell = function (key, label, tab, warn) {
+      var c = n[key] || 0;
+      return (
+        '<div data-snd="' +
+        key +
+        '"' +
+        (warn && c > 0 ? ' class="sn-warn"' : '') +
+        '><dt>' +
+        esc(label) +
+        '</dt><dd><a href="#stock-needs" data-me-go="stock-needs" data-tab="' +
+        tab +
+        '">' +
+        c +
+        esc(TEXT.ordersUnit) +
+        '</a></dd></div>'
+      );
+    };
+    b.innerHTML =
+      '<h3 class="me-pt-sub" id="meStockNeedsNumbersTitle">' +
+      esc(TEXT.dash) +
+      '</h3>' +
+      (J.orders.length
+        ? '<dl class="od-kpi as-kpi">' +
+          cell('short', ORDER_NAME.short, 'short', true) +
+          cell('unlinked', ORDER_NAME.unlinked, 'unlinked', true) +
+          cell('expected', ORDER_NAME.expected, 'expected', false) +
+          cell('ok', ORDER_NAME.ok, 'ok', false) +
+          cell('issued', ORDER_NAME.issued, 'issued', false) +
+          (n.nodoc ? cell('nodoc', ORDER_NAME.nodoc, 'all', false) : '') +
+          '</dl>'
+        : '<p class="me-empty">' + esc(TEXT.dashNone) + '</p>');
+    b.hidden = false;
+    if (!b.getAttribute('data-bound')) {
+      b.setAttribute('data-bound', '1');
+      b.addEventListener('click', onDashClick);
+    }
+  }
+
+  /** 대시보드 칸을 눌렀다 — 그 상태 탭으로 맞춰 둔다 (화면 옮기기는 segan/me.js 가 한다) */
+  function onDashClick(e) {
+    var el = e.target && e.target.closest ? e.target.closest('a[data-tab]') : null;
+    if (!el || !J.ready || J.busy) return;
+    var t = el.getAttribute('data-tab');
+    J.tab = TABS.indexOf(t) >= 0 ? t : 'all';
+    J.view = 'orders';
+    J.open = '';
+    J.mode = '';
+    render();
   }
 
   function focusOn(sel) {
@@ -727,6 +799,7 @@
       b.removeAttribute('aria-busy');
     }
     J.ready = false;
+    renderDash();
   }
 
   function find(id) {

@@ -182,7 +182,7 @@ const CANDS = () => [
 async function load(options = {}) {
   const opts = { session: SESSION, partner: HQ, manage: true, gate: null, ...options };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
-  window.history.replaceState(null, '', '/segan/me.html#stock-needs');
+  window.history.replaceState(null, '', '/segan/me.html' + (opts.hash || '#stock-needs'));
   const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
@@ -621,6 +621,66 @@ describe('짝표', () => {
     await press(act('view', '[data-view="orders"]'));
     await openRow('o-1');
     expect(act('issue')).not.toBeNull();
+  });
+});
+
+describe('구매 · 재고 대시보드 — 진행 중 작업 자재', () => {
+  const dash = () => $('meStockNeedsNumbers');
+  const cells = () =>
+    [...dash().querySelectorAll('[data-snd]')].map(
+      (d) => d.getAttribute('data-snd') + ' ' + text(d)
+    );
+
+  test('me.html — 대시보드 안, 재고 한눈에 다음 · 처음엔 감춘다', () => {
+    const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
+    const el = doc.getElementById('meStockNeedsNumbers');
+    expect(el.hasAttribute('hidden')).toBe(true);
+    expect(el.closest('section').id).toBe('meDash');
+    expect(el.previousElementSibling.id).toBe('meStockNumbers');
+    expect(el.getAttribute('aria-labelledby')).toBe('meStockNeedsNumbersTitle');
+  });
+
+  test('구매 · 재고 대시보드에서만 — 상태별 수주 수. 살필 칸은 굵은 선, 더 읽지 않는다', async () => {
+    const calls = await load({ hash: '#dash-stock' });
+    expect(asked(calls)).toEqual(['GET /stock/needs']);
+    expect(seen('meStockNeedsNumbers')).toBe(true);
+    expect(text($('meStockNeedsNumbersTitle'))).toBe('진행 중 작업 자재');
+    expect(cells()).toEqual([
+      'short 없음1건',
+      'unlinked 짝 없음1건',
+      'expected 입고 예정0건',
+      'ok 재고 있음0건',
+      'issued 출고함1건',
+      'nodoc 작업지시서 없음1건',
+    ]);
+    expect([...dash().querySelectorAll('.sn-warn')].map((d) => d.getAttribute('data-snd'))).toEqual(
+      ['short', 'unlinked']
+    );
+    expect(dash().textContent).not.toMatch(/원|고객/);
+  });
+
+  test('칸을 누르면 그 상태 탭으로 작업 자재 화면이 열린다', async () => {
+    await load({ hash: '#dash-stock' });
+    await press(dash().querySelector('[data-snd="short"] a'));
+    expect(window.location.hash).toBe('#stock-needs');
+    expect(seen('stockNeeds')).toBe(true);
+    expect(seen('meStockNeedsNumbers')).toBe(false);
+    expect(act('tab', '[aria-pressed="true"]').getAttribute('data-tab')).toBe('short');
+    expect(box().querySelectorAll('li[data-sn2-row]')).toHaveLength(1);
+  });
+
+  test('다른 화면에서는 안 보인다 · 수주가 없으면 그 말을 · 못 읽으면 칸이 없다', async () => {
+    await load();
+    expect(seen('meStockNeedsNumbers')).toBe(false);
+    await load({
+      hash: '#dash-stock',
+      needs: () => ok({ can_manage: true, orders: [], materials: [] }),
+    });
+    expect(seen('meStockNeedsNumbers')).toBe(true);
+    expect(text(dash().querySelector('.me-empty'))).toBe('진행 중인 수주가 없습니다.');
+    await load({ hash: '#dash-stock', needs: () => fail(409, 'db_pending', 'x') });
+    expect(seen('meStockNeedsNumbers')).toBe(false);
+    expect(dash().innerHTML).toBe('');
   });
 });
 

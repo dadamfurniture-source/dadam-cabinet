@@ -1241,6 +1241,7 @@
     off('meCalendar', !(open && s.dash === 'project')); // 업무 달력 — 프로젝트 관리 대시보드에서만
     off('meNumbers', !(open && s.dash === 'project')); // 우리 팩토리 숫자 — 프로젝트 관리 대시보드에서만 (segan/company-summary.js)
     off('meStockNumbers', !(open && s.dash === 'stock')); // 재고 한눈에 — 구매 · 재고 대시보드에서만 (segan/stock-moves.js)
+    off('meStockNeedsNumbers', !(open && s.dash === 'stock')); // 진행 중 작업 자재 — 구매 · 재고 대시보드에서만 (segan/stock-needs.js)
     renderParts(name);
     var note = $('mePaneNote');
     if (note) {
