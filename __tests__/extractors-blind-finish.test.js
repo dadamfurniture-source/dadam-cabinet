@@ -71,18 +71,20 @@ describe('멍가림판 — 목대는 빼고 마감재는 안 뺀다', () => {
 });
 
 describe('멍판 마감재가 라인 마감을 따라 나온다', () => {
-  test('휠라면 휠라(멍판) 150 × 몸통H', () => {
-    const fin = partsOf(makeItem()).find((m) => m.part === '휠라(멍판)');
+  test('휠라면 휠라(멍판) 150 × 옆 멍장 도어 높이 (몸통 708 − 30 = 678 — 2026-10-27 사장님 "휠라는 옆 도어와 같은 높이로")', () => {
+    const parts = partsOf(makeItem());
+    const fin = parts.find((m) => m.part === '휠라(멍판)');
     expect(fin).toBeDefined();
     expect(fin.thickness).toBe(18);
     expect(fin.w).toBe(FIN_PART_W);
-    expect(fin.h).toBe(708);
+    expect(fin.h).toBe(678);
+    expect(fin.h).toBe(parts.find((m) => m.part === '도어').h);
     expect(fin.qty).toBe(1);
   });
 
-  test('몰딩이면 몰딩(멍판)', () => {
+  test('몰딩이면 몰딩(멍판) 150 × 몸통H (상판 아래까지)', () => {
     const parts = partsOf(makeItem({ blindFinishType: 'Molding' }));
-    expect(parts.find((m) => m.part === '몰딩(멍판)')).toBeDefined();
+    expect(parts.find((m) => m.part === '몰딩(멍판)').h).toBe(708);
     expect(parts.find((m) => m.part === '휠라(멍판)')).toBeUndefined();
   });
 
@@ -124,5 +126,29 @@ describe('멍장이 아니면 아무것도 안 나온다', () => {
     ['멍가림판', '밴드(처짐방지·멍장)', '경첩목대', '휠라(멍판)', '몰딩(멍판)'].forEach((part) => {
       expect(all.find((m) => m.part === part)).toBeUndefined();
     });
+  });
+});
+
+describe('목찬넬 멍장 · 상부 멍장 — 2026-10-27 사장님 "멍가림판을 따내기 아래까지만" · "상부장 휠라는 도어크기보다 짧음"', () => {
+  const withHandle = (item, handle) => Object.assign(item, { specs: Object.assign({}, item.specs, { handle }) });
+
+  test('목찬넬 하부 멍장 — 멍가림판은 따내기 70 아래까지 (708 → 638), 휠라(멍판)는 도어 678', () => {
+    const parts = partsOf(withHandle(makeItem(), '찬넬 (목찬넬)'));
+    expect(parts.find((m) => m.part === '멍가림판').h).toBe(708 - 70);
+    expect(parts.find((m) => m.part === '휠라(멍판)').h).toBe(678);
+    expect(parts.find((m) => m.part === '멍가림판').note).toMatch(/목찬넬 따내기 아래까지/);
+  });
+
+  test('목찬넬이 아니면 멍가림판은 몸통 H 그대로', () => {
+    expect(partsOf(withHandle(makeItem(), '찬넬')).find((m) => m.part === '멍가림판').h).toBe(708);
+  });
+
+  test('상부 멍장 휠라(멍판) = 도어 높이 (몸통 720 + 내림 15 = 735), 몰딩(멍판)은 몸통 720', () => {
+    const up = (fin) => new MaterialExtractor().extract({ items: [makeItem({ id: 'corner-blind-upper', pos: 'upper', h: 720, d: 295, blindFinishType: fin })] })
+      .materials.filter((m) => m.module === '상부장-LT망장');
+    const f = up('Filler');
+    expect(f.find((m) => m.part === '휠라(멍판)').h).toBe(f.find((m) => m.part === '도어').h);
+    expect(f.find((m) => m.part === '휠라(멍판)').h).toBe(735);
+    expect(up('Molding').find((m) => m.part === '몰딩(멍판)').h).toBe(720);
   });
 });

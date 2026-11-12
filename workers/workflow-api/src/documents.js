@@ -12,7 +12,9 @@ import {
   NotFoundError,
   GoneError,
   ForbiddenError,
-  assertDesignOwner,
+  assertDesignAccess,
+  designAccess,
+  hqCompanyId,
   insertOne,
   selectOne,
   selectMany,
@@ -20,7 +22,8 @@ import {
   updateBy,
 } from './supabase.js';
 import { sha256Hex } from './util/hash.js';
-import { getSnapshot, latestHash } from './snapshots.js';
+import { getSnapshotWithDesign, latestHash, quoteForViewer } from './snapshots.js';
+import { cleanReason, reasonRequiredError, recordEarlyWorkOrder } from './order-events.js';
 import {
   generateShareToken,
   hashShareToken,
@@ -36,7 +39,9 @@ import { renderCustomerConfirmation } from './templates/customer-confirmation.js
 import { renderWorkOrder } from './templates/work-order.js';
 import { renderInstallationOrder } from './templates/installation-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
-import { gatherWorkOrderPayload, workOrderTotals } from './work-order-data.js';
+import { gatherWorkOrderPayload, workOrderTotals, collectRenders } from './work-order-data.js';
+import { frozenCheckList } from './work/check-items.js';
+import { specialNotesOf, withNoteChecks } from './work/special-notes.js';
 import { createSignedUrls, RENDERS_BUCKET, SIGNED_URL_TTL_SEC } from './storage.js';
 import { recordDocumentIssued } from './reports/service.js';
 
@@ -44,6 +49,52 @@ import { recordDocumentIssued } from './reports/service.js';
 // DB 의 design_documents_doc_type_check 와 renderDocument 분기(아래)가 함께 맞아야 한다.
 export const DOC_TYPES = ['customer_confirmation', 'work_order', 'installation_order'];
 const DOC_TYPE_CODE = { customer_confirmation: 'CC', work_order: 'WO', installation_order: 'IO' };
+
+/**
+ * 문서를 낼 수 있는 협력업체 등급 (companies.plan, 2026-11-08 · DB 0047 — manager < expert < agent).
+ *   고객 확인서 Manager 이상 · 작업지시서 · 설치 지시서 Expert 이상 (외주 발주도 Expert 이상 — OUTSOURCE_PLANS).
+ * 설계 업체가 다담 공장(hq) · 다담 본사(platform)면 등급을 보지 않는다 (관리자는 본사 설계만 연다 — designAccess).
+ * ★ 업체 plan 만 본다 — company_members.role 의 manager(실장)는 등급이 아니다.
+ * 막는 것은 새로 내기(issueDocument) · 외주 발주 처리뿐 — 이미 낸 문서 보기 · 인쇄 · 회수 · 고객 링크는 그대로.
+ */
+export const DOC_PLANS = Object.freeze({
+  customer_confirmation: Object.freeze(['manager', 'expert', 'agent']),
+  work_order: Object.freeze(['expert', 'agent']),
+  installation_order: Object.freeze(['expert', 'agent']),
+});
+/** 외주 발주(reports/outsource.js) — 작업지시서와 같다 */
+export const OUTSOURCE_PLANS = DOC_PLANS.work_order;
+export const PLAN_REQUIRED_CODE = 'plan_required';
+const DOC_LABELS = { customer_confirmation: '고객 확인서', work_order: '작업지시서', installation_order: '설치 지시서' };
+const PLAN_LABELS = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
+
+/** 순수 판정 — 업체 행 { kind, plan } 이 plans 등급 안인가. 다담 공장 · 본사는 언제나, 모르는 업체 · 등급은 아니다 */
+export function companyPlanAllows(company, plans) {
+  if (!company) return false;
+  if (company.kind === 'hq' || company.kind === 'platform') return true;
+  return company.kind === 'partner' && Array.isArray(plans) && plans.includes(company.plan);
+}
+
+/**
+ * 설계 업체의 등급 확인 — 모자라면 403 plan_required (details { min_plan }).
+ * what 은 글에 쓰는 이름 (예: '작업지시서는'), 다담 공장 설계는 업체 행을 읽지 않는다.
+ */
+export async function assertCompanyPlan(env, companyId, plans, what) {
+  if (companyId && companyId === (await hqCompanyId(env))) return;
+  const company = companyId
+    ? await selectOne(env, 'companies', { id: `eq.${companyId}`, select: 'id,kind,plan' })
+    : null;
+  if (companyPlanAllows(company, plans)) return;
+  const min = plans[0];
+  const err = new ForbiddenError(`${what} ${PLAN_LABELS[min]} 등급 팩토리부터 쓸 수 있습니다`, PLAN_REQUIRED_CODE);
+  err.details = { min_plan: min };
+  throw err;
+}
+
+/** 이 설계에 이 종류 문서를 낼 수 있어야 한다 */
+export function assertDocPlan(env, design, docType) {
+  return assertCompanyPlan(env, design && design.company_id, DOC_PLANS[docType], `${DOC_LABELS[docType]}는`);
+}
 
 function todayCompact() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -66,6 +117,35 @@ async function nextDocRev(env, designId, docType) {
   return rows && rows.length ? Number(rows[0].rev) + 1 : 1;
 }
 
+/** 승인 전 작업지시서의 특기사항 첫 줄 (예전 화면이 직접 적던 문구 그대로) */
+export const EARLY_WORK_ORDER_PREFIX = '고객 승인 전 발행 — 사유: ';
+
+/**
+ * 고객 확인서 승인 전 작업지시서의 사유. 이 설계에 승인된 확인서가 있으면 null (사유가 필요 없다).
+ * 없으면 body.early_reason 이 있어야 한다 — 비면 422 reason_required.
+ */
+export async function earlyWorkOrderReason(env, { designId, body }) {
+  const approved = await selectOne(env, 'design_documents', {
+    design_id: `eq.${designId}`,
+    doc_type: 'eq.customer_confirmation',
+    decision: 'eq.approved',
+    select: 'id',
+  });
+  if (approved) return null;
+  const reason = cleanReason(body.early_reason);
+  if (!reason) {
+    throw reasonRequiredError('고객 확인서 승인 전입니다 — 작업지시서를 먼저 내는 사유(early_reason)를 적어 주세요');
+  }
+  return reason;
+}
+
+/** 특기사항 맨 앞에 승인 전 발행 사유 한 줄 (같이 보낸 특기사항은 그 아래) */
+function withEarlyLine(instructions, reason) {
+  const rest = typeof instructions === 'string' ? instructions.trim() : '';
+  const line = EARLY_WORK_ORDER_PREFIX + reason;
+  return rest ? `${line}\n${rest}` : line;
+}
+
 /** 문서 발행. customer_confirmation 이면 평문 토큰을 함께 돌려준다 (1회만). */
 export async function issueDocument(env, { user, body }) {
   const docType = body.doc_type;
@@ -74,9 +154,14 @@ export async function issueDocument(env, { user, body }) {
   }
   if (!body.snapshot_id) throw new ValidationError('snapshot_id 가 필요합니다');
 
-  // getSnapshot 이 소유권까지 확인한다
-  const snapshot = await getSnapshot(env, { snapshotId: body.snapshot_id, user });
+  // 설계 접근까지 확인한다 (업체 구성원 누구나 발행한다 — 응답의 totals 는 고객 금액뿐)
+  const { snapshot, design } = await getSnapshotWithDesign(env, { snapshotId: body.snapshot_id, user });
   const designId = snapshot.design_id;
+  // 협력업체 등급 — 확인서 Manager 이상, 작업지시서 · 설치 지시서 Expert 이상 (DOC_PLANS). 아무것도 쓰기 전에
+  await assertDocPlan(env, design, docType);
+
+  // 제작 작업지시서는 고객이 확인서를 승인한 뒤가 기본이다. 그 전이면 사유를 받아 기록하고 특기사항에 남긴다
+  const earlyReason = docType === 'work_order' ? await earlyWorkOrderReason(env, { designId, body }) : null;
 
   const rev = await nextDocRev(env, designId, docType);
   const docNo = buildDocNo(designId, docType, rev);
@@ -86,10 +171,14 @@ export async function issueDocument(env, { user, body }) {
 
   // 확인서는 고객용(기본)과 거래처(인테리어 업체)용 두 가지 금액 중 하나로 낸다.
   // 거래처용은 스냅샷에 함께 계산해 둔 partner 금액을 쓴다 — 옛 스냅샷(partner 없음)이면 거절한다.
+  // 거래처 금액은 본사가 거래처에 파는 값이라 본사 견적에만 있다 (다른 업체 견적은 partner: null).
   const priceTier = body.price_tier === 'partner' ? 'partner' : 'customer';
   const baseQuote = snapshot.quote_payload;
   let quoteForDoc = baseQuote;
   if (priceTier === 'partner') {
+    if (baseQuote && baseQuote.partner === null) {
+      throw new ValidationError('거래처 금액은 본사 견적에만 있습니다');
+    }
     if (!baseQuote || !baseQuote.partner) {
       throw new ValidationError('이 스냅샷에는 거래처 금액이 없습니다. 설계·BOM 을 다시 동결한 뒤 발행해 주세요');
     }
@@ -99,7 +188,7 @@ export async function issueDocument(env, { user, body }) {
   const renderPayload = {
     quote: quoteForDoc,
     price_tier: priceTier,
-    instructions: typeof body.instructions === 'string' ? body.instructions : '',
+    instructions: earlyReason ? withEarlyLine(body.instructions, earlyReason) : typeof body.instructions === 'string' ? body.instructions : '',
     issued_by: user.email || null,
   };
 
@@ -110,12 +199,30 @@ export async function issueDocument(env, { user, body }) {
   if (docType === 'installation_order') {
     renderPayload.site_info = await getSiteInfo(env, designId);
     renderPayload.schedules = await listSchedulesForDoc(env, designId);
+    // 정면 렌더도 발행 때 고정 (2026-11-05 사장님 C · E — 설치 지시서에도 그림). 없으면 빈 목록
+    const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
+    renderPayload.renders = await collectRenders(env, designId, items);
+    const iso = await collectRenders(env, designId, items, 'iso');
+    if (iso.some((r) => r.path)) renderPayload.iso_renders = iso;
   }
 
   // B5: 작업지시서 v2 — 정면 렌더·색 스와치·재단 배치·부재 요약·이전 rev 차이를 발행 시점에 동결한다.
   // 렌더를 다시 찍거나 카탈로그가 바뀌어도 이미 나간 지시서는 그대로여야 한다 (work-order-data.js).
   if (docType === 'work_order') {
     Object.assign(renderPayload, await gatherWorkOrderPayload(env, { designId, snapshot }));
+  }
+  // 라벨 번호 차례 — 재단 차례로 고정 (2026-11-05 사장님 A 「재단 차례」 — 원장 1 조각부터). 옛 문서는 이 칸이 없어 자재 행 차례 그대로
+  if (docType === 'work_order') renderPayload.label_order = 'cut';
+  // 작업자 필수 확인 목록 — 발행 때의 판을 고정한다 (src/work/check-items.js). 종이 칸과 작업자 포털 체크가 이 목록을 쓴다.
+  //   특별 지시(자동 + 사무실 글 body.notes, src/work/special-notes.js)도 이때 고정 — 재단 · 조립 · 설치 지시는 필수 확인 항목으로도 들어간다
+  if (docType === 'work_order' || docType === 'installation_order') {
+    if (body.notes !== undefined && body.notes !== null && (typeof body.notes !== 'object' || Array.isArray(body.notes))) {
+      throw new ValidationError('notes 는 { cut, assembly, door, top, install } 글 묶음이어야 합니다');
+    }
+    const roles = docType === 'work_order' ? ['cut', 'assembly', 'door', 'top'] : ['install'];
+    const notes = specialNotesOf(snapshot, body.notes, { roles, cutPlan: renderPayload.cut_plan || null });
+    renderPayload.special_notes = notes;
+    renderPayload.check_list = withNoteChecks(frozenCheckList(), notes);
   }
 
   const totals = quoteForDoc
@@ -158,6 +265,9 @@ export async function issueDocument(env, { user, body }) {
     }
   }
 
+  // 승인 전 작업지시서는 문서를 만들기 전에 기록부터 — 기록 없이 지시서만 나가는 일이 없게
+  if (earlyReason) await recordEarlyWorkOrder(env, { design, user, reason: earlyReason });
+
   const created = await insertOne(env, 'design_documents', row);
 
   // PIN 해시를 실제 id 로 다시 계산
@@ -188,8 +298,8 @@ export async function issueDocument(env, { user, body }) {
     await supersedeDocument(env, { user, documentId: body.supersedes, replacementId: created.id });
   }
 
-  // 보관함: 작업지시서 · 설치 지시서 색인 (실패해도 발행은 그대로)
-  await recordDocumentIssued(env, { user, doc: finalDoc });
+  // 보관함: 작업지시서 · 설치 지시서 색인 (실패해도 발행은 그대로). 보고의 업체는 설계의 업체
+  await recordDocumentIssued(env, { user, doc: finalDoc, companyId: design.company_id });
 
   return {
     document: finalDoc,
@@ -250,7 +360,8 @@ export async function supersedePriorRevisions(env, { designId, docType, newDocId
 export async function supersedeDocument(env, { user, documentId, replacementId }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('대체할 문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  // 상태만 바꾸고 문서 내용을 돌려주지 않는다 (발행 경로가 결과를 버린다) — 업체 구성원 누구나
+  await assertDesignAccess(env, doc.design_id, user, { money: false });
 
   const patch = { superseded_by: replacementId };
   // 고객이 이미 결정한 문서(승인/수정요청)는 상태를 유지한다.
@@ -265,7 +376,8 @@ export async function supersedeDocument(env, { user, documentId, replacementId }
 export async function revokeDocument(env, { user, documentId }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  // 응답은 id · status 뿐 — 업체 구성원 누구나
+  await assertDesignAccess(env, doc.design_id, user, { money: false });
 
   // ★ share_token_hash 를 NULL 로 지우지 않는다.
   //   지우면 openSharedDocument 의 토큰 조회가 아예 실패해서 404 가 나가고,
@@ -282,7 +394,8 @@ export async function revokeDocument(env, { user, documentId }) {
  * ★ 판정은 content_hash 비교로만 한다 — designs.updated_at 은 트리거가 오염시킨다.
  */
 export async function listDocuments(env, { designId, user }) {
-  await assertDesignOwner(env, designId, user.id);
+  // totals 는 고객 금액(공급가 · 부가세 · 합계) · 장수뿐 — 업체 구성원 누구나 본다
+  await assertDesignAccess(env, designId, user, { money: false });
 
   const [docs, newest] = await Promise.all([
     selectMany(env, 'design_documents', {
@@ -318,16 +431,27 @@ export async function listDocuments(env, { designId, user }) {
   });
 }
 
+/**
+ * 문서 + 스냅샷 (+ 설계 접근 확인). 업체 구성원 누구나.
+ * money(원가 · 수금 권한)를 함께 돌려준다 — 문서를 그대로 내보내는 쪽은 documentForViewer 로 원가 · 마진을 가린다.
+ * 인쇄물(확인서 · 작업지시서 · 설치 지시서)은 원가 · 마진을 그리지 않는다.
+ */
 export async function getDocumentForOwner(env, { documentId, user }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  const { design, money } = await designAccess(env, doc.design_id, user);
   const snapshot = await selectOne(env, 'design_snapshots', {
     id: `eq.${doc.snapshot_id}`,
     select: '*',
   });
   if (!snapshot) throw new NotFoundError('문서가 참조하는 스냅샷이 없습니다');
-  return { doc, snapshot };
+  return { doc, snapshot, money, design };
+}
+
+/** 문서 행을 그대로 내보낼 때 — 원가 · 수금 권한이 없으면 render_payload.quote 의 원가 · 마진을 뺀다 */
+export function documentForViewer(doc, money) {
+  if (money || !doc || !doc.render_payload || !doc.render_payload.quote) return doc;
+  return { ...doc, render_payload: { ...doc.render_payload, quote: quoteForViewer(doc.render_payload.quote, false) } };
 }
 
 /**
@@ -336,7 +460,9 @@ export async function getDocumentForOwner(env, { documentId, user }) {
  */
 export async function resolvePrintAssets(env, doc) {
   const rp = doc && doc.render_payload;
-  const renders = doc && doc.doc_type === 'work_order' && rp && Array.isArray(rp.renders) ? rp.renders : [];
+  const listOf = (v) => (doc && (doc.doc_type === 'work_order' || doc.doc_type === 'installation_order') && rp && Array.isArray(v) ? v : []);
+  // 정면 렌더 + 플래너 ISO 도면 · 상판 탑뷰 (2026-11-05)
+  const renders = [...listOf(rp && rp.renders), ...listOf(rp && rp.iso_renders), ...listOf(rp && rp.plan_renders)];
   const paths = renders.map((r) => r && r.path).filter((p) => typeof p === 'string' && p);
   if (paths.length === 0) return { renderUrls: new Map() };
   try {

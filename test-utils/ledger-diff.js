@@ -19,6 +19,8 @@
  *      id 로 다 맞춘 BOM 행은 아래 치수 대조에서 뺀다.
  *   2. 치수 대조 (diffLedger) — 남은 것(예전 그리기 판재 ↔ id 로 안 맞춘 BOM 행)을 지금처럼 (모듈, 종류) 다중집합으로.
  *      그 전에 사장님이 발주 표현을 정한 묶음(splitDeclaredTop — 2026-10-26 상판 한 장)은 합으로 맞춰 보고 맞으면 뺀다.
+ *   현장 자름(2026-10-26 — 800 보다 짧은 상몰딩 · 걸레받이 · 목찬넬 조각은 800 발주 · 붙는 길이로 그림)은 1단계가 정한 차이로 센다
+ *      (diffById declaredSiteCuts — 명세 재단 치수가 BOM 행과 다른 유일한 경우).
  */
 
 const TOLERANCE_MM = 1;
@@ -175,9 +177,14 @@ function specPartsOf(spec) {
  * @param {string} fixture
  * @param {Array<{partId, rowPartId, moduleId, min, max}>} pieces  scene-parts.js collectSceneIdPieces
  * @param {object} spec        같은 상태의 조립 명세 (플래너 plannerCadSpec().spec)
- * @param {Array} materials    BOM 자재 행 (partId · qty)
- * @returns {{ issues: Array<{fixture, kind, partId, note}>, matchedRows: Set<string>, matched: number }}
+ * @param {Array} materials    BOM 자재 행 (partId · qty · w · h)
+ * @returns {{ issues: Array<{fixture, kind, partId, note}>, matchedRows: Set<string>, matched: number,
+ *   declaredSiteCuts: Array<{partId, part, order, len}> }}
  *   matchedRows — 낱장이 **전부** 3D 에 그려져 id 로 맞은 행의 partId (치수 대조에서 뺀다)
+ *   명세 판재의 재단 치수(cut)는 BOM 행(w × h)과 같아야 한다 — 아니면 'id-cut'. 단 정한 그림 차이 하나는 뺀다:
+ *   declaredSiteCuts — **현장 자름** (2026-10-26 사장님 "800 보다 짧으면 그 길이 그대로 내는게 아니라 최소 800이상의 길이가 되어야한다는
+ *     거지"): 상몰딩 · 걸레받이 · 목찬넬 EP 의 800 보다 짧은 조각은 BOM 이 800 으로 내고(발주 정본) 명세 · 3D 는 붙는 길이로 놓는다
+ *     (bom-assembly.js runsOf tags.siteCut { order }). 길이 한 변만 짧고(cut < order = BOM 그 변), 다른 변은 같을 때만.
  */
 function diffById(fixture, pieces, spec, materials, opts = {}) {
   const tol = opts.tolerance == null ? ID_AABB_TOLERANCE_MM : opts.tolerance;
@@ -186,6 +193,8 @@ function diffById(fixture, pieces, spec, materials, opts = {}) {
   const qtyOf = new Map();
   (materials || []).forEach((m) => qtyOf.set(String(m.partId), (qtyOf.get(String(m.partId)) || 0) + (Number(m.qty) || 0)));
   const specById = new Map(specPartsOf(spec).map((pt) => [pt.id, pt]));
+  const rowById = new Map((materials || []).map((m) => [String(m.partId), m]));
+  const declaredSiteCuts = [];
   const seen = new Map();   // rowPartId → 그린 낱장 수
   const ids = new Set();
   pieces.forEach((pc) => {
@@ -198,6 +207,17 @@ function diffById(fixture, pieces, spec, materials, opts = {}) {
     if (k >= qtyOf.get(row)) { push('id-unknown', pc.partId, `낱장 번호 ${k} ≥ 수량 ${qtyOf.get(row)}`); return; }
     const pt = specById.get(pc.partId);
     if (!pt) { push('id-no-spec', pc.partId, '명세에 없는 판재'); return; }
+    const r = rowById.get(row);
+    if (r && pt.cut && (pt.cut.w !== r.w || pt.cut.h !== r.h)) {
+      const sc = pt.tags && pt.tags.siteCut;
+      const axis = pt.cut.w !== r.w ? 'w' : 'h';
+      const one = (pt.cut.w === r.w) !== (pt.cut.h === r.h);
+      if (sc && one && Number(sc.order) === r[axis] && pt.cut[axis] < r[axis]) {
+        declaredSiteCuts.push({ partId: pc.partId, part: r.part, order: r[axis], len: pt.cut[axis] });
+      } else {
+        push('id-cut', pc.partId, `명세 재단 ${pt.cut.w}×${pt.cut.h} ≠ BOM ${r.w}×${r.h}`);
+      }
+    }
     const off = [0, 1, 2].map((i) => Math.max(Math.abs(pc.min[i] - pt.box.min[i]), Math.abs(pc.max[i] - pt.box.max[i])));
     const worst = Math.max(...off);
     if (worst > tol) push('id-aabb', pc.partId, `명세 상자와 ${Math.round(worst * 100) / 100}mm 어긋남`);
@@ -208,7 +228,7 @@ function diffById(fixture, pieces, spec, materials, opts = {}) {
     if (n === qtyOf.get(row)) matchedRows.add(row);
     else push('id-partial', row + '#*', `낱장 ${n} / 수량 ${qtyOf.get(row)} 만 그렸다`);
   });
-  return { issues, matchedRows, matched: pieces.length };
+  return { issues, matchedRows, matched: pieces.length, declaredSiteCuts };
 }
 
 /** `lower-2` 와 `lower-10` 이 숫자순으로 서게. */

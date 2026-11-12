@@ -26,7 +26,7 @@ const EVIL_MEMO = '<u>메모</u>';
 /** 어떤 메서드를 이어 불러도 자기를 돌려주고, await 하면 정해 둔 결과를 내는 가짜 쿼리 */
 function query(result, calls) {
   const q = {};
-  for (const m of ['select', 'order', 'limit', 'eq', 'update', 'single']) {
+  for (const m of ['select', 'order', 'limit', 'eq', 'update', 'single', 'maybeSingle']) {
     q[m] = (...args) => {
       if (calls) calls.push([m, ...args]);
       return q;
@@ -44,7 +44,14 @@ function boot(rows, calls) {
   window.supabase = {
     createClient: () => ({
       auth: { getSession: async () => ({ data: { session } }) },
-      from: () => query({ data: rows, error: null }, calls),
+      // companies 는 다담 본사 행 하나 (목록은 그 id 로 거른다)
+      from: (table) =>
+        query(
+          table === 'companies'
+            ? { data: { id: 'platform-company-id' }, error: null }
+            : { data: rows, error: null },
+          calls
+        ),
     }),
   };
   (0, eval)(SCRIPT);
@@ -166,11 +173,62 @@ describe('admin/consultations.html 상담 카드', () => {
     expect(card.querySelector('.badge').textContent).toBe('확정');
     expect(card.textContent).toContain('싱크대 견적');
     expect(card.textContent).toContain('싱크대');
+    // 본사 상담은 일정을 확정하지 않는다 — 「일정 변경」(confirm) 없음
     expect([...card.querySelectorAll('button[data-act]')].map((b) => b.dataset.act)).toEqual([
       'complete',
       'edit',
-      'confirm',
       'cancel',
     ]);
+    expect(card.querySelector('a[data-dist]')).toBeNull();
+  });
+});
+
+describe('본사 상담은 일정 확정 대신 상담 분배로', () => {
+  const plain = {
+    id: ID,
+    name: '테스트 고객',
+    email: 'test@example.test',
+    status: 'pending',
+    created_at: '2026-10-20T00:00:00Z',
+  };
+
+  test('대기 상담: 「일정 확정」 단추 없이 그 상담을 고른 상담 분배 링크', async () => {
+    boot([plain]);
+    await window.initAdmin();
+    const card = document.querySelector('#consultationList .consultation-card');
+    expect(card.querySelector('button[data-act="confirm"]')).toBeNull();
+    expect(card.textContent).not.toContain('일정 확정');
+    const link = card.querySelector('a[data-dist]');
+    expect(link.textContent).toBe('상담 분배에서 업체에 나누기 →');
+    expect(link.getAttribute('href')).toBe(`consult-distribution.html#consult=${ID}`);
+    expect([...card.querySelectorAll('button[data-act]')].map((b) => b.dataset.act)).toEqual([
+      'edit',
+      'cancel',
+    ]);
+  });
+
+  test('링크의 id 는 주소에 맞게 바꾸고 속성을 깨지 못한다', async () => {
+    const evilId = 'x"><img src=x onerror="window.__pwned=7">&a=b';
+    boot([{ ...plain, id: evilId }]);
+    await window.initAdmin();
+    const link = document.querySelector('#consultationList a[data-dist]');
+    expect(document.querySelector('#consultationList img')).toBeNull();
+    expect(link.getAttribute('href')).toBe(`consult-distribution.html#consult=${encodeURIComponent(evilId)}`);
+    expect(window.__pwned).toBeUndefined();
+  });
+
+  test('업체에 나간 상담(assigned): 상담 분배에서 보기 · 내용 정리 — 저장해도 상태를 그대로 둔다', async () => {
+    const calls = [];
+    boot([{ ...plain, status: 'assigned' }], calls);
+    await window.initAdmin();
+    const card = document.querySelector('#consultationList .consultation-card');
+    expect(card.querySelector('a[data-dist]').textContent).toBe('상담 분배에서 보기 →');
+    expect([...card.querySelectorAll('button[data-act]')].map((b) => b.dataset.act)).toEqual(['edit']);
+    card.querySelector('button[data-act="edit"]').click();
+    expect(document.getElementById('editStatus').value).toBe('assigned');
+    window.alert = () => {};
+    await window.saveConsultationEdits();
+    const upd = calls.find((c) => c[0] === 'update');
+    expect(upd[1].status).toBe('assigned');
   });
 });

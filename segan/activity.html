@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>내 활동 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111214" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111214" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111214" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111214" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026111214" />
+    <!-- 입력 · 버튼 — 만들기 탭과 같은 모양 -->
+    <link rel="stylesheet" href="make.css?v=2026111214" />
+    <!-- 저장한 추천 팩토리 · 시공 평가 · 내 시공사례 — mypage.html 과 같은 Supabase 읽기 · 쓰기 -->
+    <script src="../js/config.js?v=2026111214"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <!-- 관리자 판정(저장한 추천 팩토리는 관리자에게 감춘다 — mypage.html 과 같다) · 관리 · 작업 탭 -->
+    <script src="../js/admin-access.js?v=2026111214"></script>
+    <script src="../js/mypage-work.js?v=2026111214"></script>
+    <script src="shell.js?v=2026111214" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026111214" defer></script>
+    <script src="regions.js?v=2026111214" defer></script>
+    <script src="activity.js?v=2026111214" defer></script>
+  </head>
+  <!-- 내 정보 › 내 활동 — 내 정보 탭 안의 화면이라 그 탭을 켠다 -->
+  <body class="sg-app" data-tab="me">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main ac" id="main">
+      <a class="mk-link mk-back" href="me.html">‹ 마이페이지</a>
+      <h1 class="sg-h1">내 활동</h1>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <!-- 저장한 추천 팩토리 — saved_partners (mypage.html 「내 추천 업체」). 관리자에게는 감춘다 -->
+        <section class="sg-section" id="partners" aria-labelledby="acPartnerTitle" hidden>
+          <h2 id="acPartnerTitle">저장한 추천 팩토리</h2>
+          <ul class="me-pt-list" id="acPartners"></ul>
+          <p class="me-empty" id="acPartnerEmpty" hidden>저장한 추천 팩토리가 없습니다.</p>
+          <p class="mk-error" id="acPartnerError" role="alert" hidden></p>
+        </section>
+
+        <!-- 시공 완료 · 평가 — orders.status = completed 인 내 설계 (mypage.html 「시공 완료」), design_feedback.
+             시공이 끝난 설계가 없으면 칸째 감춘다 -->
+        <section class="sg-section" id="feedback" aria-labelledby="acFbTitle" hidden>
+          <h2 id="acFbTitle">시공 완료 · 평가</h2>
+          <p class="me-pt-how ac-lead">시공이 끝난 설계입니다. 평가를 남겨 주시면 다음 설계가 더 정확해집니다.</p>
+          <ul class="me-pt-list" id="acProjects"></ul>
+
+          <form class="me-pt-form" id="acFbForm" novalidate hidden>
+            <p class="me-pt-title" id="acFbTitleText">시공 평가</p>
+            <label class="mk-input"
+              ><span>어떤 평가인가요</span
+              ><select id="acFbType">
+                <option value="completion">시공 완료 소감</option>
+                <option value="praise">만족한 점</option>
+                <option value="complaint">불만·하자</option>
+                <option value="revision">수정 요청</option>
+              </select></label
+            >
+            <label class="mk-input ac-range"
+              ><span>설계대로 나왔나요 <b id="acFbAccuracyVal">3</b> / 5</span
+              ><input type="range" id="acFbAccuracy" min="1" max="5" step="1" value="3"
+            /></label>
+            <label class="mk-input ac-range"
+              ><span>쓰기 편한가요 <b id="acFbUsabilityVal">3</b> / 5</span
+              ><input type="range" id="acFbUsability" min="1" max="5" step="1" value="3"
+            /></label>
+            <label class="cs-agree">
+              <input type="checkbox" id="acFbModified" />
+              <span>시공 중에 설계를 고쳐야 했습니다</span>
+            </label>
+            <label class="mk-input" id="acFbReasonGroup" hidden
+              ><span>무엇을 왜 고쳤나요</span
+              ><textarea id="acFbReason" rows="2" placeholder="예: 벽이 기울어 상부장 폭을 20mm 줄임"></textarea>
+            </label>
+            <label class="mk-input"
+              ><span>남기실 말씀</span
+              ><textarea id="acFbText" rows="3" placeholder="좋았던 점, 아쉬운 점 무엇이든"></textarea>
+            </label>
+            <label class="mk-input" id="acFbPostGroup" hidden
+              ><span>어느 사진에 대한 평가인가요 (선택)</span
+              ><select id="acFbPost">
+                <option value="">특정하지 않음</option>
+              </select></label
+            >
+            <p class="mk-error" id="acFbStatus" role="status" hidden></p>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="acFbCancel">취소</button>
+              <button type="submit" class="mk-btn mk-btn--solid" id="acFbSubmit">평가 남기기</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- 내 시공사례 — collection_posts (본인 · source upload) + 'collection' 버킷 (mypage.html 「내 시공사례」).
+             올린 사진은 시공사례 탭에 바로 공개된다 -->
+        <section class="sg-section" id="cases" aria-labelledby="acCaseTitle">
+          <h2 id="acCaseTitle">내 시공사례</h2>
+          <p class="me-pt-how ac-lead">올린 사진은 <a href="collection.html">시공사례</a>에 바로 공개됩니다.</p>
+          <div class="rd-acts">
+            <button type="button" class="mk-btn mk-btn--solid" id="acCaseOpen">사진 올리기</button>
+          </div>
+
+          <form class="me-pt-form" id="acCaseForm" novalidate hidden>
+            <p class="me-pt-title">시공사례 올리기</p>
+            <label class="mk-input ac-file"
+              ><span>사진 *</span>
+              <input type="file" id="acCaseFile" accept="image/jpeg,image/png" />
+            </label>
+            <p class="mk-note">시공된 공간 사진을 올려주세요 · JPG · PNG · 20MB 이하</p>
+            <img class="ac-preview" id="acCasePreview" alt="올릴 사진 미리 보기" hidden />
+            <div class="cs-region">
+              <label class="mk-input"
+                ><span>시공 지역 (시/도)</span
+                ><select id="acCaseSido"></select
+              ></label>
+              <label class="mk-input"
+                ><span>시공 지역 (시/군/구)</span
+                ><select id="acCaseGugun"></select
+              ></label>
+            </div>
+            <p class="mk-note">
+              시공사례 캡션에 &ldquo;다담가구 &middot; 시공 지역&rdquo; 으로 붙습니다. 비워도 됩니다.
+            </p>
+            <label class="mk-input"
+              ><span>구분</span
+              ><select id="acCaseCategory">
+                <option value="kitchen">주방</option>
+                <option value="builtin">붙박이장</option>
+                <option value="storage">수납장</option>
+                <option value="interior">인테리어</option>
+                <option value="other">기타</option>
+              </select></label
+            >
+            <label class="mk-input"
+              ><span>어느 설계의 시공 사진인가요</span
+              ><select id="acCaseDesign">
+                <option value="">연결 안 함</option>
+              </select></label
+            >
+            <p class="mk-note">
+              설계를 고르면 도면·견적·시공 결과가 한 건으로 묶입니다.
+              <b>학습 데이터로는 시공이 완료된 설계만 쓰입니다.</b>
+            </p>
+            <label class="cs-agree">
+              <input type="checkbox" id="acCaseConsent" />
+              <span>이 사진을 다담 AI 학습에 사용해도 좋습니다 <b>(선택)</b></span>
+            </label>
+            <p class="mk-note">
+              체크하지 않아도 시공사례에는 그대로 올라갑니다. 학습에만 쓰이지 않습니다. 올린 뒤에도 아래 목록에서 언제든
+              끄고 켤 수 있습니다.
+            </p>
+            <p class="mk-error" id="acCaseStatus" role="status" hidden></p>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="acCaseCancel">취소</button>
+              <button type="submit" class="mk-btn mk-btn--solid" id="acCaseSubmit">올리기</button>
+            </div>
+          </form>
+
+          <ul class="ac-cases" id="acCases"></ul>
+          <p class="me-empty" id="acCaseEmpty" hidden>아직 올린 시공사례가 없습니다.</p>
+          <p class="mk-error" id="acCaseError" role="alert" hidden></p>
+        </section>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

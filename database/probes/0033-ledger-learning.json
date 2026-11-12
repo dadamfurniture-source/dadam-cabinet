@@ -1,0 +1,281 @@
+{
+  "title": "0033 장부 사진 확인 · 거래처 기억 · 장부 알림 — 힌트(기억 · 믿을 만함 · 처음 거래처 · 큰 금액 · 중복 · 증빙) · 같은 거래처(번호 · 다듬은 상호) · 알림 훑기(첫 읽음만 · 다시 돌려도 하나) · 알림 지우기 · 고치기 막음 · 잡기 · 국세청 기록 · 앱 알림 ledger_notice · 모두 서버만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "doc_a",
+    "doc_big",
+    "doc_dup1",
+    "doc_dup2",
+    "doc_new",
+    "doc_other",
+    "entry_a1",
+    "entry_a2",
+    "entry_a3",
+    "entry_b1"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active')",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, counterparty_name, counterparty_biz_no, amount, vat_amount, evidence_type, payment_method, source, created_by) VALUES ({{entry_a1}}, {{company_x}}, current_date - 30, 'expense', 'purchase.materials', '(주)가나목재', '1234567891', 100000, 10000, 'card', 'card', 'manual', {{x_owner_user}}), ({{entry_a2}}, {{company_x}}, current_date - 20, 'expense', 'purchase.materials', '(주)가나목재', '1234567891', 200000, 20000, 'card', 'card', 'manual', {{x_owner_user}}), ({{entry_a3}}, {{company_x}}, current_date - 10, 'expense', 'purchase.materials', '가나목재', '1234567891', 150000, 15000, 'card', 'card', 'manual', {{x_owner_user}})",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, counterparty_name, amount, vat_amount, evidence_type, source, created_by) VALUES ({{entry_b1}}, {{company_x}}, current_date - 5, 'expense', 'admin.supplies', '다라철물', 40000, 4000, 'cash_receipt', 'manual', {{x_owner_user}})",
+    "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256, created_at) VALUES ({{doc_a}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_a}}::text, 'image/jpeg', 100, repeat('a', 64), now() - interval '50 minutes'), ({{doc_big}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_big}}::text, 'image/jpeg', 100, repeat('b', 64), now() - interval '49 minutes'), ({{doc_dup1}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_dup1}}::text, 'image/jpeg', 100, repeat('c', 64), now() - interval '48 minutes'), ({{doc_dup2}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_dup2}}::text, 'image/jpeg', 100, repeat('d', 64), now() - interval '47 minutes'), ({{doc_new}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_new}}::text, 'image/jpeg', 100, repeat('e', 64), now() - interval '46 minutes'), ({{doc_other}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_other}}::text, 'image/jpeg', 100, repeat('f', 64), now() - interval '45 minutes')",
+    "INSERT INTO public.ledger_extractions (document_id, company_id, attempt) VALUES ({{doc_a}}, {{company_x}}, 1), ({{doc_big}}, {{company_x}}, 1), ({{doc_dup1}}, {{company_x}}, 1), ({{doc_dup2}}, {{company_x}}, 1), ({{doc_new}}, {{company_x}}, 1), ({{doc_other}}, {{company_x}}, 1)",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 2, result = '{\"supplier_name\":\"가나목재 주식회사\",\"supplier_biz_no\":\"1234567891\",\"total_amount\":121000,\"issue_date\":\"2026-10-20\",\"evidence_type\":\"card\",\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '10 minutes' WHERE document_id = {{doc_a}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 2, result = '{\"supplier_name\":\"가나목재\",\"supplier_biz_no\":\"1234567891\",\"total_amount\":900000,\"issue_date\":\"2026-10-22\",\"evidence_type\":\"card\",\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '10 minutes' WHERE document_id = {{doc_big}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 2, result = '{\"supplier_name\":\"다라 철물\",\"supplier_biz_no\":null,\"total_amount\":55000,\"issue_date\":\"2026-10-21\",\"evidence_type\":\"simple_receipt\",\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"missing\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '10 minutes' WHERE document_id = {{doc_dup1}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 2, result = '{\"supplier_name\":\"다라철물\",\"supplier_biz_no\":null,\"total_amount\":55000,\"issue_date\":\"2026-10-21\",\"evidence_type\":\"simple_receipt\",\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"missing\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '10 minutes' WHERE document_id = {{doc_dup2}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 2, result = '{\"supplier_name\":\"마바유리\",\"supplier_biz_no\":null,\"total_amount\":20000,\"issue_date\":\"2026-10-23\",\"evidence_type\":\"card\",\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"missing\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_new}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 2, result = '{\"supplier_name\":\"(주)가나목재\",\"supplier_biz_no\":\"2208112341\",\"total_amount\":30000,\"issue_date\":\"2026-10-24\",\"evidence_type\":\"card\",\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '10 minutes' WHERE document_id = {{doc_other}} AND status = 'running'"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "다듬기 — 검증 숫자 맞는 번호만 · 상호는 (주) · ㈜ · 주식회사 · 띄어쓰기 · 기호 빼기 (서버만)",
+      "sql": "select coalesce(public.ledger_biz_key('123-45-67891'), '-') || '/' || coalesce(public.ledger_biz_key('1234567890'), '-') || '/' || public.ledger_name_key('㈜ 가나·목재') || '/' || public.ledger_name_key('가나목재 주식회사')",
+      "expect": {
+        "service_role": "1234567891/-/가나목재/가나목재",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "같은 거래처 — 번호가 둘 다 있으면 번호, 한쪽이라도 없으면 상호",
+      "sql": "select public.ledger_same_supplier('1234567891', '가나목재', '2208112341', '가나목재')::text || '/' || public.ledger_same_supplier('1234567891', '가나목재', null, '가나목재')::text || '/' || public.ledger_same_supplier(null, null, null, null)::text",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/true/false"
+      }
+    },
+    {
+      "name": "힌트는 서버만 — 거래처 기억: 올린 장부 줄 3번",
+      "sql": "select h.hints->'memory'->>'posts' from public.ledger_review_hints({{company_x}}, array[{{doc_a}}]) h",
+      "expect": {
+        "service_role": "3",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "믿을 만한 거래처 — 3번 같은 계정 · 증빙, 처음 거래처 아님, 마지막 계정",
+      "sql": "select (h.hints->>'trusted') || '/' || (h.hints->>'first_time') || '/' || (h.hints#>>'{memory,last_entry,account}') from public.ledger_review_hints({{company_x}}, array[{{doc_a}}]) h",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/false/purchase.materials"
+      }
+    },
+    {
+      "name": "장부 줄을 취소하면 기억도 바로 줄어든다 (믿을 만함 풀림)",
+      "sql": "update public.ledger_entries set voided_at = now(), voided_by = {{x_owner_user}}, void_reason = 'probe' where id = {{entry_a1}}; select (h.hints#>>'{memory,entry_posts}') || '/' || (h.hints->>'trusted') from public.ledger_review_hints({{company_x}}, array[{{doc_a}}]) h",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2/false"
+      }
+    },
+    {
+      "name": "큰 금액 — 최근 합계 중앙값의 2배 넘음 (3번 이상)",
+      "sql": "select (h.hints#>>'{large,median}') || '/' || (h.hints#>>'{large,n}') || '/' || coalesce(h2.hints->>'large', 'none') from public.ledger_review_hints({{company_x}}, array[{{doc_big}}]) h, public.ledger_review_hints({{company_x}}, array[{{doc_a}}]) h2",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "165000/3/none"
+      }
+    },
+    {
+      "name": "중복 의심 · 증빙 경고 — 같은 거래처(상호만) · 날짜 · 합계, 3만원 넘는 간이영수증",
+      "sql": "select ((h.hints#>>'{duplicate,document_id}')::uuid = {{doc_dup1}})::text || '/' || (h.hints->>'evidence_risk') || '/' || (h.hints#>>'{memory,posts}') from public.ledger_review_hints({{company_x}}, array[{{doc_dup2}}]) h",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/true/1"
+      }
+    },
+    {
+      "name": "처음 보는 거래처 — 상호가 같아도 번호가 다르면 다른 거래처",
+      "sql": "select (h.hints#>>'{memory,posts}') || '/' || (h.hints->>'first_time') from public.ledger_review_hints({{company_x}}, array[{{doc_other}}]) h",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0/true"
+      }
+    },
+    {
+      "name": "다른 업체 사진은 힌트를 주지 않는다 · 100장 넘으면 거절",
+      "sql": "select count(*) from public.ledger_review_hints({{company_y}}, array[{{doc_a}}])",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "100장 넘으면 거절",
+      "sql": "select count(*) from public.ledger_review_hints({{company_x}}, array_fill({{doc_a}}, array[101]))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "알림 훑기 — 첫 읽음: 중복(나중 사진만) · 큰 금액 · 처음 거래처, 창 밖 사진은 없음 (서버만)",
+      "sql": "update public.ledger_notice_cursor set at = now() - interval '20 minutes'; select public.ledger_notices_scan(); select string_agg(n.kind || ':' || n.urgency, ',' order by n.kind, n.dedupe_key) from public.ledger_notices n where n.company_id = {{company_x}}",
+      "expect": {
+        "service_role": "duplicate:now,large_amount:now,new_supplier:digest",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "알림 훑기 — 다시 돌려도 같은 알림은 하나",
+      "sql": "update public.ledger_notice_cursor set at = now() - interval '20 minutes'; select public.ledger_notices_scan(); update public.ledger_notice_cursor set at = now() - interval '20 minutes'; select public.ledger_notices_scan(); select count(*) from public.ledger_notices n where n.company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "3"
+      }
+    },
+    {
+      "name": "알림 훑기 — 다시 읽기(앞서 읽음이 있는 사진)는 알리지 않는다",
+      "sql": "insert into public.ledger_extractions (document_id, company_id, attempt) values ({{doc_new}}, {{company_x}}, 2); UPDATE public.ledger_extractions SET status = 'done', schema_version = 2, result = '{\"supplier_name\":\"마바유리\",\"supplier_biz_no\":null,\"total_amount\":20000,\"issue_date\":\"2026-10-23\",\"evidence_type\":\"card\",\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"missing\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '10 minutes' WHERE document_id = {{doc_new}} AND status = 'running'; update public.ledger_notice_cursor set at = now() - interval '20 minutes'; select public.ledger_notices_scan(); select count(*) from public.ledger_notices n where n.company_id = {{company_x}} and n.document_id = {{doc_new}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "알림 훑기 — 커서를 옮긴다 (창 뒤 일은 다음에)",
+      "sql": "update public.ledger_notice_cursor set at = now() - interval '20 minutes'; select public.ledger_notices_scan(); select (min(c.at) > now() - interval '2 minutes')::text from public.ledger_notice_cursor c",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "알림은 지우지 않는다 — 서버에도 지우기 권한이 없다 (트리거는 그 뒤 한 겹 더)",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_x}}, 'new_supplier', 'digest', 'probe'); delete from public.ledger_notices where dedupe_key = 'probe'",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "알림 내용은 고치지 않는다",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_x}}, 'new_supplier', 'digest', 'probe'); update public.ledger_notices set data = '{\"x\": 1}'::jsonb where dedupe_key = 'probe'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "급함은 종류로 정해진다 (중복 · 큰 금액만 now)",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_x}}, 'duplicate', 'digest', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "본 때는 한 번만",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_x}}, 'new_supplier', 'digest', 'probe'); update public.ledger_notices set seen_at = now(), seen_by = {{x_owner_user}} where dedupe_key = 'probe'; update public.ledger_notices set seen_at = now() + interval '1 minute', seen_by = {{x_owner_user}} where dedupe_key = 'probe'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "잡기 — 업체마다 수 · 안 본 수, 한 번 잡으면 다시 안 잡힘 (서버만)",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key, seen_at, seen_by) values ({{company_x}}, 'duplicate', 'now', 'probe1', null, null), ({{company_x}}, 'large_amount', 'now', 'probe2', now(), {{x_owner_user}}), ({{company_x}}, 'new_supplier', 'digest', 'probe3', null, null); select (select c.notices || '/' || c.unseen from public.ledger_notices_claim('now', 200) c where c.company_id = {{company_x}}) || '/' || (select count(*) from public.ledger_notices_claim('now', 200) c where c.company_id = {{company_x}})",
+      "expect": {
+        "service_role": "2/1/0",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "국세청 — 처음 조회 때 폐업이면 그 번호를 쓴 업체에 알림, 같은 결과는 한 번, 과세 유형이 바뀌면 또 (서버만)",
+      "sql": "select public.ledger_nts_record('[{\"biz_no\": \"1234567891\", \"status\": \"closed\", \"tax_type\": \"부가가치세 일반과세자\", \"closed_on\": \"2026-10-15\"}]'::jsonb); select public.ledger_nts_record('[{\"biz_no\": \"1234567891\", \"status\": \"closed\", \"tax_type\": \"부가가치세 일반과세자\", \"closed_on\": \"2026-10-15\"}]'::jsonb); select public.ledger_nts_record('[{\"biz_no\": \"1234567891\", \"status\": \"closed\", \"tax_type\": \"부가가치세 간이과세자\", \"closed_on\": \"2026-10-15\"}]'::jsonb); select count(*) from public.ledger_notices n where n.company_id = {{company_x}} and n.kind = 'supplier_status'",
+      "expect": {
+        "service_role": "2",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "국세청 — 방금 물은 번호는 다시 묻지 않는다 · 틀린 번호는 거절",
+      "sql": "select public.ledger_nts_record('[{\"biz_no\": \"1234567891\", \"status\": \"active\", \"tax_type\": null, \"closed_on\": null}]'::jsonb); select count(*) from public.ledger_nts_due(100, 30) d where d.biz_no = '1234567891'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "국세청 — 틀린 번호는 거절",
+      "sql": "select public.ledger_nts_record('[{\"biz_no\": \"1234567890\", \"status\": \"closed\"}]'::jsonb)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "앱 알림 종류 ledger_notice — 업체와 함께 넣는다 (서버만)",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{x_owner_user}}, {{company_x}}, 'ledger_notice', 'probe', 'probe', '/segan/assistant')",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "알림 커서는 서버만",
+      "sql": "select count(*) from public.ledger_notice_cursor",
+      "expect": {
+        "service_role": "2",
+        "*": "deny"
+      }
+    }
+  ]
+}

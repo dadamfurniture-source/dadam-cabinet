@@ -98,6 +98,37 @@ table.compact th, table.compact td { padding: 2pt 3pt; font-size: 8.5pt; }
 .pack-head { margin-bottom: 8pt; padding-bottom: 4pt; border-bottom: 0.8pt solid #000; }
 .cut-head .checks { float: right; font-size: 10pt; letter-spacing: .5pt; }
 
+/* 도어재 발주서 — 도어마다 앞모습 (2026-11-05) */
+.door-grid { display: flex; flex-wrap: wrap; gap: 6pt 10pt; align-items: flex-end; }
+.door-card { break-inside: avoid; page-break-inside: avoid; max-width: 48%; }
+.door-card svg.door-drawing { display: block; max-width: 100%; height: auto; }
+.door-card .door-cap { max-width: 60mm; }
+.door-card .door-cap { font-size: 8pt; line-height: 1.35; }
+
+/* 특별 지시 — 지시서 맨 위 빨간 상자 (2026-11-05 사장님 「자동 + 사무실 글」) */
+.special-notes { border: 1.6pt solid #b3261e; padding: 4pt 7pt; margin: 4pt 0 8pt; break-inside: avoid; page-break-inside: avoid; }
+.special-notes .sn-title { font-weight: 700; color: #b3261e; margin-bottom: 1pt; }
+.special-notes .sn-item { font-size: 10pt; line-height: 1.6; }
+.special-notes .sn-src { font-size: 7.5pt; color: #555; border: 0.5pt solid #999; border-radius: 2pt; padding: 0 3pt; margin-left: 3pt; }
+
+/* 재단 원장 묶음 — 묶음마다 새 쪽 · 화면에서 [그림] [표] [둘 다] · [이 묶음만 인쇄] (2026-11-05 사장님) */
+.cut-group-next { break-before: page; page-break-before: always; }
+.cut-group-head { display: flex; align-items: baseline; gap: 6pt; flex-wrap: wrap; border-bottom: 1pt solid #000; padding-bottom: 2pt; margin: 8pt 0 4pt; }
+.cut-btns { margin-left: auto; display: inline-flex; gap: 3pt; flex-wrap: wrap; }
+.cut-btns button { font: inherit; font-size: 8.5pt; padding: 1pt 7pt; border: 0.6pt solid #1d4f91; background: #fff; color: #1d4f91; border-radius: 3pt; cursor: pointer; }
+.cut-btns button[aria-pressed="true"] { background: #1d4f91; color: #fff; }
+.cut-tabs { display: flex; flex-wrap: wrap; gap: 4pt; margin: 4pt 0; }
+.cut-tabs a { font-size: 8.5pt; border: 0.6pt solid #888; border-radius: 3pt; padding: 1pt 6pt; color: #000; text-decoration: none; }
+.cut-group[data-view="draw"] .cut-parts { display: none; }
+.cut-group[data-view="draw"] .cut-sheet .cut-svg { flex: 1 1 100%; }
+.cut-group[data-view="draw"] .cut-sheet .cut-svg svg { max-height: 230mm; }
+.cut-group[data-view="table"] .cut-svg { display: none; }
+@media print {
+  body.print-group .sheet:not(:has(.print-target)) { display: none !important; }
+  body.print-group .cut-group:not(.print-target) { display: none !important; }
+  body.print-group .print-target.cut-group-next { break-before: auto; page-break-before: auto; }
+}
+
 /* 치수 정면도 · 모듈 치수도 카드 (elevation.js) */
 .elev-box { border: 0.4pt solid #000; padding: 3pt; margin: 2pt 0 6pt; break-inside: avoid; page-break-inside: avoid; font-size: 8.5pt; }
 .elev-box svg.elevation { display: block; width: 100%; height: auto; max-height: 120mm; }
@@ -120,8 +151,10 @@ table.check td.na { text-align: center; color: #666; background: repeating-linea
   overflow: hidden; break-inside: avoid; page-break-inside: avoid;
 }
 .label svg.qr { width: 24mm; height: 24mm; flex: 0 0 24mm; }
-.label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; }
-.label .lt .pid { font-family: 'Consolas', monospace; font-size: 7pt; word-break: break-all; }
+.label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; flex: 1 1 auto; }
+.label .lt .no { display: flex; align-items: baseline; gap: 1.5mm; min-width: 0; }
+.label .lt .no b { font-size: 16pt; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.label .lt .no .mod { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .label .lt .dim { font-size: 10pt; font-weight: 700; }
 .label .lt .edge-line .edge-svg { width: 14pt; height: 9pt; }
 
@@ -194,22 +227,6 @@ table.check td.na { text-align: center; color: #666; background: repeating-linea
 </div>
 
 <div class="sheet">
-  <div class="section-title">② 모듈별 키팅 — 싱크대</div>
-  
-  <div class="kit-module">
-    <div class="sub-title">하부장-개수대 <span class="muted">부재 4종 · 6장</span></div>
-    <table class="compact"><thead><tr><th>partId</th><th>부품</th><th>자재</th><th class="num">가로 × 세로</th><th class="num">수량</th><th>마감</th><th>엣지</th><th>비고</th></tr></thead><tbody><tr><td><span class="mono">0-l1-body:side-0</span></td><td>측판</td><td>PB 15T</td><td class="num">550 × 720</td><td class="num">2</td><td><span class="muted">-</span></td><td><svg class="edge-svg" viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="2" x2="22" y2="2" stroke="#000" stroke-width="2.6"/><line x1="2" y1="14" x2="22" y2="14" stroke="#000" stroke-width="2.6"/><line x1="2" y1="2" x2="2" y2="14" stroke="#000" stroke-width="2.6"/><line x1="22" y1="2" x2="22" y2="14" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/></svg><span class="muted">0.6T 3면</span></td><td></td></tr><tr><td><span class="mono">0-l1-body:bottom-0</span></td><td>지판</td><td>PB 15T</td><td class="num">970 × 550</td><td class="num">1</td><td><span class="muted">-</span></td><td><svg class="edge-svg" viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="2" x2="22" y2="2" stroke="#000" stroke-width="2.6"/><line x1="2" y1="14" x2="22" y2="14" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/><line x1="2" y1="2" x2="2" y2="14" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/><line x1="22" y1="2" x2="22" y2="14" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/></svg><span class="muted">0.6T 1면(전)</span></td><td></td></tr><tr><td><span class="mono">0-l1-door#0-0</span></td><td>도어</td><td>PET 18T</td><td class="num">496 × 716</td><td class="num">2</td><td><span class="chip" style="background:#c9a877"></span><span class="mono">PET-OAK-M</span></td><td><svg class="edge-svg" viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="2" x2="22" y2="2" stroke="#000" stroke-width="2.6"/><line x1="2" y1="14" x2="22" y2="14" stroke="#000" stroke-width="2.6"/><line x1="2" y1="2" x2="2" y2="14" stroke="#000" stroke-width="2.6"/><line x1="22" y1="2" x2="22" y2="14" stroke="#000" stroke-width="2.6"/></svg><span class="muted">1T 4면</span></td><td>PET 오크 무광</td></tr><tr><td><span class="mono">0-l1-back-0</span></td><td>뒷판</td><td>MDF 2.7T</td><td class="num">970 × 705</td><td class="num">1</td><td><span class="muted">-</span></td><td><svg class="edge-svg" viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="2" x2="22" y2="2" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/><line x1="2" y1="14" x2="22" y2="14" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/><line x1="2" y1="2" x2="2" y2="14" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/><line x1="22" y1="2" x2="22" y2="14" stroke="#000" stroke-width="0.5" stroke-dasharray="1.2 1.2"/></svg><span class="muted">0.6T -</span></td><td></td></tr></tbody></table>
-    <table class="compact"><thead><tr><th>철물</th><th>품목</th><th>규격</th><th class="num">수량</th><th>단위</th><th>비고</th></tr></thead><tbody><tr><td>경첩</td><td>문주 110도 약음 경첩</td><td>3구</td><td class="num">6</td><td>EA</td><td>개수대 (보링: 110, 358, 606)</td></tr></tbody></table>
-  </div>
-  <div class="kit-module">
-    <div class="sub-title">상부장-후드장 <span class="muted">부재 1종 · 2장</span></div>
-    <table class="compact"><thead><tr><th>partId</th><th>부품</th><th>자재</th><th class="num">가로 × 세로</th><th class="num">수량</th><th>마감</th><th>엣지</th><th>비고</th></tr></thead><tbody><tr><td><span class="mono">0-u1-door#0-0</span></td><td>도어</td><td>PET 18T</td><td class="num">396 × 735</td><td class="num">2</td><td><span class="chip" style="background:#f6efe7"></span><span class="mono">YR-YPA-02</span></td><td><svg class="edge-svg" viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="2" x2="22" y2="2" stroke="#000" stroke-width="2.6"/><line x1="2" y1="14" x2="22" y2="14" stroke="#000" stroke-width="2.6"/><line x1="2" y1="2" x2="2" y2="14" stroke="#000" stroke-width="2.6"/><line x1="22" y1="2" x2="22" y2="14" stroke="#000" stroke-width="2.6"/></svg><span class="muted">1T 4면</span></td><td></td></tr></tbody></table>
-    <table class="compact"><thead><tr><th>철물</th><th>품목</th><th>규격</th><th class="num">수량</th><th>단위</th><th>비고</th></tr></thead><tbody><tr><td>경첩</td><td>문주 110도 약음 경첩</td><td>3구</td><td class="num">6</td><td>EA</td><td>후드장 (보링: 110, 368, 625)</td></tr></tbody></table>
-  </div>
-  <div class="kit-module"><div class="sub-title">기타 철물 <span class="muted">모듈 미지정</span></div><table class="compact"><thead><tr><th>철물</th><th>품목</th><th>규격</th><th class="num">수량</th><th>단위</th><th>비고</th></tr></thead><tbody><tr><td>레일</td><td>문주 언더레일</td><td>450mm</td><td class="num">1</td><td>SET</td><td></td></tr><tr><td>다리</td><td>싱크다리</td><td>150mm</td><td class="num">4</td><td>EA</td><td></td></tr></tbody></table></div>
-</div>
-
-<div class="sheet">
   <div class="section-title">④ 철물·체결구 (4건)</div>
   
   <div class="sub-title">경첩 <span class="muted">2건 · 12</span></div>
@@ -241,9 +258,10 @@ table.check td.na { text-align: center; color: #666; background: repeating-linea
   <div class="section-title">⑦ 이전 rev 와의 차이</div>
   <div class="muted">비교 대상: DD-20260910-D1D1-WO-r1 (Rev. 1) → 이 문서 Rev. 2</div>
   
-  <div class="sub-title">추가 (1)</div><table class="compact"><thead><tr><th>partId</th><th>품목</th><th>모듈</th><th>부품</th><th class="num">w × h × t</th><th class="num">수량</th><th>마감</th></tr></thead><tbody><tr><td><span class="mono">0-u1-door#0-0</span></td><td>싱크대</td><td>상부장-후드장</td><td>도어</td><td class="num">396 × 735 × 18</td><td class="num">2</td><td>YR-YPA-02</td></tr></tbody></table>
-  <div class="sub-title">삭제 (1)</div><table class="compact"><thead><tr><th>partId</th><th>품목</th><th>모듈</th><th>부품</th><th class="num">w × h × t</th><th class="num">수량</th><th>마감</th></tr></thead><tbody><tr><td><span class="mono">0-l1-shelf#0-0</span></td><td>싱크대</td><td>하부장-개수대</td><td>선반</td><td class="num">970 × 500 × 15</td><td class="num">1</td><td>-</td></tr></tbody></table>
-  <div class="sub-title">변경 (1)</div><table class="compact"><thead><tr><th>partId</th><th>모듈</th><th>부품</th><th>변경</th></tr></thead><tbody><tr><td><span class="mono">0-l1-door#0-0</span></td><td>하부장-개수대</td><td>도어</td><td>마감: PET-WHITE-M → PET-OAK-M · 수량: 1 → 2</td></tr></tbody></table>
+  <div class="sub-title">추가 (1)</div><table class="compact"><thead><tr><th>부재 ID</th><th>품목</th><th>모듈</th><th>부품</th><th class="num">w × h × t</th><th class="num">수량</th><th>마감</th></tr></thead><tbody><tr><td><span class="mono">0-u1-door#0-0</span></td><td>싱크대</td><td>상부장-후드장</td><td>도어</td><td class="num">396 × 735 × 18</td><td class="num">2</td><td>YR-YPA-02</td></tr></tbody></table>
+  <div class="sub-title">삭제 (1)</div><table class="compact"><thead><tr><th>부재 ID</th><th>품목</th><th>모듈</th><th>부품</th><th class="num">w × h × t</th><th class="num">수량</th><th>마감</th></tr></thead><tbody><tr><td><span class="mono">0-l1-shelf#0-0</span></td><td>싱크대</td><td>하부장-개수대</td><td>선반</td><td class="num">970 × 500 × 15</td><td class="num">1</td><td>-</td></tr></tbody></table>
+  <div class="sub-title">변경 (1)</div><table class="compact"><thead><tr><th>부재 ID</th><th>모듈</th><th>부품</th><th>변경</th></tr></thead><tbody><tr><td><span class="mono">0-l1-door#0-0</span></td><td>하부장-개수대</td><td>도어</td><td>마감: PET-WHITE-M → PET-OAK-M · 수량: 1 → 2</td></tr></tbody></table>
 </div>
+
 </body>
 </html>

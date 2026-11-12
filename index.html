@@ -10,18 +10,20 @@
       content="공간 사진과 참고 이미지를 넣으면 연출컷이 생성됩니다. 다담가구 AI 이미지 스튜디오."
     />
 
-    <!-- 메인 화면은 AI 스튜디오다.
-         스튜디오 본체를 여기로 복사하지 않고 넘기는 이유:
-         두 벌이 되면 한쪽만 고치는 날이 반드시 온다. 정본은 ai-design.html 하나다.
+    <!-- 메인 화면은 SEGAN 앱 첫 화면(만들기)이다. 보통은 호스팅이 / · /index.html 을 앱으로 301 넘겨(_redirects) 이 파일은 열리지 않는다.
+         앱을 여기로 복사하지 않고 넘기는 이유:
+         두 벌이 되면 한쪽만 고치는 날이 반드시 온다. 정본은 segan/ 하나다.
 
          자바스크립트가 꺼져 있어도 넘어가도록 meta refresh 를 함께 둔다.
-         canonical 은 실제 내용이 있는 주소를 가리킨다. -->
-    <link rel="canonical" href="https://dadamfurniture.com/ai-design.html" />
-    <meta http-equiv="refresh" content="0; url=ai-design.html" />
+         canonical 은 실제 내용이 있는 주소를 가리킨다.
+
+         주소는 segan/ 이다 — /segan/index.html 은 호스팅이 /segan/ 으로 308 넘기므로 폴더 주소로 보낸다. -->
+    <link rel="canonical" href="https://dadamfurniture.com/segan/" />
+    <meta http-equiv="refresh" content="0; url=segan/" />
     <script>
       // meta refresh 는 뒤로 가기 기록을 남겨 '뒤로' 가 무한히 되돌아온다.
       // 스크립트가 살아 있으면 기록을 남기지 않는 replace 로 넘긴다.
-      location.replace('ai-design.html' + location.search + location.hash);
+      location.replace('segan/' + location.search + location.hash);
     </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -66,7 +68,7 @@
     <main class="idx-main">
       <div>
         <div class="idx-mark">DADAM</div>
-        <p class="idx-msg">AI 스튜디오로 이동합니다 · <a href="ai-design.html">바로 가기</a></p>
+        <p class="idx-msg">SEGAN 앱으로 이동합니다 · <a href="segan/">바로 가기</a></p>
       </div>
     </main>
   </body>

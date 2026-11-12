@@ -25,7 +25,7 @@ const EVIL_LOG = '새 상담 신청: <img src=x onerror="window.__pwned=3"> - <b
 /** 어떤 메서드를 이어 불러도 자기를 돌려주고, await 하면 정해 둔 결과를 내는 가짜 쿼리 */
 function query(result) {
   const q = {};
-  for (const m of ['select', 'order', 'limit', 'eq', 'single']) q[m] = () => q;
+  for (const m of ['select', 'order', 'limit', 'eq', 'single', 'maybeSingle']) q[m] = () => q;
   q.then = (ok, ng) => Promise.resolve(result).then(ok, ng);
   return q;
 }
@@ -118,5 +118,67 @@ describe('admin/index.html 대시보드', () => {
     const badge = cells[2].querySelector('.badge');
     expect(badge.className).toBe('badge expert');
     expect(badge.textContent).toBe('Expert');
+  });
+
+  test('등급 회원 = Manager · Expert · Agent (profile_stats.manager_users, DB 0047)', async () => {
+    boot({
+      ...ROWS,
+      profile_stats: {
+        data: {
+          total_users: 9,
+          manager_users: 1,
+          expert_users: 2,
+          agent_users: 3,
+          today_signups: 0,
+        },
+        error: null,
+      },
+    });
+    await window.initAdmin();
+    expect(document.getElementById('expertUsers').textContent).toBe('6');
+    expect(
+      document.getElementById('expertUsers').parentElement.querySelector('.stat-label').textContent
+    ).toBe('Manager 이상 회원');
+  });
+
+  test('통계 뷰를 못 읽으면 profiles 로 센다 — Manager · Expert · Agent', async () => {
+    boot({
+      ...ROWS,
+      profile_stats: { data: null, error: { message: 'no view' } },
+      profiles: {
+        data: ['standard', 'manager', 'expert', 'agent'].map((tier, i) => ({
+          name: `회원${i}`,
+          email: `u${i}@example.test`,
+          tier,
+          created_at: '2026-10-20T00:00:00Z',
+        })),
+        error: null,
+      },
+    });
+    await window.initAdmin();
+    expect(document.getElementById('expertUsers').textContent).toBe('3');
+  });
+
+  test('Manager 회원 배지 — badge manager · 「Manager」 (색이 정해져 있다)', async () => {
+    boot({
+      ...ROWS,
+      profiles: {
+        data: [
+          {
+            name: '김',
+            email: 'm@example.test',
+            tier: 'manager',
+            created_at: '2026-10-20T00:00:00Z',
+          },
+        ],
+        error: null,
+      },
+    });
+    await window.initAdmin();
+    const badge = document.querySelector('#recentUsers .badge');
+    expect(badge.className).toBe('badge manager');
+    expect(badge.textContent).toBe('Manager');
+    expect(HTML).toMatch(/\.badge\.manager \{/);
+    expect(HTML).toMatch(/\.badge\.agent \{/);
   });
 });

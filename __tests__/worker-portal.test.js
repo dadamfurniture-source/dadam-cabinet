@@ -1,5 +1,7 @@
 /**
- * 작업자 포털 화면 (worker.html + js/worker-portal.js) — docs/01-plan/worker-portal-contract.md §3 · §4.
+ * 작업자 포털 화면 (segan/work.html + js/worker-portal.js) — docs/01-plan/worker-portal-contract.md §3 · §4.
+ * 2026-11-01 포털을 SEGAN 앱 「작업」 탭(segan/work.html)에도 올렸다. 앱은 공개 전까지 숨겨 두므로(사이트가 segan/ 을
+ * 가리키지 않는다) worker.html 은 그대로 두고, 두 본문이 같은지 시험이 본다 — 넘기기는 공개할 때.
  *
  * 순수 함수(상태 고르기 · 카드 · 상세 · 기록 · 신청서)를 먼저 고정하고,
  * 페이지 본문을 jsdom 에 올려 가짜 Supabase · fetch 로 상태별 화면이 뜨는지 본다.
@@ -8,7 +10,12 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'worker.html'), 'utf8');
+const { version: ASSET_VERSION } = require('../scripts/asset-version.json');
+const HTML = fs.readFileSync(path.join(ROOT, 'segan/work.html'), 'utf8');
+const CSS = fs.readFileSync(path.join(ROOT, 'segan/work.css'), 'utf8');
+const OLD = fs.readFileSync(path.join(ROOT, 'worker.html'), 'utf8');
+/** 글 안에서 처음 나오는 자리 (없으면 -1) */
+const at = (text, mark) => (text.includes(mark) ? text.split(mark)[0].length : -1);
 const P = require('../js/worker-portal.js');
 
 const J1 = '11111111-1111-4111-8111-111111111111';
@@ -90,6 +97,12 @@ describe('주소 # 읽기 · 로그인 링크', () => {
     expect(P.returnTarget({ tab: 'done' }, null)).toBe('worker.html#tab=done');
     expect(P.returnTarget({}, null)).toBe('worker.html');
     expect(P.loginHref(`worker.html#job=${J1}`)).toBe(`login.html?redirect=worker.html%23job%3D${J1}`);
+    // 앱 화면 — 돌아올 곳은 segan/work.html, 로그인은 한 칸 위
+    expect(P.returnTarget({}, TOKEN, 'segan/work.html')).toBe(`segan/work.html#invite=${TOKEN}`);
+    expect(P.returnTarget({ job: J1 }, null, 'segan/work.html')).toBe(`segan/work.html#job=${J1}`);
+    expect(P.loginHref(`segan/work.html#job=${J1}`, '../login.html')).toBe(
+      `../login.html?redirect=segan%2Fwork.html%23job%3D${J1}`
+    );
   });
 });
 
@@ -252,12 +265,38 @@ describe('작업 상세 · 기록', () => {
   });
 });
 
-describe('worker.html — 머리 · 신청서', () => {
-  test('noindex · no-referrer · 스크립트 ?v=', () => {
-    expect(HTML).toMatch(/<meta name="robots" content="noindex, nofollow, noarchive" \/>/);
+describe('segan/work.html — 머리 · 신청서', () => {
+  test('noindex · no-referrer · 스크립트 ?v= · 돌아올 곳 · 로그인 주소 · 꾸밈은 work.css 의 #workerApp 안', () => {
+    // 앱 화면은 SEGAN 페이지 공통 숨김 표시 (segan-app-install 시험), 참조자는 보내지 않는다
+    expect(HTML).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
     expect(HTML).toMatch(/<meta name="referrer" content="no-referrer" \/>/);
-    expect(HTML).toMatch(/<script src="js\/worker-portal\.js\?v=\d+"><\/script>/);
-    expect(HTML).toMatch(/max-width: 560px/);
+    expect(HTML).toMatch(/<script src="\.\.\/js\/worker-portal\.js\?v=\d+"><\/script>/);
+    expect(HTML).toContain('id="workerApp" data-page="segan/work.html" data-login="../login.html"');
+    expect(HTML).toContain('href="../login.html?redirect=segan%2Fwork.html"');
+    expect(HTML).toContain('<body class="sg-app" data-tab="work">');
+    expect(CSS).toMatch(/max-width: 560px/);
+    // 규칙마다 #workerApp 안 — 앱 셸의 머리 · 탭 · 바닥글과 섞이지 않는다
+    const selectors = [...CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(^|\})\s*([^{}]+)\{/g)].map((m) => m[2].trim());
+    expect(selectors.length).toBeGreaterThan(20);
+    for (const s of selectors) for (const one of s.split(',')) expect(one.trim().startsWith('#workerApp')).toBe(true);
+  });
+
+  test('worker.html 과 앱 「작업」 탭의 포털 본문이 같다 — 다른 것은 돌아올 곳 · 로그인 주소 · 마이페이지 · 제목뿐', () => {
+    // 빈칸 · 줄바꿈 차이는 무시한다 (코드 모양 정리가 줄을 다르게 나눠도 같은 본문)
+    const norm = (s) => s.replace(/\s+/g, ' ').replace(/>\s+/g, '>').replace(/\s+</g, '<').trim();
+    const oldStart = at(OLD, '<div class="wrap" id="workerApp">');
+    const oldEnd = at(OLD, '<script src="js/worker-portal.js');
+    const appStart = at(HTML, '<div class="wrap" id="workerApp"');
+    const appEnd = at(HTML, '<!-- 작업자 포털 끝 -->');
+    expect(oldStart).toBeGreaterThan(0);
+    expect(appStart).toBeGreaterThan(0);
+    const app = norm(HTML.slice(appStart, appEnd))
+      .replace('<div class="wrap" id="workerApp" data-page="segan/work.html" data-login="../login.html" data-mypage="me.html">', '<div class="wrap" id="workerApp">')
+      .replace('<h1 class="sg-h1">작업</h1>', '<h1>다담 작업자</h1>')
+      .replace('href="../login.html?redirect=segan%2Fwork.html"', 'href="login.html?redirect=worker.html"');
+    expect(app).toBe(norm(OLD.slice(oldStart, oldEnd)));
+    // 사이트 쪽 worker.html 은 앱을 가리키지 않는다 (숨김)
+    expect(OLD).not.toMatch(/segan\//i);
   });
 
   test('신청서 — 수집 항목 · 목적 · 주민번호/계좌 안내 · 사진 동의 따로, 받지 않는 칸 없음', () => {
@@ -265,12 +304,14 @@ describe('worker.html — 머리 · 신청서', () => {
     expect(HTML).toContain('주민등록번호 · 계좌는 받지 않습니다');
     expect(HTML).toMatch(/name="consent"/);
     expect(HTML).toMatch(/name="photo_consent"/);
-    ['install', 'as', 'assembly'].forEach((k) => expect(HTML).toContain(`name="kind_${k}" value="${k}" data-kind`));
+    // 작업자 종류 — 작업 종류 셋 + 공장 재단 · 엣지 (서버 WORKER_KINDS)
+    P.WORKER_KINDS.forEach((k) => expect(HTML).toContain(`name="kind_${k}" value="${k}" data-kind`));
+    expect([...P.WORKER_KINDS]).toEqual(['install', 'as', 'assembly', 'cutting', 'edge']);
     expect(HTML).not.toMatch(/name="(rrn|resident|ssn|bank|account|account_no)"/i);
   });
 
   test('글자는 16px 이상', () => {
-    const sizes = [...HTML.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
+    const sizes = [...CSS.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
     expect(sizes.length).toBeGreaterThan(5);
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(16);
   });
@@ -278,10 +319,10 @@ describe('worker.html — 머리 · 신청서', () => {
 
 // ── 페이지를 jsdom 에 올려 본다 ──
 // 본문 = <body> 다음부터 페이지 스크립트 앞까지 (못 찾으면 시험이 바로 깨지게 한다)
-const BODY_START = HTML.search(/<body>/);
-const BODY_END = HTML.search(/<script src="js\/worker-portal\.js/);
-if (BODY_START < 0 || BODY_END < BODY_START) throw new Error('worker.html 본문 경계를 찾지 못했습니다');
-const BODY = HTML.slice(BODY_START + '<body>'.length, BODY_END);
+const BODY_START = at(HTML, '<!-- 작업자 포털 시작');
+const BODY_END = at(HTML, '<!-- 작업자 포털 끝 -->');
+if (BODY_START < 0 || BODY_END < BODY_START) throw new Error('segan/work.html 포털 경계를 찾지 못했습니다');
+const BODY = HTML.slice(BODY_START, BODY_END);
 const API = 'https://api.test';
 const flush = () => new Promise((r) => setTimeout(r, 0));
 async function settle() {
@@ -306,7 +347,7 @@ function startPortal() {
 
 function mount({ session = true, routes = {}, hash = '' } = {}) {
   document.body.innerHTML = BODY;
-  window.history.replaceState(null, '', `/worker.html${hash}`);
+  window.history.replaceState(null, '', `/segan/work.html${hash}`);
   window.DADAM_CONFIG = { supabase: { url: 'https://sb.test', anonKey: 'anon' }, workflowApi: { url: API } };
   window.supabase = {
     createClient: () => ({
@@ -322,7 +363,9 @@ function mount({ session = true, routes = {}, hash = '' } = {}) {
   global.fetch = jest.fn(async (url, opts = {}) => {
     const p = url.replace(API, '');
     const method = opts.method || 'GET';
-    calls.push({ method, path: p, body: opts.body ? JSON.parse(opts.body) : null, auth: opts.headers && opts.headers.Authorization });
+    const call = { method, path: p, body: typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body || null, auth: opts.headers && opts.headers.Authorization, type: opts.headers && opts.headers['Content-Type'] };
+    if (opts.headers && opts.headers['X-Worker-Token']) call.worker = opts.headers['X-Worker-Token'];
+    calls.push(call);
     const hit = routes[`${method} ${p}`];
     const r = typeof hit === 'function' ? hit() : hit;
     if (!r) return { ok: false, status: 404, json: async () => ({ success: false, message: 'Not found' }) };
@@ -344,7 +387,9 @@ describe('페이지 — 상태별 화면', () => {
     expect(visible('viewLogin')).toBe(true);
     expect(visible('loginInviteNote')).toBe(true);
     expect(sessionStorage.getItem(P.INVITE_KEY)).toBe(TOKEN);
-    expect(document.getElementById('loginLink').getAttribute('href')).toBe(`login.html?redirect=${encodeURIComponent(`worker.html#invite=${TOKEN}`)}`);
+    expect(document.getElementById('loginLink').getAttribute('href')).toBe(
+      `../login.html?redirect=${encodeURIComponent(`segan/work.html#invite=${TOKEN}`)}`
+    );
     expect(calls).toEqual([]);
   });
 
@@ -654,7 +699,7 @@ describe('페이지 — 1주차 후속', () => {
   const SUSPENDED_ME = { data: { ready: true, worker: { id: 'w', status: 'suspended', display_name: '테스트', kinds: ['install'] }, counts: { open: 0, mine: 1, revision: 0, newEvents: 0 }, next_job: null } };
   const APPROVED_ME = { data: { ready: true, worker: { id: 'w', status: 'approved', display_name: '테스트', kinds: ['install'] }, counts: COUNTS, next_job: null } };
   const goto = async (hash) => {
-    window.history.replaceState(null, '', `/worker.html${hash}`);
+    window.history.replaceState(null, '', `/segan/work.html${hash}`);
     window.dispatchEvent(new HashChangeEvent('hashchange'));
     await settle();
   };
@@ -664,11 +709,11 @@ describe('페이지 — 1주차 후속', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
-  test('worker.html — 맨 위 정지 안내 자리, 정지 전용 화면은 없다, 스크립트 ?v=2', () => {
+  test('segan/work.html — 맨 위 정지 안내 자리, 정지 전용 화면은 없다, 스크립트 ?v= 는 사이트 자산 버전', () => {
     expect(HTML).toContain(`<p class="alert warn" id="suspendedNote" hidden>${P.SUSPENDED_NOTE}</p>`);
     expect(HTML).not.toContain('id="viewSuspended"');
     expect(HTML).not.toContain('신청 마감');
-    expect(HTML).toMatch(/<script src="js\/worker-portal\.js\?v=2"><\/script>/);
+    expect(HTML).toContain(`<script src="../js/worker-portal.js?v=${ASSET_VERSION}"></script>`);
   });
 
   test('정지 작업자 → 앱 화면 + 맨 위 안내, 모집중 탭 없음, 기본 탭 내 작업 — 모집중 목록은 부르지 않는다', async () => {
@@ -855,5 +900,412 @@ describe('페이지 — 1주차 후속', () => {
     expect(document.getElementById('appBody').textContent).toContain('작업이 마감돼 초대가 끝났습니다');
     await goto(`#job=${J1}`);
     expect(document.querySelector('.back').getAttribute('href')).toBe('#tab=done');
+  });
+});
+
+// ── 공장 (서버 work/factory.js · DB 0024) ──
+const FA1 = '66666666-6666-4666-8666-666666666666';
+const FA2 = '77777777-7777-4777-8777-777777777777';
+const O1 = '88888888-8888-4888-8888-888888888888';
+const O2 = '99999999-9999-4999-8999-999999999999';
+const LINK_TOKEN = 'linkTOKEN_abcdefghijklmnop-0123456789';
+function factoryData(over) {
+  return {
+    worker: '김재단',
+    today: '2026-10-20',
+    roles: ['cutter', 'asm'],
+    work: {
+      cutter: [
+        { orderId: O1, label: '홍*동 (SO-1)', due: '2026-10-25', plannedStart: '2026-10-20', today: true, units: 4, unit: '장', detail: 'PB 3 · 뒷판 1' },
+        { orderId: O2, label: XSS, due: '2026-10-28', plannedStart: '2026-10-22', today: false, units: 2, unit: '장', detail: 'PB 2 · 뒷판 0' },
+      ],
+      asm: [],
+    },
+    activeJobs: 2,
+    skipped: [],
+    assignments: [
+      { id: FA1, kind: 'task', role: 'cutter', text: '홍*동 (SO-1) 재단 먼저', status: 'instructed', done_at: null },
+      { id: FA2, kind: 'task', role: 'cutter', text: XSS, status: 'done', done_at: '2026-10-20T00:00:00Z' },
+    ],
+    logs: [{ id: 'l1', role: 'cutter', order_label: '홍*동 (SO-1)', units: 3, minutes: 40, created_at: '2026-10-20T00:30:00Z' }],
+    ...over,
+  };
+}
+
+describe('공장 (순수)', () => {
+  test('작업자 종류 — 재단 · 엣지 이름, 신청서는 다섯 종류만 받는다', () => {
+    expect(P.KIND_LABEL.cutting).toBe('재단');
+    expect(P.KIND_LABEL.edge).toBe('엣지');
+    const { body } = P.registrationBody({ display_name: '김', kinds: ['cutting', 'edge', 'welding', 'cutting'], consent: true }, null);
+    expect(body.kinds).toEqual(['cutting', 'edge']);
+  });
+
+  test('탭 — 공장은 factory 일 때만, 내 정보 앞. #tab=factory 는 공장 탭이 있을 때만 그 탭', () => {
+    expect(P.tabsFor(false, true).map((x) => x.key)).toEqual(['open', 'mine', 'done', 'factory', 'me']);
+    expect(P.tabsFor(false, false).map((x) => x.key)).toEqual(['open', 'mine', 'done', 'me']);
+    expect(P.tabsFor(true, false).map((x) => x.key)).toEqual(['mine', 'done', 'me']);
+    expect(P.parseHash('#tab=factory').tab).toBe('factory');
+    expect(P.defaultTab({ tab: 'factory' }, COUNTS, false, true)).toBe('factory');
+    expect(P.defaultTab({ tab: 'factory' }, COUNTS, false, false)).toBe('mine');
+    expect(P.tabsHtml('factory', COUNTS, false, true)).toContain('href="#tab=factory" class="tab on"');
+    expect(P.returnTarget({ tab: 'factory' }, null)).toBe('worker.html#tab=factory');
+  });
+
+  test('공정 고르기 · 날짜 · 기록 값 (서버 상한과 같다)', () => {
+    expect(P.factoryRoleOf(['cutter', 'asm'], 'asm')).toBe('asm');
+    expect(P.factoryRoleOf(['cutter', 'asm'], 'edge')).toBe('cutter');
+    expect(P.factoryRoleOf([], 'edge')).toBe(null);
+    expect(P.factoryDay('2026-10-20')).toBe('10/20(화)');
+    expect(P.factoryDay('nope')).toBe('-');
+    expect(P.worklogBody({ role: 'cutter', units: '3', minutes: '40', order_id: O1, order_label: ' SO-1 ' })).toEqual({
+      body: { role: 'cutter', units: 3, minutes: 40, order_id: O1, order_label: 'SO-1' },
+      errors: [],
+    });
+    expect(P.worklogBody({ role: 'cutter', units: '', minutes: '0' }).errors).toHaveLength(2);
+    expect(P.worklogBody({ role: 'cutter', units: '1001', minutes: '1441' }).errors).toHaveLength(2);
+    expect(P.worklogBody({ role: 'cutter', units: 1, minutes: 1, order_id: 'not-uuid' }).body.order_id).toBeUndefined();
+  });
+
+  test('공장 화면 — 공정 버튼은 내 공정만, 지시 · 주문 이름은 글자로, 진행 중이면 수량 · 시간 칸', () => {
+    const html = P.factoryHtml(factoryData(), { role: 'cutter', timers: { [O1]: String(NOW - 25 * 60000) }, nowMs: NOW });
+    document.body.innerHTML = `<div id="x">${html}</div>`;
+    const box = document.getElementById('x');
+    expect([...box.querySelectorAll('[data-act="fw-role"]')].map((b) => b.textContent)).toEqual(['재단', '조립']);
+    expect(box.querySelector('[data-act="fw-role"].on').getAttribute('data-role')).toBe('cutter');
+    expect(box.querySelector('script')).toBe(null);
+    expect(box.textContent).toContain(XSS);
+    expect(box.querySelectorAll('input[data-fa]')).toHaveLength(2);
+    expect(box.querySelector(`input[data-fa="${FA2}"]`).checked).toBe(true);
+    expect(box.querySelector('.fw-run').textContent).toBe('진행 중 · 25분째');
+    expect(box.querySelector('#fwU0').value).toBe('4');
+    expect(box.querySelector('#fwM0').value).toBe('25');
+    expect(box.querySelector('[data-act="fw-start"][data-i="1"]')).not.toBe(null);
+    expect(box.textContent).toContain('다른 진행 중 주문');
+    expect(box.querySelector('.fw-log').textContent).toBe('재단 · 홍*동 (SO-1)3 · 40분');
+    // 조립 — 할 일이 없으면 이유
+    expect(P.factoryHtml(factoryData(), { role: 'asm', nowMs: NOW })).toContain('진행 중인 주문에 조립 작업이 없습니다.');
+    // 공정이 없으면 기록 칸 없이 안내
+    const none = P.factoryHtml(factoryData({ roles: [] }), { nowMs: NOW });
+    expect(none).toContain('재단 · 엣지 · 조립이 없어');
+    expect(none).not.toContain('fw-free');
+    // 공정이 하나면 버튼 대신 제목
+    expect(P.factoryHtml(factoryData({ roles: ['cutter'] }), { nowMs: NOW })).not.toContain('fw-role');
+  });
+
+  test('공장 할 일 카드 — 내 공정 꾸러미(재단 · 라벨 / 조립) · 필수 확인 단추, 주문 id 가 없으면 없음', () => {
+    document.body.innerHTML = `<div id="x">${P.factoryHtml(factoryData(), { role: 'cutter', nowMs: NOW })}</div>`;
+    const box = document.getElementById('x');
+    const first = box.querySelectorAll('.card.job')[0];
+    expect([...first.querySelectorAll('[data-act="fw-pack"]')].map((b) => [b.getAttribute('data-pack'), b.textContent])).toEqual([['cut', '재단 지시서'], ['labels', '부재 라벨']]);
+    expect(first.querySelector('[data-act="fw-checks"]').getAttribute('data-order')).toBe(O1);
+    expect(P.factoryDocButtons('asm', O1)).toContain('data-pack="assembly"');
+    expect(P.factoryDocButtons('asm', O1)).not.toContain('data-pack="cut"');
+    expect(P.factoryDocButtons('cutter', 'not-uuid')).toBe('');
+  });
+
+  test('필수 확인 화면 — 역할마다 칸 × 항목 체크, 권장 · 사진 필수 표시, 글은 글자로, 저장 준비 전이면 잠금', () => {
+    const v = {
+      order_label: XSS,
+      document: { id: 'doc', doc_no: 'WO-1', rev: 1 },
+      list_version: 'v0',
+      db_ready: true,
+      roles: [
+        { role: 'cut', label: '재단', done: 1, total: 2, must_left: 1, cells: [{ scope_key: 'sheet:1', label: '원장 1 · PB 15T', items: [
+          { key: 'cut-sheet-cut', label: '재단', must: true, photo: 'none', checked: true },
+          { key: 'cut-sheet-x', label: XSS, must: false, photo: 'need', checked: false },
+        ] }] },
+        { role: 'edge', label: '엣지', done: 0, total: 0, must_left: 0, cells: [] },
+      ],
+    };
+    document.body.innerHTML = `<div id="x">${P.checksHtml(v)}</div>`;
+    const box = document.getElementById('x');
+    expect(box.querySelector('script')).toBe(null);
+    expect(box.textContent).toContain(XSS);
+    const inputs = box.querySelectorAll('input[data-ck-item]');
+    expect([...inputs].map((i) => [i.getAttribute('data-ck-role'), i.getAttribute('data-ck-scope'), i.getAttribute('data-ck-item'), i.checked, i.disabled])).toEqual([
+      ['cut', 'sheet:1', 'cut-sheet-cut', true, false],
+      ['cut', 'sheet:1', 'cut-sheet-x', false, false],
+    ]);
+    expect(box.textContent).toContain('1/2 · 필수 남음 1');
+    expect(box.textContent).toContain('권장');
+    expect(box.textContent).toContain('사진 필수');
+    expect(box.textContent).toContain('이 역할에 확인할 항목이 없습니다.');
+    expect(box.querySelector('[data-act="ck-back"]')).not.toBe(null);
+    expect([...inputs].map((i) => i.getAttribute('data-ck-photo'))).toEqual(['none', 'need']);
+    expect(box.querySelector('#ckPhotoFile')).not.toBe(null);
+    expect(box.textContent).toContain('사진 필수 항목은 체크하면 사진 고르기가 열립니다');
+    document.body.innerHTML = `<div id="y">${P.checksHtml({ ...v, db_ready: false })}</div>`;
+    expect([...document.querySelectorAll('#y input[data-ck-item]')].every((i) => i.disabled)).toBe(true);
+    expect(document.getElementById('y').textContent).toContain('저장 준비가 안 되어');
+    expect(P.checksHtml(null)).toContain('불러오지 못했습니다');
+  });
+
+  test('내 작업 상세 — 설치 · 조립 작업은 확정 뒤에 지시서 · 필수 확인 단추', () => {
+    const my = { assignment_id: A1, assignment_status: 'confirmed' };
+    expect(P.jobDetailHtml(detail({ my, kind: 'install' }), NOW, 'mine')).toContain('data-act="as-pack"');
+    expect(P.jobDetailHtml(detail({ my, kind: 'install' }), NOW, 'mine')).toContain('시공 지시서');
+    expect(P.jobDetailHtml(detail({ my, kind: 'assembly' }), NOW, 'mine')).toContain('조립 지시서');
+    expect(P.jobDetailHtml(detail({ my, kind: 'as' }), NOW, 'mine')).not.toContain('data-act="as-pack"');
+    expect(P.jobDetailHtml(detail({ my: { assignment_id: A1, assignment_status: 'offered' }, kind: 'install' }), NOW, 'mine')).not.toContain('data-act="as-checks"');
+  });
+
+  test('생산 링크 화면 — 같은 기기 저장 키에 토큰을 두고, 포털 「공장」 탭으로 잇기 안내', () => {
+    const LINK_PAGE = fs.readFileSync(path.join(ROOT, 'production-worker.html'), 'utf8');
+    expect(LINK_PAGE).toContain(`localStorage.setItem('${P.LINK_TOKEN_KEY}', token)`);
+    expect(LINK_PAGE).toContain('href="worker.html#tab=factory"');
+    expect(LINK_PAGE).not.toMatch(/segan\//i);
+  });
+
+  test('내 정보 — 마이페이지 주소는 페이지가 정한다 (앱은 me.html)', () => {
+    const w = { display_name: '김', kinds: ['cutting'], status: 'approved' };
+    expect(P.workerInfoHtml(w)).toContain('href="mypage.html"');
+    expect(P.workerInfoHtml(w, 'me.html')).toContain('href="me.html"');
+    expect(P.workerInfoHtml(w)).toContain('<dd>재단</dd>');
+  });
+});
+
+describe('페이지 — 공장 탭', () => {
+  const FACTORY_ME = { data: { ready: true, worker: { id: 'w', status: 'approved', display_name: '김재단', kinds: ['cutting', 'assembly'] }, counts: COUNTS, next_job: null, factory: { roles: ['cutter', 'asm'], from_link: false } } };
+  const PLAIN_ME = { data: { ready: true, worker: { id: 'w', status: 'approved', display_name: '김설치', kinds: ['install'] }, counts: COUNTS, next_job: null, factory: null } };
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+    jest.spyOn(Date, 'now').mockReturnValue(NOW);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  test('공장 배정이 없고 이을 링크도 없으면 공장 탭이 없다 (4칸)', async () => {
+    mount({ hash: '#tab=factory', routes: { 'GET /work/me': PLAIN_ME, 'GET /work/jobs?tab=mine': { data: { items: [] } } } });
+    await settle();
+    expect(document.querySelector('a[href="#tab=factory"]')).toBe(null);
+    expect(document.getElementById('tabs').classList.contains('five')).toBe(false);
+    expect(document.querySelector('.tab.on').textContent).toContain('내 작업');
+  });
+
+  test('공장 배정 → 5칸, #tab=factory 에서 할 일을 받고 시작 → 완료 기록을 보낸다 (타이머는 이 기기)', async () => {
+    let fetched = 0;
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': FACTORY_ME,
+        'GET /work/factory': () => {
+          fetched += 1;
+          return { data: factoryData() };
+        },
+        'POST /work/factory/worklogs': { status: 201, data: { id: 'n', role: 'cutter', units: 4, minutes: 1 } },
+      },
+    });
+    await settle();
+    expect(document.getElementById('tabs').classList.contains('five')).toBe(true);
+    expect(document.querySelector('.tab.on').textContent).toContain('공장');
+    expect(fetched).toBe(1);
+    document.querySelector('[data-act="fw-start"][data-i="0"]').click();
+    await settle();
+    expect(localStorage.getItem(P.factoryTimerKey('cutter', O1))).toBe(String(NOW));
+    expect(document.querySelector('.fw-run').textContent).toBe('진행 중 · 1분째');
+    document.getElementById('fwM0').value = '35';
+    document.querySelector('[data-act="fw-done"]').click();
+    await settle();
+    const post = calls.find((c) => c.path === '/work/factory/worklogs');
+    expect(post.body).toEqual({ role: 'cutter', units: 4, minutes: 35, order_id: O1, order_label: '홍*동 (SO-1)' });
+    expect(post.auth).toBe('Bearer jwt-test');
+    expect(localStorage.getItem(P.factoryTimerKey('cutter', O1))).toBe(null);
+    expect(fetched).toBe(2);
+    expect(document.getElementById('alert').textContent).toBe('재단 기록했습니다.');
+  });
+
+  test('값이 틀리면 보내지 않는다 · 공정을 바꾸면 기억한다 · 다른 작업 기록은 무엇을 · 수량 · 시간', async () => {
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': FACTORY_ME,
+        'GET /work/factory': { data: factoryData() },
+        'POST /work/factory/worklogs': { status: 201, data: { id: 'n' } },
+      },
+    });
+    await settle();
+    document.querySelector('[data-act="fw-free"]').click();
+    await settle();
+    expect(calls.some((c) => c.path === '/work/factory/worklogs')).toBe(false);
+    expect(document.getElementById('alert').textContent).toMatch(/수량/);
+    document.querySelector('[data-act="fw-role"][data-role="asm"]').click();
+    await settle();
+    expect(localStorage.getItem(P.FACTORY_ROLE_KEY)).toBe('asm');
+    expect(document.querySelector('[data-act="fw-role"].on').getAttribute('data-role')).toBe('asm');
+    document.getElementById('fwFreeLabel').value = '추가 조립';
+    document.getElementById('fwFreeUnits').value = '2';
+    document.getElementById('fwFreeMinutes').value = '30';
+    document.querySelector('[data-act="fw-free"]').click();
+    await settle();
+    expect(calls.find((c) => c.path === '/work/factory/worklogs').body).toEqual({ role: 'asm', units: 2, minutes: 30, order_label: '추가 조립' });
+  });
+
+  test('오늘 지시 체크 → POST done (풀면 done:false), 실패하면 되돌린다', async () => {
+    let fail = false;
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': FACTORY_ME,
+        'GET /work/factory': { data: factoryData() },
+        [`POST /work/factory/assignments/${FA1}/done`]: () => (fail ? { status: 500, message: '잠시 뒤 다시' } : { data: { id: FA1, status: 'done' } }),
+        [`POST /work/factory/assignments/${FA2}/done`]: { data: { id: FA2, status: 'instructed' } },
+      },
+    });
+    await settle();
+    const box = (id) => document.querySelector(`input[data-fa="${id}"]`);
+    box(FA1).click();
+    await settle();
+    expect(calls.find((c) => c.path === `/work/factory/assignments/${FA1}/done`).body).toEqual({ done: true });
+    expect(box(FA1).closest('label').classList.contains('done')).toBe(true);
+    box(FA2).click();
+    await settle();
+    expect(calls.find((c) => c.path === `/work/factory/assignments/${FA2}/done`).body).toEqual({ done: false });
+    fail = true;
+    box(FA1).click();
+    await settle();
+    expect(box(FA1).checked).toBe(true);
+    expect(document.getElementById('alert').textContent).toBe('잠시 뒤 다시');
+  });
+
+  test('필수 확인 — 할 일 카드에서 열고, 체크하면 POST 뒤 다시 받는다 · 새 판(409)이면 되돌리고 다시 연다 · 돌아가기', async () => {
+    let state = false;
+    let superseded = false;
+    const view = () => ({ data: {
+      order_label: '홍*동 (SO-1)', document: { id: 'doc-2', doc_no: 'WO-2', rev: 2 }, list_version: 'v0', db_ready: true,
+      roles: [{ role: 'cut', label: '재단', done: state ? 1 : 0, total: 1, must_left: state ? 0 : 1, cells: [{ scope_key: 'sheet:1', label: '원장 1', items: [{ key: 'cut-sheet-cut', label: '재단', must: true, photo: 'none', checked: state }] }] }],
+    } });
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': FACTORY_ME,
+        'GET /work/factory': { data: factoryData() },
+        [`GET /work/factory/orders/${O1}/checks`]: view,
+        [`POST /work/factory/orders/${O1}/checks`]: () => {
+          if (superseded) return { status: 409, message: '작업지시서가 새 판으로 바뀌었습니다 — 다시 열어 주세요' };
+          state = true;
+          return { status: 201, data: { checked: true } };
+        },
+      },
+    });
+    await settle();
+    document.querySelector(`[data-act="fw-checks"][data-order="${O1}"]`).click();
+    await settle();
+    expect(document.getElementById('appBody').textContent).toContain('필수 확인 · 홍*동 (SO-1)');
+    document.querySelector('input[data-ck-item="cut-sheet-cut"]').click();
+    await settle();
+    expect(calls.find((c) => c.method === 'POST' && c.path === `/work/factory/orders/${O1}/checks`).body).toEqual({ document_id: 'doc-2', role: 'cut', scope_key: 'sheet:1', item_key: 'cut-sheet-cut', checked: true });
+    expect(document.querySelector('input[data-ck-item="cut-sheet-cut"]').checked).toBe(true);
+    expect(document.getElementById('appBody').textContent).toContain('1/1');
+    superseded = true;
+    document.querySelector('input[data-ck-item="cut-sheet-cut"]').click();
+    await settle();
+    expect(document.getElementById('alert').textContent).toContain('새 판');
+    expect(document.querySelector('input[data-ck-item="cut-sheet-cut"]').checked).toBe(true);
+    document.querySelector('[data-act="ck-back"]').click();
+    await settle();
+    expect(document.querySelector('[data-act="fw-checks"]')).not.toBe(null);
+  });
+
+  test('필수 확인 사진 — 사진 필수 항목은 체크하면 사진 고르기 → 올리기 → 경로를 붙여 체크, 고르지 않으면 되돌린다', async () => {
+    let checked = false;
+    const view = () => ({ data: {
+      order_label: '홍*동 (SO-1)', document: { id: 'doc-1', doc_no: 'WO-1', rev: 1 }, list_version: 'v1', db_ready: true,
+      roles: [{ role: 'assembly', label: '조립', done: checked ? 1 : 0, total: 1, must_left: 0, cells: [{ scope_key: 'module:0:0', label: '싱크대 · 1 도어장', items: [
+        { key: 'asm-module-photo', label: '포장 전 정면 사진', must: false, photo: 'need', checked, has_photo: checked },
+      ] }] }],
+    } });
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': FACTORY_ME,
+        'GET /work/factory': { data: factoryData() },
+        [`GET /work/factory/orders/${O1}/checks`]: view,
+        [`POST /work/factory/orders/${O1}/checks/photo`]: { status: 201, data: { photo_path: 'co/o/d/11111111-1111-4111-8111-111111111111.jpg' } },
+        [`POST /work/factory/orders/${O1}/checks`]: () => { checked = true; return { status: 201, data: { checked: true } }; },
+      },
+    });
+    await settle();
+    document.querySelector(`[data-act="fw-checks"][data-order="${O1}"]`).click();
+    await settle();
+    const input = document.getElementById('ckPhotoFile');
+    expect(input).not.toBe(null);
+    expect(input.getAttribute('accept')).toBe('image/jpeg,image/png');
+    // 고르지 않음 (창을 닫음) → 되돌린다
+    input.click = () => { Object.defineProperty(input, 'files', { configurable: true, value: [] }); input.onchange(); };
+    document.querySelector('input[data-ck-item="asm-module-photo"]').click();
+    await settle();
+    expect(document.querySelector('input[data-ck-item="asm-module-photo"]').checked).toBe(false);
+    expect(calls.some((c) => c.path.endsWith('/checks/photo'))).toBe(false);
+    // 고름 → 올리고 체크
+    const file = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'a.jpg', { type: 'image/jpeg' });
+    const again = () => document.getElementById('ckPhotoFile');
+    again().click = function () { Object.defineProperty(this, 'files', { configurable: true, value: [file] }); this.onchange(); };
+    document.querySelector('input[data-ck-item="asm-module-photo"]').click();
+    await settle();
+    const up = calls.find((c) => c.method === 'POST' && c.path === `/work/factory/orders/${O1}/checks/photo`);
+    expect(up.auth).toBe('Bearer jwt-test');
+    expect(up.type).toBe('image/jpeg');
+    expect(calls.find((c) => c.method === 'POST' && c.path === `/work/factory/orders/${O1}/checks`).body).toEqual({
+      document_id: 'doc-1', role: 'assembly', scope_key: 'module:0:0', item_key: 'asm-module-photo', checked: true, photo_path: 'co/o/d/11111111-1111-4111-8111-111111111111.jpg',
+    });
+    expect(document.getElementById('appBody').textContent).toContain('사진 있음');
+  });
+
+  test('이 기기에 생산 링크가 있고 배정이 없으면 — 「내 계정에 잇기」, 이으면 링크를 지우고 공장 화면', async () => {
+    localStorage.setItem(P.LINK_TOKEN_KEY, LINK_TOKEN);
+    let linked = false;
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': () => (linked ? FACTORY_ME : PLAIN_ME),
+        'POST /work/factory/link': () => {
+          linked = true;
+          return { status: 201, data: { id: 'f', linked: true } };
+        },
+        'GET /work/factory': { data: factoryData() },
+      },
+    });
+    await settle();
+    expect(document.querySelector('.tab.on').textContent).toContain('공장');
+    expect(document.getElementById('appBody').textContent).toContain('생산 링크를 내 계정에 잇기');
+    expect(calls.some((c) => c.path === '/work/factory')).toBe(false);
+    document.querySelector('[data-act="fw-link"]').click();
+    await settle();
+    const post = calls.find((c) => c.path === '/work/factory/link');
+    expect(post.worker).toBe(LINK_TOKEN);
+    expect(post.auth).toBe('Bearer jwt-test');
+    expect(localStorage.getItem(P.LINK_TOKEN_KEY)).toBe(null);
+    expect(document.getElementById('alert').textContent).toMatch(/이었습니다/);
+    expect(calls.some((c) => c.path === '/work/factory')).toBe(true);
+    expect(document.querySelector('[data-act="fw-start"]')).not.toBe(null);
+  });
+
+  test('잇기 410(틀린 · 끊긴 · 만료 링크) — 이 기기에서 링크를 지우고 서버 문구, 공장 탭이 사라진다', async () => {
+    localStorage.setItem(P.LINK_TOKEN_KEY, LINK_TOKEN);
+    mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': PLAIN_ME,
+        'POST /work/factory/link': { status: 410, message: '만료된 링크입니다. 대표에게 새 링크를 받으세요' },
+        'GET /work/jobs?tab=mine': { data: { items: [] } },
+      },
+    });
+    await settle();
+    document.querySelector('[data-act="fw-link"]').click();
+    await settle();
+    expect(localStorage.getItem(P.LINK_TOKEN_KEY)).toBe(null);
+    expect(document.getElementById('alert').textContent).toBe('만료된 링크입니다. 대표에게 새 링크를 받으세요');
+    expect(document.querySelector('a[href="#tab=factory"]')).toBe(null);
+  });
+
+  test('정지된 작업자는 링크가 있어도 공장 탭이 없다 · 앱 내 정보의 마이페이지는 me.html', async () => {
+    localStorage.setItem(P.LINK_TOKEN_KEY, LINK_TOKEN);
+    mount({
+      hash: '#tab=me',
+      routes: { 'GET /work/me': { data: { ...PLAIN_ME.data, worker: { ...PLAIN_ME.data.worker, status: 'suspended' } } } },
+    });
+    await settle();
+    expect(document.querySelector('a[href="#tab=factory"]')).toBe(null);
+    expect(document.querySelector('#appBody a.big').getAttribute('href')).toBe('me.html');
   });
 });

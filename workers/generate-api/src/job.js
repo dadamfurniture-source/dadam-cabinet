@@ -16,7 +16,7 @@
  *   - 플래너 모드는 대조가 ok 가 아니면 done 과 함께 options.internal_only = true (계획서 §6.3).
  */
 
-import { aspectRatioOf, callGemini, textModel } from './gemini.js';
+import { aspectRatioOf, callGemini, imageDimensions, textModel } from './gemini.js';
 import { plannerProvider, renderImage, renderPlannerImage } from './images.js';
 import {
   CATEGORIES,
@@ -27,6 +27,8 @@ import {
   buildInstallPrompt,
   buildPlumbingPrompt,
   buildPlannerPrompt,
+  buildPlannerPolishPrompt,
+  buildPlannerClearPrompt,
   plannerChosenFridgeModel,
   fridgeModelFromRow,
   FRIDGE_DEFAULT_MODELS,
@@ -57,7 +59,7 @@ import {
   resolveCategory,
 } from './prompts.js';
 import { buildQuote } from './quote.js';
-import { selectOne, selectMany, updateById, uploadObject, fetchObjectBase64, extOf, base64ToBytes } from './supabase.js';
+import { selectOne, selectMany, updateById, uploadObject, fetchObjectBase64, extOf } from './supabase.js';
 import { ANALYSIS_ROUNDS, ROOM_PHOTO_LOOKUP_LIMIT, medianAnalysis, roomPhotoPhash, roomPhotoSha256, samePhoto } from './room-photo.js';
 import { refundCreditService } from './credits.js';
 import {
@@ -78,6 +80,7 @@ import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, buildLensPrompt, massi
 import { plannerPlaceBlocks, plannerPlaceFaces, plannerPlaceRef } from './planner-place.js';
 import { loadFridgeModelPhoto } from './appliance-image.js';
 import { positionSkipped, startPositionCheck } from './position.js';
+import { collectionPostPlan, postToCollection } from './collection-post.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -181,6 +184,7 @@ export class GenerateJob {
 
   async fail(job, ck, reason) {
     const hasBase = ck.images && ck.images.base;
+    let closedDone = false;
     try {
       // 기본안이 있어 done 으로 닫을 때도 내부 확인용 표시는 같은 패치에 싣는다 — 대조 전에 죽었으면 ok 가 아니다
       const internal = hasBase ? await internalOnlyPatch(this.env, job, ck) : {};
@@ -193,9 +197,12 @@ export class GenerateJob {
         ...(hasBase ? { images: slotList(ck.images) } : {}),
         ...internal,
       });
+      closedDone = !!hasBase;
     } catch (e) {
       console.error(`[Job ${job.id}] fail-patch failed:`, e.message);
     }
+    // 기본안이 있어 done 으로 닫았으면 시공사례 자동 게시 (2026-10-27, collection-post.js) — 던지지 않는다
+    if (closedDone) await postToCollection(this.env, job, ck);
     if (!hasBase && job.creditRef) {
       try {
         await refundCreditService(this.env, job.creditRef);
@@ -422,6 +429,14 @@ async function runPipeline(env, job, ck, save) {
   //   설치는 [방 사진, 입면, 3/4?] + 프롬프트 v2 · 온도 0.2 · 비율 고정. 검사는 기록만(재시도 없음).
   //   역판독 대조는 [결과 사진, 정면 입면] + 도면 목록으로 모듈마다 센다(2026-10-19). 추천안 없음.
   const planner = opts.mode === 'planner';
+  // 다듬기 (2026-11-01 사장님 「C로 작업 실행」, options.polish — worker.js 가 시안(composite)이 있을 때만 기록):
+  //   그림 모델에는 시안 한 장 + buildPlannerPolishPrompt. 방 분석 · 배관 질문 · 위치 검사는 하지 않는다 (방을 고치지 않는다).
+  //   시안을 못 읽었거나 비율이 달라 버렸으면 예전 플래너 경로 그대로 (아래 polishOn).
+  const polish = planner && opts.polish === true;
+  // 방 비우기 (2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「무엇을 지울지: 추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」,
+  //   options.clear): 그림 모델에는 방 사진 한 장 + buildPlannerClearPrompt — 설계를 놓을 벽을 비운 빈 방 한 장이 결과다.
+  //   방 분석(공사 현장 · 기존 가구 읽기)은 하고, 렌더(입면 · 시안)는 읽지 않는다. 배관 질문 · 검사 · 위치 검사 · 역판독 대조는 하지 않는다.
+  const clear = planner && opts.clear === true;
 
   // 입력 이미지는 Storage 에서 읽는다 — DO storage 에 base64 를 두지 않는다.
   const room = await fetchObjectBase64(env, inputs.room.path);
@@ -429,9 +444,10 @@ async function runPipeline(env, job, ck, save) {
   let elevation = null;
   let elevationLabeled = null;
   let massing = null;
+  let composite = null; // 2026-10-27: Blender 시안 (role composite) — IMAGE A 로
   const returnElevations = []; // 2026-10-19: [{ side, plain, labeled }] — 꺾인 벽 입면
   let fridgePhoto = null; // 2026-10-20: {base64, mimeType, code, modelId} — 고른 냉장고 모델의 제품 사진
-  if (planner) {
+  if (planner && !clear) {
     const list = Array.isArray(inputs.renders) ? inputs.renders : [];
     const el = list.find((r) => r && r.role === 'elevation');
     if (!el || !el.path) throw new Error('planner: elevation render missing');
@@ -454,6 +470,25 @@ async function runPipeline(env, job, ck, save) {
         console.warn(`[Job ${job.id}] massing render skipped: ${e.message}`);
       }
     }
+    // 2026-10-27: 간편 플래너 「Blender 시안」 — 방 사진 그대로에 설계 3D 를 그 사진 카메라로 렌더해 얹은 사진 (자리 · 크기 · 깊이 ·
+    //   문 · 서랍 나눔까지 이미 그려져 있다). 있으면 IMAGE A 로 쓰고 도면 덩어리(1-d)는 칠하지 않는다.
+    //   방 사진과 비율이 다르면(둘 다 크기를 읽었을 때 1.5 % 넘게) 버린다 — 생성 비율이 방 사진에서 나온다. 못 읽으면 예전처럼.
+    const cp = list.find((r) => r && r.role === 'composite');
+    if (cp && cp.path) {
+      try {
+        const im = await fetchObjectBase64(env, cp.path);
+        const a = imageDimensions(room.base64);
+        const b = imageDimensions(im.base64);
+        if (a && b && Math.abs(Math.log((a.width / a.height) / (b.width / b.height))) > 0.015) {
+          console.warn(`[Job ${job.id}] composite skipped: ${b.width}x${b.height} vs room ${a.width}x${a.height}`);
+        } else {
+          composite = im;
+        }
+      } catch (e) {
+        console.warn(`[Job ${job.id}] composite render skipped: ${e.message}`);
+      }
+    }
+    if (polish && !composite) console.warn(`[Job ${job.id}] polish without composite — planner prompt instead`);
     // 2026-10-19: ㄱ자·ㄷ자 꺾인 벽 입면 (elevation_left · elevation_right, 번호 붙은 것 _labeled) — design_spec.walls 에 있는 벽만.
     //   못 읽으면 그 벽은 글 목록만으로 그린다. 번호 붙은 것은 설치 때 GPT 에만, 역판독에는 공급자와 상관없이 쓴다.
     const sides = (Array.isArray(opts.design_spec && opts.design_spec.walls) ? opts.design_spec.walls : [])
@@ -544,6 +579,8 @@ async function runPipeline(env, job, ck, save) {
     }
   }
 
+  const polishOn = polish && !!composite;
+
   // ═══ 1. 분석 (브리프 포함) ═══
   if (!ck.wall) {
     await setStep(env, job, ck, 'analyzing');
@@ -565,7 +602,7 @@ async function runPipeline(env, job, ck, save) {
     //   새 표 없이 generations.wall_analysis.roomPhoto 에 남긴다. 사람이 넣은 벽 폭은 아래에서 그래도 이긴다.
     //   재생성은 원본과 같은 inputs.room 을 쓰므로 같은 해시다. 일반 경로는 찾지도 남기지도 않고 1회 분석 (예전 그대로).
     let roomPhoto = null;
-    if (planner) {
+    if (planner && !polishOn) {
       const sha256 = await roomPhotoSha256(room);
       const phash = sha256 ? roomPhotoPhash(room) : null;
       const prior = sha256 ? await findRoomAnalysis(env, job, { sha256, phash }) : null;
@@ -577,7 +614,11 @@ async function runPipeline(env, job, ck, save) {
         roomPhoto = { sha256, phash, analysis: null, from: job.id };
       }
     }
-    if (!roomPhoto || !roomPhoto.analysis) {
+    if (polishOn) {
+      // 다듬기 — 방을 읽지 않는다 (지시문이 벽 · 배관을 말하지 않는다). 벽 폭은 아래 사람이 넣은 값, 없으면 기본값.
+      //   roomPhoto 를 남기지 않으므로 같은 사진의 다음 예전 방식 생성이 이 기본값을 이어받지 않는다.
+      wall.polish = true;
+    } else if (!roomPhoto || !roomPhoto.analysis) {
       const got = await analyseRoom(env, job, room, planner ? ANALYSIS_ROUNDS : 1);
       if (got) {
         wall = got.wall;
@@ -591,6 +632,7 @@ async function runPipeline(env, job, ck, save) {
       }
     }
     if (roomPhoto && roomPhoto.analysis) wall.roomPhoto = roomPhoto;
+    if (clear) wall.clear = true; // 방 비우기 — 분석은 같고 표시만 (roomPhoto.analysis 사본에는 들지 않는다)
     const manualW = Number(opts.wall_width_override);
     if (manualW >= 1000 && manualW <= 6000) {
       wall.wallW = clampWall(manualW);
@@ -603,7 +645,7 @@ async function runPipeline(env, job, ck, save) {
     // 1차가 배관을 놓쳤으면 **그것만** 다시 묻는다. 주방이 아니면 묻지 않는다.
     //   실측(2026-10): 1차는 급수 56% · 배기 48% 만 읽고, 2차로 놓친 것의 절반을 더 읽는다.
     //   벽 폭 보정 뒤에 둔다 — 2차 프롬프트가 그 폭을 기준으로 비율을 답한다.
-    if (KITCHEN_CATEGORIES.includes(category) && wall.read && (!wall.read.water || !wall.read.exhaust)) {
+    if (!polishOn && !clear && KITCHEN_CATEGORIES.includes(category) && wall.read && (!wall.read.water || !wall.read.exhaust)) {
       await askPlumbing(env, job, wall, room);
     }
     applyManualPlumbing(wall, opts);   // 사람이 넣은 값은 둘 다 이긴다
@@ -676,6 +718,12 @@ async function runPipeline(env, job, ck, save) {
     customerRequest: cleanCustomerRequest(opts.customer_request),
     // 플래너 모드 — 프롬프트 v2 와 검사 코드(existing_left·pasted_reference)를 켠다
     ...(planner ? { planner: true, massing: !!massing, aspect: opts.aspect } : {}),
+    ...(polishOn ? { polish: true } : {}),
+    // 다듬기 배경이 비운 방이면 정리 줄을 뺀다 (worker.js options.cleared — 다듬기일 때만 기록)
+    ...(polishOn && opts.cleared === true ? { cleared: true } : {}),
+    ...(clear ? { clear: true } : {}),
+    // 냉장고장(리폼) (worker.js options.reform — 비우기 · 다듬기일 때만 기록): 비우기는 뗄 것만, 다듬기는 남은 뗄 것만 정리
+    ...((clear || polishOn) && opts.reform ? { reform: opts.reform } : {}),
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   // 결과 비율은 방 사진을 따른다 (플래너 모드는 고른 비율). 추천안도 같은 비율로 그린다.
@@ -806,13 +854,18 @@ async function runPipeline(env, job, ck, save) {
   //   도면의 실제 줄을 칠한 사진을 IMAGE A 로 준다 (planner-place.js). 기본은 꺼짐: PLANNER_PLACE_GUIDE='on' 일 때만.
   //   기존 가구가 없는 사진 · 일자(꺾인 벽 없음) · Claude 키가 있을 때만. 어느 단계든 실패하면 방 사진 그대로.
   let placeImg = null;
+  //   2026-10-27: Blender 시안(composite)이 있으면 그것이 IMAGE A — 덩어리를 칠하지 않는다 (아래 wantPlace)
+  if (composite) {
+    placeImg = composite;
+    ctx.placeRender = true;
+  }
   //   2026-10-20: ㄱ자·ㄷ자(꺾인 벽 walls[])는 따로 PLANNER_PLACE_CORNERS='on' 일 때만 (기본 꺼짐)
   const placeBlocks = planner
     ? plannerPlaceBlocks(opts.design_spec, { corners: env.PLANNER_PLACE_CORNERS === 'on' })
     : null;
   //   2026-10-20: 요청 옵션 place_guide:false 는 운영 변수 배포 없이 안내를 끈 생성 (반복 시험용, worker.js createPlannerGeneration)
   const wantPlace =
-    planner && env.PLANNER_PLACE_GUIDE === 'on' && opts.place_guide !== false && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
+    planner && !composite && env.PLANNER_PLACE_GUIDE === 'on' && opts.place_guide !== false && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
   if (wantPlace && ck.place === undefined) {
     ck.place = null;
     const t0 = Date.now();
@@ -876,7 +929,25 @@ async function runPipeline(env, job, ck, save) {
       // 2026-10-19: IMAGE B 는 공급자마다 — GPT 는 번호 입면(있으면), Gemini 는 늘 번호 없는 입면.
       //   번호 입면을 보낼 때만 프롬프트에 "번호·치수선은 주석" 문장이 들어간다. GPT 실패 대체로 Gemini 가
       //   그릴 때는 번호 없는 입면 + 그 문장 없는 프롬프트로 다시 만든다.
+      // 다듬기 — 시안 한 장 + 짧은 지시문 (공급자와 상관없이 같다)
+      const polishPayload = () => ({
+        prompt: buildPlannerPolishPrompt(ctx),
+        images: [composite],
+        imageSize,
+        temperature: 0.2,
+        aspectRatio: ctx.aspect,
+      });
+      // 방 비우기 — 방 사진 한 장 + 비우기 지시문 (공급자와 상관없이 같다)
+      const clearPayload = () => ({
+        prompt: buildPlannerClearPrompt(ctx),
+        images: [room],
+        imageSize,
+        temperature: 0.2,
+        aspectRatio: ctx.aspect,
+      });
       const payload = (who) => {
+        if (ctx.clear) return clearPayload();
+        if (ctx.polish) return polishPayload();
         const labeled = who === 'openai' && !!elevationLabeled;
         const b = labeled ? elevationLabeled : elevation;
         // 2026-10-19: 꺾인 벽 입면은 3/4 뒤에 (IMAGE C·D …) — GPT 는 번호 있는 것, Gemini 는 번호 없는 것만
@@ -943,7 +1014,8 @@ async function runPipeline(env, job, ck, save) {
     await setStep(env, job, ck, 'qc');
     let qc = { ok: true, issues: [], note: null };
     let qcTimer = null;
-    try {
+    // 방 비우기는 가구 검사(QC)가 뜻이 없다 — 묻지 않는다 (통과 기록)
+    if (!ctx.clear) try {
       // 검사 한 번에 90초 이상 걸리면 통과로 본다 — 검사 때문에 생성을 막지 않는다
       const q = await Promise.race([
         // 원본 방 사진을 함께 본다 — 가구가 원래 벽선보다 앞으로 나왔는지 비교해야 깊이를 판정한다 (2026-10-14)
@@ -976,14 +1048,16 @@ async function runPipeline(env, job, ck, save) {
     }
 
     // 최종 기본안이 정해진 뒤(검사·재시도 다음) 시작한다 — 검사와 같은 Flash 할당량을 같은 순간에 나눠 쓰지 않는다
-    pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
+    // 다듬기는 방을 읽지 않아 지시한 자리(벽 분석 %)가 없다 — 위치 검사를 하지 않는다 (자리는 시안이 정했다)
+    // 방 비우기도 자리가 없다 (가구를 그리지 않는다)
+    if (!ctx.polish && !ctx.clear) pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
     const up = await uploadObject(
       env,
       `${prefix}/base.${extOf(base.mimeType)}`,
       base.base64,
       base.mimeType
     );
-    ck.images.base = { label: `${labelOf(category)} · 기본안`, path: up.path, url: up.url, qc, ...(base.meta || {}) };
+    ck.images.base = { label: `${labelOf(category)} · ${ctx.clear ? '빈 방' : '기본안'}`, path: up.path, url: up.url, qc, ...(base.meta || {}) };
     if (pos) pos.attachTo(ck.images.base); // 끝나는 순간 images[base].position — 이후 images 패치에 저절로 실린다
     await save({ images: ck.images });
     await updateById(env, 'generations', job.id, {
@@ -993,7 +1067,7 @@ async function runPipeline(env, job, ck, save) {
   } else {
     base = await fetchObjectBase64(env, ck.images.base.path);
     // 알람 재실행 — 같은 기본안을 다시 재지 않는다 (장당 호출 수). 기록이 없으면 그 사실만 (error 'rerun')
-    if (!ck.images.base.position) {
+    if (!ck.images.base.position && !ctx.polish && !ctx.clear) {
       const skipped = positionSkipped(env, positionInput(ck.images.base.qc, ck.images.base.provider), 'rerun');
       if (skipped) ck.images.base.position = skipped;
     }
@@ -1008,7 +1082,8 @@ async function runPipeline(env, job, ck, save) {
   //   예전엔 신발장·화장대·서재·침실·사무실이 여기서 빠져 대조 기록이 없었고, 그래서 늘 internal_only 였다.
   //   플래너가 아니면 예전 그대로 LAYOUT_CATEGORIES 만 (옛 판독은 품목별 세그먼트 종류가 있어야 한다).
   const verifiable = planner ? PLANNER_READ_CATEGORIES.includes(category) : LAYOUT_CATEGORIES.includes(category);
-  if (!ck.verify && opts.design_spec && verifiable) {
+  // 방 비우기는 가구가 없어 대조하지 않는다
+  if (!ck.verify && !ctx.clear && opts.design_spec && verifiable) {
     await updateById(env, 'generations', job.id, { step_label: '도면과 대조하는 중', progress: 65 });
     let layout;
     const t0 = Date.now();
@@ -1315,6 +1390,18 @@ async function runPipeline(env, job, ck, save) {
   console.log(
     `[Job ${job.id}] done: variants ${variantCount}/${VARIANT_COUNT}, ${Date.now() - startedAt}ms`
   );
+  // 시공사례 자동 게시 (2026-10-27, collection-post.js) — AI 스튜디오 결과의 기본안 한 장. done 을 보낸 뒤라
+  //   연출컷을 늦추지 않고, 실패는 로그만 남긴다. 올릴 때는 재실행이 done·게시를 되풀이하지 않게 체크포인트에
+  //   done 을 먼저 남긴다 (alarm() 이 attempt 검사보다 먼저 본다 — 아래 위치 검사와 같은 표시).
+  if (collectionPostPlan(env, job, ck).ok) {
+    try {
+      ck.doneAt = ck.doneAt || Date.now();
+      await save({ doneAt: ck.doneAt });
+    } catch (e) {
+      console.warn(`[Job ${job.id}] doneAt save failed:`, e.message);
+    }
+    await postToCollection(env, job, ck);
+  }
   if (posLate) {
     // 2026-10-20: 위치 검사(기록 전용)가 done 보다 늦게 끝나는 경로(추천안 없음)만. 손님은 done 을 이미 받았다.
     //   잡 마감(10분) 20초 전까지만 기다리고, images 하나만 보낸다(status·step_label 없음). 실패는 삼킨다.

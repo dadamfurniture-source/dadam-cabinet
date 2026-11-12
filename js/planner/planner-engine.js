@@ -136,6 +136,8 @@ const MASTER_RULES = {
   DOOR_SEAT_D: 20,
   // 2026-10-20 사장님 확정: 냉장고 위 상부장 몸통 깊이 = 좌우 EP 깊이 − 25, 싱크대 상부장처럼 벽에 건다
   FRIDGE_UPPER_EP_MINUS: 25,
+  // 2026-10-20 사장님: 냉장고 자리(장 안쪽) 폭 = 냉장고 폭 + 양옆 설치 여유 + **전체 여유 6** (fridgeNicheWidthsOf — 냉장고 수로 등분)
+  FRIDGE_NICHE_EXTRA: 6,
   // 플래너 전용 — 레거시엔 없다. 라인이 선언돼 있지 않아 코너를 좌표로 찾기 때문에,
   // 사람이 손으로 그린 사각형의 어긋남을 얼마까지 코너로 볼지 정해야 한다.
   CORNER_TOUCH_TOL: 20,         // 두 배치 공간이 이 안쪽으로 만나면 코너로 본다
@@ -221,11 +223,6 @@ function calcDoorCount(W) {
 // W9-96: distributeModules — planner-vite/src/lib/calc-utils.ts 의 TS 알고리즘 vanilla 포팅
 //   3가지 후보 (10단위 내림 / 짝수 내림 / 균등) 우선순위 정렬 + 잔여 0~10mm 최적화 + 2D 페어링
 //   반환: { doorWidth, doorCount, modules: [{ w, is2D }], gap }
-/** 도어 n 장을 양문 우선으로 묶었을 때 모듈 수 */
-function moduleCountOf(doorCount) {
-  const n = Math.max(0, Number(doorCount) || 0);
-  return Math.floor(n / 2) + (n % 2);
-}
 
 function distributeModules(totalSpace) {
   if (totalSpace < 100) return { modules: [], doorWidth: 0, doorCount: 0, gap: 0 };
@@ -262,15 +259,12 @@ function distributeModules(totalSpace) {
       }
     }
   }
-  // W12-73: 조립 여유(모듈 수 × 1mm) 안에 드는 후보를 **먼저** 본다.
-  //   그 안이면 잔여를 나눠 붙이지 않아도 되고, 라인의 도어가 전부 같은 폭으로 남는다.
-  //   여유를 넘으면 결국 어느 도어 하나가 커진다 — 그건 마지막 수단이다.
-  allResults.forEach((r) => {
-    r.withinSlack = r.gap <= jointSlack(moduleCountOf(r.doorCount)) ? 0 : 1;
-  });
-  // 정렬: 조립 여유 안 → 목표 450 근접 → 잔여 작은 순 → 도어 수 적은 순
+  // 정렬: 목표 450 근접 → 잔여 작은 순 → 도어 수 적은 순
+  //   2026-10-27 사장님 "2072 … 도어가 5개, 몸통 2통 반이 맞다" → 목표 450 에 가까운 쪽 우선.
+  //   W12-73 은 조립 여유(모듈 수 × 1mm) 안 후보를 먼저 봐서 빈 폭 2064 · 2069 · 2074 … 가 도어 4장(516 · 517 · 518)이 됐다.
+  //   이제 2064 → 도어 5장 412. 잔여 처리는 W12-73 그대로다 (spreadGapEqually — 조립 여유 안이면 두고, 넘는 만큼만 마지막 모듈이 먹는다:
+  //   2064 는 잔여 4 = 여유 3 + 마지막 모듈 1).
   allResults.sort((a, b) => {
-    if (a.withinSlack !== b.withinSlack) return a.withinSlack - b.withinSlack;
     if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
     if (a.gap !== b.gap) return a.gap - b.gap;
     return a.doorCount - b.doorCount;
@@ -539,6 +533,56 @@ function distributeByDoorW(budget, doorW, opt) {
  * @param {number} n  선반 수
  * @param {number} [T] 판 두께 (기본 MASTER_RULES.BODY_T)
  */
+/**
+ * 키큰장 단 높이 — 단 하나하나를 따로 고르는 모듈(모듈 라이브러리 키큰장 단 TT-, 2026-11-04 사장님 「개별 모듈 형태 —
+ *   하부장을 포함한 중간장, 상부장 형태의 수납장」 · 「키큰장 가운데 단 모양인데, 천판, 지판을 포함하여 결합되는 모듈」)이 쓰는 식.
+ *
+ * 세 단 (하부장 · 중간장 · 상부장, 아래 → 위) — mockup-structure.html tallTiers 의 보존 단 없는 경우와 같은 식:
+ *   상부장 = min(FRIDGE_UPPER_H_MAX + 상몰딩, H), 몸통 = H − 상부장 − 좌대, 중간장 = floor(몸통 × MIDDLE_BODY_RATIO),
+ *   하부장 = 좌대 + (몸통 − 중간장). 몸통이 나오지 않으면 (H − 상몰딩 − FRIDGE_UPPER_H_MAX − 좌대 ≤ 0) 아무 단도 세우지 않는다.
+ * 두 단 (2026-11-04 사장님 「위 단이 가져감」 — 빠진 단 높이는 위 단이 가져간다):
+ *   아래 단(하부장)은 세 단일 때 높이 그대로, 위 단 = H − 하부장 (상몰딩 포함). 하부장 + 중간장 이면 중간장이 맨 위 단이라
+ *   상몰딩을 진다 (moldingH > 0 단 — sink.md §5.1 표의 상부장 단 규칙: 푸쉬 도어 · 상몰딩).
+ * 좌대는 맨 아래 단, 상몰딩은 맨 위 단만 진다 (§5.1 heightParts).
+ *
+ * @param {number} H 쌓을 자리 높이 (상몰딩 포함)
+ * @param {{moldingH:number, pedestalH:number, parts?:string[]}} o  parts = 쌓을 단 이름 (아래 → 위, 기본 세 단).
+ *   하부장이 맨 아래에 있고 2~3 단이어야 한다 (차례는 하부장 · 중간장 · 상부장).
+ * @returns {{part:string, H:number, baseY:number, pedestalH:number, moldingH:number}[]} 아래 → 위
+ */
+function tallTierSplitOf(H, o) {
+  const ORDER = ['하부장', '중간장', '상부장'];
+  const parts = (o && Array.isArray(o.parts)) ? o.parts : ORDER;
+  const ok = parts.length >= 2 && parts.length <= 3 && parts[0] === '하부장'
+    && parts.every((p, i) => ORDER.indexOf(p) >= 0 && (i === 0 || ORDER.indexOf(p) > ORDER.indexOf(parts[i - 1])));
+  if (!ok) throw new TypeError(`키큰장 단은 하부장부터 2~3 단입니다: ${JSON.stringify(parts)}`);
+  const molding = Math.max(0, Number(o && o.moldingH) || 0);
+  const pedestal = Math.max(0, Number(o && o.pedestalH) || 0);
+  const upperMax = MASTER_RULES.FRIDGE_UPPER_H_MAX;
+  if (!(H > 0) || H - molding - upperMax - pedestal <= 0) return [];
+  // 세 단 높이 (두 단도 아래 단은 이 값)
+  const upper = Math.min(upperMax + molding, H);
+  let room = H - upper;
+  let lower = Math.min(pedestal, room);
+  room -= lower;
+  const middle = Math.floor(room * MASTER_RULES.MIDDLE_BODY_RATIO);
+  lower += room - middle;
+  const heights = parts.length === 3
+    ? { 하부장: lower, 중간장: middle, 상부장: upper }
+    : { 하부장: lower, [parts[1]]: H - lower };
+  let y = 0;
+  return parts.map((part, i) => {
+    const h = heights[part];
+    const out = {
+      part, H: h, baseY: y,
+      pedestalH: i === 0 ? Math.min(pedestal, h) : 0,
+      moldingH: i === parts.length - 1 ? Math.min(molding, h) : 0,
+    };
+    y += h;
+    return out;
+  });
+}
+
 function shelvesEvenInner(H, n, T) {
   const t = Number.isFinite(T) ? T : MASTER_RULES.BODY_T;
   if (!(n > 0) || !(H > 0)) return [];
@@ -700,6 +744,74 @@ function autoCalcModule(m, s, applianceRanges) {
                    : 'middle';
 }
 
+// ── 냉장고 자리 — 설치 여유 · 위장 폭 (2026-10-12 · 10-20 사장님) ─────────────────────────────
+// 2026-10-29: 기존 플래너 배치(mockup-shell fridgeGapsOf)와 구조(mockup-structure fridgeNichesOf)에 있던 식을 여기로 옮겼다 —
+//   간편 플래너(dadam-planner-lite)도 같은 식을 쓴다 (사장님 「냉장고 모델 고르기」). 값 · 식은 그대로다.
+
+/**
+ * 브랜드 라인 기본 여유 — js/detaildesign/data-constants.js FRIDGE_RULES.DEFAULT_GAPS 와 같은 수다
+ * (플래너는 그 파일을 읽지 않아 옮겨 적었다 — 바뀌면 같이 고친다). 모델 표(appliance_models side_gap_mm · top_gap_mm)가 정본이고
+ * 비어 있을 때만 쓴다. 설치 가이드를 확인하는 대로 모델 표의 값을 고쳐 나간다.
+ */
+const FRIDGE_DEFAULT_GAPS = {
+  LG_BUILTIN:   { side: 4,  between: 8 },
+  SS_BESPOKE:   { side: 12, between: 10 },
+  SS_INFINITE:  { side: 5,  between: 10 },
+  FREESTANDING: { side: 50, between: 0 },
+};
+
+/** 모델 이름으로 라인을 고른다 — 표에 값이 없을 때만 쓴다 */
+function fridgeLineOf(m) {
+  const s = `${(m && m.brand) || ''} ${(m && m.name) || ''}`;
+  if (s.indexOf('키친핏') >= 0 || /kitchen ?fit/i.test(s)) return 'SS_BESPOKE';
+  if (s.indexOf('인피니트') >= 0 || /infinite/i.test(s)) return 'SS_INFINITE';
+  if (s.indexOf('빌트인') >= 0 || /built-?in|fit ?& ?max/i.test(s)) return 'LG_BUILTIN';
+  return 'FREESTANDING';
+}
+
+/**
+ * 냉장고 **설치 여유** — 위장 폭 = 냉장고 폭 + 양옆 여유 × 2 (2026-10-12 사장님 결정, 예: 10 + 595 + 10).
+ * 2026-10-20 사장님: 빌트인은 **장 안쪽 치수(니치)** 기준. 모델 표에 니치가 있으면
+ *   옆 여유 = (니치 폭 − 냉장고 폭) / 2, 위 여유 = 니치 높이 − 냉장고 높이 로 되돌려 싣는다 —
+ *   구조 단계는 여유만 보므로 '니치 + 전체 여유 6' 이 그대로 나온다 (fridgeNicheWidthsOf).
+ * 니치 = 냉장고 치수(표준 니치 템플릿처럼 겉 치수를 모를 때)면 여유 0 — 기본 여유 50 으로 새지 않게 >=
+ * @param {{brand?, name?, w?, h?, nicheW?, nicheH?, sideGap?, topGap?}} m 모델 (mockup-shell fetchApplianceModels 모양)
+ * @returns {{side:number, top:number}}
+ */
+function fridgeGapsOf(m) {
+  const d = FRIDGE_DEFAULT_GAPS[fridgeLineOf(m)];
+  const num = (v, def) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : def);
+  const nw = num(m && m.nicheW, null);
+  const nh = num(m && m.nicheH, null);
+  const side = nw !== null && nw >= num(m && m.w, 0) ? (nw - m.w) / 2 : num(m && m.sideGap, d.side);
+  const top = nh !== null && nh >= num(m && m.h, 0) ? nh - m.h : num(m && m.topGap, MASTER_RULES.FRIDGE_TOP_GAP);
+  return { side, top };
+}
+
+/** 전체 여유를 n 통에 등분 — 정수로, 나머지는 왼쪽 통부터 1씩 (6 ÷ 4 → 2, 2, 1, 1) */
+function fridgeExtraShares(n) {
+  const base = Math.floor(MASTER_RULES.FRIDGE_NICHE_EXTRA / n);
+  const rest = MASTER_RULES.FRIDGE_NICHE_EXTRA - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < rest ? 1 : 0));
+}
+
+/**
+ * 나란히 붙은 냉장고 묶음(한 자리)의 위장 폭 — 냉장고마다 한 통 (2026-10-12 · 10-20 사장님).
+ *   한 대: 여유 + 폭 + 여유 + 전체 여유 6 (10 + 595 + 10 + 6 = 621).
+ *   여러 대: 사이 여유는 양쪽 중 큰 값 하나 — 반씩 나눠 갖고(홀수면 왼쪽이 내림), 전체 여유 6 은 냉장고 수로 등분 (fridgeExtraShares).
+ * @param {{w:number, side:number}[]} units 왼쪽부터 (side = fridgeGapsOf 옆 여유)
+ * @returns {number[]} 통마다 위장 폭
+ */
+function fridgeNicheWidthsOf(units) {
+  const g = units || [];
+  const extra = fridgeExtraShares(g.length || 1);
+  return g.map((it, i) => {
+    const left = i === 0 ? it.side : Math.ceil(Math.max(g[i - 1].side, it.side) / 2);
+    const right = i === g.length - 1 ? it.side : Math.floor(Math.max(it.side, g[i + 1].side) / 2);
+    return left + it.w + right + extra[i];
+  });
+}
+
 // 브라우저에서는 클래식 스크립트의 최상위 선언이 전역 렉시컬 스코프에 올라가
 // 뒤따르는 인라인이 그대로 참조한다. 하지만 테스트 하네스는 스크립트마다
 // 함수 스코프를 만들기 때문에 그 연결이 끊긴다 — window 에 실어야 인라인이 찾는다.
@@ -713,6 +825,7 @@ if (typeof window !== 'undefined') {
   window.distributeModules = distributeModules;
   window.calcDefaultShelves = calcDefaultShelves;
   window.shelvesEvenInner = shelvesEvenInner;
+  window.tallTierSplitOf = tallTierSplitOf;     // 2026-11-04 — 키큰장 단 모듈 (세 단 · 두 단)
   window.collectXRanges = collectXRanges;
   window.splitModuleByAppliance = splitModuleByAppliance;
   window.autoCalcModule = autoCalcModule;
@@ -723,6 +836,10 @@ if (typeof window !== 'undefined') {
   window.cornerAdjAir = cornerAdjAir;       // 2026-10-26 — 옆 라인 끝판이 닿는 멍판 앞면
   window.jointSlack = jointSlack;           // W12-73
   window.spreadGapEqually = spreadGapEqually;
+  window.fridgeLineOf = fridgeLineOf;               // 2026-10-29 — mockup-shell · mockup-structure 에서 옮김
+  window.fridgeGapsOf = fridgeGapsOf;
+  window.fridgeExtraShares = fridgeExtraShares;
+  window.fridgeNicheWidthsOf = fridgeNicheWidthsOf;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -731,9 +848,10 @@ if (typeof module !== 'undefined' && module.exports) {
     cornerAdjAir,
     MASTER_RULES,
     getMoldingH, effectiveLegH, effectiveMoldingH,
-    calcDoorCount, distributeModules, calcDefaultShelves, shelvesEvenInner,
+    calcDoorCount, distributeModules, calcDefaultShelves, shelvesEvenInner, tallTierSplitOf,
     collectXRanges, splitModuleByAppliance, autoCalcModule,
     deriveCornerArea, distributeByDoorW,
     jointSlack, spreadGapEqually,
+    FRIDGE_DEFAULT_GAPS, fridgeLineOf, fridgeGapsOf, fridgeExtraShares, fridgeNicheWidthsOf,
   };
 }

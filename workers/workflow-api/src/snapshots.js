@@ -19,34 +19,56 @@ import {
   ConflictError,
   NotFoundError,
   DbError,
-  assertDesignOwner,
+  assertDesignAccess,
+  designAccess,
   designTitleOf,
+  hqCompanyId,
   insertOne,
   selectOne,
   selectMany,
 } from './supabase.js';
 import { snapshotHash } from './util/hash.js';
 import { getActivePricebook, getPricebookById } from './pricing.js';
-import { buildQuoteInputs } from './adapters.js';
-import { calculateQuote, VALID_GRADES } from './quote.js';
 import { calculateSheetQuote } from './quote-sheet.js';
-import { getSettings } from './production/service.js';
+import { companySettings, mergeSettings } from './production/service.js';
 import { bomWithHardware } from './production/workload.js';
+
+const VALID_GRADES = ['basic', 'mid', 'premium'];
+
+/** 견적이 읽는 설정 묶음 — 동결 때 quote_payload.settings_used 로 그대로 박는다 */
+const QUOTE_SETTING_GROUPS = ['standards', 'crew', 'costs', 'quote'];
+
+function settingsUsedOf(settings) {
+  return Object.fromEntries(QUOTE_SETTING_GROUPS.map((k) => [k, settings[k]]));
+}
+
+/**
+ * 설계가 속한 업체의 원가 설정 — { settings, missing }.
+ * 줄이 없으면 기본값 + missing (다른 업체 설정으로 대신하지 않는다).
+ * 못 읽어도 기본값으로 계산한다 — 스냅샷 저장을 막지 않는다 (missing 으로 남긴다).
+ */
+async function quoteSettingsOf(env, companyId) {
+  try {
+    const { settings, missing } = await companySettings(env, companyId);
+    return { settings, missing };
+  } catch (e) {
+    console.error('company settings unavailable, using defaults:', e && e.message);
+    return { settings: mergeSettings(null), missing: true };
+  }
+}
 
 /**
  * 고객 견적 = 장당 견적 (2026-10-13 대표 결정).
  * 캐비닛은 BOM 원판 장수, 상판·설비·철거는 설계 품목으로 세고, 전부 실제 원가 × (1 + 마진율).
- * 단가표 견적(m당)은 legacy 로 남겨 비교만 한다 (범위 배수만 단가표에서 가져온다).
- * 생산 설정(원가 기준)을 못 읽으면 기본값으로 계산한다 — 스냅샷 저장을 막지 않는다.
+ * 원가 · 마진율은 설계가 속한 업체의 설정이다 (본사 설계 → 본사, 협력업체 설계 → 그 업체).
+ * 거래처 금액(본사 → 거래처)은 본사 견적에만 낸다. 단가표에서는 범위 배수만 가져온다.
+ *
+ * pinned: 동결된 스냅샷에 박힌 설정 { settings, missing } — 있으면 지금 설정 대신 그것으로 계산한다.
+ * 쓴 설정은 settings_used 로, 설정 줄이 없었는지는 settings_missing 으로 견적에 남긴다.
  */
-async function buildCustomerQuote(env, { user, designPayload, bom, hardware, cutPlan, pricebook, grade }) {
-  const legacy = calculateQuote(buildQuoteInputs(designPayload), pricebook, bom, grade);
-  let settings = {};
-  try {
-    settings = (await getSettings(env, { user })).settings;
-  } catch (e) {
-    console.error('production settings unavailable, using defaults:', e && e.message);
-  }
+async function buildCustomerQuote(env, { companyId, designPayload, bom, hardware, cutPlan, pricebook, grade, pinned = null }) {
+  const isHq = companyId === (await hqCompanyId(env));
+  const { settings, missing } = pinned || (await quoteSettingsOf(env, companyId));
   const minMult = pricebook.rangeMin();
   const maxMult = pricebook.rangeMax();
   const sheet = calculateSheetQuote({
@@ -56,14 +78,23 @@ async function buildCustomerQuote(env, { user, designPayload, bom, hardware, cut
     cutPlan,
     settings,
     range: minMult !== null && maxMult !== null ? { min: minMult, max: maxMult } : null,
+    partnerPrice: isHq,
   });
   return {
     ...sheet,
-    grade: legacy.grade,
-    pricing_version: legacy.pricing_version,
-    pricing_rule_set_id: legacy.pricing_rule_set_id,
-    legacy: { method: 'per_meter', subtotal: legacy.subtotal, vat: legacy.vat, total: legacy.total },
+    grade,
+    pricing_version: pricebook.version,
+    pricing_rule_set_id: pricebook.ruleSetId,
+    settings_missing: missing,
+    settings_used: settingsUsedOf(settings),
   };
+}
+
+/** 동결된 견적에 박힌 설정 — 없으면(설정을 박기 전 스냅샷) null */
+export function pinnedSettingsOf(quote) {
+  const used = quote && quote.settings_used;
+  if (!used || typeof used !== 'object' || Array.isArray(used)) return null;
+  return { settings: used, missing: quote.settings_missing === true };
 }
 
 const MAX_REV_RETRY = 3;
@@ -457,8 +488,12 @@ const LIST_SELECT_BASE =
   'id,rev,content_hash,design_title,item_count,module_count,panel_count,app_version,note,created_at';
 const LIST_SELECT = `${LIST_SELECT_BASE},sheet_count`;
 
+/**
+ * 설계 + BOM 동결. 업체 구성원 누구나 한다.
+ * money(원가 · 수금 권한)를 함께 돌려준다 — 부르는 쪽이 응답의 견적에서 원가 · 마진을 가릴지 정한다 (quoteForViewer).
+ */
 export async function createSnapshot(env, { designId, user, body }) {
-  const design = await assertDesignOwner(env, designId, user.id);
+  const { design, money } = await designAccess(env, designId, user);
   const { design: designPayload, bom, hardware } = validateSnapshotInput(body);
 
   const derived = deriveCounts(designPayload, bom);
@@ -474,7 +509,7 @@ export async function createSnapshot(env, { designId, user, body }) {
 
   // 이미 같은 내용의 스냅샷이 있으면 재사용
   const existing = await findByHash(env, designId, contentHash);
-  if (existing) return { snapshot: existing, reused: true };
+  if (existing) return { snapshot: existing, reused: true, money };
 
   const title =
     (typeof body.title === 'string' && body.title.trim()) || designTitleOf(design);
@@ -482,7 +517,7 @@ export async function createSnapshot(env, { designId, user, body }) {
   // 금액은 클라이언트가 보낸 값을 쓰지 않는다. 서버가 활성 단가로 계산한다.
   const pricebook = await getActivePricebook(env);
   const quote = await buildCustomerQuote(env, {
-    user,
+    companyId: design.company_id,
     designPayload,
     bom,
     hardware,
@@ -518,7 +553,7 @@ export async function createSnapshot(env, { designId, user, body }) {
     insertRow.rev = await nextRev(env, designId);
     try {
       const created = await insertOne(env, 'design_snapshots', insertRow);
-      return { snapshot: created, reused: false };
+      return { snapshot: created, reused: false, money };
     } catch (err) {
       if (isMissingCutPlanColumn(err) && insertRow === row) {
         // workflow-cut-plan.sql 미적용 — 배치 없이 저장하고 로그로 알린다. 시도 횟수는 소모하지 않는다.
@@ -529,7 +564,7 @@ export async function createSnapshot(env, { designId, user, body }) {
       }
       if (!(err instanceof ConflictError)) throw err;
       const raced = await findByHash(env, designId, contentHash);
-      if (raced) return { snapshot: raced, reused: true };
+      if (raced) return { snapshot: raced, reused: true, money };
       // 내용은 다른데 rev 만 겹친 경우 → 다시 시도
     }
   }
@@ -539,7 +574,8 @@ export async function createSnapshot(env, { designId, user, body }) {
 
 /** 목록 — payload 는 제외한다 (아이템이 많으면 수 MB). */
 export async function listSnapshots(env, { designId, user, limit = 20 }) {
-  await assertDesignOwner(env, designId, user.id);
+  // 목록 칸(LIST_SELECT)에는 금액이 없다
+  await assertDesignAccess(env, designId, user, { money: false });
   const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const query = (select) => ({
     design_id: `eq.${designId}`,
@@ -558,15 +594,51 @@ export async function listSnapshots(env, { designId, user, limit = 20 }) {
   }
 }
 
-/** 단건 — payload 포함. */
-export async function getSnapshot(env, { snapshotId, user }) {
+/**
+ * 견적에서 원가 · 마진 칸을 뺀다 — 원가 · 수금 권한이 없는 구성원에게 돌려줄 때.
+ * 고객 금액(items · subtotal · vat · total · range · 거래처 금액 · 옛 스냅샷의 legacy 합계)은 그대로 둔다.
+ *   cost (원가 내역 — 원가 · 마진액 · 고정비 회수분 · 수량 · 작업 초) · margin_rate · partner.margin_rate
+ *   settings_used (동결 때 쓴 원가 설정)
+ */
+export function quoteForViewer(quote, money) {
+  if (money || !quote || typeof quote !== 'object') return quote;
+  const out = { ...quote };
+  delete out.cost;
+  delete out.margin_rate;
+  delete out.settings_used;
+  if (out.partner && typeof out.partner === 'object') {
+    out.partner = { ...out.partner };
+    delete out.partner.margin_rate;
+  }
+  return out;
+}
+
+/** 스냅샷 + 설계 접근 — { snapshot, design, money } */
+async function loadSnapshot(env, snapshotId, user) {
   const snapshot = await selectOne(env, 'design_snapshots', {
     id: `eq.${snapshotId}`,
     select: '*',
   });
   if (!snapshot) throw new NotFoundError('스냅샷을 찾을 수 없습니다');
-  await assertDesignOwner(env, snapshot.design_id, user.id);
-  return snapshot;
+  const { design, money } = await designAccess(env, snapshot.design_id, user);
+  return { snapshot, design, money };
+}
+
+/** 단건 — payload 그대로 (문서 발행 등 서버 안에서 쓴다). 업체 구성원 누구나. */
+export async function getSnapshot(env, { snapshotId, user }) {
+  return (await loadSnapshot(env, snapshotId, user)).snapshot;
+}
+
+/** 단건 + 설계 행 — 문서 발행이 설계 업체(기록의 company_id)를 쓴다. 업체 구성원 누구나. */
+export async function getSnapshotWithDesign(env, { snapshotId, user }) {
+  const { snapshot, design } = await loadSnapshot(env, snapshotId, user);
+  return { snapshot, design };
+}
+
+/** GET /snapshots/:id — 원가 · 수금 권한이 없으면 견적의 원가 · 마진을 뺀다 */
+export async function getSnapshotForViewer(env, { snapshotId, user }) {
+  const { snapshot, money } = await loadSnapshot(env, snapshotId, user);
+  return money ? snapshot : { ...snapshot, quote_payload: quoteForViewer(snapshot.quote_payload, false) };
 }
 
 /**
@@ -575,31 +647,36 @@ export async function getSnapshot(env, { snapshotId, user }) {
  *
  * 문서 발행 시에는 스냅샷에 핀으로 박힌 rule set 을 그대로 쓰지만,
  * 미리보기는 현재 활성 세트로 계산한다(단가 변경 반영 확인용).
+ * 원가 설정은 동결 때 박힌 것(settings_used)으로 계산한다. 박히기 전 스냅샷이면 설계 업체의 지금 설정.
  */
 export async function previewQuote(env, { snapshotId, user, grade, useActiveRules = false }) {
-  const snapshot = await getSnapshot(env, { snapshotId, user });
+  const { snapshot, design, money } = await loadSnapshot(env, snapshotId, user);
 
   const pricebook =
     useActiveRules || !snapshot.pricing_rule_set_id
       ? await getActivePricebook(env)
       : await getPricebookById(env, snapshot.pricing_rule_set_id);
 
+  const pinned = pinnedSettingsOf(snapshot.quote_payload);
   const quote = await buildCustomerQuote(env, {
-    user,
+    companyId: design.company_id,
     designPayload: snapshot.design_payload,
     bom: snapshot.bom_payload,
     hardware: snapshot.hardware_payload,
     cutPlan: snapshot.cut_plan_payload || null,
     pricebook,
     grade: resolveGrade(env, grade),
+    pinned,
   });
 
   return {
     snapshot_id: snapshot.id,
     rev: snapshot.rev,
-    quote,
+    quote: quoteForViewer(quote, money),
     stored_pricing_rule_set_id: snapshot.pricing_rule_set_id,
     used_pricing_rule_set_id: pricebook.ruleSetId,
+    // 동결 때 박힌 원가 설정으로 계산했는가 (false 면 설계 업체의 지금 설정)
+    settings_pinned: Boolean(pinned),
   };
 }
 

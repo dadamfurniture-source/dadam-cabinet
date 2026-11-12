@@ -15,6 +15,7 @@ import {
   createSnapshot,
 } from '../src/snapshots.js';
 import { ValidationError, DbError, ConflictError } from '../src/supabase.js';
+import { HQ, companyRoute } from './fixtures/company.js';
 
 function bom() {
   return {
@@ -189,7 +190,8 @@ function withFakeSupabase(fn, { missingColumnOnce = false } = {}) {
       posts.push(body);
       return json([{ id: 'S1', created_at: '2026-09-15T00:00:00Z', ...body }], 201);
     }
-    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계' }]);
+    if (companyRoute(u)) return companyRoute(u);
+    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계', company_id: HQ }]);
     if (/\/pricing_rule_sets\?/.test(u)) return json([{ id: 'RS1', name: 'seed', is_active: true }]);
     if (/\/pricing_rules\?/.test(u)) return json([]);
     if (/\/design_snapshots\?/.test(u)) return json([]); // 해시 조회·rev 조회 모두 빈 결과

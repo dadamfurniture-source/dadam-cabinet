@@ -28,7 +28,9 @@
 
   // ── 이름표 (계약 §1 · §2 의 CHECK 값) ──
   const KINDS = Object.freeze(['install', 'as', 'assembly']);
-  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원' });
+  /** 작업자 종류 — 작업 종류 + 공장 공정 재단 · 엣지 (공장 조립은 조립, 서버 WORKER_KINDS · DB 0024) */
+  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge']);
+  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지' });
   const JOB_STATUS_LABEL = Object.freeze({
     draft: '초안', open: '모집중', expired: '지원 종료', filled: '배정', in_progress: '진행',
     review: '검수대기', done: '완료', closed: '닫힘', cancelled: '취소',
@@ -461,7 +463,7 @@
       w.last_seen_at ? `최근 접속 ${fmtDate(w.last_seen_at)}` : '',
       active !== null && (w.status === 'approved' || w.status === 'suspended') ? `진행 중인 배정 ${active}건` : '',
     ].filter(Boolean).join(' · ');
-    const kindBoxes = KINDS.map((k) => `<label class="kind-box"><input type="checkbox" data-kind-of="${esc(w.id)}" value="${esc(k)}"${kinds.includes(k) ? ' checked' : ''}${o.canEdit ? '' : ' disabled'} />${esc(kindLabel(k))}</label>`).join('');
+    const kindBoxes = WORKER_KINDS.map((k) => `<label class="kind-box"><input type="checkbox" data-kind-of="${esc(w.id)}" value="${esc(k)}"${kinds.includes(k) ? ' checked' : ''}${o.canEdit ? '' : ' disabled'} />${esc(kindLabel(k))}</label>`).join('');
     const btns = [
       ...(o.canEdit ? [
         act.approve ? `<button type="button" class="btn btn-primary btn-sm" data-act="wk-approve" data-id="${esc(w.id)}">승인</button>` : '',
@@ -534,9 +536,9 @@
   }
 
   // ── 공유 ──
-  /** 작업자 화면의 작업 주소 (worker.html#job=<id>) */
+  /** 작업자 화면의 작업 주소 (앱 「작업」 segan/work.html#job=<id> — 옛 worker.html 은 앱으로 넘긴다) */
   function workerJobUrl(id, baseHref) {
-    return new URL(`../worker.html#job=${encodeURIComponent(id)}`, baseHref).href;
+    return new URL(`../segan/work.html#job=${encodeURIComponent(id)}`, baseHref).href;
   }
   /**
    * [카톡으로 공유] 문구 — 종류 · 시/구 · 날짜 · 지원 종료일(있으면) · 링크만 (계획 §9-1 「Slack, 공유 문구」 줄).
@@ -636,7 +638,7 @@
    * @param {{ kinds: string[], display_name?: string, expires_at: string }} f expires_at 은 datetime-local(한국 시간)
    */
   function buildInvitePayload(f, nowMs) {
-    const kinds = (Array.isArray(f.kinds) ? f.kinds : []).filter((k) => KINDS.includes(k));
+    const kinds = (Array.isArray(f.kinds) ? f.kinds : []).filter((k) => WORKER_KINDS.includes(k));
     const expiresAt = fromKstInput(f.expires_at);
     if (!expiresAt) throw new Error('초대 링크 만료 일시를 골라 주세요 (기본값이 없습니다).');
     if (Date.parse(expiresAt) <= (Number.isFinite(nowMs) ? nowMs : Date.now())) throw new Error('만료 일시는 지금보다 뒤여야 합니다.');
@@ -647,7 +649,7 @@
   }
 
   return {
-    KINDS, KIND_LABEL, JOB_STATUS_LABEL, APP_STATUS_LABEL, ASSIGN_STATUS_LABEL, WORKER_STATUS_LABEL,
+    KINDS, WORKER_KINDS, KIND_LABEL, JOB_STATUS_LABEL, APP_STATUS_LABEL, ASSIGN_STATUS_LABEL, WORKER_STATUS_LABEL,
     UPDATE_KIND_LABEL, MODE_LABEL, PAY_UNIT_LABEL, VIA_LABEL, ACTOR_LABEL,
     EVENT_TYPE_LABEL, WORKER_STATUS_SHORT, WORKER_EVENT_LABEL, REGISTER_VIA_LABEL,
     DEADLINE_HELP, DEADLINE_PAST_WARNING, DEADLINE_STATUSES,

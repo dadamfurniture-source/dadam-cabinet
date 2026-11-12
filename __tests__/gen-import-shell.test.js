@@ -79,7 +79,7 @@ describe('배치 단계', () => {
     expect(out.modules.map((m) => m.section).sort()).toEqual(
       seed.layout.modules.map((m) => m.section).sort()
     );
-    out.modules.forEach((m, i) => {
+    out.modules.forEach((m) => {
       const s = seed.layout.modules.find((x) => x.section === m.section && x.x === m.x);
       expect(s).toBeTruthy();
       expect(m).toMatchObject({ w: s.w, h: s.h, moduleH: s.moduleH, rotation: 0 });

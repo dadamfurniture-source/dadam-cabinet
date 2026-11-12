@@ -89,7 +89,7 @@ export const translations = {
       as_title: '평생 A/S 보장',
       as_desc: '다담과 함께하는 최상의 사후관리',
       copy: '© 2024 다담가구. All rights reserved.',
-      info: '사업자등록번호: 123-45-67890 | 대표: 홍길동',
+      info: '상호: 다담가구 | 대표: 홍찬호 | 사업자등록번호: 466-24-01961 | 통신판매업 신고번호: 신고 준비 중',
     },
     login: {
       welcome: 'Welcome Back',
@@ -285,7 +285,7 @@ export const translations = {
       as_title: 'Lifetime A/S',
       as_desc: 'Best after-sales service with Dadam',
       copy: '© 2024 Dadam Furniture. All rights reserved.',
-      info: 'Registration No: 123-45-67890 | CEO: Gil-dong Hong',
+      info: 'Business Registration No: 466-24-01961 | CEO: 홍찬호 | Mail-order Sales Registration: pending',
     },
     login: {
       welcome: 'Welcome Back',

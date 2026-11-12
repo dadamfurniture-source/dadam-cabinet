@@ -1,0 +1,237 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest */
+/**
+ * SEGAN 「관리」 탭 (segan/admin.html + segan/admin.js)
+ *
+ *   누가     관리자 — segan/shell.js 가 AdminAccess.isAdmin 으로 가린다 (SeganShell.ready 의 admin)
+ *            로그인 전 → 셸의 로그인 안내, 관리자 아님 → 「관리자만 볼 수 있습니다」 (서버를 묻지 않는다)
+ *   오늘 할 일 새 팩토리 신청 (account-api) · 배정을 기다리는 상담 · 팩토리 답을 기다리는 배정 (consult-inbox) ·
+ *            추천할 제작 의뢰 (production-requests?state=todo) · 결정할 생산 제안 (reports/summary).
+ *            못 읽은 줄은 「불러오지 못함」(제작 의뢰는 DB 0050 전 ready false 도), 상한 200 이면 「200+건」
+ *   첫 화면은 오늘 할 일만 — 회원 · PC 관리자 화면 줄은 마이페이지 본사 메뉴 (segan/me.html)
+ */
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+const SESSION = { access_token: 'tok-1', user: { id: 'admin-1', email: 'admin@example.com' } };
+const WORK = 'https://work.example.workers.dev';
+const ACC = 'https://acc.example.workers.dev';
+
+const ok = (data) => ({ ok: true, status: 200, body: { success: true, data } });
+const fail = (status) => ({ ok: false, status, body: { success: false, message: 'x' } });
+const many = (n) => Array.from({ length: n }, (_, i) => ({ id: 'x' + i }));
+
+/** admin.html 을 올린다. opts.replies[경로] → 응답 (Error 면 끊김) */
+async function load(options = {}) {
+  const opts = {
+    session: SESSION,
+    isAdmin: true,
+    replies: {
+      [ACC + '/admin/partner/applications?status=applied,meeting']: ok(many(3)),
+      [WORK + '/admin/consult-inbox?state=pending']: ok({ items: many(2) }),
+      [WORK + '/admin/consult-inbox?state=assigned']: ok({ items: many(200) }),
+      [WORK + '/admin/production-requests?state=todo']: ok({
+        ready: true,
+        state: 'todo',
+        items: many(1),
+      }),
+      [WORK + '/reports/summary']: ok({ pendingProposals: 0, scope: 'all' }),
+    },
+    ...options,
+  };
+  const doc = new DOMParser().parseFromString(read('segan/admin.html'), 'text/html');
+  document.body.innerHTML = doc.body.innerHTML;
+  for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
+  for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
+  sessionStorage.clear();
+  for (const k of ['AdminAccess', 'SeganShell', 'SeganAdmin']) delete window[k];
+  window.DADAM_CONFIG = {
+    supabase: { url: 'https://example.supabase.co', anonKey: 'anon' },
+    workflowApi: { url: WORK },
+    accountApi: { url: ACC },
+  };
+  const calls = { fetch: [], rpc: [] };
+  window.supabase = {
+    createClient: () => ({
+      auth: { getSession: async () => ({ data: { session: opts.session } }) },
+      rpc: async (name) => {
+        calls.rpc.push(name);
+        return { data: name === 'is_admin' ? opts.isAdmin : null, error: null };
+      },
+    }),
+  };
+  window.fetch = jest.fn(async (url, init = {}) => {
+    // 셸의 작업 탭 판정(GET /work/me)은 관리 화면 요청이 아니라 따로 센다
+    if (url.endsWith('/work/me')) {
+      calls.workMe = (calls.workMe || 0) + 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { ready: true, worker: null } }),
+      };
+    }
+    // 셸의 비서 탭 판정(GET /assistant/me)도 따로 센다 — 비서 자격 없음
+    if (url.endsWith('/assistant/me')) {
+      calls.assistantMe = (calls.assistantMe || 0) + 1;
+      return {
+        ok: false,
+        status: 403,
+        json: async () => ({ success: false, code: 'not_member' }),
+      };
+    }
+    calls.fetch.push({ url, auth: (init.headers || {}).Authorization });
+    const r = opts.replies[url];
+    if (r instanceof Error) throw r;
+    const reply = r || fail(404);
+    return { ok: reply.ok, status: reply.status, json: async () => reply.body };
+  });
+  for (const src of [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'))) {
+    if (!src.startsWith('../js/') || src.startsWith('../js/config.js')) continue;
+    (0, eval)(read(src.slice(3).split('?')[0]));
+  }
+  (0, eval)(read('segan/shell.js'));
+  (0, eval)(read('segan/admin.js'));
+  await window.SeganShell.ready;
+  await window.SeganAdmin.ready;
+  return calls;
+}
+
+const $ = (id) => document.getElementById(id);
+const today = () =>
+  [...$('adTodayRows').querySelectorAll('li')].map((li) => [
+    li.getAttribute('data-today'),
+    li.querySelector('a').firstChild.textContent,
+    li.querySelector('.ad-count').textContent,
+    li.querySelector('.ad-count').classList.contains('is-on'),
+    li.querySelector('a').getAttribute('href'),
+  ]);
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  document.body.innerHTML = '';
+});
+
+describe('누가 보나', () => {
+  test('로그인 전 — 셸의 로그인 안내, 서버를 묻지 않는다', async () => {
+    const calls = await load({ session: null });
+    expect(document.querySelector('[data-auth-view="signed-out"]').hidden).toBe(false);
+    expect(document.querySelector('[data-auth-view="signed-out"]').textContent).toContain(
+      '관리는 로그인한 뒤에 볼 수 있습니다.'
+    );
+    expect(calls.fetch).toHaveLength(0);
+  });
+
+  test('관리자가 아니면 「관리자만 볼 수 있습니다」, 수를 묻지 않는다', async () => {
+    const calls = await load({ isAdmin: false });
+    expect($('adDenied').hidden).toBe(false);
+    expect($('adToday').hidden).toBe(true);
+    expect(calls.fetch).toHaveLength(0);
+    // 관리는 막대에 탭이 없다 — 마이페이지 「업무」에서 온다, 막대는 「마이」가 켜진다
+    expect(document.querySelector('[data-tab-link="admin"]')).toBeNull();
+  });
+});
+
+describe('오늘 할 일', () => {
+  test('관리자 — 수 다섯을 본인 토큰으로 묻고, 상한이면 200+, 할 일이 있으면 진하게, 줄은 PC 화면으로', async () => {
+    const calls = await load();
+    expect($('adDenied').hidden).toBe(true);
+    expect($('adToday').hidden).toBe(false);
+    // 관리 화면은 마이페이지 안 — 막대에는 관리 탭 없이 「마이」 · 「마이페이지」가 켜진다
+    expect(document.querySelector('[data-tab-link="admin"]')).toBeNull();
+    for (const sel of ['nav.sg-tabbar', '.sg-header nav.sg-nav'])
+      expect(
+        document.querySelector(sel + ' [aria-current="page"]').getAttribute('data-tab-link')
+      ).toBe('me');
+    expect(today()).toEqual([
+      ['applications', '새 팩토리 신청', '3건', true, '#applications'],
+      ['pending', '배정을 기다리는 상담', '2건', true, '#consults'],
+      ['assigned', '팩토리 답을 기다리는 배정', '200+건', true, '#consults-assigned'],
+      ['production', '추천할 제작 의뢰', '1건', true, '#production'],
+      ['proposals', '결정할 생산 제안', '0건', false, '#reports'],
+    ]);
+    expect(calls.fetch.map((f) => f.auth)).toEqual(Array(5).fill('Bearer tok-1'));
+  });
+
+  test('못 읽은 줄은 「불러오지 못함」 (0 으로 채우지 않는다), 다른 줄은 그대로', async () => {
+    await load({
+      replies: {
+        [ACC + '/admin/partner/applications?status=applied,meeting']: fail(403),
+        [WORK + '/admin/consult-inbox?state=pending']: new Error('offline'),
+        [WORK + '/admin/consult-inbox?state=assigned']: ok({ items: [] }),
+        [WORK + '/admin/production-requests?state=todo']: ok({
+          ready: false,
+          state: 'todo',
+          items: [],
+        }),
+        [WORK + '/reports/summary']: ok({ pendingProposals: 'x' }),
+      },
+    });
+    expect(today().map((r) => r[2])).toEqual([
+      '불러오지 못함',
+      '불러오지 못함',
+      '0건',
+      '불러오지 못함',
+      '불러오지 못함',
+    ]);
+  });
+
+  test('본문 읽기 — 모양이 틀리면 null', async () => {
+    await load();
+    const A = window.SeganAdmin;
+    expect(A.applicationsOf({ success: true, data: many(2) })).toBe(2);
+    expect(A.applicationsOf({ success: true, data: { items: [] } })).toBeNull();
+    expect(A.applicationsOf({ success: false, data: [] })).toBeNull();
+    expect(A.inboxOf({ success: true, data: { items: many(5) } })).toBe(5);
+    expect(A.inboxOf({ success: true, data: [] })).toBeNull();
+    expect(A.proposalsOf({ success: true, data: { pendingProposals: 4 } })).toBe(4);
+    expect(A.proposalsOf({ success: true, data: { pendingProposals: -1 } })).toBeNull();
+    expect(A.productionOf({ success: true, data: { ready: true, items: many(3) } })).toBe(3);
+    expect(A.productionOf({ success: true, data: { ready: false, items: [] } })).toBeNull();
+    expect(A.productionOf({ success: true, data: [] })).toBeNull();
+    expect(A.countText(200, A.PRODUCTION_LIMIT)).toBe('200+건');
+    expect(A.countText(null)).toBe('불러오지 못함');
+    expect(A.countText(7, 200)).toBe('7건');
+    expect(A.countText(250, 200)).toBe('200+건');
+    // 상한은 워커 consult-inbox 와 같다
+    expect(read('workers/workflow-api/src/distribution/admin.js')).toContain(
+      `export const INBOX_LIMIT = ${A.INBOX_LIMIT};`
+    );
+    expect(read('workers/workflow-api/src/production-requests/common.js')).toContain(
+      `export const LIST_LIMIT = ${A.PRODUCTION_LIMIT};`
+    );
+  });
+});
+
+describe('첫 화면 — 오늘 할 일만', () => {
+  test('회원 · PC 관리자 화면 줄은 두지 않는다 — 마이페이지 본사 메뉴가 같은 곳을 연다', async () => {
+    await load();
+    expect($('adToday').hidden).toBe(false);
+    expect($('adGo')).toBeNull();
+    expect($('adPc')).toBeNull();
+    // 첫 화면의 줄은 오늘 할 일 다섯뿐
+    const signedIn = document.querySelector('[data-auth-view="signed-in"]');
+    const home = [...signedIn.querySelectorAll('a.sg-row')].filter((a) => !a.closest('.ad-view'));
+    expect(home.map((a) => a.getAttribute('href'))).toEqual(
+      window.SeganAdmin.TODAY.map((t) => t.href)
+    );
+    // 예전 첫 화면 줄은 모두 마이페이지 본사 메뉴에 있다 (빠진 곳이 없게)
+    const me = read('segan/me.html');
+    for (const href of [
+      'admin.html#members',
+      'hq-board.html#profit', // 경영 대시보드는 조각으로 메뉴마다 (넷은 앱 화면)
+      '../admin/counterparties.html',
+      '../admin/gallery.html',
+      '../admin/reference-images.html',
+      '../admin/dataset.html',
+      '../admin/partner-eval.html',
+      '../admin/appliances.html',
+      '../admin/work-jobs.html',
+      '../admin/logs.html',
+      '../admin/settings.html',
+    ])
+      expect(me).toContain(`href="${href}"`);
+  });
+});

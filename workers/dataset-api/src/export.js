@@ -5,18 +5,23 @@
  * 사람이 SQL 로 확인하는 정의와 자동 내보내기가 같은 문장을 보게 하려는 것이다.
  * (needs_review 아님 · rejected 아님 · generated 아님 · user-uploaded 는 동의+사람검수)
  */
-import { select, putObject } from './supabase.js';
+import { select, putObject, createSignedUrls } from './supabase.js';
+import { EXPORT_SIGNED_TTL_SEC, signImageRefs } from './storage-urls.js';
 
 const PAGE = 1000;
 
-/** 학습 쪽이 읽는 모양 — ohouse 로컬 데이터셋(dataset.jsonl)과 같은 키를 쓴다 */
-function toRecord(r) {
+/**
+ * 학습 쪽이 읽는 모양 — ohouse 로컬 데이터셋(dataset.jsonl)과 같은 키를 쓴다.
+ * img = signImageRefs 결과 (2026-10-26): 고객 사진 버킷이면 url 은 7일짜리 서명 URL 이고 bucket · path 로
+ * 다시 서명할 수 있다. 다른 주소는 url 그대로, bucket · path 는 null. provenance.source_url 은 저장된 주소 그대로.
+ */
+function toRecord(r, img) {
   return {
     schema_version: r.taxonomy_version,
     sample_id: r.sample_id,
     source: r.source,
     group_key: r.group_key,
-    image: { path: null, url: r.image_url, sha256: r.image_sha256, width: r.width, height: r.height },
+    image: { path: img.path, bucket: img.bucket, url: img.url, sha256: r.image_sha256, width: r.width, height: r.height },
     labels: { media: r.media, phase: r.phase, space: r.space, furniture: r.furniture, layout_shape: r.layout_shape },
     attrs: r.attrs || {},
     label_source: r.label_source,
@@ -38,8 +43,13 @@ export async function exportDataset(env, { prefix = 'exports' } = {}) {
       `dataset_exportable?select=*&order=sample_id.asc&limit=${PAGE}&offset=${page * PAGE}`
     );
     if (!rows.length) break;
-    for (const r of rows) {
-      lines.push(JSON.stringify(toRecord(r)));
+    // 고객 사진 버킷 주소는 서명 URL 로 — 페이지마다 버킷별로 한 번 (service_role)
+    const imgs = await signImageRefs(
+      rows.map((r) => r.image_url),
+      (bucket, paths) => createSignedUrls(env, bucket, paths, EXPORT_SIGNED_TTL_SEC)
+    );
+    for (const [i, r] of rows.entries()) {
+      lines.push(JSON.stringify(toRecord(r, imgs[i])));
       counts[r.source] = (counts[r.source] || 0) + 1;
     }
     if (rows.length < PAGE) break;

@@ -28,6 +28,10 @@ import {
   buildDesignSpecBlock,
   buildInstallPrompt,
   buildPlannerPrompt,
+  buildPlannerPolishPrompt,
+  buildPlannerClearPrompt,
+  buildPlannerReformClearPrompt,
+  normalizePlannerReform,
   buildQcPrompt,
   normalizeDesignSpec,
   parseQc,
@@ -661,4 +665,117 @@ test('parseQc 는 existing_left·pasted_reference 를 알아듣는다', () => {
   // 공통 코드 목록(QC_ISSUE_CODES)은 늘지 않는다 — 옛 검사 프롬프트가 그대로인 이유
   assert.ok(!QC_ISSUE_CODES.includes('existing_left'));
   assert.ok(PLANNER_QC_FIXES.existing_left.length > 40 && PLANNER_QC_FIXES.pasted_reference.length > 40);
+});
+
+// 2026-11-01: 다듬기 지시문 (사장님 「C로 작업 실행」 — 간편 플래너 Blender 시안을 사진처럼, AI 는 보정 · 다듬기만)
+test('다듬기 지시문 — 시안 한 장, 기하 · 방 그대로, 빛 · 재질만, 마감은 도면 요약, 방 정리 · 편집 구역 · 입면 · 자체 점검 없음', () => {
+  const ctx = d1Ctx({
+    site: 'construction',
+    siteNotes: 'bare cement, debris',
+    tile: { present: true, lightNeutral: false, description: 'dark brown glossy' },
+    aspect: '4:3',
+  });
+  const p = buildPlannerPolishPrompt(ctx);
+  assert.match(p, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner/);
+  assert.ok(p.includes('the same number of doors and drawers with the same widths and heights, in the same place'));
+  assert.ok(p.includes('every object that stands clear of the units, with any marks or unfinished surfaces as they are. Apart from the clean-up below, do not move, stretch, add, remove, clean or redraw anything.'));
+  // 2026-11-01 사장님 「원래 있던 물건과 겹쳐 보이는 건 정리 안됨?」 — 장과 겹치는 옛 물건만 지운다, 떨어져 선 물건은 그대로
+  assert.ok(p.includes('CLEAN UP — the only change to the room: the new units replace whatever stood in their place.'));
+  assert.ok(p.includes('any other object the units now cover or cut through, so that no part of it still shows around, above, beside or between the units.'));
+  assert.ok(p.includes('Free-standing objects that stand clear of the units — a refrigerator, chairs, carts, plants — stay where they are.'));
+  assert.ok(p.indexOf('KEEP EXACTLY') < p.indexOf('CLEAN UP') && p.indexOf('CLEAN UP') < p.indexOf('ON THE UNITS, CHANGE ONLY'));
+  assert.ok(p.includes('HANDLES: none.'));
+  assert.ok(p.endsWith('OUTPUT: one photorealistic photograph, 4:3, the same view as IMAGE A.'));
+  for (const gone of ['SITE:', 'WALL TILE:', 'EDIT ZONE', 'IMAGE B', 'FINAL SELF-CHECK', 'CLOSED LIST']) assert.ok(!p.includes(gone), gone);
+  // 마감 — 도면 요약 finishes 가 이긴다, 없으면 도어 색 · 마감
+  const spec = normalizeDesignSpec({ finishes: { door: { nameEn: 'walnut woodgrain' } } }, 'sink');
+  assert.ok(buildPlannerPolishPrompt(d1Ctx({ designSpec: spec })).includes('MATERIALS (keep the colour as rendered): fronts walnut woodgrain, the same on every door and drawer.'));
+  assert.ok(buildPlannerPolishPrompt({ doorColor: 'greige', doorFinish: 'matte' }).includes('fronts greige matte, the same on every door and drawer.'));
+  // 비율이 모르는 값이면 기본 비율
+  assert.ok(buildPlannerPolishPrompt({ aspect: '7:5' }).includes(`OUTPUT: one photorealistic photograph, ${resolvePlannerAspect('7:5')},`));
+});
+
+// 2026-11-01: 방 비우기 (사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」)
+test('비우기 지시문 — 방 사진 한 장, 설계 벽의 옛 붙박이 · 가구만 지우고 카메라 · 모서리 · 다른 벽 · 떨어진 물건 · 타일은 그대로', () => {
+  const p = buildPlannerClearPrompt(d1Ctx({ aspect: '4:3', existing: 'old white kitchen cabinets' }));
+  assert.match(p, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's real room before new built-in furniture is installed on the back wall\./);
+  assert.ok(p.includes('REMOVE: on the back wall, every old built-in cabinet, shelf, hood, built-in appliance and piece of furniture standing against it (old white kitchen cabinets), and every object standing in front of it.'));
+  assert.ok(p.includes('do not widen, crop, zoom or shift the view; every wall corner, the ceiling and floor lines, windows and doors exactly where they are'));
+  assert.ok(p.includes('free-standing objects that stand clear of the back wall — a refrigerator, chairs, carts, plants; the wall tiles; and the lighting.'));
+  assert.ok(p.endsWith('OUTPUT: one photorealistic photograph, 4:3, the same view as IMAGE A.'));
+  for (const gone of ['SITE:', 'WALL TILE:', 'EDIT ZONE', 'IMAGE B', 'MATERIALS', 'HANDLES']) assert.ok(!p.includes(gone), gone);
+  // 공사 현장이면 SITE 문단 — 배관 · 전선은 벽 안으로만 (새 가구가 아직 없다), 설치 프롬프트의 SITE 는 예전 그대로
+  const site = buildPlannerClearPrompt(d1Ctx({ site: 'construction', siteNotes: 'bare cement' }));
+  assert.ok(site.includes('SITE: the photo shows an unfinished construction site (bare cement). Render the room fully finished and clean'));
+  assert.ok(site.includes('Route every exposed pipe, valve and wire inside the wall so none stays visible.'));
+  assert.ok(!site.includes('behind the new furniture or inside the wall'));
+  assert.ok(buildPlannerPrompt(d1Ctx({ site: 'construction' })).includes('Route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible.'));
+  // 꺾인 벽이 있으면 그 벽도 비운다
+  const lspec = normalizeDesignSpec({ wallRunMm: 2400, walls: [{ side: 'left', sections: { lower: { modules: [{ widthMm: 600 }] } } }] }, 'sink');
+  assert.ok(buildPlannerClearPrompt(d1Ctx({ designSpec: lspec })).includes('installed on the back wall and the left wall.'));
+});
+
+test('다듬기 지시문 — 시안 배경이 비운 방(cleared)이면 정리 줄 없이 방 전체를 그대로', () => {
+  const p = buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', cleared: true }));
+  assert.ok(!p.includes('CLEAN UP'));
+  assert.ok(p.includes('and the whole room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object, as they are. Do not move, stretch, add, remove, clean or redraw anything.'));
+  assert.ok(p.includes('as if the finished units had been photographed in this room with the same camera. This is a polish, not a redesign.'));
+  assert.ok(p.includes('ON THE UNITS, CHANGE ONLY the look of light and surfaces:'));
+  assert.ok(buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3' })).includes('CLEAN UP — the only change to the room'), '비운 방이 아니면 정리 줄 그대로');
+});
+
+// 2026-11-02: 냉장고장(리폼) (사장님 「리폼 연출 이어 진행」 · 방 비우기 「바뀌는 자리만 비우기」 · 방식 「시안 → 다듬기만」)
+test('리폼 — planner_reform 정리: 아는 칸 · 폭 1–5000 만, 모르는 값은 keep, 냉장고 공간이 없으면 null', () => {
+  assert.equal(normalizePlannerReform(null), null);
+  assert.equal(normalizePlannerReform({ segs: [{ kind: 'wall', widthMm: 100 }] }), null, '냉장고 공간이 없다');
+  const r = normalizePlannerReform({
+    segs: [{ kind: 'wall', widthMm: 100.4 }, { kind: 'space', widthMm: 1070, fridge: 'burn', upper: 'doors' }, { kind: 'shelf', widthMm: 300 }, { kind: 'mid', widthMm: 0 }, { kind: 'mid', widthMm: 20, panel: 'remove' }, { kind: 'space', widthMm: 1070, fridge: 'new' }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  assert.deepEqual(r, {
+    segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'keep', upper: 'doors' }, { kind: 'mid', widthMm: 20, panel: 'remove' }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'keep' }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  assert.equal(normalizePlannerReform({ segs: Array.from({ length: 30 }, () => ({ kind: 'space', widthMm: 500 })) }).segs.length, 15, '칸은 15 까지');
+  assert.deepEqual(Object.keys(normalizePlannerReform({ segs: [{ kind: 'space', widthMm: 900 }], boardMm: 99, moldingMm: 'x' })), ['segs']);
+});
+
+test('리폼 비우기 지시문 — 지금 냉장고장을 왼쪽부터 말하고 뗄 것만 지운다 (도어만 바꾸는 상부장은 도어째 둔다), 설계 벽 전체 비우기 문장 없음', () => {
+  const reform = normalizePlannerReform({
+    segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'remove', upper: 'remove' }, { kind: 'mid', widthMm: 20, panel: 'remove' }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'doors' }, { kind: 'wall', widthMm: 100 }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  const p = buildPlannerClearPrompt(d1Ctx({ aspect: '4:3', reform, existing: 'old fridge surround' }));
+  assert.equal(p, buildPlannerReformClearPrompt({ aspect: '4:3', reform }), '비우기는 리폼이면 리폼 지시문 (분석 existing 은 쓰지 않는다)');
+  assert.ok(p.includes('EXISTING SURROUND, from left to right: a 100 mm side wall; refrigerator space 1, 1070 mm wide, with a wall cabinet above it from 1980 mm up to the crown moulding; a 20 mm divider panel;'));
+  assert.ok(p.includes('A 60 mm crown moulding runs along the top.'));
+  assert.ok(p.includes('REMOVE: the refrigerator in space 1; the wall cabinet above space 1, with its doors; the 20 mm divider panel between space 1 and space 2; and the refrigerator in space 2.'));
+  assert.ok(p.includes('the side wall at the left end; the wall cabinet above space 2, with its doors; the side wall at the right end; and the crown moulding along the top — each in its place'));
+  assert.ok(p.endsWith('OUTPUT: one photorealistic photograph, 4:3, the same view as IMAGE A.'));
+  for (const gone of ['every old built-in cabinet', 'SITE:', 'MATERIALS', 'HANDLES']) assert.ok(!p.includes(gone), gone);
+  // 뗄 것이 없으면 그대로
+  const keepAll = normalizePlannerReform({ segs: [{ kind: 'space', widthMm: 900 }] });
+  assert.ok(buildPlannerReformClearPrompt({ reform: keepAll }).includes('REMOVE: nothing — return the photograph as it is.'));
+});
+
+test('리폼 다듬기 지시문 — 남는 냉장고장은 그대로, 정리는 남은 뗄 것 · 옛 도어만, 새 냉장고 상자, 비운 방 배경이면 예전 비운 방 지시문', () => {
+  const reform = normalizePlannerReform({
+    segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 942, fridge: 'new', upper: 'remove' }, { kind: 'mid', widthMm: 20, panel: 'keep' }, { kind: 'space', widthMm: 1198, fridge: 'remove', upper: 'doors' }, { kind: 'wall', widthMm: 100 }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  const p = buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', reform }));
+  assert.match(p, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's existing built-in refrigerator surround, with the new built-in units that rebuild part of it already rendered into it by our planner/);
+  assert.ok(p.includes('EXISTING SURROUND before the rebuild, from left to right: a 100 mm side wall; refrigerator space 1, 942 mm wide'));
+  assert.ok(p.includes('the parts of the existing surround that stay — the side wall at the left end; the 20 mm divider panel between space 1 and space 2; the wall cabinet above space 2 (its carcass); the side wall at the right end; and the crown moulding along the top;'));
+  assert.ok(p.includes('CLEAN UP — the only change: the units replace the refrigerator in space 1; the wall cabinet above space 1, with its doors; the refrigerator in space 2; and the old doors of the wall cabinet above space 2.'));
+  assert.ok(p.includes('Do not touch the parts of the surround that stay.'));
+  assert.ok(p.includes('NEW REFRIGERATOR: the plain light-grey box in space 1 is the new refrigerator — render it as a built-in refrigerator, its front flush with the doors, keeping exactly that size and position.'));
+  assert.ok(!p.includes('together with the rest of that same old run'), '옛 줄 전체를 지우는 문장은 없다');
+  assert.ok(p.indexOf('KEEP EXACTLY') < p.indexOf('CLEAN UP') && p.indexOf('CLEAN UP') < p.indexOf('ON THE UNITS, CHANGE ONLY'));
+  // 비운 방 배경 — 뗄 것은 이미 지웠다 (예전 비운 방 다듬기 그대로)
+  assert.equal(buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', reform, cleared: true })), buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', cleared: true })));
+  // 뗄 것이 없으면 정리 줄 없이
+  const keepAll = normalizePlannerReform({ segs: [{ kind: 'space', widthMm: 900 }] });
+  const k = buildPlannerPolishPrompt({ reform: keepAll });
+  assert.ok(!k.includes('CLEAN UP') && k.includes('Do not move, stretch, add, remove, clean or redraw anything.'));
 });

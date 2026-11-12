@@ -138,6 +138,34 @@ const SupabaseUtils = {
   MAX_IMAGES_PER_USER: 20,
 
   /**
+   * design-images 에 올리는 객체의 Cache-Control (2026-10-26) — 고객 사진이라 공유 캐시에 두지 않고 1시간만.
+   * 워커 generations 업로드(workers/generate-api/src/supabase.js OBJECT_CACHE_CONTROL)와 같은 값.
+   */
+  PRIVATE_CACHE_CONTROL: 'private, max-age=3600',
+
+  /**
+   * design-images 업로드 옵션. 본문은 바이트(ArrayBuffer · Uint8Array)로 보낸다 — supabase-js 는 Blob·File 을
+   * multipart 로 보내는데, 그러면 Storage 가 cacheControl 을 'max-age=<값>' 으로만 남겨 private 을 못 싣는다.
+   * 바이트로 보내면 cache-control 헤더가 그대로 저장된다.
+   * @param {string} contentType
+   */
+  privateUploadOptions(contentType) {
+    return { upsert: false, contentType, headers: { 'cache-control': this.PRIVATE_CACHE_CONTROL } };
+  },
+
+  /**
+   * 저장된 이미지 주소 → 지금 열 수 있는 주소 (2026-10-26).
+   * design-images · generations 버킷이면 로그인 세션으로 서명 URL(1시간)을 만든다 — 버킷이 비공개여도 열린다.
+   * 그 밖의 주소, 또는 서명을 못 하면 받은 값 그대로. 규칙은 js/storage-urls.js (페이지가 먼저 불러야 한다).
+   * @param {string} value - 저장된 공개 URL · 서명 URL
+   * @returns {Promise<string>}
+   */
+  async signStorageUrl(value) {
+    if (!this.client || typeof window === 'undefined' || !window.DadamStorageUrls) return value;
+    return window.DadamStorageUrls.signUrl(this.client, value);
+  },
+
+  /**
    * 현장 사진 이미지 업로드 (계정당 20개 제한, 초과 시 자동 삭제)
    * @param {File} file - 업로드할 파일
    * @param {string} userId - 사용자 ID
@@ -178,11 +206,7 @@ const SupabaseUtils = {
     // Storage에 업로드
     const { data, error } = await this.client.storage
       .from('design-images')
-      .upload(storagePath, blob, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: 'image/png',
-      });
+      .upload(storagePath, byteArray, this.privateUploadOptions('image/png'));
 
     if (error) throw error;
 
@@ -241,10 +265,7 @@ const SupabaseUtils = {
 
     const { data, error } = await this.client.storage
       .from('design-images')
-      .upload(storagePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-      });
+      .upload(storagePath, await file.arrayBuffer(), this.privateUploadOptions(file.type || 'application/octet-stream'));
 
     if (error) throw error;
 

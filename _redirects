@@ -1,0 +1,28 @@
+# 옛 사이트 주소 → SEGAN 앱 (/segan/). 호스팅(Cloudflare Pages)이 먼저 301 로 넘긴다 — 옛 html 파일은 남아 있지만 이 주소로는 열리지 않는다.
+# 앱 주소는 확장자 없이 적는다 (호스팅이 /x.html 을 /x 로 308 넘기므로 한 번 덜 돈다). 옛 주소는 .html 과 확장자 없는 것 둘 다 적는다.
+# 주소 뒤 #해시(로그인 토큰 · #invite= · #job= · #tab=)는 브라우저가 그대로 붙여 간다.
+# 그대로 두는 화면(로그인 · 가입 · 비밀번호 재설정 · 확인서 · 설문 · 공유 · 결제 돌아옴 · ERP · 생산 · 관리자 · 상세설계)은 여기 적지 않는다.
+
+/                           /segan/              301
+/index                      /segan/              301
+/index.html                 /segan/              301
+/ai-design                  /segan/              301
+/ai-design.html             /segan/              301
+/collection                 /segan/collection    301
+/collection.html            /segan/collection    301
+/material                   /segan/blog          301
+/material.html              /segan/blog          301
+/consultation               /segan/consult       301
+/consultation.html          /segan/consult       301
+/partner-recommendation     /segan/consult       301
+/partner-recommendation.html  /segan/consult     301
+/my-designs                 /segan/renders       301
+/my-designs.html            /segan/renders       301
+/mypage                     /segan/me            301
+/mypage.html                /segan/me            301
+/pricing                    /segan/plans         301
+/pricing.html               /segan/plans         301
+/billing                    /segan/billing       301
+/billing.html               /segan/billing       301
+/worker                     /segan/work          301
+/worker.html                /segan/work          301

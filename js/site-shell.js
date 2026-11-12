@@ -23,16 +23,18 @@
 
   // ── 정본 ─────────────────────────────────────────────
   // 링크를 한 곳에만 적는다. 페이지마다 적으면 또 어긋난다.
+  // 만들기 · 시공사례 · 자재(앱 블로그로 옮긴다) · 내 정보 · 내 연출컷 · 구독 관리는 SEGAN 앱(segan/)이다. 옛 주소는 호스팅이 앱으로 넘기므로(_redirects)
+  // 바로 앱 주소를 적는다 — 확장자 없이 (호스팅이 .html 을 308 넘긴다).
   var NAV = [
-    { key: 'ai', label: 'AI DESIGN', href: 'ai-design.html' },
-    { key: 'collection', label: 'COLLECTION', href: 'collection.html' },
-    { key: 'material', label: 'MATERIAL', href: 'material.html' },
+    { key: 'ai', label: 'AI DESIGN', href: 'segan/' },
+    { key: 'collection', label: 'COLLECTION', href: 'segan/collection' },
+    { key: 'material', label: 'MATERIAL', href: 'segan/blog' },
   ];
 
   var FOOT_MENU = [
-    { label: 'AI Design', href: 'ai-design.html' },
-    { label: 'Collection', href: 'collection.html' },
-    { label: 'Material', href: 'material.html' },
+    { label: 'AI Design', href: 'segan/' },
+    { label: 'Collection', href: 'segan/collection' },
+    { label: 'Material', href: 'segan/blog' },
   ];
 
   // TODO(콘텐츠): FAQ 페이지는 아직 없다 — 없는 파일을 가리켜 404 를 만드는 대신
@@ -49,22 +51,24 @@
   // '구독 관리'는 전에 /account/billing(Next.js 라우트)이라 뺐었다.
   // 지금은 정적 billing.html 이 있어 되돌렸다.
   var ACCOUNT_MENU = [
-    { label: '마이페이지', href: 'mypage.html' },
-    { label: '내 연출컷', href: 'my-designs.html' },
-    { label: '구독 관리', href: 'billing.html' },
+    { label: '내 정보', href: 'segan/me' },
+    { label: '내 연출컷', href: 'segan/renders' },
+    { label: '구독 관리', href: 'segan/billing' },
     { label: '관리자 페이지', href: 'admin/index.html', id: 'navAdminLink', hidden: true },
   ];
 
-  // 사업자 정보 — index.html 에 있던 값을 그대로 옮겼다.
-  // TODO(사업자): 전화·이메일·주소·등록번호가 전부 플레이스홀더다. 실값 확인 필요.
+  // 사업자 정보 — 이용약관(terms.html) 「회사 정보」와 같은 값이다. 바꿀 때는 두 곳을 함께 고친다.
+  // TODO(사업자): 통신판매업은 아직 신고 전이다. 번호가 나오면 '신고 준비 중' 자리에 넣는다.
   var BIZ = {
     desc: '공간을 읽고 가구를 짓습니다. 맞춤 제작 가구의 설계부터 시공까지.',
-    tel: '02-1234-5678',
-    email: 'info@dadam.com',
-    addr: '서울시 강남구 논현동 123-45',
+    tel: '010-7738-6822',
+    email: 'dadamfurniture@gmail.com',
+    addr: '대구광역시 북구 호국로 21-17, 우측 안쪽 공장(산격동)',
     hours: '평일 09:00 - 18:00',
     copy: '© 2026 다담가구. All rights reserved.',
-    biz: '사업자등록번호: 123-45-67890 | 대표: 홍길동',
+    biz:
+      '상호: 다담가구 | 대표: 홍찬호 | 사업자등록번호: 466-24-01961 | ' +
+      '통신판매업 신고번호: 신고 준비 중',
   };
 
   function esc(s) {
@@ -100,7 +104,7 @@
 
     return (
       '<header class="v5-header">' +
-      '<a class="v5-mark" href="ai-design.html" aria-label="다담가구 홈">' +
+      '<a class="v5-mark" href="segan/" aria-label="다담가구 홈">' +
       '<span class="v5-mark-ko">다담</span>' +
       '<span class="v5-mark-rule" aria-hidden="true"></span>' +
       '<span class="v5-mark-en">FURNITURE</span>' +
@@ -109,7 +113,7 @@
       links +
       '</nav>' +
       '<div class="v5-header-end">' +
-      // 잔여 횟수. applyAuth 가 user_credits 를 읽어 채운다.
+      // 잔여 횟수. applyAuth 가 my_credit_wallet 을 읽어 채운다.
       '<span class="v5-credit" id="shellCredit" hidden></span>' +
       '<span class="v5-sep" id="shellSep" hidden aria-hidden="true"></span>' +
       // DETAIL DESIGN — 로그인하면 헤더 우측에 뜬다.
@@ -254,21 +258,13 @@
     }
     bindAccountMenu();
 
-    // 잔여 생성 횟수. 본인 행만 읽는다(RLS).
-    // 아직 한 번도 안 쓴 사용자는 행이 없다 — 그때는 등급 지급량을 보여준다.
+    // 잔여 생성 횟수 — 지금 쓰는 통장(my_credit_wallet RPC).
+    // 협력업체 구성원은 업체 통장, 아니면 내 통장. 기간이 끝났거나 아직 안 쓴 통장은
+    // 다음 사용 때 채워질 월 지급량이 잔액으로 온다.
     try {
-      var credit = await sb.from('user_credits').select('balance').maybeSingle();
-      var left = credit && credit.data ? credit.data.balance : null;
-      if (left === null) {
-        var prof = await sb.from('profiles').select('tier').eq('id', session.user.id).maybeSingle();
-        var tier = prof && prof.data ? prof.data.tier : 'standard';
-        var plan = await sb
-          .from('credit_plans')
-          .select('monthly_credits')
-          .eq('tier', tier)
-          .maybeSingle();
-        left = plan && plan.data ? plan.data.monthly_credits : null;
-      }
+      var wallet = await sb.rpc('my_credit_wallet');
+      var w = wallet && Array.isArray(wallet.data) ? wallet.data[0] : null;
+      var left = w && typeof w.balance === 'number' ? w.balance : null;
       if (left !== null) {
         // 잔액은 크레딧이고 생성 1회는 그보다 크다. 크레딧만 적으면
         // 몇 번 만들 수 있는지 알 수 없어 환산값을 함께 낸다.

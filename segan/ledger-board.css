@@ -1,0 +1,373 @@
+/* ============================================================
+   segan/ledger-board.css — 회계 한눈에 (segan/ledger-board.html). 색 · 선은 shell.css 의 v5 토큰.
+   막대 두 색(매출 · 매입)만 여기서 정한다 — 색맹 구분 · 바탕 대비를 검사한 값 (v5 에 그래프 색이 없다).
+   ============================================================ */
+
+:root {
+  --lb-in: #2b63ad; /* 매출(받은 돈) */
+  --lb-out: #b07a3c; /* 매입 */
+  --lb-warn: #6f4c0c;
+  --lb-warn-bg: #fbefd4;
+  --lb-warn-line: #c9952b;
+}
+
+.lb-state {
+  min-height: 1em;
+  margin: 0 0 12px;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lb-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.lb-nav {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 16px;
+}
+
+.lb-nav button {
+  min-width: 32px;
+  min-height: 32px;
+  font-size: 18px;
+}
+
+/* 장부 화면 「한눈에」 판 — 달 바꾸기는 장부 머리가 한다 */
+.lb-embedded .lb-nav {
+  display: none;
+}
+
+.lb-basis {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+/* 칸 넷 — 폰 2 × 2, 넓으면 한 줄 */
+.lb-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.lb-tile {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--v5-line);
+  border-left: 1px solid var(--v5-line);
+}
+
+.lb-tile:nth-child(-n + 2) {
+  border-top: 0;
+}
+
+.lb-tile:nth-child(odd) {
+  border-left: 0;
+}
+
+.lb-tile dt {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lb-tile dd {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.lb-tile-v {
+  font-size: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-tile-s {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 900px) {
+  .lb-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .lb-tile:nth-child(-n + 4) {
+    border-top: 0;
+  }
+
+  .lb-tile:nth-child(odd) {
+    border-left: 1px solid var(--v5-line);
+  }
+
+  .lb-tile:first-child {
+    border-left: 0;
+  }
+}
+
+/* 두 단 — 폰은 한 단 */
+.lb-cols {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .lb-cols {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.lb-col {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.lb-box {
+  padding: 14px 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.lb-box-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 10px;
+}
+
+.lb-box-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.lb-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lb-sw {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.lb-sw--in {
+  background: var(--lb-in);
+}
+
+.lb-sw--out {
+  background: var(--lb-out);
+}
+
+/* 12달 막대 */
+#lbChart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.lb-bar--in {
+  fill: var(--lb-in);
+}
+
+.lb-bar--out {
+  fill: var(--lb-out);
+}
+
+.lb-hit {
+  fill: transparent;
+}
+
+.lb-month {
+  cursor: pointer;
+}
+
+.lb-month:focus-visible {
+  outline: 2px solid var(--v5-navy);
+}
+
+.lb-month:hover .lb-bar {
+  opacity: 0.8;
+}
+
+.lb-sel {
+  fill: var(--v5-well);
+}
+
+.lb-grid {
+  stroke: var(--v5-line);
+  stroke-width: 1;
+}
+
+.lb-base {
+  stroke: var(--v5-line-25);
+  stroke-width: 1;
+}
+
+.lb-ax {
+  fill: var(--v5-ink-62);
+  font-size: 11px;
+}
+
+.lb-lbl {
+  fill: var(--v5-ink);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.lb-table summary {
+  margin-top: 8px;
+  color: var(--v5-navy);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lb-table-wrap {
+  overflow-x: auto;
+}
+
+.lb-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-table th,
+.lb-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lb-table th:first-child,
+.lb-table td:first-child {
+  text-align: left;
+}
+
+.lb-table th {
+  color: var(--v5-ink-62);
+  font-weight: 500;
+}
+
+/* 가로 막대 */
+.lb-bars {
+  display: grid;
+  gap: 7px;
+}
+
+.lb-hb {
+  display: grid;
+  grid-template-columns: minmax(80px, 34%) minmax(0, 1fr) 64px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.lb-hb-n {
+  overflow: hidden;
+  color: var(--v5-ink-62);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-hb-t {
+  height: 12px;
+  background: var(--v5-well);
+}
+
+.lb-hb-f {
+  display: block;
+  height: 100%;
+  background: var(--lb-out);
+}
+
+.lb-hb-v {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.lb-empty {
+  margin: 0;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+/* 수주 · 미수 */
+.lb-kv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-kv dt {
+  color: var(--v5-ink-62);
+}
+
+.lb-kv dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}
+
+.lb-sub {
+  margin: 12px 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 장부 상태 */
+.lb-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-chip {
+  padding: 3px 9px;
+  border: 1px solid var(--v5-line-25);
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lb-chip a {
+  color: var(--v5-navy);
+}
+
+.lb-chip--warn {
+  border-color: var(--lb-warn-line);
+  background: var(--lb-warn-bg);
+  color: var(--lb-warn);
+}
+
+.lb-note {
+  margin: 0;
+}

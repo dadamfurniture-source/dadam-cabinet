@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>관리 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111214" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111214" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111214" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111214" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026111214" />
+    <!-- 단추 · 입력 칸 — 만들기 탭과 같은 모양 -->
+    <link rel="stylesheet" href="make.css?v=2026111214" />
+    <!-- 로그인 상태 · 관리자 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
+    <script src="../js/config.js?v=2026111214"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=2026111214"></script>
+    <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
+    <script src="../js/mypage-work.js?v=2026111214"></script>
+    <script src="shell.js?v=2026111214" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026111214" defer></script>
+    <script src="admin-applications.js?v=2026111214" defer></script>
+    <script src="admin-consults.js?v=2026111214" defer></script>
+    <!-- 제작 의뢰 — Manager 업체 의뢰 검토 · 팩토리 추천 (점수 내역은 위 admin-consults.js 의 묶음 글을 빌린다) -->
+    <script src="admin-production.js?v=2026111214" defer></script>
+    <script src="admin-reports.js?v=2026111214" defer></script>
+    <script src="admin-members.js?v=2026111214" defer></script>
+    <script src="admin.js?v=2026111214" defer></script>
+  </head>
+  <body class="sg-app" data-tab="admin">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main" id="main">
+      <h1 class="sg-h1">관리</h1>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <!-- 관리자가 아니면 이 줄만 (서버도 관리자만 답한다) -->
+        <div class="sg-panel" id="adDenied" hidden>
+          <p class="sg-title">관리자만 볼 수 있습니다</p>
+          <p class="sg-note">관리자 계정으로 로그인해 주세요.</p>
+        </div>
+
+        <!-- 오늘 할 일 — 수는 서버가 준 그대로, 못 읽은 줄은 「불러오지 못함」 (segan/admin.js).
+             회원 · PC 관리자 화면 줄은 마이페이지 본사 메뉴에만 둔다 (segan/me.html) -->
+        <section class="sg-section" id="adToday" aria-labelledby="adTodayTitle" hidden>
+          <h2 id="adTodayTitle">오늘 할 일</h2>
+          <ul class="sg-rows" id="adTodayRows"></ul>
+        </section>
+
+        <!-- 새 업체 신청 — admin.html#applications (segan/admin-applications.js) -->
+        <section class="sg-section ad-view" id="adApplications" aria-labelledby="adApplicationsTitle" hidden>
+          <a class="mk-link mk-back" href="#">‹ 관리</a>
+          <h2 id="adApplicationsTitle">새 팩토리 신청</h2>
+          <div id="adApplicationsBody"></div>
+        </section>
+
+        <!-- 상담 배정 — admin.html#consults · #consults-assigned (segan/admin-consults.js) -->
+        <section class="sg-section ad-view" id="adConsults" aria-labelledby="adConsultsTitle" hidden>
+          <a class="mk-link mk-back" href="#">‹ 관리</a>
+          <h2 id="adConsultsTitle">상담 배정</h2>
+          <div id="adConsultsBody"></div>
+        </section>
+
+        <!-- 제작 의뢰 — admin.html#production · #production-waiting · #production-done (segan/admin-production.js) -->
+        <section class="sg-section ad-view" id="adProduction" aria-labelledby="adProductionTitle" hidden>
+          <a class="mk-link mk-back" href="#">‹ 관리</a>
+          <h2 id="adProductionTitle">제작 의뢰</h2>
+          <div id="adProductionBody"></div>
+        </section>
+
+        <!-- 작업 보고 — admin.html#reports (segan/admin-reports.js) -->
+        <section class="sg-section ad-view" id="adReports" aria-labelledby="adReportsTitle" hidden>
+          <a class="mk-link mk-back" href="#">‹ 관리</a>
+          <h2 id="adReportsTitle">작업 보고</h2>
+          <div id="adReportsBody"></div>
+        </section>
+
+        <!-- 회원 — admin.html#members, 보기만 (segan/admin-members.js) -->
+        <section class="sg-section ad-view" id="adMembers" aria-labelledby="adMembersTitle" hidden>
+          <a class="mk-link mk-back" href="#">‹ 관리</a>
+          <h2 id="adMembersTitle">회원</h2>
+          <div id="adMembersBody"></div>
+        </section>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

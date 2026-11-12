@@ -125,12 +125,16 @@ describe('민 만큼은 도어 분배가 먹는다 — 반대편이 비지 않�
 
   test('도어 폭이 그만큼 커진다 — 잔여로 남지 않는다', () => {
     // 분배는 넓어진 room 을 그대로 받는다. 1500 → [1000, 500], 1509 → [1006, 503].
-    const bare = engine.distributeModules(1500);
-    const wide = engine.distributeModules(1500 + engine.cornerAdjAir());
-    expect(bare.modules.map((m) => m.w)).toEqual([1000, 500]);
-    expect(wide.modules.map((m) => m.w)).toEqual([1006, 503]);
-    expect(bare.gap).toBe(0);
-    expect(wide.gap).toBe(0);
+    //   2026-10-27 사장님 "목표 450 근접 우선": 1509 는 분배가 도어 500 (잔여 9)를 고르고, 잔여는 도어마다 3 씩 붙어
+    //   (spreadGapEqually — 자동계산이 하는 그대로) 최종 도어 503 이다. 잔여로 남지 않는다.
+    const final = (d) => {
+      const s = engine.spreadGapEqually(d.gap, d.modules.map((m) => m.doors));
+      return { ws: d.modules.map((m, i) => m.w + s.add[i]), slack: s.slack };
+    };
+    const bare = final(engine.distributeModules(1500));
+    const wide = final(engine.distributeModules(1500 + engine.cornerAdjAir()));
+    expect(bare).toEqual({ ws: [1000, 500], slack: 0 });
+    expect(wide).toEqual({ ws: [1006, 503], slack: 0 });
 
     const p = boot(mods()); p.g('autoCalcAllAreas')();
     const pair = p.g('cornerPairs')()[0];

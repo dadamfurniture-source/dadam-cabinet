@@ -7,11 +7,16 @@
  *
  * 계획 대상 = 진행 중인 수주(confirmed · in_production). 각 수주는 계약 시점 스냅샷의
  * BOM·재단 배치로 작업량을 세고, 같은 설계의 설치 일정(installation)으로 마감을 잡는다.
+ *
+ * 계획 · 제안 · 아침 요약 · 월 마감은 본사 Slack · 보관함으로 나가므로 본사 수주만 싣는다 —
+ * 내가 만든 본사 설계의 수주 (orders.js listOwnHqOrders). 월 손익 화면(/production/monthly)은 본사 수주 전부.
+ * 협력업체 구성원은 계획 · 제안을 못 쓴다 (assertHqProduction — 403 not_hq). 원가 설정은 자기 업체 것을 쓴다.
  */
 
-import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, ValidationError, NotFoundError, ConflictError } from '../supabase.js';
+import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, hqCompanyId, activeMemberships, MONEY_ROLES, ValidationError, NotFoundError, ConflictError, ForbiddenError } from '../supabase.js';
+import { isAdmin } from '../reports/admin.js';
 import { postToWebhook } from '../slack.js';
-import { listOrders, tierOf } from '../orders.js';
+import { listOwnHqOrders, listHqOrdersOfMonth, tierOf } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
@@ -120,15 +125,116 @@ export function sanitizeSettings(body) {
   return out;
 }
 
-export async function getSettings(env, { user }) {
-  const row = await selectOne(env, 'production_settings', { user_id: `eq.${user.id}`, select: 'settings,updated_at' });
-  return { settings: mergeSettings(row && row.settings), saved: row ? row.settings : null, updated_at: row ? row.updated_at : null };
+// 원가 설정은 업체 소유다 — company_settings 에 업체당 한 줄 (database/migrations/0012).
+//   견적: 설계가 속한 업체의 설정 (snapshots.js)
+//   생산 계획 · 월 손익 · 경영 대시보드 · 작업자 보정: 본사 설정
+// 줄이 없는 업체는 코드 기본값으로 계산한다 — 다른 업체(본사) 설정으로 대신하지 않는다 (본사 원가가 샌다).
+
+/** 업체 원가 설정 — { settings (기본값과 합친 것), saved (저장된 그대로, 없으면 null), updated_at, missing } */
+export async function companySettings(env, companyId) {
+  const row = companyId
+    ? await selectOne(env, 'company_settings', { company_id: `eq.${companyId}`, select: 'settings,updated_at' })
+    : null;
+  return {
+    settings: mergeSettings(row && row.settings),
+    saved: row ? row.settings : null,
+    updated_at: row ? row.updated_at : null,
+    missing: !row,
+  };
 }
 
-export async function saveSettings(env, { user, body }) {
+/** 본사 원가 설정 */
+export async function hqSettings(env) {
+  return companySettings(env, await hqCompanyId(env));
+}
+
+/** 그 업체 설정을 다룰 수 있는가 — 그 업체의 대표 · 실장, 본사는 관리자(admin_roles)도. 아니면 403 */
+async function checkSettingsEditor(env, user, companyId, membership, hq) {
+  if (membership && membership.company_id === companyId && MONEY_ROLES.includes(membership.role)) return;
+  if (companyId === hq && (await isAdmin(env, user))) return;
+  if (membership && membership.company_id === companyId) {
+    throw new ForbiddenError('원가 설정은 팩토리 대표 · 실장만 다룹니다', 'not_money');
+  }
+  throw new ForbiddenError('이 팩토리의 원가 설정을 다룰 권한이 없습니다', 'not_member');
+}
+
+/**
+ * 호출자가 다루는 업체 — active 업체 (한 사람에 하나, 0003 company_members_one_active_company).
+ *   협력업체 구성원 → 그 업체, 본사 구성원 · 구성원이 아닌 관리자 → 본사.
+ * 그 업체 설정을 다룰 수 없으면 403 (구성원이 아니면 not_member, 대표 · 실장이 아니면 not_money).
+ */
+export async function settingsCompanyOf(env, user) {
+  const hq = await hqCompanyId(env);
+  const [membership] = await activeMemberships(env, user);
+  if (membership) {
+    await checkSettingsEditor(env, user, membership.company_id, membership, hq);
+    return membership.company_id;
+  }
+  if (await isAdmin(env, user)) return hq;
+  throw new ForbiddenError('팩토리 구성원만 원가 설정을 다룹니다', 'not_member');
+}
+
+/** companyId 설정을 다룰 수 없으면 403 (작업자 보정 → 본사 설정) */
+export async function assertSettingsEditor(env, user, companyId) {
+  const hq = await hqCompanyId(env);
+  const [membership] = await activeMemberships(env, user);
+  await checkSettingsEditor(env, user, companyId, membership || null, hq);
+}
+
+/**
+ * 본사 원가 · 고정비가 실리는 화면(월 손익)을 볼 수 있는가 — 본사 설정을 다룰 수 있는 사람과 같다
+ * (본사 대표 · 실장, 관리자). 아니면 403 not_money.
+ */
+export async function assertHqMoney(env, user) {
+  try {
+    await assertSettingsEditor(env, user, await hqCompanyId(env));
+  } catch (e) {
+    if (e instanceof ForbiddenError) throw new ForbiddenError('본사 원가 · 고정비는 본사 대표 · 실장 · 관리자만 봅니다', 'not_money');
+    throw e;
+  }
+}
+
+/**
+ * 업체 설정 저장 — 보낸 묶음만 남긴다 (예전 개인 설정과 같은 방식). 권한은 부르는 쪽이 확인한다.
+ * 장부 과세 묶음(tax — src/ledger/settings.js 가 따로 쓴다)은 이 화면이 보내지 않으므로 저장된 것을 그대로 둔다.
+ */
+export async function writeCompanySettings(env, { companyId, user, body }) {
   const clean = sanitizeSettings(body);
-  const row = await upsertOne(env, 'production_settings', { user_id: user.id, settings: clean, updated_at: new Date().toISOString() }, 'user_id');
+  const prev = await selectOne(env, 'company_settings', { company_id: `eq.${companyId}`, select: 'settings' });
+  if (prev && prev.settings && prev.settings.tax) clean.tax = prev.settings.tax;
+  const row = await upsertOne(env, 'company_settings', {
+    company_id: companyId,
+    settings: clean,
+    updated_by: user.id,
+    updated_at: new Date().toISOString(),
+  }, 'company_id');
   return { settings: mergeSettings(row && row.settings), saved: clean };
+}
+
+/**
+ * GET /production/settings — 내 업체 설정. missing 이면 저장된 줄이 없어 기본값이다.
+ * hq: 본사 설정인가 — 아니면(협력업체) 생산 화면은 설정만 보여 준다 (계획 · 제안은 본사만).
+ */
+export async function getSettings(env, { user }) {
+  const companyId = await settingsCompanyOf(env, user);
+  return { ...(await companySettings(env, companyId)), hq: companyId === (await hqCompanyId(env)) };
+}
+
+/**
+ * 생산 계획 · 제안은 본사 일이다 — 본사 Slack 으로 나간다.
+ * 다른 업체(협력업체)의 active 구성원이면 403 not_hq. 본사 구성원 · 관리자 · 구성원이 아닌 사람(예전 본사 설계 주인)은 그대로.
+ */
+export async function assertHqProduction(env, user) {
+  const hq = await hqCompanyId(env);
+  const memberships = await activeMemberships(env, user);
+  if (memberships.length && !memberships.some((m) => m.company_id === hq)) {
+    throw new ForbiddenError('생산 계획 · 제안은 본사만 씁니다', 'not_hq');
+  }
+}
+
+/** POST /production/settings — 내 업체 설정 저장 */
+export async function saveSettings(env, { user, body }) {
+  return writeCompanySettings(env, { companyId: await settingsCompanyOf(env, user), user, body });
 }
 
 // ── 계획 입력 ──
@@ -170,7 +276,7 @@ export function buildJobs(orders, snapshotsById, schedules, standards, doorOrder
 }
 
 async function loadInputs(env, user) {
-  const orders = (await listOrders(env, { user })).filter((o) => ACTIVE.has(o.status));
+  const orders = (await listOwnHqOrders(env, { user })).filter((o) => ACTIVE.has(o.status));
   if (!orders.length) return { orders, snapshotsById: new Map(), schedules: [] };
   const snapIds = [...new Set(orders.map((o) => o.snapshot_id))].join(',');
   const designIds = [...new Set(orders.map((o) => o.design_id))].join(',');
@@ -220,8 +326,12 @@ export async function doorOrderedIds(env, userId) {
   }
 }
 
+/**
+ * 생산 계획 — 본사 설정(표준시간 · 인원 · 일당 · 납기 · 휴일)으로 돈다.
+ * 설정 자체는 돌려주지 않는다 — 계획은 JWT 가 있으면 누구나 부르고, 본사 원가 설정은 대표 · 실장 · 관리자만 본다.
+ */
 export async function computePlan(env, { user, today }) {
-  const { settings } = await getSettings(env, { user });
+  const { settings } = await hqSettings(env);
   const { orders, snapshotsById, schedules, doorOrdered, topOrdered } = await loadInputs(env, user);
   const { jobs, skipped } = buildJobs(orders, snapshotsById, schedules, settings.standards, doorOrdered, topOrdered);
   const plan = planProduction({
@@ -232,7 +342,7 @@ export async function computePlan(env, { user, today }) {
     leads: settings.leads,
     holidays: settings.holidays,
   });
-  return { ...plan, skipped, settings };
+  return { ...plan, skipped };
 }
 
 // ── 제안 · 승인 ──
@@ -335,9 +445,10 @@ export async function listAssignments(env, { user, from }) {
 }
 
 // ── 매일 아침 요약 ──
-/** 진행 중 수주가 있는 계정 (설계 소유자). */
+/** 진행 중 본사 수주가 있는 계정 (설계 소유자). */
 async function activeOwners(env) {
-  const orders = (await selectMany(env, 'orders', { status: 'in.(confirmed,in_production)', select: 'design_id', limit: '1000' })) || [];
+  const hq = await hqCompanyId(env);
+  const orders = (await selectMany(env, 'orders', { status: 'in.(confirmed,in_production)', company_id: `eq.${hq}`, select: 'design_id', limit: '1000' })) || [];
   const ids = [...new Set(orders.map((o) => o.design_id))];
   if (!ids.length) return [];
   const designs = (await selectMany(env, 'designs', { id: `in.(${ids.join(',')})`, select: 'user_id', limit: '1000' })) || [];
@@ -448,10 +559,14 @@ export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }
   };
 }
 
-export async function getMonthlySummary(env, { user, month }) {
+/**
+ * 월 손익. scope — 'hq': 본사 수주 전부 (/production/monthly 화면) · 'own': 내가 만든 본사 설계의 수주 (월 마감 보고, 예전 그대로)
+ */
+export async function getMonthlySummary(env, { user, month, scope = 'own' }) {
   const m = /^\d{4}-\d{2}$/.test(String(month || '')) ? month : kstDate().slice(0, 7);
-  const { settings } = await getSettings(env, { user });
-  const orders = await listOrders(env, { user });
+  // 월 고정비는 본사 설정
+  const { settings } = await hqSettings(env);
+  const orders = scope === 'hq' ? await listHqOrdersOfMonth(env, m) : await listOwnHqOrders(env, { user });
   const inMonth = orders.filter((o) => o.status !== 'cancelled' && kstDate(o.ordered_at).slice(0, 7) === m);
   let snaps = [];
   if (inMonth.length) {
@@ -484,7 +599,7 @@ export async function closeMonth(env, { userId, month }) {
 /**
  * 매월 첫 근무일 아침(평일 07시 cron) — 전월 마감이 없는 계정마다 하나 만든다.
  * 1일이 주말이면 cron 이 돌지 않으므로 '1일' 이 아니라 '그 달 7일까지 + 아직 없음' 으로 본다 (주인×달 UNIQUE 라 중복 없음).
- * 대상: 전월에 수주가 있었던 계정 + 지금 진행 중 수주가 있는 계정.
+ * 대상: 전월에 본사 수주가 있었던 계정 + 지금 진행 중 본사 수주가 있는 계정.
  */
 export async function runMonthlyCloses(env, { today } = {}) {
   const day = today || kstDate();
@@ -492,6 +607,7 @@ export async function runMonthlyCloses(env, { today } = {}) {
   const month = prevMonthOf(day);
   const ordered = (await selectMany(env, 'orders', {
     and: `(ordered_at.gte.${month}-01T00:00:00+09:00,ordered_at.lte.${monthEnd(month)}T23:59:59+09:00)`,
+    company_id: `eq.${await hqCompanyId(env)}`,
     select: 'design_id',
     limit: '1000',
   })) || [];

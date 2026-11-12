@@ -84,6 +84,7 @@
         var exhausted = false; // 서버에 더 없음
         var cursor = null; // created_at 키셋
         var sb = null;
+        var isAdmin = false; // 관리자면 DB 게시물마다 「내리기」 (2026-10-27)
 
         var elTiles = document.getElementById('tiles');
         var elState = document.getElementById('tileState');
@@ -103,6 +104,8 @@
         // 마이그레이션 전 DB 에 붙으면 select 가 통째로 400/404 로 떨어져
         // 사례가 하나도 안 나온다 — 실제로 그렇게 죽는 걸 봤다.
         // 한 번 실패하면 region 없이 다시 물어보고, 그 뒤로는 계속 그 형태로 간다.
+        // source · storage_path (2026-10-27, database/collection-auto-post.sql) 도 같은 첫 질의에 싣는다 —
+        //   source 'ai_render' 는 AI 스튜디오 자동 게시라 「AI 연출컷」 으로 표시하고, storage_path 는 관리자 「내리기」 가 쓴다.
         var hasRegion = true;
 
         async function fetchPage() {
@@ -126,7 +129,7 @@
         function queryPage(withRegion) {
           var q = sb
             .from('collection_posts')
-            .select(withRegion ? 'id, image_url, region, created_at' : 'id, image_url, created_at')
+            .select(withRegion ? 'id, image_url, region, source, storage_path, created_at' : 'id, image_url, created_at')
             .order('created_at', { ascending: false })
             .limit(PAGE);
           if (cursor) q = q.lt('created_at', cursor);
@@ -134,17 +137,24 @@
         }
 
         // ── 그리기 ──────────────────────────────────────
+        // AI 스튜디오 자동 게시(source 'ai_render')는 실제 시공 사진으로 오해하지 않게 「AI 연출컷」 으로 적는다.
+        // 이미지는 예전처럼 배경으로만 그린다 (img·다운로드 링크 없음).
         function tileHTML(p) {
-          var region = (p.region || '').trim();
+          var ai = p.source === 'ai_render';
+          var region = ai ? '' : (p.region || '').trim();
           return (
-            '<figure class="v5-tile">' +
+            '<figure class="v5-tile"' +
+            (p.id ? ' data-post="' + esc(p.id) + '"' : '') +
+            '>' +
             '<div class="v5-tile-img" role="img" aria-label="' +
-            esc(region ? '다담가구 시공 사례 · ' + region : '다담가구 시공 사례') +
+            esc(ai ? 'AI 연출컷' : region ? '다담가구 시공 사례 · ' + region : '다담가구 시공 사례') +
             '" style="background-image:url(' +
             esc(p.image_url) +
             ')"></div>' +
             '<figcaption class="v5-tile-cap">' +
-            '<span class="v5-tile-brand">다담가구</span>' +
+            '<span class="v5-tile-brand">' +
+            (ai ? 'AI 연출컷' : '다담가구') +
+            '</span>' +
             // 지역이 비면 구분선까지 같이 감춘다 — 점만 떠 있으면 고장처럼 보인다
             (region
               ? '<span class="v5-tile-dot" aria-hidden="true"></span>' +
@@ -152,10 +162,53 @@
                 esc(region) +
                 '</span>'
               : '') +
+            // 관리자만 — DB 게시물(id 가 있는 것)을 내린다. 정적 사례에는 없다.
+            (isAdmin && p.id
+              ? '<button type="button" class="v5-link" data-take-down="' +
+                esc(p.id) +
+                '" style="margin-left: auto">내리기</button>'
+              : '') +
             '</figcaption>' +
             '</figure>'
           );
         }
+
+        // ── 관리자 「내리기」 (2026-10-27) ─────────────────
+        // 행을 먼저 지우고(collection_posts_delete_admin) 파일을 지운다(collection_delete_admin) — mypage.html 의
+        // 시공사례 삭제와 같은 순서다. 순서가 반대면 행은 남고 이미지만 깨진다. 정책은 database/collection-auto-post.sql.
+        async function takeDown(id, btn) {
+          var i = -1;
+          for (var k = 0; k < posts.length; k++) {
+            if (posts[k].id === id) {
+              i = k;
+              break;
+            }
+          }
+          if (i < 0 || !sb) return;
+          if (!confirm('이 게시물을 시공사례에서 내릴까요?\n사진 파일도 함께 지워집니다.')) return;
+          btn.disabled = true;
+          var res = await sb.from('collection_posts').delete().eq('id', id).select('id');
+          if (res.error || !res.data || !res.data.length) {
+            btn.disabled = false;
+            elState.textContent = '내리지 못했습니다' + (res.error ? ' — ' + res.error.message : '');
+            return;
+          }
+          var path = posts[i].storage_path;
+          if (path) {
+            var rm = await sb.storage.from('collection').remove([path]);
+            if (rm && rm.error) console.warn('[collection] 파일 삭제:', rm.error.message);
+          }
+          posts.splice(i, 1);
+          if (i < shown) shown--;
+          var fig = btn.closest('figure');
+          if (fig) fig.remove();
+          updateState();
+        }
+
+        elTiles.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-take-down]');
+          if (b && isAdmin) takeDown(b.getAttribute('data-take-down'), b);
+        });
 
         function render(from) {
           var html = '';
@@ -222,6 +275,14 @@
             }
           } catch (e) {
             console.warn('[collection] supabase init:', e);
+          }
+          // 관리자 확인 — 로그인하지 않았으면 묻지 않고 false (AdminAccess.isAdmin 은 실패하면 false)
+          if (sb && window.AdminAccess) {
+            try {
+              isAdmin = await window.AdminAccess.isAdmin(sb);
+            } catch (e) {
+              isAdmin = false;
+            }
           }
 
           var rows = await fetchPage();

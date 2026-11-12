@@ -1,0 +1,437 @@
+/* ============================================================
+   segan/assistant.css — 업체 AI 비서 (segan/assistant.html). 색 · 선은 shell.css 의 v5 토큰.
+   ============================================================ */
+
+/* mk-btn 같은 display 를 가진 칸도 hidden 이면 감춘다 */
+.as [hidden] {
+  display: none !important;
+}
+
+.as-state {
+  min-height: 1em;
+  margin: 0 0 12px;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.as-readonly {
+  margin: 0 0 16px;
+  color: var(--v5-tan);
+  font-size: 13px;
+}
+
+.as-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.as-sub {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* 오늘 브리핑 — 볼 것 한 줄씩(누르면 그 화면으로), 진행 단계 한 줄, 공장 · 설치 진행 표 */
+.as-brief {
+  margin: 0 0 24px;
+}
+
+.as-blines {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.as-bline {
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.as-bline a {
+  color: var(--v5-navy);
+}
+
+.as-bline--muted,
+.as-bline small {
+  color: var(--v5-ink-62);
+}
+
+.as-bline small {
+  display: block;
+  font-size: 12px;
+}
+
+.as-bsub {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.as-bwork-wrap {
+  overflow-x: auto;
+}
+
+.as-bwork {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.as-bwork th,
+.as-bwork td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.as-bwork thead th {
+  color: var(--v5-ink-62);
+  font-weight: 500;
+}
+
+/* ── 대화 목록 ── */
+/* 장부 알림 — 카드는 버튼 하나(누르면 장부로). 바로 알림은 빨강 줄, 아침 묶음은 노랑 줄, 본 것은 흐리게 */
+.as-notices {
+  margin: 0 0 24px;
+}
+
+.as-ncards {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.as-ncard {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  border-left: 3px solid #c9952b;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.as-ncard--now {
+  border-left-color: #93301f;
+}
+
+.as-ncard--seen {
+  border-left-color: var(--v5-line-25);
+  color: var(--v5-ink-62);
+}
+
+.as-ncard:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+.as-ncard-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.as-ncard-top b {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.as-ncard-top small {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.as-ncard-body {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.as-ncard-go {
+  color: var(--v5-navy);
+  font-size: 12px;
+}
+
+.as-nmore {
+  margin-top: 8px;
+}
+
+.as-nnote {
+  margin-top: 8px;
+}
+
+.as-convs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.as-convs li {
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.as-conv {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.as-conv b {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-conv small {
+  flex: none;
+  color: var(--v5-ink-45);
+  font-size: 12px;
+}
+
+.as-conv:hover b,
+.as-conv:focus-visible b {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.as-empty {
+  padding: 16px 4px;
+  color: var(--v5-ink-60);
+  font-size: 13px;
+}
+
+/* ── 대화 ── */
+.as-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.as-msg {
+  max-width: min(88%, 760px);
+  padding: 10px 14px;
+}
+
+.as-msg--user {
+  align-self: flex-end;
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.as-msg--ai {
+  align-self: flex-start;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+}
+
+.as-tag {
+  display: block;
+  margin: 0 0 4px;
+  color: var(--v5-tan);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+/* 글은 받은 그대로 — 줄 바꿈을 지키고 HTML 로 바꾸지 않는다 (assistant.js textContent) */
+.as-text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 승인 카드 — 서버가 만든 칸 · 승인 · 거절. 초안은 복사만 */
+.as-card {
+  align-self: flex-start;
+  width: min(88%, 520px);
+  padding: 10px 14px;
+  border: 1px solid var(--v5-line-18);
+  border-left: 3px solid var(--v5-navy);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+}
+
+.as-card--draft {
+  border-left-color: var(--v5-tan);
+}
+
+.as-card--done {
+  border-left-color: #2e6b45;
+}
+
+.as-card--failed,
+.as-card--unknown {
+  border-left-color: #93301f;
+}
+
+.as-card--rejected,
+.as-card--expired,
+.as-card--closed {
+  border-left-color: var(--v5-line-25);
+  color: var(--v5-ink-62);
+}
+
+.as-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  justify-content: space-between;
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.as-card-state {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.as-card-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.as-card-fields dt {
+  color: var(--v5-ink-62);
+}
+
+.as-card-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.as-card-draft {
+  margin-top: 6px;
+}
+
+.as-card-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.as-card-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.as-card-acts small {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.as-msg--wait .as-text {
+  color: var(--v5-ink-45);
+}
+
+.as-tool {
+  margin: 0 0 10px;
+  color: var(--v5-ink-55);
+  font-size: 12px;
+}
+
+.as-end {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  color: var(--v5-ink);
+  font-size: 13px;
+}
+
+/* 입력 칸 — 폰은 아래 탭 바로 위, PC 는 화면 아래에 붙는다 */
+.as-form {
+  position: sticky;
+  bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin: 0 0 8px;
+  padding: 10px 0;
+  background: var(--v5-invert);
+}
+
+.as-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.as-input > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.as-input textarea {
+  min-height: 48px;
+  max-height: 40vh;
+}
+
+.as-form .mk-btn {
+  flex: none;
+}
+
+.as-warn {
+  margin: 0;
+}
+
+/* 아래 탭이 없는 폭 (segan/shell.css 1024px~) */
+@media (min-width: 1024px) {
+  .as-form {
+    bottom: 0;
+  }
+}

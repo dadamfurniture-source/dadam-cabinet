@@ -263,7 +263,8 @@ describe('수금 일정 · 지급 예정 (경영 대시보드 2단계 PR-9)', ()
 
   test('일정이 있으면 수금액은 일정이 맞춘다 — 입력을 잠그고 저장에 싣지 않는다', () => {
     expect(pay).toMatch(/el\('inpReceived'\)\.readOnly = scheduled/);
-    expect(save).toMatch(/if \(!el\('inpReceived'\)\.readOnly\) patch\.received_amount/);
+    // 수금 권한이 없어 칸이 숨어도 싣지 않는다
+    expect(save).toMatch(/if \(!el\('lblReceived'\)\.hidden && !el\('inpReceived'\)\.readOnly\) patch\.received_amount/);
   });
 
   test('밀린 일정 표시 · 일정 합이 계약금액과 다르면 알린다', () => {
@@ -281,5 +282,104 @@ describe('수금 일정 · 지급 예정 (경영 대시보드 2단계 PR-9)', ()
   test('표가 없으면(워커가 null) 입력 대신 SQL 안내', () => {
     expect(pay).toMatch(/var missing = pays === null \|\| pays === undefined/);
     expect(ERP).toMatch(/id="payNeedSql" class="muted" hidden/);
+  });
+});
+
+describe('수주 완료 보고 (2026-11-06 작업 분배 ⑤ — 워커 order-reports.js · DB 0043)', () => {
+  const LF = ERP.replace(/\r\n/g, '\n');
+  const fn = (name) => LF.slice(LF.indexOf(`function ${name}`), LF.indexOf('\n        }\n', LF.indexOf(`function ${name}`)));
+  test('칸 — 종류 둘(설치 완료 · A/S 완료) · 메모 · 사진 여러 장 · 보고 단추, DB 전 안내', () => {
+    for (const id of ['reportNeedSql', 'reportForm', 'selReportKind', 'inpReportNote', 'inpReportPhotos', 'btnAddReport', 'reportMsg', 'reportRows']) {
+      expect(ERP).toMatch(new RegExp(`id="${id}"`));
+    }
+    expect(ERP).toMatch(/<option value="install_done">설치 완료<\/option>/);
+    expect(ERP).toMatch(/<option value="as_done">A\/S 완료<\/option>/);
+    expect(ERP).toMatch(/본사에 기록으로 갑니다 \(검수 없음\)/);
+  });
+  test('수주를 열면 보고를 읽고, 보고할 수 있는 사람(can_report)에게만 칸을 연다', () => {
+    expect(ERP).toMatch(/await loadReports\(\);/);
+    expect(fn('loadReports')).toMatch(/'\/orders\/' \+ encodeURIComponent\(state\.current\) \+ '\/reports'/);
+    expect(fn('renderReports')).toMatch(/r\.can_report/);
+    expect(fn('renderReports')).toMatch(/r\.ready === false/);
+  });
+  test('보내기 — 사진은 줄여서 하나씩 먼저 올리고(…/reports/photo), 그 경로를 붙여 보고 · 10장까지', () => {
+    const add = fn('addReport');
+    expect(add).toMatch(/REPORT_PHOTOS_MAX/);
+    expect(add.indexOf('uploadReportPhoto')).toBeLessThan(add.indexOf("'/reports'"));
+    expect(add).toMatch(/photo_paths: paths/);
+    expect(fn('uploadReportPhoto')).toMatch(/'\/reports\/photo'/);
+  });
+  test('보고 목록은 글자(textContent)로만 그린다', () => {
+    const r = fn('renderReports');
+    expect(r).toMatch(/textContent/);
+    expect(r).not.toMatch(/innerHTML/);
+  });
+});
+
+describe('본사 완료 보고 모아 보기 (admin/order-reports.html)', () => {
+  const PAGE = fs.readFileSync(path.join(ROOT, 'admin/order-reports.html'), 'utf8');
+  test('관리자만 · 워커 /admin/order-reports?days= · 화면 값은 esc · 색인 막기', () => {
+    expect(PAGE).toMatch(/window\.AdminAccess\.isAdmin/);
+    expect(PAGE).toMatch(/\/admin\/order-reports\?days=/);
+    expect(PAGE).toMatch(/esc\(x\.company_name/);
+    expect(PAGE).toMatch(/noindex, nofollow, noarchive/);
+    expect(PAGE).toMatch(/DB 0043 적용 뒤에 보입니다/);
+  });
+  test('학습 칸 — 서버 learn_ok 그대로 (동의 · 안 함 · 모름)', () => {
+    expect(PAGE).toMatch(/<th scope="col">학습<\/th>/);
+    expect(PAGE).toMatch(/esc\(learnLabel\(x\.learn_ok\)\)/);
+    expect(PAGE).toContain("const learnLabel = (v) => (v === true ? '동의' : v === false ? '안 함' : '모름');");
+  });
+});
+
+describe('본사 A/S 접수 기록 (admin/as-requests.html — 워커 as-requests.js · DB 0045)', () => {
+  const PAGE = fs.readFileSync(path.join(ROOT, 'admin/as-requests.html'), 'utf8');
+  test('관리자만 · 워커 /admin/as-requests?days= · 화면 값은 esc · 색인 막기 · DB 전 안내', () => {
+    expect(PAGE).toMatch(/window\.AdminAccess\.isAdmin/);
+    expect(PAGE).toMatch(/\/admin\/as-requests\?days=/);
+    expect(PAGE).toMatch(/esc\(x\.factory/);
+    expect(PAGE).toMatch(/esc\(f\.name/);
+    expect(PAGE).toMatch(/noindex, nofollow, noarchive/);
+    expect(PAGE).toMatch(/DB 0045 적용 뒤에 보입니다/);
+  });
+  test('48시간 · 기간 한도 = 워커 as-requests.js, 고객 내용은 싣지 않는다', () => {
+    const W = fs.readFileSync(path.join(ROOT, 'workers/workflow-api/src/as-requests.js'), 'utf8');
+    expect(W).toContain('export const ALERT_HOURS = 48;');
+    expect(PAGE).toContain('const ALERT_HOURS = 48;');
+    const maxDays = Number(/export const FEED_DAYS_MAX = (\d+);/.exec(W)[1]);
+    const opts = [...PAGE.matchAll(/<option value="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(Math.max(...opts)).toBeLessThanOrEqual(maxDays);
+    expect(PAGE).not.toMatch(/x\.body/);
+  });
+  test('그리기 — 칸 다섯 · 팩토리 A/S 율 · 48시간 넘긴 접수 표시 · 받기까지 시간', () => {
+    document.body.innerHTML = PAGE.slice(PAGE.indexOf('<main'), PAGE.indexOf('</main>') + 7);
+    window.__AS_REQUESTS_NO_AUTOSTART = true;
+    const js = PAGE.slice(PAGE.lastIndexOf('<script>') + 8, PAGE.lastIndexOf('</script>'));
+    (0, eval)(js);
+    const A = window.AsRequests;
+    const now = Date.parse('2026-11-06T12:00:00Z');
+    A.state.data = {
+      ready: true,
+      days: 30,
+      stats: { total: 2, waiting: 1, late: 1, avg_receive_hours: 2, avg_done_hours: null, factories: [{ company_id: 'c', name: '가나 팩토리', count: 2, done: 0, orders_done: 4, as_rate: 50 }] },
+      items: [
+        { id: 'a', factory: '가나 팩토리', order_no: 'SO-20261101-AB12', state: 'requested', label: '접수', route: 'owners', created_at: '2026-11-04T00:00:00Z', received_at: null, done_at: null, alerted: true },
+        { id: 'b', factory: '가나 팩토리', order_no: 'SO-20261102-CD34', state: 'received', label: '받음', route: 'assignee', created_at: '2026-11-06T08:00:00Z', received_at: '2026-11-06T10:00:00Z', done_at: null, alerted: false },
+      ],
+    };
+    A.render(now);
+    const tiles = [...document.querySelectorAll('#tiles .tile')].map((t) => t.textContent);
+    expect(tiles).toEqual(['A/S 접수2건', '아직 안 받음1건', '48시간 넘김1건', '받기까지 평균2시간', '끝까지 평균-']);
+    expect(document.querySelector('#tiles .tile.warn').textContent).toContain('48시간 넘김');
+    const f = [...document.querySelectorAll('#tblFactories tbody td')].map((td) => td.textContent);
+    expect(f).toEqual(['가나 팩토리', '2', '0', '4', '50%']);
+    const rows = [...document.querySelectorAll('#tblRequests tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
+    expect(rows[0]).toEqual(['11.04 09:00', '가나 팩토리', 'SO-20261101-AB12', '대표 · 실장', '접수 · 48시간 넘김 알림 보냄', '', '']);
+    expect(rows[1]).toEqual(['11.06 17:00', '가나 팩토리', 'SO-20261102-CD34', '담당자', '받음', '2시간', '']);
+    expect(A.span('2026-11-01T00:00:00Z', '2026-11-02T03:00:00Z')).toBe('1일 3시간');
+    A.state.data = { ready: false, days: 30, items: [] };
+    A.render(now);
+    expect(document.getElementById('needSql').hidden).toBe(false);
+    delete window.__AS_REQUESTS_NO_AUTOSTART;
   });
 });

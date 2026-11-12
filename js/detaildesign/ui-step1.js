@@ -1185,6 +1185,20 @@
         if (GRADES.includes(d.doorGrade)) out.doorGrade = d.doorGrade;
         // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장 표시 — 있을 때만 싣는다 (없는 모듈의 payload 는 예전과 같다)
         if (d.topDrawer === true) out.topDrawer = true;
+        // 2026-11-05 사장님 (위 서랍 + 아래 도어 — 한 몸통 · 경첩 여닫이): 서랍이 위, 도어가 아래 — 있을 때만 싣는다
+        if (d.drawerTop === true) out.drawerTop = true;
+        // 2026-10-26 사장님 (가스대): 서랍 칸마다 레일 · 박스 크기 · 맨 위 속서랍 (bom-drawer-rules frontSpecs) — 있을 때만, 모르는 값은 버린다
+        if (Array.isArray(d.fronts) && d.fronts.length) {
+          out.fronts = d.fronts.map((f) => {
+            const x = {};
+            if (f && (f.rail === 'ball' || f.rail === 'under')) x.rail = f.rail;
+            if (f && ['small', 'medium', 'large'].includes(f.box)) x.box = f.box;
+            if (f && f.inner && Number(f.inner.h) > 0) {
+              x.inner = { h: Number(f.inner.h), sakuri: !!f.inner.sakuri, rail: f.inner.rail === 'ball' ? 'ball' : 'under' };
+            }
+            return x;
+          });
+        }
         return out;
       }
 
@@ -1219,10 +1233,38 @@
         return (typeof window !== 'undefined' && window.DadamWardrobeRules) || null;
       }
 
+      /** 모듈 속 부재 규칙 (세로칸막이 · 속서랍 — detaildesign.html 이 extractors.js 앞에 싣는다). */
+      function _interiorRules() {
+        if (typeof DadamInteriorRules !== 'undefined') return DadamInteriorRules;
+        return (typeof window !== 'undefined' && window.DadamInteriorRules) || null;
+      }
+
       /** 2026-09-19: 오픈장 규칙 — 플래너(mockup-structure)와 BOM(extractors)이 읽는 그 파일. */
       function _openCabinetRules() {
         if (typeof DadamOpenCabinetRules !== 'undefined') return DadamOpenCabinetRules;
         return (typeof window !== 'undefined' && window.DadamOpenCabinetRules) || null;
+      }
+
+      /**
+       * 2026-10-30 사장님 (간편 플래너 가전 연동): 가전 칸에 고른 가전 — 구조 s.appliance (가전 DB 한 줄:
+       *   category · name · w · h · d · sideGap · topGap · backGap · nicheW · nicheH). 오픈장 · 밥솥장 경고 모양 {W,H,D,…} 로. 없으면 null.
+       */
+      function _applianceOf(s) {
+        const a = s && s.appliance;
+        if (!a || typeof a !== 'object') return null;
+        const n = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+        return { name: String(a.name || ''), W: n(a.w), H: n(a.h), D: n(a.d),
+          sideGap: n(a.sideGap), topGap: n(a.topGap), backGap: n(a.backGap), nicheW: n(a.nicheW), nicheH: n(a.nicheH) };
+      }
+
+      /**
+       * 2026-11-03 사장님 (하부장 전자제품): 콘센트 — 구조 s.outlet { h: 바닥에서 mm | null } → BOM 모듈 outlet (자재 콘센트 2구 + 뒤판 타공).
+       *   상자 모듈(오픈장 · 밥솥장)과 도어 칸 모두. 없으면 null.
+       */
+      function _outletOf(s) {
+        const o = s && s.outlet;
+        if (!o || typeof o !== 'object') return null;
+        return { h: Number(o.h) > 0 ? Number(o.h) : null };
       }
 
       /** 2026-10-20: 홈카페장 규칙 (fridge.md §11) — 플래너와 BOM 이 읽는 그 파일. */
@@ -1241,6 +1283,12 @@
       function _riceCabinetRules() {
         if (typeof DadamRiceCabinetRules !== 'undefined') return DadamRiceCabinetRules;
         return (typeof window !== 'undefined' && window.DadamRiceCabinetRules) || null;
+      }
+
+      /** 2026-10-26: 설비장(개수대 · 가스대 · 후드장) 규칙 — js/detaildesign/bom-fixture-cabinet-rules.js */
+      function _fixtureCabinetRules() {
+        if (typeof DadamFixtureCabinetRules !== 'undefined') return DadamFixtureCabinetRules;
+        return (typeof window !== 'undefined' && window.DadamFixtureCabinetRules) || null;
       }
 
       /**
@@ -1264,6 +1312,10 @@
           cells: block.cells,
           drawers: block.drawers,
           externalDrawer: block.externalDrawer,
+          cellShelves: block.cellShelves,   // 2026-10-30 칸마다 선반 수 (간편 플래너 「칸마다 바꾸기」)
+          cellSplits: block.cellSplits,     // 2026-10-30 칸마다 세로칸막이 (세로칸막이 — 간편 플래너 「붙박이장 세로칸막이」)
+          cellShelfYs: block.cellShelfYs,   // 2026-10-31 칸마다 선반 자리 (간편 플래너 선반 높이 — 아랫면 · 윗면에서)
+          cellRods: block.cellRods,         // 2026-10-31 칸마다 옷봉 빼기 (간편 플래너 옷봉 제거)
         });
         const cabs = WR.cabinetsOf(L);
         if (!cabs.length) return null;
@@ -1284,6 +1336,10 @@
           wardrobe: { preset: L.preset, drawers: L.drawers, externalDrawer: L.external },
         };
         if (block.cells) out.wardrobe.cells = block.cells;
+        if (block.cellShelves) out.wardrobe.cellShelves = block.cellShelves;
+        if (block.cellSplits) out.wardrobe.cellSplits = block.cellSplits;
+        if (block.cellShelfYs) out.wardrobe.cellShelfYs = block.cellShelfYs;
+        if (block.cellRods) out.wardrobe.cellRods = block.cellRods;
         if (divided) { out.lowerH = cabs[0].h; out.upperH = cabs[1].h; }
         return out;
       }
@@ -1377,17 +1433,35 @@
           //   모듈 하나 = 상자 하나이고, 부재는 규칙 파일(bom-open-cabinet-rules.js)이 통째로 낸다.
           //   여기서는 그 표시(moduleKind)와 치수만 넘긴다 — 규칙을 두 군데 적지 않는다.
           //   멍장보다 **먼저** 본다: 오픈장으로 바꾼 모듈에 옛 blind 값이 남아 있어도 도어가 없다.
+          // 2026-10-29 사장님 (신발장 벤치 — "키큰장 사이 벤치 450" · "앉는 판 + 목대"): 몸통이 없다. 표시(moduleKind 'bench')와 치수만 넘기고
+          //   부재(앉는 판 · 목대 · 띄움이면 각파이프)는 BOM 규칙(extractors.js BOM_BENCH)이 낸다. 오픈장보다 먼저 본다.
+          if (s && s.bench) {
+            out.push({
+              id: `planner-${m.id}-0`, type: 'storage', moduleKind: 'bench', name: '벤치', pos: 'lower',
+              w: Number(m.W) || 0, h: Number(m.H) || 0, totalH: Number(m.H) || 0, d: Number(m.D) || 0,
+              doorCount: 0, is2door: false, isDrawer: false, drawerCount: 0, isOpen: false, shelfCount: 0, isEL: false, isFixed: false,
+              _x: Number(m.x) || 0,
+            });
+            placeLast(m, 0, Number(m.W) || 0);
+            return;
+          }
           const OC = _openCabinetRules();
           if (OC && OC.isOpenCabinet(s)) {
             const w = Number(m.W) || 0;
             const h = _carcassHeight(m.H, m.section, specs, s);
             const d = Number(m.D) || 0;
-            (OC.warningsOf({ W: w, H: h, D: d }) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            // 2026-10-30 사장님: 빌트인 오븐장 — 같은 상자를 PB 15T 로 (bom-open-cabinet-rules BUILTIN_OVEN). 구조 표시를 그대로 싣는다.
+            //   고른 가전(s.appliance)이 있으면 칸에 드는지 경고로 남긴다 (applianceWarningsOf — 빌트인은 니치, 그 밖은 외경 + 여유).
+            const builtin = !!(OC.isBuiltinOven && OC.isBuiltinOven(s));
+            const box = builtin ? { W: w, H: h, D: d, builtinOven: true } : { W: w, H: h, D: d };
+            (OC.warningsOf(box) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            const app = _applianceOf(s);
+            if (app && OC.applianceWarningsOf) OC.applianceWarningsOf(box, app, app.name).forEach((t) => warnings.push(`${m.id}: ${t}`));
             out.push({
               id: `planner-${m.id}-open`,
               type: boxType,              // 'hood' 처럼 BOM 에서 제외되는 type 이면 안 된다
               moduleKind: OC.RULES.KIND,  // extractors 가 이 값 하나로 오픈장 규칙을 탄다
-              name: OC.RULES.LABEL,
+              name: builtin ? OC.RULES.BUILTIN_OVEN.LABEL : OC.RULES.LABEL,
               pos,
               w,
               h,
@@ -1404,6 +1478,13 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            if (builtin) out[out.length - 1].builtinOven = true;   // 표시가 없는 모듈의 payload 는 예전과 같다
+            // 2026-11-05 사장님 (상부장 밑 오픈 칸): 상부장 몸통 밑에 붙은 오픈 상자 — BOM 상몰딩 자리에 서지 않는다 (extractors bomMoldingUppersOf)
+            if (pos === 'upper' && s && s.underUpper === true) out[out.length - 1].underUpper = true;
+            if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부장)
+            // 2026-11-04: 하부장 위 수납장 상자(오픈장 · 밥솥장 · 홈카페장) — 아래 일반 칸 분기(stackBox)보다 먼저 돌아가므로 여기서도 싣는다.
+            //   없으면 BOM 이 상부장 밑 상자를 상부 줄 모듈로 보고 상몰딩 자리를 한 번 더 세운다 (bomStackUnderUpperOf).
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;
             placeLast(m, 0, w);
             return;
           }
@@ -1424,6 +1505,9 @@
             const door = RC.doorTypeOf(s);
             const ctx = m.riceBelow ? Object.assign({ below: m.riceBelow }, stacked ? { lowerStack: true } : {}) : {};
             (RC.warningsOf({ W: w, H: h, D: d }, ctx) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            // 2026-10-30 사장님: 고른 밥솥(s.appliance)이 들어가는지 — 밥솥 H + 선반 · 레일 70 · 외경 (cookerWarningsOf)
+            const cooker = _applianceOf(s);
+            if (cooker && RC.cookerWarningsOf) RC.cookerWarningsOf({ W: w, H: h, D: d }, { w: cooker.W, h: cooker.H, d: cooker.D }, cooker.name).forEach((t) => warnings.push(`${m.id}: ${t}`));
             // 2026-10-24: 경첩으로 세는 도어(여닫이 · 포켓)는 외짝 — 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (2026-10-23 사장님 4-1 C, 셀 모듈과 같다).
             //   조립 명세가 경첩 컵 자리를 그 변에 놓는다. 방향을 모르면 붙이지 않는다 (지어내지 않는다).
             const dir0 = s && Array.isArray(s.areaDirections) ? s.areaDirections[0] : null;
@@ -1452,6 +1536,8 @@
               _x: Number(m.x) || 0,
               ...(stacked ? { stacked: true, riceTopBatten: topBatten } : {}),
             });
+            if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부 밥솥장 — 밥솥)
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;   // 하부장 위 상자 (위 오픈장과 같은 까닭)
             placeLast(m, 0, w);
             return;
           }
@@ -1463,8 +1549,11 @@
             const w = Number(m.W) || 0;
             const is2 = Array.isArray(s.areaIs2D) ? s.areaIs2D : [];
             const cells = Math.max(1, (Array.isArray(s.areaWidths) ? s.areaWidths.length : 0) || 1);
+            // 2026-10-29 사장님 (간편 플래너 「도어 있음도 있고, 없음도 있는 걸로」): 칸 타입이 'open' 이면 도어 없는 홈카페장 —
+            //   몸통은 부재표 그대로, 도어 · 경첩이 없다 (bom-homecafe-rules doorOf open). 표시가 없는 모듈의 payload 는 예전과 같다.
+            const hcOpen = Array.isArray(s.areaTypes) && s.areaTypes.length > 0 && s.areaTypes.every((t) => t === 'open');
             let doors = 0;
-            for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
+            if (!hcOpen) for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
             out.push({
               id: `planner-${m.id}-homecafe`,
               type: boxType,
@@ -1486,6 +1575,11 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            if (hcOpen) out[out.length - 1].homecafeOpen = true;
+            // 2026-10-29: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (셀 도어와 같은 2026-10-23 4-1 C — 조립 명세가 경첩 컵 자리를 그 변에)
+            const hcDirs = Array.isArray(s.areaDirections) ? s.areaDirections : [];
+            if (doors === 1 && (hcDirs[0] === 'left' || hcDirs[0] === 'right')) out[out.length - 1].hingeSide = hcDirs[0];
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;   // 하부장 위 상자 (위 오픈장과 같은 까닭)
             placeLast(m, 0, w);
             return;
           }
@@ -1675,6 +1769,9 @@
               _x: c.x,
             });
             placeLast(m, (Number(c.x) || 0) - (Number(m.x) || 0), c.w);
+            // 2026-10-30 사장님 (냉장고 위장 선반 「0장」): 냉장고장 위장은 선반 수를 구조 그대로 낸다 — 플래너 calcDefaultShelves('fridge')
+            //   가 위장(최대 400)에 선반을 두지 않는다. BOM 싱크 상부장 2장 고정을 타지 않게 표시만 싣는다 (표시 없는 모듈은 예전과 같다).
+            if (m.section === 'fridge') out[out.length - 1].fridgeUpper = true;
             // 2026-09-15: 서랍 규칙(레일·사쿠리·서랍 자재 두께·전면 등급)은 서랍이 있는 셀에만 — 없는 모듈의 payload 는 예전과 같다.
             if (!isOpen && drawerAtBottom) out[out.length - 1].drawer = _drawerRulesOf(s);
             // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장(drawer.topDrawer)은 전면이 모두 서랍이다 —
@@ -1682,6 +1779,14 @@
             //   자동계산 하부장(도어 + 아래 서랍)에는 표시가 없어 예전 그대로 위 칸 도어다.
             const topDrawer = !isOpen && drawerAtBottom && out[out.length - 1].drawer.topDrawer === true;
             if (topDrawer) Object.assign(out[out.length - 1], { drawerLayout: 'all', doorCount: 0 });
+            // 2026-11-05 사장님 (위 서랍 + 아래 도어): BOM drawerLayout 'drawerTop' (bom-drawer-rules layoutDrawerTop — 서랍 전면 기본 180 · 도어 나머지 · 한 몸통).
+            //   도어 수 = 칸 (양문 2 · 외짝 1, 경첩 방향은 아래 hingeSide 그대로)
+            if (!isOpen && drawerAtBottom && !topDrawer && out[out.length - 1].drawer.drawerTop === true) {
+              out[out.length - 1].drawerLayout = 'drawerTop';
+              if (s && Number(s.drawerHeight) > 0) out[out.length - 1].drawerHeight = Number(s.drawerHeight);
+            }
+            // 2026-11-05 사장님 (상부장 밑 오픈 칸 — 도어장 + 18T 오픈 상자 · 「도어 안 내려옴」): 밑에 오픈 상자가 붙은 상부장 — BOM 도어 내림 0
+            if (pos === 'upper' && s && s.openBelow === true) out[out.length - 1].openBelow = true;
             // 2026-10-13: 위로 여는 도어(플랩) — 칸 열림 방향 'up'. 상부장 단문 칸에만 뜻이 있다.
             //   BOM 은 경첩을 천판 쪽(도어 폭 기준)으로 보링하고 가스쇼바 2 를 낸다 (extractors.js flapHardwareOf).
             //   플랩이 아닌 칸은 필드를 붙이지 않는다 — 예전 payload 와 같다.
@@ -1694,12 +1799,49 @@
             // 2026-10-23 사장님 4-1 C: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (정면도 화살표가 그 변 — 양문의 왼 도어 ◀ = 왼쪽 경첩과 같다).
             //   조립 명세(bom-assembly.js hardwareOf)가 경첩 컵 자리를 그 변에 놓는다. 양문·오픈·플랩 칸엔 붙이지 않는다.
             else if (!isOpen && !topDrawer && !c.is2D && (dirs[i] === 'left' || dirs[i] === 'right')) out[out.length - 1].hingeSide = dirs[i];
+            // 2026-10-29 사장님 (신발장): 키큰장 도어 전신거울 — 구조 s.mirror 'single'(외짝) · 'left' | 'right'(양문의 그 짝). BOM 이 거울 5T 를 낸다
+            //   (extractors.js BOM_MIRROR — 도어 사방 여백 50). 표시가 없는 모듈의 payload 는 예전과 같다.
+            if (!isWardrobe && !isOpen && s && ['single', 'left', 'right'].indexOf(s.mirror) >= 0) out[out.length - 1].mirror = s.mirror;
+            // 2026-10-29 사장님 (간편 플래너 세로칸막이 · 속서랍 · 선반 단추 — bom-interior-rules.js): 구조 s.interior { mids: 세로칸막이 장수, cols: 나뉜 칸 선반, inner: 속서랍 단수 }.
+            //   있으면 사람이 속을 정한 모듈이다 — BOM 이 선반 수도 구조(s.shelves) 그대로 낸다 (싱크 상부 2 · 하부 1 고정 대신).
+            //   서랍 · 오픈 칸 · 붙박이장에는 싣지 않는다 (서랍장 · 오픈장 · 통 구조 규칙이 속을 정한다). 표시가 없는 모듈의 payload 는 예전과 같다.
+            if (!isWardrobe && !isOpen && !drawerAtBottom && s && s.interior && typeof s.interior === 'object') {
+              const IR = _interiorRules();
+              const iv = IR ? IR.normalize(s.interior) : null;
+              if (iv) out[out.length - 1].interior = Object.assign({ mids: iv.mids, inner: iv.inner }, iv.cols ? { cols: iv.cols } : {});
+            }
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);
             // 2026-10-26 사장님: 위에 밥솥장이 쌓인 하부 서랍 모듈 — 그 모듈이 상단 목찬넬 부재를 내고, 상판 아래 목찬넬 줄은 이 칸에서 끊긴다.
             //   표시가 없는 모듈은 예전 payload 그대로.
             if (m.stackTop === 'rice' && pos === 'lower') out[out.length - 1].stackTop = 'rice';
+            // 2026-11-03 사장님 (하부장 위 수납장 「몸통 위에 바로」): 위에 수납장이 올라간 하부장 — BOM 이 밴드 대신 천판, 그 칸 상판 없음.
+            //   위 수납장(상부 짜임 상자) = 구조 s.stackBox — 도어 내림은 BOM 이 손잡이로 정한다 (「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」).
+            //   표시가 없는 모듈의 payload 는 예전과 같다.
+            if (m.cabinetOnTop === true && pos === 'lower') out[out.length - 1].cabinetOnTop = true;
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;
+            // 2026-11-03 사장님 (하부장 전자제품): 콘센트 — 구조 s.outlet { h: 바닥에서 mm | null } (모듈마다 2구 하나, BOM 자재 + 뒤판 타공)
+            //   모듈마다 하나 (사장님 「모듈마다 1개 (2구)」) — 칸이 여럿으로 나뉘어도 첫 칸에만
+            if (i === 0 && pos === 'lower' && _outletOf(s)) out[out.length - 1].outlet = _outletOf(s);
+            // 2026-11-03 사장님: 알루미늄 프레임 유리 도어 — 구조 s.glassDoor 'alu' (BOM 이 도어 판 대신 구매품 행)
+            if (!isOpen && s && s.glassDoor === 'alu') out[out.length - 1].glassDoor = 'alu';
+            // 2026-10-26 사장님: 설비장 — 개수대 · 가스대(하부) · 후드장(상부) (bom-fixture-cabinet-rules.js). 구조 s.fixture 를 그대로 싣고
+            //   BOM 이 밴드(앞 50 눕힘 · 뒤 세움) · 선반을 그 규칙으로 낸다. 후드장은 몸통이 HOOD.CUT 짧다 (윗선 고정, 밑이 올라간다 — 도어도 같이).
+            //   설비가 그 줄의 것이 아니면(하부에 후드장 표시 등) 싣지 않는다. 표시가 없는 모듈의 payload 는 예전과 같다.
+            const FX = _fixtureCabinetRules();
+            const fx = FX ? FX.fixtureOf(s) : null;
+            if (fx && FX.FIXTURE_CABINET_RULES.POS[fx] === pos && !isTall) {
+              const o = out[out.length - 1];
+              o.fixture = fx;
+              o.name = FX.FIXTURE_CABINET_RULES.LABEL[fx];
+              if (fx === 'cooktop' && FX.cooktopOf(s)) o.cooktop = FX.cooktopOf(s);
+              const cut = FX.heightCutOf(s);
+              if (cut > 0) o.h = Math.max(0, o.h - cut);
+              // 2026-10-27 사장님: 양념망장 — 앞판은 철물에 달린 풀아웃 (경첩 없음 — BOM 이 경첩 대신 양념망 철물을 낸다)
+              const dt = FX.doorTypeOf ? FX.doorTypeOf(s) : null;
+              if (dt) { o.doorType = dt; delete o.hingeSide; }
+            }
             // 2026-09-17: 붙박이장 통 구조 — 몸통 수·선반·옷봉·서랍을 옛 필드로 옮기고 블록도 같이 싣는다.
             if (isWardrobe) {
               // 2026-09-17: 거울은 통마다 (옛 화면 hasMirror). 아직 부재로 나오지 않지만 값은 나른다.

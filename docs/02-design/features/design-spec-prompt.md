@@ -231,6 +231,46 @@ notes "꺾인 구간을 한 벽으로 폈습니다"). 실측(2026-10-19 GPT)에�
 렌더 역할 (플래너 모드 `renders[]`): `elevation_left` · `elevation_left_labeled` · `elevation_right` · `elevation_right_labeled` (선택, 최대 7장).
 `design_spec.walls` 에 그 벽이 있을 때만 싣는다. 번호 붙은 것은 설치 때 GPT 에만, 역판독에는 공급자와 상관없이.
 
+`composite` (선택, 2026-10-27 — 간편 플래너 「Blender 시안」): **방 사진 그대로**에 설계 3D 를 그 사진의 카메라로 렌더해 얹은 사진 (JPEG 도 받는다).
+있으면 잡이 IMAGE A 로 쓰고 도면 덩어리(`planner-place.js`)를 칠하지 않는다 — 자리 · 크기 · 깊이 · 문 · 서랍 나눔이 이미 그려져 있어서
+프롬프트는 "나눔 그대로, 사진처럼만" 이라고 말한다. 방 사진과 비율이 1.5 % 넘게 다르면 버린다. 있으면 `options.place_render: true`.
+
+`planner_polish` (선택 불리언, 2026-11-01 사장님 「C로 작업 실행」 — 간편 플래너 「AI: 다듬기만」): `true` 이고 `composite` 가 같이 오면 `options.polish: true`
+(재생성은 원본 값을 잇고, 요청이 `false` 면 끈다. 시안이 없으면 키를 두지 않는다 — 예전 방식). 잡은 그림 모델에 **시안 한 장**과
+`buildPlannerPolishPrompt` (기하 · 방 그대로, 빛 · 그림자 · 색온도 · 반사 · 재질 결 · 입자만. 방에서 바꾸는 것은 장과 겹치는 옛 물건 지우기 하나 —
+장이 겹친 옛 붙박이와 같은 줄 나머지, 장에 가리거나 잘린 물건. 장과 떨어져 선 물건은 그대로 — 2026-11-01 사장님 「원래 있던 물건과 겹쳐 보이는 건 정리 안됨?」)를 보낸다 — 입면(IMAGE B) · 3/4 · 꺾인 벽 · 냉장고 사진,
+SITE · TILE · EDIT ZONE · 줄 목록 · 자체 점검은 없다. 방 분석 · 배관 질문 · 위치 검사는 하지 않는다 (`wall_analysis.polish: true`, 같은 사진의
+다음 생성이 기본값 벽을 이어받지 않는다). 검사(QC, 기록만)와 역판독 대조는 그대로. 시안을 버렸으면(비율) 예전 플래너 경로.
+`planner_cleared` (선택 불리언, 2026-11-01): 다듬기일 때만 — 시안 배경이 간편 플래너가 비운 방이면 `true` → `options.cleared: true`, 다듬기 지시문이
+정리(CLEAN UP) 줄을 빼고 방 전체를 그대로 둔다 (지울 것이 없다 — 정리 줄이 새 장까지 지우지 않게).
+
+`planner_clear` (선택 불리언, 2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」):
+`true` 면 `options.clear: true` — **입면 없이** 받는다 (방 사진 · 도면 요약만). 잡은 그림 모델에 방 사진 한 장과 `buildPlannerClearPrompt` 를 보낸다:
+설계를 놓을 벽(정면 벽 + `walls[]` 꺾인 벽)의 옛 붙박이 장 · 선반 · 후드 · 붙박이 가전 · 그 벽에 기대 선 가구와 그 앞 물건을 지우고, 공사 현장이면
+SITE 문단(배관 · 전선은 벽 안으로), 카메라 · 벽 모서리 · 다른 벽 · 떨어진 물건 · 타일은 그대로. 방 분석은 하고(같은 사진이면 이어 쓴다) 배관 질문 · 검사(QC) ·
+위치 검사 · 역판독 대조는 하지 않는다. 결과 칸 이름 `… · 빈 방`. 다듬기와 같이 오면 비우기가 이긴다. 간편 플래너는 결과를 원본 사진에 맞춰 바뀐 곳만 붙인 뒤
+그 위에 Blender 시안을 그린다.
+
+`planner_reform` (선택 객체, 2026-11-02 사장님 「리폼 연출 이어 진행」 · 방 비우기 「바뀌는 자리만 비우기」 · 방식 「시안 → 다듬기만」 — 간편 플래너 냉장고장(리폼)):
+지금 설치된 냉장고장을 왼쪽부터 칸으로 알린다. 비우기(`planner_clear`) · 다듬기(`options.polish`)일 때만 정리해 `options.reform` 에 둔다 (재생성은 원본 값을 잇는다).
+
+| 필드 | 형식 | 규칙 |
+|---|---|---|
+| `segs` | array | 왼쪽부터 최대 15. 모르는 `kind` · 폭이 1–5000 이 아닌 칸은 버린다. 냉장고 공간(`space`)이 하나도 없으면 객체째 버린다 |
+| `segs[].kind` | string | `wall`(양 끝 · 사이 벽, 늘 그대로) · `space`(냉장고 공간) · `mid`(중간판) |
+| `segs[].widthMm` | number | 1–5000 (반올림) |
+| `segs[].fridge` | string | `space` 만 — `keep` · `remove` · `new`(떼고 새 냉장고 — 시안에 밝은 회색 상자). 모르면 `keep` |
+| `segs[].upper` | string | `space` 만 — 그 위 상부장 `keep` · `doors`(몸통은 두고 도어만 새로) · `remove`. 모르면 `keep` |
+| `segs[].panel` | string | `mid` 만 — `keep` · `remove`. 모르면 `keep` |
+| `boardMm` · `moldingMm` | number | 선택 — 상부장 지판 높이 500–3000 · 상몰딩 0–400 (지금 모습을 말할 때만) |
+
+- 비우기: `buildPlannerClearPrompt` 가 `buildPlannerReformClearPrompt` 로 — 지금 냉장고장을 왼쪽부터 말하고(`EXISTING SURROUND`) **뗄 것만** 지운다
+  (냉장고 `remove` · `new`, 상부장 `remove`, 중간판 `remove`). 양 끝 벽 · 상몰딩 · 남는 중간판 · 상부장(도어만 바꾸는 것은 도어째)과 방 · 카메라는 그대로.
+  설계 벽 전체를 비우는 문장 · SITE 문단은 없다.
+- 다듬기 (빈 방 배경이 아닐 때): 남는 냉장고장 부분을 `KEEP EXACTLY` 에 적고, 정리(CLEAN UP)는 새 장 둘레로 남은 뗄 것 · 바꾸는 옛 도어만
+  ("Do not touch the parts of the surround that stay"). 새 냉장고(`new`)가 있으면 `NEW REFRIGERATOR` 줄 — 회색 상자를 그 크기 · 자리 그대로 빌트인 냉장고로.
+  빈 방 배경(`planner_cleared`)이면 예전 비운 방 다듬기 지시문 그대로 (뗄 것은 이미 지웠다).
+
 `kind` 별 영어 문장:
 
 | kind | 프롬프트 문구 |

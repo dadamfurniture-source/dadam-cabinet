@@ -1,0 +1,5652 @@
+/* ============================================================
+   segan/shell.css — SEGAN 앱 셸 스타일
+
+   토큰은 css/dadam-v5.css 와 같은 이름 · 같은 값이다 (시험이 값이 같은지 확인한다).
+   v5 파일을 통째로 싣지 않는 이유: 서비스 워커가 오프라인용으로 담는 것은
+   segan/ 안의 셸 파일뿐이라, 앱이 쓰는 스타일은 이 폴더 안에 있어야 한다.
+
+   v5 규칙: 라운드 없음 · 섀도 없음 · 헤어라인 보더만.
+   ============================================================ */
+
+:root {
+  --v5-paper: #ffffff;
+  --v5-work: #f7f4ef;
+  --v5-well: #f1ece4;
+  --v5-photo: #e7e1d7;
+  --v5-ink: #2d2a26;
+  --v5-ink-62: rgba(45, 42, 38, 0.62);
+  --v5-ink-60: rgba(45, 42, 38, 0.6);
+  --v5-ink-55: rgba(45, 42, 38, 0.55);
+  --v5-ink-45: rgba(45, 42, 38, 0.45);
+  --v5-ink-32: rgba(45, 42, 38, 0.32);
+  --v5-line: rgba(45, 42, 38, 0.1);
+  --v5-line-12: rgba(45, 42, 38, 0.12);
+  --v5-line-16: rgba(45, 42, 38, 0.16);
+  --v5-line-18: rgba(45, 42, 38, 0.18);
+  --v5-line-25: rgba(45, 42, 38, 0.25);
+  --v5-tan: #8a7457;
+  --v5-navy: #0b2545;
+  --v5-invert: #f6f3ee; /* 앱 바탕 — manifest background_color · theme_color 와 같다 */
+  --v5-dark: #2d2a26;
+  --v5-on-dark: rgba(246, 243, 238, 0.92);
+  --v5-on-dark-60: rgba(246, 243, 238, 0.6);
+  --v5-on-dark-42: rgba(246, 243, 238, 0.42);
+  --v5-on-dark-12: rgba(246, 243, 238, 0.12);
+  --v5-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --v5-display: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
+
+  /* 앱 셸 치수 (v5 에 없는 것만 sg- 로) */
+  --sg-px: 20px; /* 좌우 여백 — 폰 */
+  --sg-bar: 60px; /* 폰 위 막대 높이 */
+  --sg-tab: 58px; /* 폰 아래 탭 높이 (안전 영역 제외) */
+
+  /* 기본 스프링 (응답 0.35초 · 감쇠 1.0) — segan/motion.js 가 같은 스프링의 linear() 곡선으로 바꿔 둔다.
+     이 값은 motion.js 를 싣지 않은 화면 · linear() 를 모르는 브라우저의 대신 곡선 (CLAUDE.md 「SEGAN 모션 규칙」) */
+  --sg-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --sg-spring-ms: 520ms;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  background: var(--v5-invert);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--v5-invert);
+  color: var(--v5-ink);
+  font-family: var(--v5-sans);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+button {
+  border-radius: 0;
+  font: inherit;
+}
+
+/* ── 가운데 한 장 (준비 중 · 오프라인) ── */
+.sg-center {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  text-align: center;
+}
+
+.sg-wordmark {
+  margin: 0;
+  line-height: 0;
+}
+
+.sg-wordmark img {
+  display: block;
+  width: min(220px, 56vw);
+  height: auto;
+  margin: 0 auto;
+}
+
+.sg-rule {
+  width: 40px;
+  height: 0;
+  margin: 28px auto;
+  border: 0;
+  border-top: 1px solid var(--v5-line-18);
+}
+
+.sg-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.sg-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+  letter-spacing: 0.02em;
+}
+
+.sg-btn {
+  min-height: 44px;
+  margin-top: 24px;
+  padding: 0 22px;
+  border: 1px solid var(--v5-ink);
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sg-btn:hover,
+.sg-btn:focus-visible {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+/* 누름 — 누르는 순간 0.97배 · 0.1초, 떼면 스프링으로 돌아온다 (CLAUDE.md 「SEGAN 모션 규칙」).
+   목록 줄은 줄이지 않고 바탕만 바로 바꾼다 */
+.sg-btn,
+.mk-btn {
+  transition: transform var(--sg-spring-ms) var(--sg-spring);
+}
+
+.sg-btn:active,
+.mk-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+
+a.sg-row:active,
+button.sg-row:active {
+  background: var(--v5-well);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-btn:active,
+  .mk-btn:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ============================================================
+   앱 셸 — 폰 · 태블릿: 위 막대(워드마크) + 아래 탭 다섯 / PC(1024px~): v5 헤더 위 메뉴 + 푸터
+   위 메뉴 여섯 칸(오른쪽 끝 마이페이지)은 768px 폭에 거의 꽉 차서 1024px 부터 연다 (segan/shell.js 머리말)
+   ============================================================ */
+
+.sg-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* 아래 탭에 본문이 가리지 않게 */
+  padding-bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom));
+}
+
+/* ── 위 막대 / 헤더 ── */
+.sg-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  min-height: calc(var(--sg-bar) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(var(--sg-px), env(safe-area-inset-right)) 0
+    max(var(--sg-px), env(safe-area-inset-left));
+  background: rgba(246, 243, 238, 0.94);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.sg-brand img {
+  display: block;
+  width: 92px;
+  height: auto;
+}
+
+.sg-nav {
+  display: none;
+}
+
+.sg-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--v5-ink-62);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.sg-nav a:hover,
+.sg-nav a[aria-current='page'] {
+  color: var(--v5-ink);
+}
+
+/* ── 아래 탭 (폰) ── */
+.sg-tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  /* 탭 다섯 — 칸 수를 적지 않고 보이는 탭만큼 같은 폭으로 */
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: rgba(246, 243, 238, 0.97);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.sg-tabbar a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--sg-tab);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--v5-ink-45);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sg-tabbar a[aria-current='page'] {
+  color: var(--v5-ink);
+}
+
+.sg-tabbar svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* ── 본문 ── */
+.sg-main {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px max(var(--sg-px), env(safe-area-inset-right)) 48px
+    max(var(--sg-px), env(safe-area-inset-left));
+}
+
+.sg-h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+.sg-lead {
+  margin: 0 0 28px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--v5-ink-60);
+}
+
+.sg-soon {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--v5-ink-45);
+}
+
+/* 단계 목록 (만들기) */
+.sg-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+  counter-reset: sg-step;
+}
+
+.sg-steps li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 15px;
+}
+
+.sg-steps li::before {
+  counter-increment: sg-step;
+  content: counter(sg-step, decimal-leading-zero);
+  width: 22px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+/* 비어 있는 판 (준비 중) */
+.sg-panel {
+  padding: 40px 20px;
+  border: 1px solid var(--v5-line-12);
+  text-align: center;
+}
+
+/* 로그인 안내 · 확인 중 */
+.sg-gate,
+.sg-checking {
+  padding: 48px 0 24px;
+  text-align: center;
+}
+
+a.sg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* 줄 목록 (내 정보) */
+.sg-section {
+  margin-top: 32px;
+}
+
+.sg-section h2 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--v5-ink-45);
+}
+
+.sg-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.sg-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--v5-line);
+  background: none;
+  color: var(--v5-ink);
+  font-size: 15px;
+  font-weight: 300;
+  text-align: left;
+  text-decoration: none;
+}
+
+a.sg-row::after,
+button.sg-row::after {
+  content: '›';
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--v5-ink-45);
+}
+
+button.sg-row {
+  cursor: pointer;
+}
+
+.sg-account {
+  margin: 0;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+/* 관리 (segan/admin.js) — 오늘 할 일 수, 할 일이 있으면 진하게 */
+a.sg-row.ad-row::after {
+  margin-left: 0;
+}
+
+.ad-count {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-60);
+}
+
+.ad-count.is-on {
+  font-weight: 500;
+  color: var(--v5-ink);
+}
+
+/* 관리 › 새 업체 신청 — 카드는 업체 › 상담과 같은 모양 (me-cs-item) */
+.ad-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ad-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-more {
+  margin-top: 16px;
+}
+
+/* 관리 › 상담 배정 — 상담 줄을 누르면 그 자리에 고객 칸 · 순위.
+   업체 › 제작 의뢰 (me-prq-, segan/production-requests.js)도 같은 모양 — 줄을 누르면 그 자리에 의뢰 · 추천 팩토리 */
+.ad-tabs {
+  margin-top: 8px;
+}
+
+.ad-pick,
+.me-prq-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ad-status {
+  margin-left: auto;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--v5-ink-60);
+}
+
+.ad-detail,
+.me-prq-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-assign {
+  margin: 0;
+  font-size: 13px;
+}
+
+.ad-cands,
+.ad-score,
+.me-prq-recs,
+.me-prq-offers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ad-cands,
+.me-prq-recs {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-cand,
+.me-prq-rec {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--v5-line);
+}
+
+.ad-cand-head,
+.me-prq-rec-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.ad-cand-head span,
+.me-prq-rec-head span {
+  margin-left: auto;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.ad-score,
+.me-prq-offers {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.ad-filtered {
+  font-size: 13px;
+}
+
+/* 관리 › 제작 의뢰 — 고른 팩토리마다 가격대 최소 · 최대(만 원) · 제작 기간(일), 좁으면 다음 줄로 */
+.ad-est {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 8px;
+}
+
+/* 관리 › 작업 보고 — 숫자 넷 · 종류 고르기 */
+.ad-kpis dt {
+  width: 8em;
+}
+
+.ad-kind {
+  margin-top: 12px;
+}
+
+/* 관리 › 회원 — 찾기 칸 */
+.ad-search {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+/* 내 정보 — 값 · 상담 내역 */
+.me-val {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 13px;
+  font-weight: 300;
+  text-align: right;
+  color: var(--v5-ink-60);
+}
+
+.me-consult {
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.me-c-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.me-c-main b {
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.me-c-main small {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+.me-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 11.5px;
+  color: var(--v5-ink-60);
+}
+
+.me-badge--confirmed,
+.me-badge--completed {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
+.me-empty {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+/* ── 마이페이지 메뉴 · 하위 화면 (segan/me.js) ──
+   폰 · 태블릿(~1099px): 메뉴(주소에 # 없음) → 하위 화면 하나 (main[data-me-screen] 이 그 이름)
+   PC(1100px~): 왼쪽 메뉴 + 오른쪽 하위 화면 (시트가 옆 패널이 되는 폭과 같다) */
+.me-profile {
+  display: grid;
+  gap: 4px;
+  padding: 4px 0 20px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.me-profile-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.me-profile-facts div {
+  display: flex;
+  gap: 8px;
+}
+
+.me-profile-facts dt {
+  color: var(--v5-ink-45);
+}
+
+.me-profile-facts dd {
+  margin: 0;
+  color: var(--v5-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 오늘 작업 — 작업자 맨 위 카드 (누르면 작업 화면) */
+.me-work {
+  display: grid;
+  gap: 6px;
+  min-height: 44px;
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  text-decoration: none;
+}
+
+.me-work-title {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.me-work-title::after {
+  content: '›';
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--v5-ink-45);
+}
+
+.me-work-body {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+}
+
+.me-work-line {
+  display: block;
+}
+
+.me-logout {
+  margin-top: 32px;
+}
+
+/* 내 정보 — 업체 이름 · 내 역할 */
+.me-company {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--v5-ink);
+}
+
+/* 메뉴 나무 (segan/me.js) — B안 큰 메뉴 · 그 아래 하위 줄.
+   큰 메뉴 이름(.me-menu-name — <main class="me-main"> 과 다른 이름)은 그 대시보드로, 옆 ▾(.me-chev)는 하위 줄만 접고 편다(.is-open, 한 번에 하나 — 폰 · PC 같다) */
+.me-menus {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.me-menu {
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-menu-head {
+  display: flex;
+  align-items: stretch;
+}
+
+.me-menu-name {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--v5-ink);
+  font-size: 16px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.me-chev {
+  flex: none;
+  width: 48px;
+  border: 0;
+  background: none;
+  color: var(--v5-ink-45);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.me-chev::before {
+  content: '▾';
+  display: inline-block;
+  transition: transform var(--sg-spring-ms) var(--sg-spring);
+}
+
+.me-menu.is-open .me-chev::before {
+  transform: rotate(180deg);
+}
+
+.me-subs {
+  display: none;
+  margin: 0 0 12px;
+  padding-left: 14px;
+  border-top: 0;
+  border-left: 1px solid var(--v5-line-18);
+}
+
+.me-menu.is-open > .me-subs {
+  display: block;
+}
+
+.me-subs .sg-row {
+  min-height: 44px;
+  padding-left: 6px;
+  font-size: 14px;
+}
+
+.me-subs li:last-child .sg-row {
+  border-bottom: 0;
+}
+
+.me-row-soon {
+  color: var(--v5-ink-45);
+}
+
+/* 구역 단추 (#meParts) — 프로젝트 관리 하위 줄이 묶은 화면들 · 설계의 플래너 */
+.me-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.me-part {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink-60);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.me-part[aria-current='page'] {
+  border-color: var(--v5-navy);
+  color: var(--v5-ink);
+  font-weight: 400;
+}
+
+.me-part-soon {
+  color: var(--v5-ink-45);
+}
+
+.me-part-link::after {
+  content: '↗';
+  margin-left: 6px;
+  color: var(--v5-ink-45);
+}
+
+/* 대시보드 (#meDash) — 하위 줄마다 칸 하나 (프로젝트 관리는 수), 칸 사이는 가는 선 (빈 자리는 바탕 그대로) */
+.me-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin: 0 0 24px;
+  border-top: 1px solid var(--v5-line);
+  border-left: 1px solid var(--v5-line);
+}
+
+.me-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  min-height: 88px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  text-decoration: none;
+}
+
+.me-tile-k {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.me-tile-k::after {
+  content: ' ›';
+  color: var(--v5-ink-45);
+}
+
+.me-tile-n {
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-tile-d {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+.me-tile-soon .me-tile-k {
+  color: var(--v5-ink-45);
+}
+
+/* 업무 달력 (#meCalendar — segan/calendar.js) — 프로젝트 관리 대시보드. 각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음.
+   종류 색 다섯은 흰 바탕에서 모든 짝이 색각 검사를 통과한 값이다 (영업 · 설계 · 생산 · 설치 · A/S) — 바꾸면 다시 검사한다.
+   색만으로 가리지 않는다: 단추 · 줄에는 이름이 있고, 폰 월 달력의 네모는 종류마다 자리가 정해져 있다 */
+.cal {
+  --cal-sales: #2f6fb0;
+  --cal-design: #8a7ff4;
+  --cal-make: #c96a2b;
+  --cal-install: #1f9a86;
+  --cal-as: #9b3b3b;
+  margin: 0 0 24px;
+}
+
+.cal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.cal-title {
+  margin: 0 auto 0 0;
+  font-size: 18px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-nav,
+.cal-views {
+  display: flex;
+}
+
+.cal-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cal-btn + .cal-btn {
+  margin-left: -1px;
+}
+
+.cal-btn[aria-pressed='true'] {
+  position: relative;
+  border-color: var(--v5-navy);
+  background: var(--v5-navy);
+  color: var(--v5-invert);
+}
+
+.cal-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cal-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cal-kind-n {
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 끈 종류 — 글자를 흐리게, 네모는 테두리만 */
+.cal-kind[aria-pressed='false'] {
+  color: var(--v5-ink-45);
+}
+
+.cal-kind[aria-pressed='false'] .cal-sw {
+  border: 1px solid var(--v5-ink-32);
+  background: transparent;
+}
+
+.cal-sw {
+  box-sizing: border-box;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  background: var(--v5-ink-32);
+}
+
+.cal-sw--sales {
+  background: var(--cal-sales);
+}
+
+.cal-sw--design {
+  background: var(--cal-design);
+}
+
+.cal-sw--make {
+  background: var(--cal-make);
+}
+
+.cal-sw--install {
+  background: var(--cal-install);
+}
+
+.cal-sw--as {
+  background: var(--cal-as);
+}
+
+.cal-sw--none {
+  background: transparent;
+}
+
+.cal-state {
+  margin: 0 0 8px;
+}
+
+/* 월 · 주 — 칸 사이는 가는 선 (대시보드 칸 .me-tiles 와 같다) */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--v5-line);
+  border-left: 1px solid var(--v5-line);
+}
+
+.cal-wd {
+  padding: 6px 4px;
+  border-right: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  text-align: center;
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 6px;
+  border: 0;
+  border-right: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-day--out {
+  background: var(--v5-work);
+  color: var(--v5-ink-45);
+}
+
+/* 고른 날 — 안쪽 테두리 (칸 크기는 그대로) */
+.cal-day[aria-pressed='true'] {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: -2px;
+}
+
+.cal-d {
+  min-width: 24px;
+  padding: 2px 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.cal-day[aria-current='date'] .cal-d {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.cal-dots {
+  display: flex;
+  gap: 2px;
+  padding-left: 4px;
+}
+
+.cal-dots .cal-sw {
+  width: 6px;
+  height: 6px;
+}
+
+.cal-chips {
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  align-self: stretch;
+  min-width: 0;
+}
+
+.cal-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cal-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-chip--off > span {
+  color: var(--v5-ink-45);
+  text-decoration: line-through;
+}
+
+.cal-chip .cal-sw {
+  width: 8px;
+  height: 8px;
+}
+
+.cal-more {
+  font-size: 11.5px;
+  color: var(--v5-ink-60);
+}
+
+/* 쉬는 날 — 색 · 종류를 더하지 않는다, 회색 글만 (2026-11-12) */
+.cal-off {
+  display: block;
+  font-size: 11.5px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
+.cal-offline {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+}
+
+.cal-offline-k {
+  margin-right: 6px;
+  color: var(--v5-ink);
+}
+
+/* 주 — 좁으면 날마다 한 줄, 넓으면 일곱 칸 */
+.cal-grid--week {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cal-grid--week .cal-day {
+  min-height: 48px;
+}
+
+.cal-grid--week .cal-chips {
+  display: flex;
+}
+
+/* 주 보기는 줄을 자르지 않고 접는다 (칸이 길어진다) */
+.cal-grid--week .cal-chip {
+  align-items: flex-start;
+}
+
+.cal-grid--week .cal-chip > span {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cal-grid--week .cal-chip .cal-sw {
+  margin-top: 4px;
+}
+
+@media (min-width: 720px) {
+  .cal-day {
+    min-height: 104px;
+  }
+
+  .cal-dots {
+    display: none;
+  }
+
+  .cal-chips {
+    display: flex;
+  }
+
+  .cal-grid--week {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .cal-grid--week .cal-day {
+    min-height: 220px;
+  }
+}
+
+/* 그날 일정 · 목록 */
+.cal-panel {
+  margin-top: 16px;
+}
+
+.cal-list .cal-panel:first-child {
+  margin-top: 0;
+}
+
+.cal-panel-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.cal-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.cal-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.cal-item-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cal-item-line .cal-sw {
+  margin-top: 5px;
+}
+
+.cal-item-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cal-item-main b {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.cal-item-main small {
+  font-size: 12.5px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+.cal-item-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-item--off .cal-item-main b {
+  color: var(--v5-ink-45);
+  text-decoration: line-through;
+}
+
+.cal-item-acts {
+  display: flex;
+  gap: 20px;
+  padding-left: 20px;
+}
+
+.cal-item-acts:empty {
+  display: none;
+}
+
+.cal-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--v5-navy);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.cal-state .cal-link {
+  min-height: 0;
+  margin-left: 8px;
+}
+
+.cal-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cal > .rd-acts {
+  margin-top: 16px;
+}
+
+/* 설치 · A/S 지도 + 표 (#siteInstall · #siteAs — segan/site-map.js). 각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음.
+   상태 색 넷(예정 · 진행/미정 · 팀 없음 · 끝)은 핀과 번호 네모가 같이 쓴다. 색만으로 가리지 않는다:
+   핀 · 네모에는 번호가, 표에는 상태 글자가, 범례에는 이름이 있다 */
+.sm {
+  --sm-info: #2f6fb0;
+  --sm-warn: #fab219;
+  --sm-bad: #d03b3b;
+  --sm-ok: #1a7f37;
+  margin-bottom: 24px;
+}
+
+.sm-range {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+
+.sm-head > .sm-range {
+  flex: 1 0 100%;
+  margin-bottom: 0;
+}
+
+.sm-tabs {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.sm-n {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+.sm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-left: auto;
+}
+
+.sm-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.sm-filter select {
+  min-height: 44px;
+  max-width: 180px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.sm-mapwrap {
+  position: relative;
+  height: 300px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+}
+
+/* 지도를 못 쓰는 때(키 없음 · 못 불러옴) — 큰 빈 칸 대신 글 한 줄 */
+.sm-mapwrap--off {
+  height: auto;
+  border-style: dashed;
+  border-color: var(--v5-line-25);
+}
+
+.sm-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* 지도 타일은 제 크기로 — 셸의 img { max-width: 100% } 가 타일을 줄이지 않게 */
+.sm-map img {
+  max-width: none;
+}
+
+.sm-mapmsg {
+  position: relative;
+  margin: 0;
+  padding: 16px;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sm-mapnote {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.sm-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sm-sw {
+  width: 10px;
+  height: 10px;
+}
+
+.sm-sw--info {
+  background: var(--sm-info);
+}
+
+.sm-sw--warn {
+  background: var(--sm-warn);
+}
+
+.sm-sw--bad {
+  background: var(--sm-bad);
+}
+
+.sm-sw--ok {
+  background: var(--sm-ok);
+}
+
+.sm-tablewrap {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+
+.sm-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sm-table th,
+.sm-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 300;
+  white-space: nowrap;
+}
+
+.sm-table thead th {
+  border-bottom-color: var(--v5-line-25);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--v5-ink-60);
+}
+
+.sm-table th:first-child {
+  width: 44px;
+  padding-left: 0;
+}
+
+/* 줄은 줄이지 않고 바탕만 바로 바꾼다 (CLAUDE.md 「SEGAN 앱 모션 규칙」 — 목록 줄) */
+.sm-row {
+  cursor: pointer;
+}
+
+.sm-row--on {
+  background: var(--v5-well);
+}
+
+.sm-table td.sm-name,
+.sm-table td.sm-body {
+  white-space: normal;
+}
+
+/* 프로젝트 이름이 증상 칸에 밀려 글자마다 꺾이지 않게 */
+.sm-table td.sm-name {
+  min-width: 150px;
+}
+
+.sm-name b {
+  display: block;
+  font-weight: 400;
+}
+
+.sm-name small {
+  display: block;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.sm-body {
+  min-width: 140px;
+  max-width: 260px;
+}
+
+.sm-dim {
+  color: var(--v5-ink-45);
+}
+
+/* 번호 네모 — 표의 번호 단추 · 현장 정보 제목. 지도 핀과 같은 색 */
+.sm-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+button.sm-num {
+  cursor: pointer;
+}
+
+.sm-num--info,
+.sm-pin--info {
+  background: var(--sm-info);
+}
+
+.sm-num--warn,
+.sm-pin--warn {
+  background: var(--sm-warn);
+  color: var(--v5-ink);
+}
+
+.sm-num--bad,
+.sm-pin--bad {
+  background: var(--sm-bad);
+}
+
+.sm-num--ok,
+.sm-pin--ok {
+  background: var(--sm-ok);
+}
+
+button.sm-num[aria-pressed='true'] {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
+/* 지도 핀 — 각진 번호 네모. 흰 테두리로 지도 바탕 · 옆 핀과 가른다. 고른 핀은 크게 + 먹색 선 */
+.sm-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 5px;
+  border: 2px solid #ffffff;
+  border-radius: 0;
+  color: #ffffff;
+  font-family: var(--v5-sans);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sm-pin--warn {
+  color: var(--v5-ink);
+}
+
+.sm-pin--on {
+  min-width: 38px;
+  height: 38px;
+  font-size: 14px;
+  outline: 2px solid var(--v5-ink);
+}
+
+.sm-detail {
+  margin-top: 14px;
+}
+
+.sm-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.sm-dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px 24px;
+  margin: 0;
+}
+
+.sm-dl > div {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.sm-dl dt {
+  flex: 0 0 72px;
+  color: var(--v5-ink-60);
+}
+
+.sm-dl dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 300;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 720px) {
+  .sm-mapwrap {
+    height: 380px;
+  }
+
+  .sm-mapwrap--off {
+    height: auto;
+  }
+
+  .sm-dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 준비 중 안내 (구매 · 재고 · 근무 일정 · 작업자 · 수금 · 고객 · Manager A/S) — 하위 화면 자리의 한 칸 */
+.me-pane-note.me-soon {
+  padding: 18px 16px;
+  border: 1px dashed var(--v5-line-25);
+  background: var(--v5-well);
+  color: var(--v5-ink-60);
+}
+
+/* 업체 칸 안 직원 · 초대 (segan/partner.js .me-pt-staff) — 인사 › 직원 화면에서만, 그 화면은 그것만 */
+#partner:not([data-me-view='staff']) .me-pt-staff {
+  display: none;
+}
+
+#partner[data-me-view='staff'] #mePartner > :not(.me-pt-staff):not(.me-pt-msg):not(.me-pt-err) {
+  display: none;
+}
+
+/* 관리 › 플랫폼 › 등록 업체 (segan/hq-companies.js) — 목록 줄 · 「‹ 등록 업체」 · 탭 셋(프로젝트 · 회계 · 인력) */
+.me-hc-row {
+  gap: 12px;
+  cursor: pointer;
+}
+
+.me-hc-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--v5-ink-60);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.me-hc-tabs {
+  display: flex;
+  margin: 8px 0 16px;
+  border-bottom: 1px solid var(--v5-line-18);
+}
+
+.me-hc-tabs button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--v5-ink-60);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.me-hc-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--v5-navy);
+  color: var(--v5-ink);
+  font-weight: 400;
+}
+
+.me-hc-stages {
+  margin: 0 0 16px;
+}
+
+.me-hc-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+/* 메뉴 줄의 값 (팩토리 이름 · 구독 상태) — 줄 글이 먼저, 값은 남는 폭에 */
+.me-hub .sg-row .me-val {
+  min-width: 0;
+}
+
+/* 하위 화면 — 한 번에 하나 (me-off = 지금 화면이 아닌 칸 · 업체 칸 안의 다른 부분) */
+.me-pane .me-off {
+  display: none;
+}
+
+.me-pane-note {
+  margin-top: 32px;
+}
+
+/* 알림 · 결제가 여는 주소(#partner · #partner-consults · #as)는 모듈이 그 칸으로 내려간다 —
+   이제 그 칸이 화면 맨 위라 위 막대 · 「‹ 마이페이지」 · 제목이 밀려 올라가지 않게 */
+.me-pane .me-screen,
+.me-pane .me-pt-group {
+  scroll-margin-top: 240px;
+}
+
+@media (max-width: 1099.98px) {
+  .me-main[data-me-screen=''] .me-pane {
+    display: none;
+  }
+
+  .me-main:not([data-me-screen='']) .me-hub {
+    display: none;
+  }
+
+  /* 하위 화면 이름은 맨 위 제목이 보인다 — 칸 머리글은 두 번 적지 않는다 */
+  .me-main:not([data-me-screen='']) .me-pane .me-screen > h2 {
+    display: none;
+  }
+
+  .me-main:not([data-me-screen='']) .me-pane .me-screen,
+  .me-main:not([data-me-screen='']) .me-pane-note {
+    margin-top: 16px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .me-layout {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 0 64px;
+    align-items: start;
+    margin-top: 24px;
+  }
+
+  /* make.css .mk-back(inline-flex)이 뒤에 실려 같은 무게면 덮는다 — 두 클래스로 */
+  .mk-back.me-back {
+    display: none;
+  }
+
+  /* 왼쪽 메뉴 — 지금 화면 줄은 흰 바탕 */
+  .me-hub .sg-row {
+    padding: 0 12px;
+  }
+
+  /* 메뉴 나무 — 큰 메뉴는 머리글처럼 (펼치기는 폰과 같다) */
+  .me-menu-name {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 15px;
+  }
+
+  .me-chev {
+    width: 44px;
+  }
+
+  .me-subs {
+    margin-left: 12px;
+    padding-left: 0;
+  }
+
+  .me-hub .sg-row[aria-current='page'],
+  .me-hub .me-menu-name[aria-current='page'],
+  .me-hub .me-menu-name[aria-current='page'] + .me-chev {
+    background: var(--v5-paper);
+    font-weight: 400;
+  }
+
+  .me-parts {
+    margin-top: 0;
+    margin-bottom: 16px;
+  }
+
+  .me-hub .me-profile,
+  .me-hub .me-group > h2 {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .me-pane > .me-screen:not(.me-off),
+  .me-pane-note {
+    margin-top: 0;
+  }
+}
+
+/* 내 정보 › 설정 (segan/settings.js) — 프로필 수정 · 회원탈퇴 안내 */
+.st-lead {
+  margin: 0 0 8px;
+}
+
+.st-done {
+  margin-top: 10px;
+}
+
+.st-list {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+}
+
+/* 내 정보 › 구독 관리 (segan/billing.js) — 안내 칸 · 단추 줄 · 해지 단추 (billing.html 과 같은 색) */
+.bl-status {
+  margin: 16px 0 0;
+  padding: 12px 15px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--v5-ink-62);
+  white-space: pre-line;
+}
+
+.bl-status.err {
+  border-color: rgba(192, 57, 43, 0.3);
+  color: #c0392b;
+}
+
+.bl-acts {
+  margin-top: 14px;
+}
+
+.mk-btn.bl-danger {
+  border-color: #d9b0ab;
+  color: #a54034;
+}
+
+/* 내 정보 › 내 활동 (segan/activity.js) — 저장한 추천 팩토리 · 시공 평가 · 내 시공사례 */
+.ac-lead {
+  margin: 0 0 10px;
+}
+
+.ac-lead a {
+  color: var(--v5-ink);
+}
+
+.ac-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+
+.ac-chips span {
+  padding: 2px 8px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.ac-partner .rd-acts,
+.ac-partner .me-pt-ask {
+  margin-top: 10px;
+}
+
+.ac-range input[type='range'] {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--v5-ink);
+}
+
+.ac-range b {
+  font-weight: 500;
+  color: var(--v5-ink);
+}
+
+.ac-file input[type='file'] {
+  padding: 12px;
+}
+
+.ac-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  background: var(--v5-well);
+}
+
+.ac-cases {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ac-case {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ac-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--v5-photo);
+}
+
+.ac-meta {
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ac-case .rd-acts .mk-btn {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* 학습 동의 — 켜져 있을 때만 눈에 띈다 (mypage.html 과 같은 뜻) */
+.ac-consent[aria-pressed='true'] {
+  border-color: var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+/* 내 프로젝트 — 제목 · 회사 / 단계 6칸 / 계약 금액 · 다음 결제 · 설치일 */
+.me-project {
+  padding: 14px 0 16px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-p-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 단계 막대 — 만들기 탭 단계 막대(.mk-stepbar)와 같은 모양: 지금 단계까지 채운다 */
+.me-steps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-step {
+  padding-top: 6px;
+  border-top: 2px solid var(--v5-line-18);
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: var(--v5-ink-45);
+}
+
+.me-step--done {
+  border-top-color: var(--v5-ink);
+  color: var(--v5-ink-60);
+}
+
+.me-step[aria-current='step'] {
+  font-weight: 400;
+  color: var(--v5-ink);
+}
+
+.me-facts {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.me-facts div {
+  display: flex;
+  gap: 12px;
+}
+
+.me-facts dt {
+  flex: none;
+  width: 5em;
+  color: var(--v5-ink-45);
+}
+
+.me-facts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--v5-ink);
+}
+
+/* 업체 (segan/partner.js) — 입력 · 단추는 make.css 의 mk- 모양을 쓴다 */
+.me-pt,
+.jn {
+  --mk-dim: rgba(45, 42, 38, 0.72); /* make.css 의 보조 글자색 (만들기 탭과 같은 값) */
+}
+
+.me-pt-lead {
+  margin: 10px 0 12px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+}
+
+.me-pt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.me-pt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.me-pt-card .mk-btn {
+  margin-top: 8px;
+}
+
+.me-pt-name {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.me-pt-info,
+.me-pt-how {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+.me-pt-how {
+  color: var(--v5-ink-60);
+}
+
+/* 등급 비교 링크 (segan/plans.html) — 카드 · 등급 바꾸기 · 다시 시작 아래 */
+.me-pt-more {
+  margin: 8px 0 0;
+}
+
+.me-pt-more .mk-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+}
+
+.me-pt-group .me-pt-cards {
+  margin-top: 10px;
+}
+
+.me-pt-form,
+.me-pt-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 18px 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.me-pt-box .me-facts,
+.me-pt-box .me-steps {
+  margin-top: 0;
+}
+
+.me-pt-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.me-pt-group {
+  margin-top: 20px;
+}
+
+.me-pt-sub {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--v5-ink-60);
+}
+
+.me-pt-group > .rd-acts,
+.me-pt-group > .mk-note,
+.me-pt-group > .me-pt-info {
+  margin-top: 10px;
+}
+
+.me-pt-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.me-pt-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-pt-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.me-pt-line .me-badge {
+  margin-left: auto;
+}
+
+.me-pt-ask {
+  margin-top: 10px;
+}
+
+.me-pt-url {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-well);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.me-pt-msg {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink);
+}
+
+.me-pt-msg:empty {
+  display: none;
+}
+
+.me-pt-err {
+  margin-top: 8px;
+}
+
+.me-pt-warn {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--v5-well);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.me-pt-rows {
+  margin-top: 20px;
+}
+
+.me-steps--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* 업체 › 제작 의뢰 단계 — 접수 · 본사 검토 · 추천 도착 · 팩토리 답 기다림 · 받음 */
+.me-steps--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+/* 업체 › 제작 의뢰 — 의뢰 칸(시트 · 옆 패널 안), 추천 카드 안 단계 · 사실 칸, 제작 의뢰함 「지난 의뢰」 */
+.me-prq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.me-prq-detail .me-steps,
+.me-prq-rec .me-facts {
+  margin-top: 0;
+}
+
+.me-prq-detail .me-pt-msg,
+.me-prq-rec .me-pt-msg,
+.me-prq-rec .me-pt-warn {
+  margin: 0;
+}
+
+.me-prq-past {
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+/* 업체 › 회계 (segan/books.js) — 달 바꾸기 · 이번 달 · 지난달 표 · 미수 · 상태별 수주 · 다가오는 수금 */
+.me-bk-box {
+  gap: 14px;
+}
+
+.me-bk-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.me-bk-step {
+  min-width: 44px;
+  padding: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.me-bk-month {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.me-bk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-bk-table th,
+.me-bk-table td {
+  padding: 9px 0 9px 10px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.me-bk-table th:first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.me-bk-table thead th {
+  padding-top: 0;
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-45);
+}
+
+.me-bk-table tbody th {
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.me-bk-miss {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--v5-tan);
+  white-space: normal;
+}
+
+/* 장부 보기만 (level read) — 회계 줄 아래 한 줄 + 등급 비교 */
+.me-bk-ro {
+  margin: 10px 0 0;
+}
+
+.me-bk-ro .mk-link {
+  min-height: 0;
+  padding: 0;
+}
+
+.me-bk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.me-bk-h {
+  margin: 6px 0 -6px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--v5-ink-60);
+}
+
+.me-bk-status {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-bk-status li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 2px;
+  background: var(--v5-well);
+}
+
+.me-bk-status b {
+  font-size: 17px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-bk-status span {
+  font-size: 11px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
+/* 업체 › 수주 · 수금 (#orders · #ordersCollect · 수주 상세 시트 — segan/orders.js). 각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음.
+   줄은 줄이지 않고 바탕만 바로 바꾼다 (CLAUDE.md 「SEGAN 앱 모션 규칙」 — 목록 줄).
+   밀림 · 확인 필요는 색만으로 가리지 않는다 — 「(밀림)」 글자가 같이 있다. 상세 시트는 업체 칸 밖(body)에 붙는다 */
+.od-detail {
+  --mk-dim: rgba(45, 42, 38, 0.72); /* make.css 의 보조 글자색 (업체 칸 .me-pt 와 같은 값) */
+}
+
+.od-h {
+  margin: 20px 0 6px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.od-req .od-h {
+  margin-top: 0;
+}
+
+.od-tablewrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.od-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.od-table th,
+.od-table td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 300;
+  white-space: nowrap;
+}
+
+.od-table thead th {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom-color: var(--v5-line-25);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--v5-ink-60);
+}
+
+.od-table th:first-child,
+.od-table td:first-child {
+  padding-left: 0;
+}
+
+.od-table .od-num {
+  text-align: right;
+}
+
+.od-dim {
+  color: var(--v5-ink-45);
+}
+
+.od-row {
+  cursor: pointer;
+}
+
+.od-row--on {
+  background: var(--v5-well);
+}
+
+/* 수주번호 · 받을 날 줄 — 누르면 상세. 글자처럼 보이는 단추 (누르는 곳 40px) */
+.od-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--v5-navy);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.od-open.me-c-main {
+  align-items: flex-start;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.od-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 11px;
+  color: var(--v5-ink-60);
+}
+
+.od-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0 16px;
+  margin: 12px 0 0;
+  border-top: 1px solid var(--v5-line);
+}
+
+.od-kpi > div {
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.od-kpi dt {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.od-kpi dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.od-dues .me-pt-row {
+  padding: 2px 0;
+}
+
+.od-day {
+  flex: none;
+  min-width: 124px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.od-late {
+  color: var(--v5-tan);
+}
+
+.od-sec + .od-sec {
+  margin-top: 28px;
+}
+
+.od-sec[hidden] + .od-sec {
+  margin-top: 0;
+}
+
+.od-now {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.od-now b {
+  font-weight: 400;
+}
+
+.od-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.od .rd-acts,
+.od-detail .rd-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.od-form .rd-acts {
+  margin-top: 0;
+}
+
+.od-ask {
+  font-size: 13px;
+}
+
+.od-detail > .mk-error,
+.od-detail .od-sec > .mk-note,
+.od-detail [data-od='body'] > .mk-note {
+  margin-top: 10px;
+}
+
+.od-pc {
+  color: var(--v5-navy);
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+/* 알림 · 오류 — 긴 상세의 아래쪽을 고쳐도 보이게 위에 붙는다.
+   시트 본문의 위 여백(폰 16 · PC 20)만큼 올려 붙여, 그 틈으로 밑의 글이 비치지 않게 한다 */
+.od-detail > [data-od='note'],
+.od-detail > .mk-error {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+@media (min-width: 1100px) {
+  .od-detail > [data-od='note'],
+  .od-detail > .mk-error {
+    top: -20px;
+  }
+}
+
+/* 접어 둔 넣는 칸 — 「원가 넣기」 를 눌러야 펼쳐진다 (움직임 없음).
+   위 목록 마지막 줄의 밑줄과 겹쳐 한 줄로 보인다 */
+.od-add {
+  margin-top: -1px;
+  border-top: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.od-add summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  font-size: 14px;
+  font-weight: 400;
+  list-style: none;
+  cursor: pointer;
+}
+
+.od-add summary::-webkit-details-marker {
+  display: none;
+}
+
+.od-add summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 4px 0;
+  border-right: 1px solid var(--v5-ink-45);
+  border-bottom: 1px solid var(--v5-ink-45);
+  transform: rotate(45deg);
+}
+
+.od-add[open] summary::after {
+  margin-bottom: -4px;
+  transform: rotate(-135deg);
+}
+
+.od-add .od-form {
+  margin-top: 0;
+  padding-bottom: 16px;
+}
+
+.od-form .mk-note {
+  margin: 0;
+}
+
+.od-form input[type='file'] {
+  height: auto;
+  padding: 12px;
+}
+
+/* 설치 후 한 문항 — 만든 링크 칸은 안내 글과 띄운다 */
+.od-detail [data-od-part='feedback'] .mk-input {
+  margin-top: 12px;
+}
+
+/* 완료 보고의 사진 링크 — 줄 오른쪽 단추 자리에 나란히 */
+.od-detail .rd-acts .od-pc {
+  font-size: 13px;
+}
+
+/* 업체 › 생산 계획 (#productionPlan — segan/production-plan.js). 표 · 요약 칸은 위 수주 · 수금(.od-*)을 그대로 쓴다.
+   각진 칸 · 가는 선 · 그림자 없음 · 움직임 없음. 막대 색 셋은 업무 달력의 색각 검사를 통과한 값이다 (재단 · 엣지 · 조립).
+   색만으로 가리지 않는다 — 막대 위에 글 범례, 오른쪽에 시간 칸, 막대마다 읽어 주는 이름이 있다 */
+.pp {
+  --pp-cut: #2f6fb0;
+  --pp-edge: #c96a2b;
+  --pp-asm: #1f9a86;
+}
+
+.pp-meta {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pp-meta .od-badge {
+  margin: 0 6px 0 0;
+  color: var(--v5-ink);
+}
+
+/* 추천 목록 — 줄 전체가 체크 자리 (누르는 곳 44px). 줄은 줄이지 않는다 */
+.pp-sugs {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pp-sug {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.pp-pick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 0;
+  font-size: 14px;
+  font-weight: 300;
+  cursor: pointer;
+}
+
+.pp-pick input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--v5-navy);
+}
+
+.pp-pick input:disabled {
+  cursor: default;
+}
+
+.pp-pick .od-badge {
+  flex: none;
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+.pp-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pp-cost {
+  flex: none;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
+.pp-acts {
+  margin-top: 14px;
+}
+
+/* 날짜별 부하 — 가능 시간 대비 막대 셋 (재단 · 엣지 · 조립) */
+.pp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.pp-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-key {
+  width: 10px;
+  height: 10px;
+}
+
+.pp-key--cut,
+.pp-bar--cut > i {
+  background: var(--pp-cut);
+}
+
+.pp-key--edge,
+.pp-bar--edge > i {
+  background: var(--pp-edge);
+}
+
+.pp-key--asm,
+.pp-bar--asm > i {
+  background: var(--pp-asm);
+}
+
+.od-table td.pp-bars {
+  width: 34%;
+  min-width: 140px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.pp-bar {
+  display: block;
+  height: 5px;
+  background: var(--v5-well);
+}
+
+.pp-bar + .pp-bar {
+  margin-top: 2px;
+}
+
+.pp-bar > i {
+  display: block;
+  height: 100%;
+}
+
+/* 지시 내용 — 긴 글은 줄을 바꾼다 */
+.od-table td.pp-wrap {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.pp-month {
+  max-width: 200px;
+}
+
+.pp-more {
+  margin-top: 10px;
+}
+
+.pp-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--v5-navy);
+  cursor: pointer;
+}
+
+/* 업체 › 작업자 (#productionWorkers — segan/production-workers.js) — 공장 배정 · 작업자 링크 · 실측 보정.
+   표 · 단추 · 안내 글은 수주 · 생산 계획과 같은 것을 쓴다 (.od-* · .mk-*) */
+.pw-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 14px;
+}
+
+.pw-add select {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 360px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.pw-muted {
+  color: var(--v5-ink-60);
+}
+
+/* 확인 한 줄 — 창을 띄우지 않고 표 아래에 묻는다 */
+.pw-ask {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.pw-ask p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pw-more {
+  margin-top: 10px;
+}
+
+.pw-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--v5-navy);
+  cursor: pointer;
+}
+
+/* 표 머리의 가린 글(단추 칸 이름)이 감싸개 밖으로 새지 않게 — 폰에서 화면이 옆으로 밀리지 않는다 */
+.pw .od-tablewrap {
+  position: relative;
+}
+
+/* 하기 칸(배정 끝 · 끊기)은 표를 옆으로 밀어도 오른쪽에 붙어 있다 — 폰에서 밀지 않고 누른다.
+   붙은 칸은 표의 줄 선을 따라오지 않아 선을 칸 안쪽에 다시 긋는다 */
+.pw .od-table .pw-act {
+  position: sticky;
+  right: 0;
+  padding-right: 0;
+  background: var(--v5-invert);
+  background-clip: padding-box;
+  text-align: right;
+}
+
+.pw .od-table .od-row--on .pw-act {
+  background: var(--v5-well);
+}
+
+.pw-sr {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 업체 › 생산 설정 (#productionSettings — segan/production-settings.js) — 표준시간 · 인력 · 견적 원가.
+   칸은 만들기 탭 입력 칸(.mk-input), 묶음 제목 · 안내 글은 수주 · 생산 계획과 같은 것을 쓴다 (.od-* · .mk-*) */
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px 16px;
+  align-items: end; /* 이름이 두 줄이어도 칸은 한 줄에 맞춘다 */
+  margin-top: 10px;
+}
+
+.ps-field {
+  min-width: 0;
+}
+
+.ps-field > span {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ps-field input {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 서버가 짚은 칸 — 색만으로 알리지 않는다 (단추 옆 글에 칸 이름을, 칸 아래에 까닭을 적는다) */
+.ps-field input[aria-invalid='true'] {
+  padding: 0 11px;
+  border: 2px solid var(--v5-tan);
+}
+
+.ps-field > .ps-err {
+  color: var(--v5-ink);
+  font-weight: 500;
+}
+
+.ps-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 14px;
+}
+
+.ps-bar .ps-msg {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+}
+
+.ps-sec + .ps-bar {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+/* 업체 › 외주 발주 (#outsourceOrders — segan/outsource-orders.js) — 외주 · 상판 발주 줄 · 입고 처리 · 발주 취소.
+   줄 · 상세는 상담 줄(.me-cs-item · .ad-pick · .me-facts), 되묻는 칸은 작업자 화면(.pw-ask)과 같은 것을 쓴다 */
+.oo-filter {
+  margin-top: 12px;
+}
+
+.oo-list {
+  margin-top: 12px;
+}
+
+/* 발주 제목은 길다 (꾸러미 · 업체 · 문서 번호) — 자르지 않고 줄을 바꾼다 */
+.oo-item .me-c-main b {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.oo-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.oo-late {
+  margin-left: 0;
+  border-color: var(--v5-tan);
+  color: var(--v5-ink);
+}
+
+.oo-facts dd {
+  overflow-wrap: anywhere;
+}
+
+.oo-ask {
+  margin-top: 0;
+}
+
+/* 업체 › 거래처 · 공급처 (#counterparties — segan/counterparties.js) — 넣는 칸 · 거래처 줄 · 공급처 줄.
+   칸은 생산 설정(.ps-grid · .ps-field · .ps-bar), 줄은 상담 줄(.me-cs-item)과 같은 것을 쓴다 */
+.cp-form {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.cp-form .od-h {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 고칠 때 종류 밑에 안내 한 줄이 붙는다 — 칸을 위에 맞춰 이름 · 갈래가 내려앉지 않게 */
+.cp-grid {
+  align-items: start;
+}
+
+.cp-field input {
+  font-variant-numeric: normal;
+}
+
+.cp-wide {
+  grid-column: 1 / -1;
+}
+
+.cp-hint {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.cp-form .mk-error {
+  margin: 12px 0 0;
+}
+
+.cp-sec {
+  margin-top: 24px;
+}
+
+.cp-count {
+  margin-left: 6px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp-list {
+  margin-top: 10px;
+}
+
+.cp-item {
+  gap: 8px;
+}
+
+/* 고치는 중인 줄 — 색만으로 알리지 않는다 (넣는 칸 제목에 이름을 적는다) */
+.cp-item--on {
+  border-color: var(--v5-ink);
+}
+
+.cp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.cp-row .me-c-main {
+  flex: 1 1 180px;
+}
+
+/* 업체 이름은 자르지 않고 줄을 바꾼다 */
+.cp-row .me-c-main b,
+.cp-row .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.cp .cp-acts {
+  flex: none;
+  margin-top: 0;
+}
+
+.cp-memo {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+/* 업체 › 재고 (#stockBoard · #stockHardware — segan/stock.js) — 품목 줄 · 그 자리 상세(적기 · 고치기 · 기록).
+   탭 · 줄 · 칸은 외주 발주(.oo-filter · .oo-list) · 거래처(.cp-form · .cp-grid)와 같은 것을 쓴다 */
+.st-top {
+  margin-top: 14px;
+}
+
+.st-supplier {
+  margin-top: 12px;
+  max-width: 280px;
+}
+
+/* 고른 탭(짙은 바탕)에서도 수가 보이게 */
+.st .mk-btn--solid .cp-count {
+  color: inherit;
+}
+
+.st-item .ad-pick {
+  align-items: center;
+}
+
+.st-item .me-c-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.st .st-list {
+  margin-top: 14px;
+}
+
+/* 품목 이름은 자르지 않고 줄을 바꾼다 */
+.st-item .me-c-main b,
+.st-item .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.st-qty {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 13px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.st-qty b {
+  margin-right: 2px;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.st-qty small {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.st-status {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 76px;
+}
+
+.st-status .od-badge {
+  margin-left: 0;
+}
+
+/* 부족 — 색만으로 알리지 않는다 (글 「부족」 + 굵은 선) */
+.st-warn {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+  font-weight: 400;
+}
+
+.st-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.st-detail .st-form {
+  margin-top: 0;
+}
+
+.st-move .ps-grid {
+  margin-top: 12px;
+}
+
+.st-move .mk-error,
+.st-detail > .mk-error {
+  margin: 12px 0 0;
+}
+
+.st-hist .od-h {
+  margin-top: 0;
+}
+
+.st-history {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.st-history li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--v5-line-12);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+.st-history time {
+  flex: none;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.st-history span {
+  flex: 1 1 200px;
+  overflow-wrap: anywhere;
+}
+
+.st-history small {
+  flex: none;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+@media (max-width: 560px) {
+  .st-item .ad-pick {
+    flex-wrap: wrap;
+  }
+
+  .st-item .me-c-main {
+    flex: 1 1 100%;
+  }
+
+  .st-status {
+    flex-direction: row;
+    margin-left: auto;
+  }
+
+  .st-qty {
+    align-items: flex-start;
+  }
+}
+
+/* 업체 › 자투리 자재 (#stockOffcuts — segan/stock-offcuts.js) — 줄 앞에 라벨 고르기 칸, 그 밖은 재고 줄(.st-*)과 같다 */
+.so-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.so-row .ad-pick {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.so-pick {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.so-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+
+.so-filters .st-supplier {
+  flex: 1 1 160px;
+}
+
+.so-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.so-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.so-ask {
+  margin: 0;
+  color: var(--v5-ink);
+}
+
+.so-acts {
+  flex-wrap: wrap;
+}
+
+/* 업체 › 입출고 (#stockMoves — segan/stock-moves.js) · 재고 한눈에 (#meStockNumbers) — 표는 수주 표(.od-table), 칸은 .od-kpi */
+.sm-table th[scope='row'] {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.sm-table td {
+  overflow-wrap: anywhere;
+}
+
+.sn .od-kpi a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 대시보드에 숫자 칸이 잇달아 올 때 (재고 한눈에 → 진행 중 작업 자재) */
+.sn + .sn {
+  margin-top: 28px;
+}
+
+/* 살필 것 — 색만으로 알리지 않는다 (굵은 글 + 왼쪽 선) */
+.sn-warn {
+  padding-left: 10px !important;
+  border-left: 2px solid var(--v5-ink);
+}
+
+.sn-warn dd {
+  font-weight: 500;
+}
+
+.sn-bars {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sn-bars li {
+  display: grid;
+  grid-template-columns: minmax(96px, 200px) minmax(40px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--v5-line-12);
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.sn-name {
+  overflow-wrap: anywhere;
+}
+
+.sn-bar {
+  height: 8px;
+  background: var(--v5-line-12);
+}
+
+.sn-bar i {
+  display: block;
+  height: 100%;
+  background: var(--v5-ink);
+}
+
+.sn-qty {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 업체 › 근무 일정 (#workShifts — segan/work-shifts.js) — 한 주 표. 줄 = 사람, 칸 = 그날 (빈 칸 = 근무) */
+.ws-nav {
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.ws-range {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-table {
+  min-width: 620px;
+  table-layout: fixed;
+}
+
+.ws-table th:first-child {
+  width: 120px;
+}
+
+.ws-table th small {
+  display: block;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.ws-table th[scope='row'] {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.ws-table .ws-day,
+.ws-table .ws-cell {
+  padding: 0;
+  text-align: center;
+  border-left: 1px solid var(--v5-line-12);
+}
+
+.ws-table .ws-day {
+  padding: 8px 4px;
+}
+
+.ws-cell {
+  height: 44px;
+  font-size: 13px;
+}
+
+.ws-btn {
+  display: block;
+  width: 100%;
+  height: 44px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ws-btn:hover,
+.ws-btn:focus-visible {
+  background: var(--v5-line-12);
+}
+
+/* 쉬는 날 — 글자로 적고 바탕도 한 톤 */
+.ws-off {
+  background: var(--v5-line-12);
+  font-weight: 400;
+}
+
+/* 오늘 — 굵은 선 (머리 칸에는 「오늘」 글도) */
+.ws-table .ws-today {
+  border-left: 2px solid var(--v5-ink);
+  border-right: 2px solid var(--v5-ink);
+}
+
+.ws-on {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+.ws-editor .ws-note {
+  margin-top: 12px;
+  max-width: 420px;
+}
+
+.ws-view {
+  margin-right: 8px;
+}
+
+/* 월 보기 — 여섯 주 달력. 날마다 쉬는 사람 이름과 종류를 글자로 */
+.ws-month {
+  min-width: 560px;
+  table-layout: fixed;
+}
+
+.ws-month th {
+  text-align: center;
+}
+
+.ws-month .ws-mcell {
+  height: 84px;
+  padding: 0;
+  vertical-align: top;
+  border-left: 1px solid var(--v5-line-12);
+}
+
+.ws-mbtn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 84px;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 300;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ws-mbtn:hover,
+.ws-mbtn:focus-visible {
+  background: var(--v5-line-12);
+}
+
+.ws-mbtn b {
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-mbtn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-mbtn i {
+  font-style: normal;
+  font-weight: 400;
+}
+
+.ws-more {
+  color: var(--v5-ink-60);
+}
+
+/* 오늘 — 굵은 테두리 */
+.ws-month .ws-today {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+/* 그 달이 아닌 날 — 흐리게 */
+.ws-out .ws-mbtn {
+  color: var(--v5-ink-60);
+}
+
+/* 업체 › 발주 (#stockOrders — segan/stock-orders.js) — 줄 · 상세는 재고(.st-*), 적는 칸의 품목 줄만 따로 */
+.po-lines {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.po-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.po-item {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.po-qty {
+  flex: 0 1 120px;
+}
+
+.po-linebar {
+  margin-top: 8px;
+}
+
+.po-table th small {
+  display: block;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.po-table th[scope='row'] {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.po-got {
+  width: 84px;
+  padding: 6px 8px;
+  border: 1px solid var(--v5-line-18);
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 업체 › 작업 자재 (#stockNeeds — segan/stock-needs.js) — 줄 · 표는 재고 · 발주(.st-* · .po-*)와 같은 것을 쓴다 */
+.sn2-view {
+  margin-top: 12px;
+}
+
+.sn2-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.sn2-name b {
+  font-weight: 400;
+}
+
+.sn2-name small {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.sn2-pick {
+  width: 100%;
+  min-width: 160px;
+  max-width: 320px;
+  padding: 8px;
+  border: 1px solid var(--v5-line-18);
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.sn2-links th .od-badge {
+  margin-left: 6px;
+}
+
+/* 라벨 인쇄 칸 — 화면에서는 감추고, 인쇄할 때는 이것만 보인다 */
+.so-print {
+  display: none;
+}
+
+/* only — 셸의 인쇄 규칙(파일 끝)과 섞이지 않게 따로 둔다 */
+@media only print {
+  body.so-printing > *:not(.so-print) {
+    display: none !important;
+  }
+
+  body.so-printing {
+    background: #fff;
+  }
+
+  body.so-printing .so-print {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6mm 4mm;
+    padding: 0;
+    background: #fff;
+    color: #000;
+  }
+
+  .so-label {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+    padding: 3mm;
+    border: 0.3mm solid #000;
+    break-inside: avoid;
+  }
+
+  .so-label .so-qr {
+    flex: none;
+    width: 24mm;
+    height: 24mm;
+  }
+
+  .so-label-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 9pt;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .so-label-text b {
+    font-size: 13pt;
+    font-weight: 500;
+  }
+
+  /* 발주서 — 한 장짜리 문서 */
+  body.so-printing .so-print.po-doc {
+    display: block;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  .po-doc h1 {
+    margin: 0 0 8mm;
+    font-size: 20pt;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-align: center;
+  }
+
+  .po-doc-facts {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1mm 8mm;
+    margin: 0 0 6mm;
+  }
+
+  .po-doc-facts div {
+    display: flex;
+    gap: 4mm;
+    padding: 1.5mm 0;
+    border-bottom: 0.2mm solid #000;
+  }
+
+  .po-doc-facts dt {
+    flex: none;
+    width: 18mm;
+  }
+
+  .po-doc-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .po-doc table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .po-doc th,
+  .po-doc td {
+    padding: 2mm;
+    border: 0.2mm solid #000;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .po-doc .po-doc-num {
+    text-align: right;
+  }
+
+  .po-doc-note {
+    margin: 6mm 0 0;
+    white-space: pre-wrap;
+  }
+}
+
+/* 플랫폼 › 팩토리 평가 (#partnerEval — segan/partner-eval.js) — 팩토리 줄 · 평가표 · 평가 이력.
+   줄 · 돌아가기는 등록 업체(.me-hc-*), 묶음 제목 · 저장 줄은 수주 · 생산 설정(.od-h · .ps-bar)과 같은 것을 쓴다 */
+.pe-count {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-list {
+  margin-top: 6px;
+}
+
+.pe-rowbtn {
+  flex-wrap: wrap;
+  row-gap: 8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  width: 100%;
+  text-align: left;
+}
+
+.pe-rowbtn .me-c-main {
+  flex: 1 1 200px;
+}
+
+/* 팩토리 이름은 자르지 않고 줄을 바꾼다 */
+.pe-rowbtn .me-c-main b,
+.pe-rowbtn .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.pe-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pe-badges .pe-badge {
+  margin-left: 0;
+}
+
+.pe-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-ink);
+  font-size: 13.5px;
+}
+
+.pe-ask > span {
+  flex: 1 1 180px;
+}
+
+.pe-links {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.pe-group {
+  margin-top: 22px;
+  padding-top: 4px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.pe-group .od-h {
+  margin-top: 14px;
+}
+
+.pe-hint {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pe-sub {
+  margin: 14px 0 2px;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pe-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  min-height: 48px;
+  padding: 6px 0;
+  border-top: 1px solid var(--v5-line-12);
+  font-size: 14px;
+}
+
+.pe-group .od-h + .pe-row,
+.pe-sub + .pe-row,
+.pe-gradeline + .pe-row {
+  border-top: 0;
+}
+
+.pe-name {
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pe-ctl {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.pe-score {
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.pe-opt,
+.pe-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pe-opt input,
+.pe-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--v5-ink);
+}
+
+.pe-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 20px;
+}
+
+.pe-num,
+.pe-date,
+.pe-sup select,
+.pe-sup input[type='text'] {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.pe-num {
+  width: 84px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-sups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+
+.pe-sup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.pe-sup select,
+.pe-sup input[type='text'] {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.pe .pe-mini {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.pe-text {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.pe-text--tall {
+  min-height: 120px;
+}
+
+.pe-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pe-metrics b {
+  font-weight: 400;
+  color: var(--v5-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-gradeline {
+  margin: 6px 0 4px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-grade {
+  display: inline-block;
+  min-width: 28px;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--v5-ink);
+  font-weight: 500;
+  text-align: center;
+}
+
+.pe-bar {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.pe .mk-error {
+  margin: 16px 0 0;
+}
+
+.pe-history {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pe-history li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 8px 0;
+  border-top: 1px solid var(--v5-line-12);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pe-history li:first-child {
+  border-top: 0;
+}
+
+.pe-who {
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+/* 플랫폼 › 완료 보고 (#doneReports — segan/done-reports.js) — 기간 단추 · 보고 줄 · 사진.
+   줄은 상담 줄(.me-cs-item), 단추는 만들기 탭 단추(.mk-btn)와 같은 것을 쓴다 */
+.dr-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.dr-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 고른 기간 — 색만으로 알리지 않는다 (aria-pressed + 진한 테두리 · 굵은 글) */
+.dr-day[aria-pressed='true'] {
+  border-color: var(--v5-ink);
+  font-weight: 500;
+}
+
+.dr .dr-status {
+  margin: 12px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.dr .mk-error {
+  margin: 8px 0 0;
+}
+
+.dr-list {
+  margin-top: 10px;
+}
+
+.dr-item {
+  gap: 8px;
+}
+
+.dr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 12px;
+}
+
+.dr-head .me-c-main {
+  flex: 1 1 180px;
+}
+
+/* 팩토리 이름 · 주문번호는 자르지 않고 줄을 바꾼다 */
+.dr-head .me-c-main b,
+.dr-head .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.dr-head .dr-kind {
+  margin-left: 0;
+}
+
+.dr-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+.dr-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dr-photos a {
+  display: block;
+  border: 1px solid var(--v5-line-18);
+  line-height: 0;
+}
+
+.dr-photos img {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+}
+
+/* 플랫폼 › A/S 현황 (#asStatus — segan/as-status.js) — 숫자 다섯 · 팩토리마다 표 · 접수 줄.
+   기간 단추 · 접수 줄은 완료 보고(.dr-*), 숫자 칸 · 표는 수주(.od-kpi · .od-table)와 같은 것을 쓴다 */
+.as-kpi {
+  margin-top: 14px;
+}
+
+/* 늦은 접수가 있다 — 색만으로 알리지 않는다 (굵은 글 + 왼쪽 굵은 선) */
+.as-kpi .as-warn {
+  padding-left: 10px;
+  border-left: 3px solid var(--v5-ink);
+}
+
+.as-kpi .as-warn dd {
+  font-weight: 500;
+}
+
+.as-sec {
+  margin-top: 26px;
+}
+
+.as-sec .od-h {
+  margin-top: 0;
+}
+
+.as-table {
+  min-width: 440px;
+}
+
+.as-table tbody th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.as .as-late {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+  font-weight: 500;
+}
+
+/* 기준정보 › 가전 모델 (#applianceList — segan/appliance-list.js) — 종류 단추 · 찾기 · 모델 줄 (보기만).
+   종류 단추 · 줄은 완료 보고(.dr-*), 찾는 칸은 만들기 탭 입력 칸(.mk-input)과 같은 것을 쓴다 */
+.al-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.al .al-cat {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.al-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 16px;
+  margin-top: 14px;
+}
+
+.al-field {
+  min-width: 0;
+}
+
+.al-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 12px;
+}
+
+.al-head .me-c-main {
+  flex: 1 1 160px;
+}
+
+/* 모델명은 자르지 않고 줄을 바꾼다 */
+.al-head .me-c-main b,
+.al-head .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.al-photo {
+  flex: none;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  object-fit: contain;
+}
+
+.al-head .al-badge {
+  margin-left: 0;
+}
+
+/* 검증된 모델 — 색만으로 알리지 않는다 (글 + 진한 테두리) */
+.al .al-ok {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
+.al-facts {
+  margin-top: 0;
+}
+
+.al-facts dd {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.al-more {
+  margin-top: 12px;
+}
+
+.al-pc {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+/* 기준정보 › 시공사례 (#galleryView — segan/gallery-view.js) — 품목 · 쓰임 · 찾기 · 사진 칸 (보기만).
+   고르는 칸 · 더 보기 · PC 링크는 가전 모델(.al-*)과 같은 것을 쓴다 */
+.gv-find {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gv-find .al-field {
+  flex: 1 1 auto;
+}
+
+.gv-find .mk-btn {
+  flex: none;
+  min-height: 48px;
+}
+
+.gv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gv-tile {
+  min-width: 0;
+}
+
+.gv-tile > a {
+  display: block;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  line-height: 0;
+}
+
+.gv-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.gv-cap {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.gv-cap b {
+  font-weight: 400;
+}
+
+.gv-cap small {
+  display: block;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.gv-cap .gv-badge {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
+/* 기준정보 › 참고 이미지 (#themeImages — segan/theme-images-view.js) — 상태 단추 · 테마 · 사진 칸 (보기만).
+   단추 · 고르는 칸 · 사진 칸은 가전 모델 · 시공사례(.al-* · .gv-*)와 같은 것을 쓴다 */
+.tv-pic {
+  display: block;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  line-height: 0;
+}
+
+/* 확정 전 사진 — 그림 대신 글 (바깥 서버에 요청하지 않는다) */
+.tv-nopic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  padding: 10px;
+  border-style: dashed;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--v5-ink-60);
+  text-align: center;
+}
+
+/* 숨긴 사진 — 색만으로 알리지 않는다 (「숨김」 표시가 함께 붙는다) */
+.tv-off .tv-pic img {
+  opacity: 0.45;
+}
+
+.tv .gv-cap small.tv-title {
+  color: var(--v5-ink);
+}
+
+/* 업체 › 고객 (#customers — segan/customers.js) — 찾기 · 고객 줄 · 그 줄에서 고치는 칸.
+   줄 · 고치는 칸은 거래처(.cp-* · .ps-*), 찾는 칸은 가전 모델(.al-*)과 같은 것을 쓴다 */
+.cu-form {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.cu-form .ps-grid {
+  margin-top: 0;
+  align-items: start;
+}
+
+.cu-form .mk-error {
+  margin: 12px 0 0;
+}
+
+.cu .cu-badge {
+  margin-left: 0;
+}
+
+.cu .cp-row .me-c-main small a {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 프로젝트 관리 대시보드 › 우리 팩토리 숫자 (#meNumbers — segan/company-summary.js) — 달 고르기 · 숫자 칸 · 한 줄 글.
+   숫자 칸 · 묶음은 A/S 현황(.od-kpi · .as-kpi · .as-sec), 단추 줄은 완료 보고(.dr-bar)와 같은 것을 쓴다 */
+.cs {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.cs-bar {
+  align-items: center;
+}
+
+.cs-month {
+  min-width: 7.5em;
+  font-size: 15px;
+  font-weight: 400;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-line {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 묶음 안 둘째 제목(설치 납기) — 윗줄과 띄운다 */
+.cs .as-sec .cs-sub {
+  margin-top: 22px;
+}
+
+.cs .as-sec .od-h + .od-kpi {
+  margin-top: 6px;
+}
+
+/* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
+.me-pr-status {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
+.me-bk-amt {
+  margin-left: auto;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.me-bk .me-empty,
+.me-bk .me-pt-msg {
+  margin: 0;
+}
+
+.me-bk .me-pt-rows {
+  margin-top: 10px;
+}
+
+/* A/S 접수 (segan/as-requests.js) — 내 프로젝트 줄의 신청 · 내 접수 · 팩토리 A/S함 */
+.me-as-slot {
+  margin-top: 12px;
+}
+
+.me-as-slot .me-pt-msg {
+  margin: 0 0 8px;
+}
+
+.me-as-item {
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-as-body {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.me-as-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.me-as-photos img {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: var(--v5-photo);
+}
+
+.me-as-item .rd-acts,
+.me-as-row .rd-acts {
+  margin-top: 10px;
+}
+
+.me-as-ask {
+  align-items: center;
+}
+
+.me-as-ask span {
+  font-size: 13px;
+}
+
+/* 업체 › 상담 · 상담 설정 (segan/partner-consults.js) — 고르는 칸은 make.css 의 cs-choice */
+.me-cs > .mk-note {
+  margin-bottom: 10px;
+}
+
+.me-cs-score {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.me-cs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-cs-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+/* 돌려보낸 상담 — 흐리게 (연락처 없음) */
+.me-cs-item--off {
+  border-color: var(--v5-line);
+  background: var(--v5-well);
+}
+
+.me-cs-item--off .me-c-main b,
+.me-cs-item--off .me-facts dd {
+  color: var(--v5-ink-45);
+}
+
+.me-cs-item .me-facts {
+  margin-top: 0;
+}
+
+.me-cs-item .me-facts a {
+  color: var(--v5-ink);
+}
+
+.me-cs-desc dd {
+  white-space: pre-wrap;
+}
+
+.me-cs-left {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--v5-tan);
+}
+
+.me-cs-shotlink {
+  display: block;
+  align-self: flex-start;
+  width: 100%;
+  max-width: 320px;
+}
+
+.me-cs-shot {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--v5-photo);
+}
+
+.me-cs-item .mk-error,
+.me-cs-item .me-pt-msg {
+  margin: 0;
+}
+
+.me-cs-decline,
+.me-cs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.me-cs-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.me-cs-regions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-cs-regions li {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--v5-line-18);
+  font-size: 13px;
+}
+
+.me-cs-regions span {
+  padding: 0 10px;
+}
+
+.me-cs-regions button {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid var(--v5-line-18);
+  background: transparent;
+  color: var(--v5-ink-60);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.me-cs-regions button:disabled {
+  cursor: not-allowed;
+}
+
+.me-cs-itemrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-cs-itemname {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.me-cs-set .me-pt-msg,
+.me-cs .me-empty {
+  margin: 0;
+}
+
+/* 직원 초대 받기 (segan/join.html) */
+.jn-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 22px 18px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.jn-box .me-facts {
+  margin-top: 0;
+}
+
+/* 수금 일정 결제 (segan/pay.js) — 내 프로젝트 다음 결제 줄 · 결제 결과 (segan/pay.html) */
+.pay-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pay-acts {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.pay-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pay-va {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.pay-va div {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.pay-va dt {
+  color: var(--v5-ink-45);
+  font-weight: 300;
+}
+
+.pay-va dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 내 정보 › 알림 (segan/push.js) — 아이폰: 홈 화면에 추가하는 법 */
+.me-push-steps {
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.8;
+}
+
+#mePush .me-pt-msg {
+  margin: 0;
+}
+
+/* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */
+.sg-biz {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--v5-line);
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--v5-ink-45);
+}
+
+.sg-biz p {
+  margin: 0 0 12px;
+}
+
+.sg-footer {
+  display: none;
+  background: var(--v5-dark);
+  color: var(--v5-on-dark);
+}
+
+.sg-footer-in {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 56px 48px 34px;
+}
+
+.sg-footer p {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 2;
+  color: var(--v5-on-dark-60);
+}
+
+.sg-footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--v5-on-dark-12);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--v5-on-dark-42);
+}
+
+/* ── 시공사례 (segan/collection.js · 마이페이지 좋아요 — 타일은 segan/collection-view.js) ──
+   사진을 정사각 칸으로 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2px (768px~ 3px).
+   폰은 좌우 여백 없이 화면 끝까지 (안전 영역 안에서). 라운드 · 섀도 없음 */
+.cl-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  margin: 16px calc(env(safe-area-inset-right) - max(var(--sg-px), env(safe-area-inset-right))) 0
+    calc(env(safe-area-inset-left) - max(var(--sg-px), env(safe-area-inset-left)));
+}
+
+.cl-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: var(--v5-photo);
+  cursor: pointer;
+}
+
+.cl-tile img,
+.pv-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-touch-callout: none; /* 길게 눌러 저장 막기 — 다운로드 단추 · 링크를 두지 않는 것과 같은 뜻 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.cl-tile img {
+  object-fit: cover;
+}
+
+.cl-tile:focus-visible {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+/* AI 연출컷 — 귀퉁이 표시 (실제 시공 사진으로 오해하지 않게) */
+.cl-mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 1px 5px;
+  background: rgba(24, 22, 20, 0.62);
+  color: var(--v5-on-dark);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+}
+
+.cl-state {
+  margin: 24px 0 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+.cl-more {
+  display: flex;
+  margin: 12px auto 0;
+}
+
+.cl-sentinel {
+  height: 1px;
+}
+
+/* 사진 보기 (segan/collection-view.js — SeganShell.sheet: 폰 아래 시트 · PC 옆 패널).
+   사진은 시트 폭 끝까지, 자리는 누른 타일의 그림 크기로 먼저 잡는다 (aspect-ratio — 밀림 없음) */
+.pv {
+  display: grid;
+  gap: 16px;
+}
+
+.pv-photo {
+  max-height: 62vh;
+  margin: -16px calc(-1 * max(20px, env(safe-area-inset-right))) 0
+    calc(-1 * max(20px, env(safe-area-inset-left)));
+  background: var(--v5-photo);
+}
+
+.pv-photo img {
+  object-fit: contain;
+}
+
+.pv-bar {
+  display: flex;
+  align-items: center;
+  margin-top: -6px;
+}
+
+.pv-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.pv-like[aria-pressed='true'] .pv-heart {
+  fill: currentColor;
+}
+
+.pv-like:focus-visible {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
+.pv-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-error {
+  margin: -8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+}
+
+.pv-facts {
+  margin: 0;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pv-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 14px;
+}
+
+.pv-facts dt {
+  flex: none;
+  color: var(--v5-ink-55);
+}
+
+.pv-facts dd {
+  min-width: 0;
+  margin: 0;
+  text-align: right;
+}
+
+.pv-make {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.pv-login .sg-btn {
+  margin-top: 16px;
+}
+
+/* 겹창이 열린 동안 뒤 화면은 넘어가지 않는다 — 시트 · 옆 패널 · 가운데 창 */
+body.sg-locked {
+  overflow: hidden;
+}
+
+/* ── 시트 · 옆 패널 · 가운데 창 (shell.js SeganShell.sheet) ──
+   폰: 아래에서 올라오는 시트 (화면 90 % 까지, 시트 안만 넘긴다) · PC(1100px~): 오른쪽 옆 패널 420px.
+   가운데 창(dialog)은 어느 폭에서나 가운데 작은 창. 라운드 · 섀도 없음, 헤어라인만 */
+.sg-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 70; /* 위 막대(30) · 아래 탭(40) · 크게 보기(60) 위 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: env(safe-area-inset-top);
+  background: rgba(45, 42, 38, 0.32);
+  animation: sg-sheet-fade 0.18s ease-out;
+}
+
+.sg-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  border-top: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  outline: none;
+  animation: sg-sheet-up var(--sg-spring-ms) var(--sg-spring);
+}
+
+.sg-sheet-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 4px max(8px, env(safe-area-inset-right)) 4px max(20px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-sheet-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.sg-sheet-x {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink-62);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.sg-sheet-x:hover,
+.sg-sheet-x:focus-visible {
+  color: var(--v5-ink);
+}
+
+.sg-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px max(20px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+}
+
+/* 폰 시트 — 머리를 끌어 내려 닫는다 (segan/shell.js bindSheetDrag). 위 가운데 손잡이 막대가 그 표시 */
+@media (max-width: 1099.98px) {
+  .sg-sheet-wrap--sheet .sg-sheet-head {
+    position: relative;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet-head::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    background: var(--v5-line-25);
+  }
+}
+
+/* 가운데 작은 창 — 막는 확인만 (지우기 확인 · 동의 · 로그인 필요 · 크레딧 부족) */
+.sg-sheet-wrap--dialog {
+  z-index: 80; /* 시트 위에 겹친다 */
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.sg-sheet-wrap--dialog .sg-sheet {
+  max-width: 400px;
+  max-height: 100%;
+  border: 1px solid var(--v5-line-18);
+  animation: none;
+}
+
+.sg-sheet-wrap--dialog .sg-sheet-body {
+  padding: 16px 20px 20px;
+}
+
+@keyframes sg-sheet-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sg-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes sg-sheet-side {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* PC — 시트 · 패널은 오른쪽 옆 패널 (한 번에 하나) */
+@media (min-width: 1100px) {
+  .sg-sheet-wrap--sheet,
+  .sg-sheet-wrap--panel {
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding-top: 0;
+    background: rgba(45, 42, 38, 0.16);
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet,
+  .sg-sheet-wrap--panel .sg-sheet {
+    width: 420px;
+    max-width: 100%;
+    height: 100%;
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--v5-line-18);
+    animation-name: sg-sheet-side;
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet-head,
+  .sg-sheet-wrap--panel .sg-sheet-head {
+    padding: 4px 12px 4px 24px;
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet-body,
+  .sg-sheet-wrap--panel .sg-sheet-body {
+    padding: 20px 24px 24px;
+  }
+
+  .sg-sheet-wrap .pv-photo {
+    margin: -20px -24px 0;
+  }
+}
+
+/* 움직임 줄이기 — 미끄러짐 · 흐려짐 없이 바로 */
+@media (prefers-reduced-motion: reduce) {
+  .sg-sheet-wrap,
+  .sg-sheet-wrap .sg-sheet {
+    animation: none;
+  }
+}
+
+/* ── SEGAN 비서 (segan/guide.js) ──
+   폰 · 태블릿: 위 막대 오른쪽 「비서」 → 아래 시트 (90dvh — 입력 칸이 늘 아래에)
+   PC(1024px~ — 글 위 메뉴가 보이는 폭): 본문 아래 가운데 고정 입력 줄 → 오른쪽 옆 패널 420px (아래 1024px 칸)
+   라운드 · 섀도 없음, 헤어라인만. 받은 글은 그대로 (pre-wrap — HTML 로 읽지 않는다) */
+.sg-ai-btn {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 16px;
+  border: 1px solid var(--v5-line-25);
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sg-ai-btn:hover,
+.sg-ai-btn:focus-visible {
+  border-color: var(--v5-ink);
+}
+
+/* PC 입력 줄 — 폰 · 태블릿에는 없다 (1024px 칸에서 연다) */
+.sg-ai-bar {
+  display: none;
+}
+
+.sg-ai-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 시트 안 — 위 줄(남은 수 · 업무 비서) · 대화(안만 넘긴다) · 아래 입력 */
+.sg-sheet-wrap.sg-ai-wrap .sg-sheet-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sg-ai {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sg-ai-checking {
+  margin: 0;
+  padding: 20px max(20px, env(safe-area-inset-right)) 20px max(20px, env(safe-area-inset-left));
+  font-size: 14px;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-top {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 16px;
+  min-height: 44px;
+  padding: 0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-ai-count {
+  margin: 0;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-acts {
+  display: flex;
+  align-items: center;
+  gap: 0 16px;
+  margin-left: auto;
+}
+
+.sg-ai-biz,
+.sg-ai-fresh {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.sg-ai-fresh:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sg-ai-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px max(20px, env(safe-area-inset-right)) 16px max(20px, env(safe-area-inset-left));
+}
+
+.sg-ai-hello,
+.sg-ai-lead {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sg-ai-msg {
+  max-width: 92%;
+  padding: 10px 14px;
+}
+
+.sg-ai-msg--user {
+  align-self: flex-end;
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.sg-ai-msg--ai {
+  align-self: flex-start;
+  border: 1px solid var(--v5-line-16);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+}
+
+.sg-ai-tag {
+  display: block;
+  margin: 0 0 4px;
+  color: var(--v5-tan);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.sg-ai-text,
+.sg-ai-a {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sg-ai-msg--wait .sg-ai-text {
+  color: var(--v5-ink-45);
+}
+
+.sg-ai-note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-msg--user .sg-ai-note {
+  color: var(--v5-on-dark-60);
+}
+
+.sg-ai-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.sg-ai-foot {
+  flex: none;
+  padding: 10px max(20px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+  border-top: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+.sg-ai-block,
+.sg-ai-end {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sg-ai-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.sg-ai-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 폰은 16px — 그보다 작으면 iOS 가 칸을 누를 때 화면을 키운다 */
+.sg-ai-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  max-height: 30vh;
+  padding: 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.5;
+  resize: none;
+}
+
+.sg-ai-input:focus {
+  border-color: var(--v5-ink);
+  outline: none;
+}
+
+.sg-ai-send {
+  flex: none;
+  min-width: 72px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sg-ai-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sg-ai-warn {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--v5-ink-55);
+}
+
+/* 로그인 전 — 자주 묻는 것 (정해 둔 답) */
+.sg-ai-faq {
+  border-top: 1px solid var(--v5-line);
+}
+
+.sg-ai-q {
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-ai-q summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  font-size: 14.5px;
+  font-weight: 400;
+  list-style: none;
+  cursor: pointer;
+}
+
+.sg-ai-q summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 펼침 표시 — 글자 없이 선으로 (읽어 주지 않게) */
+.sg-ai-q summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 4px 0;
+  border-right: 1px solid var(--v5-ink-45);
+  border-bottom: 1px solid var(--v5-ink-45);
+  transform: rotate(45deg);
+}
+
+.sg-ai-q[open] summary::after {
+  margin-bottom: -4px;
+  transform: rotate(-135deg);
+}
+
+.sg-ai-q .sg-ai-a {
+  padding: 0 0 16px;
+}
+
+.sg-ai-login {
+  margin-top: 24px;
+}
+
+.sg-ai-login-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.sg-ai-login-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+/* 폰 · 태블릿 — 비서 시트는 내용이 적어도 90dvh (입력 칸이 늘 같은 자리) */
+@media (max-width: 1023.98px) {
+  .sg-ai-wrap .sg-sheet {
+    height: 90vh;
+    height: 90dvh;
+  }
+}
+
+/* 칸 둘 고르기 — 만들기 ③ 참고 사진 고르기 창의 시공사례 · 테마 (segan/make.js · make.css .mk-pick) */
+.cl-seg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0 20px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.cl-seg button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink-60);
+  font-size: 13.5px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.cl-seg button + button {
+  border-left: 1px solid var(--v5-line-18);
+}
+
+.cl-seg button[aria-selected='true'] {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+/* ── PC ── */
+@media (min-width: 768px) {
+  .cl-grid {
+    gap: 3px;
+    margin: 20px 0 0;
+  }
+
+  /* 넓은 본문 폭 — 만들기 · 상담 신청은 make.css .sg-main.mk */
+  .sg-main {
+    max-width: 1200px;
+    padding: 64px 48px 96px;
+  }
+
+  .sg-h1 {
+    font-size: 28px;
+  }
+}
+
+/* PC — 위 메뉴 + 푸터, 아래 탭 없음 (위 메뉴 여섯 칸이 들어가는 폭부터) */
+@media (min-width: 1024px) {
+  .sg-app {
+    padding-bottom: 0;
+  }
+
+  /* 시공사례 · 좋아요 — PC 는 4칸 */
+  .cl-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .sg-header {
+    min-height: 88px;
+    padding: 0 48px;
+  }
+
+  .sg-brand img {
+    width: 116px;
+  }
+
+  .sg-nav {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 34px;
+  }
+
+  /* 마이페이지 — 오른쪽 끝 */
+  .sg-nav .sg-nav-end {
+    margin-left: auto;
+  }
+
+  .sg-tabbar {
+    display: none;
+  }
+
+  .sg-biz {
+    display: none;
+  }
+
+  .sg-footer {
+    display: block;
+  }
+
+  /* SEGAN 비서 — 위 막대 버튼 대신 본문 아래 가운데 입력 줄, 여는 것은 오른쪽 옆 패널 (segan/guide.js) */
+  .sg-ai-btn {
+    display: none;
+  }
+
+  .sg-ai-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    z-index: 45; /* 본문 · 위 메뉴(30) 위, 시트 · 옆 패널(70) 아래 */
+    display: flex;
+    width: min(560px, calc(100% - 96px));
+    transform: translateX(-50%);
+    border: 1px solid var(--v5-line-25);
+    background: var(--v5-paper);
+  }
+
+  .sg-ai-bar:focus-within {
+    border-color: var(--v5-ink);
+  }
+
+  .sg-ai-bar-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 46px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--v5-ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 300;
+  }
+
+  .sg-ai-bar-input:focus {
+    outline: none;
+  }
+
+  .sg-ai-bar-send {
+    flex: none;
+    min-width: 72px;
+    min-height: 46px;
+    padding: 0 16px;
+    border: 0;
+    border-left: 1px solid var(--v5-line-18);
+    background: transparent;
+    color: var(--v5-ink);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+
+  .sg-ai-bar-send:hover,
+  .sg-ai-bar-send:focus-visible {
+    background: var(--v5-ink);
+    color: var(--v5-invert);
+  }
+
+  /* 화면 아래에 붙는 버튼 줄(만들기 · 상담 신청 .mk-bar, 업무 비서 입력 .as-form)이 있는 동안은 감춘다 */
+  body:has(.mk-bar:not([hidden])) .sg-ai-bar,
+  body:has(.as-form) .sg-ai-bar {
+    display: none;
+  }
+
+  /* 시트 · 옆 패널 · 가운데 창이 열린 동안 (비서 패널이면 그 안에 입력 칸이 있다) */
+  body.sg-locked .sg-ai-bar {
+    display: none;
+  }
+
+  /* 푸터 맨 아래 줄이 입력 줄 뒤로 숨지 않게 */
+  body.sg-ai-on .sg-footer-in {
+    padding-bottom: 104px;
+  }
+
+  /* 1024 ~ 1099px 도 오른쪽 옆 패널 (셸 시트는 1100px 부터 옆 패널) */
+  .sg-sheet-wrap--panel.sg-ai-wrap {
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding-top: 0;
+    background: rgba(45, 42, 38, 0.16);
+  }
+
+  .sg-sheet-wrap--panel.sg-ai-wrap .sg-sheet {
+    width: 420px;
+    max-width: 100%;
+    height: 100%;
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--v5-line-18);
+    animation-name: sg-sheet-side;
+  }
+
+  .sg-sheet-wrap--panel.sg-ai-wrap .sg-sheet-head {
+    padding: 4px 12px 4px 24px;
+  }
+
+  .sg-ai-top,
+  .sg-ai-scroll,
+  .sg-ai-foot,
+  .sg-ai-checking {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .sg-ai-input {
+    font-size: 14px;
+  }
+}
+
+/* 인쇄 — 비서 버튼 · 입력 줄은 종이에 넣지 않는다 (회계 보고서 등) */
+@media print {
+  .sg-ai-btn,
+  .sg-ai-bar {
+    display: none !important;
+  }
+}

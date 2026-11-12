@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>회계 한눈에 · SEGAN</title>
+    <!-- 회계 한눈에는 회계 화면(ledger.html)의 첫 탭이 되었다 — 옛 주소 · 저장한 바로가기는 그리로 -->
+    <script>
+      location.replace('ledger.html' + location.search + '#board');
+    </script>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111214" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111214" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111214" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111214" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026111214" />
+    <link rel="stylesheet" href="make.css?v=2026111214" />
+    <link rel="stylesheet" href="ledger-board.css?v=2026111214" />
+    <!-- 회계 한눈에 — workflow-api /ledger/dashboard · /ledger/accounts · /books/summary (대표 · 실장) -->
+    <script src="../js/config.js?v=2026111214"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
+    <script src="../js/admin-access.js?v=2026111214"></script>
+    <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
+    <script src="../js/mypage-work.js?v=2026111214"></script>
+    <script src="shell.js?v=2026111214" defer></script>
+    <script src="ledger-board.js?v=2026111214" defer></script>
+  </head>
+  <body class="sg-app" data-tab="me">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main lb" id="main">
+      <a class="mk-link mk-back" id="lbBack" href="ledger.html">‹ 장부</a>
+      <h1 class="sg-h1">회계 한눈에</h1>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <p class="lb-state" id="lbState" role="status"></p>
+
+        <div id="lbBody" hidden>
+          <div class="lb-top">
+            <div class="lb-nav">
+              <button type="button" class="mk-link" id="lbPrev" aria-label="앞 달">‹</button>
+              <b id="lbMonth"></b>
+              <button type="button" class="mk-link" id="lbNext" aria-label="다음 달">›</button>
+            </div>
+            <span class="lb-basis">받은 돈 · 낸 돈 기준 (장부와 같음)</span>
+          </div>
+
+          <!-- 고른 달 — 칸 넷 -->
+          <dl class="lb-tiles" id="lbTiles"></dl>
+
+          <div class="lb-cols">
+            <div class="lb-col">
+              <!-- 12달 매출 · 매입 막대 — 막대를 누르면 그 달로 -->
+              <section class="lb-box" aria-labelledby="lbTrendTitle">
+                <div class="lb-box-head">
+                  <h2 class="lb-box-title" id="lbTrendTitle">12달 매출 · 매입</h2>
+                  <span class="lb-legend"
+                    ><span><i class="lb-sw lb-sw--in"></i>매출(받은 돈)</span
+                    ><span><i class="lb-sw lb-sw--out"></i>매입</span><span>단위 만원</span></span
+                  >
+                </div>
+                <div id="lbChart"></div>
+                <details class="lb-table">
+                  <summary>표로 보기</summary>
+                  <div class="lb-table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>달</th>
+                          <th>매출</th>
+                          <th>매입</th>
+                          <th>장부 손익</th>
+                        </tr>
+                      </thead>
+                      <tbody id="lbTableBody"></tbody>
+                    </table>
+                  </div>
+                </details>
+              </section>
+
+              <section class="lb-box" aria-labelledby="lbAccTitle">
+                <div class="lb-box-head"><h2 class="lb-box-title" id="lbAccTitle">매입 · 계정별</h2></div>
+                <div class="lb-bars" id="lbAccounts"></div>
+              </section>
+
+              <section class="lb-box" aria-labelledby="lbSupTitle">
+                <div class="lb-box-head"><h2 class="lb-box-title" id="lbSupTitle">지출 상대 · 상위 5</h2></div>
+                <div class="lb-bars" id="lbSuppliers"></div>
+              </section>
+            </div>
+
+            <div class="lb-col">
+              <!-- 수주 · 미수 — 수주한 달 기준이라 왼쪽 매출과 다르다 (본사 보기에서는 없다) -->
+              <section class="lb-box" id="lbBooks" hidden aria-labelledby="lbBooksTitle">
+                <div class="lb-box-head"><h2 class="lb-box-title" id="lbBooksTitle">수주 · 미수 (따로)</h2></div>
+                <dl class="lb-kv" id="lbBooksKv"></dl>
+                <h3 class="lb-sub">30일 안에 받을 돈</h3>
+                <dl class="lb-kv" id="lbUpcoming"></dl>
+              </section>
+
+              <section class="lb-box" aria-labelledby="lbStatusTitle">
+                <div class="lb-box-head"><h2 class="lb-box-title" id="lbStatusTitle">장부 상태</h2></div>
+                <ul class="lb-status" id="lbStatus"></ul>
+              </section>
+
+              <p class="mk-note lb-note">
+                매출은 실제로 받은 날, 매입은 실제로 낸 날 기준입니다. 취소한 수주에서 이미 받은 돈 · 쓴 원가도 장부에
+                남아 여기에 들어갑니다. 부가세 참고는 세무사 확인 전 숫자입니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

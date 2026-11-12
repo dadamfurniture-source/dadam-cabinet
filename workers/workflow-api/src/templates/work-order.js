@@ -10,7 +10,8 @@
  *
  * v2 (B5, 계획 §4.6 · §5 B5) — 같은 work_order 문서에 섹션을 더했다:
  *   ① 표지: 기존 + 품목별 정면 렌더 + 색 스와치 범례
- *   ② 모듈별 키팅 시트 (partId · 치수 · 마감 칩 · 엣지 면 도식 · 그 모듈의 철물)
+ *   ② 모듈별 키팅 시트 (라벨 번호 · 치수 · 마감 칩 · 엣지 면 도식 · 그 모듈의 철물) — 2026-11-05 사장님 「굳이 보여줄 필요는 없다 ·
+ *      검증 차원에서 시스템에서는 돌아가지만」 → 종이(전체 · 조립 꾸러미)에서 뺐다. 묶는 함수(groupByItemModule · kittingHtml)는 시험이 계속 돌린다
  *   ③ 시트별 재단표 (배치 SVG 축소판 + 부재 표 + 잔재)
  *   ④ 철물·체결구 (기존)
  *   ⑤ (꾸러미 개편에서 ⑩ 로 옮김 — 보링 공정이 없고 컵 보링은 도어 외주처가 한다)
@@ -22,7 +23,7 @@
  *   cut       재단·엣지 지시서 — ③ 에 엣지 변 표시·엣지 합계를 합쳤다. 사내 재단(본체·뒷판)만.
  *             엣지 붙일 변 표시는 재단 기사가 자르면서 한다 (2026-10-13 사장님).
  *   cut-vendor 같은 재단·엣지를 외주처(일성합판)로 보낼 때 — 고객 이름·설계 제목·특기사항·정면도·시간 없음
- *   assembly  조립 지시서 — 모듈 명세 · ② 키팅 · ④ 철물 · ⑥ 조립 체크 · ⑦ 차이
+ *   assembly  조립 지시서 — 모듈 명세 · ④ 철물 · ⑥ 조립 체크 · ⑦ 차이 (② 키팅은 2026-11-05 부터 싣지 않는다)
  *   door      ⑩ 도어재 발주서 — 도어 그룹(도어·몰딩·걸레받이·목찬넬·마감) 부재 + 경첩 컵 위치. 고객 이름 없음
  *   labels    ⑧ 라벨 — 사내 부재 먼저, 도어재는 뒤 (입고 시 부착)
  *   all       전부 (사무실 보관)
@@ -34,8 +35,10 @@
 import { esc, num, ymd, tr, thead, documentShell } from './html.js';
 import { countertopSheets } from './countertop-order.js';
 import { hasCountertop } from '../countertop.js';
-import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
+import { PRINT_CSS, PRINT_TOOLBAR, CUT_VIEW_SCRIPT } from './print-css.js';
+import { specialNotesOfDoc, NOTE_ROLE_LABEL } from '../work/special-notes.js';
 import { qrSvg } from '../util/qr.js';
+import { CHECK_LISTS, checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 import {
   materialsOf,
   hardwareOf,
@@ -49,10 +52,11 @@ import {
   partClassOf,
   isDoorClass,
   isOutsourcedCutRow,
+  isOutsourcedTopRow,
   pieceBaseId,
 } from '../work-order-data.js';
 import { laborEstimate, fmtMinutes } from '../labor-standards.js';
-import { elevationSvg, elevationModel, moduleDrawingSvg } from './elevation.js';
+import { elevationSvg, elevationModel, moduleDrawingSvg, modulePosLabel } from './elevation.js';
 import { partDrawingsSheet } from './part-drawing.js';
 import { moduleSectionsSheet } from './module-section.js';
 import { isCornerItem, isoSvg, runLengths } from './isometric.js';
@@ -71,11 +75,10 @@ const CATEGORY_NAMES = {
   custom: '비규격장',
 };
 
-const MODULE_POS = { upper: '상부', lower: '하부', wardrobe: '붙박이' };
 
 export const LABELS_PER_SHEET = 24; // 3 × 8
 
-function itemLabel(item, index) {
+export function itemLabel(item, index) {
   return (
     item.labelName ||
     CATEGORY_NAMES[item.categoryId || item.category] ||
@@ -104,22 +107,56 @@ function buildContext(doc, snapshot, renderUrls) {
     }));
   }
 
+  const plan = cutPlan && typeof cutPlan === 'object' && Array.isArray(cutPlan.sheets) ? cutPlan : null;
+  // 라벨 번호 차례 — 발행 때 고정 (2026-11-05 사장님 A 「재단 차례」: label_order 'cut' — 원장 1 조각부터). 옛 문서는 자재 행 차례 그대로
+  const labelOrder = rp.label_order === 'cut' && plan ? 'cut' : 'row';
   return {
     doc,
     snapshot,
     items,
     materials,
     hardware,
+    labelOrder,
     renders: Array.isArray(rp.renders) ? rp.renders : null,
+    isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
+    planRenders: Array.isArray(rp.plan_renders) ? rp.plan_renders : null,
     renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})),
     swatches,
     swatchByCode: new Map(swatches.map((s) => [s.code, s])),
-    cutPlan: cutPlan && typeof cutPlan === 'object' && Array.isArray(cutPlan.sheets) ? cutPlan : null,
+    cutPlan: plan,
     prevRev: rp.prev_rev, // undefined = v1 문서(비교 안 함), null = 첫 발행
     isV2: Number(rp.work_order_version) >= 2,
     labor: rp.labor && typeof rp.labor === 'object' ? rp.labor : null, // 없으면(옛 문서) 예상 시간 생략
     rowById: new Map(materials.map((m, i) => [partIdOf(m, i), { row: m, index: i }])),
+    // 조각 id → 라벨 번호 — 표에는 긴 부재 ID 대신 이 번호 (부재 ID 는 라벨 QR · CSV · 재단 배치에 그대로)
+    labelNo: labelNumbers(materials, labelOrder === 'cut' ? plan : null),
+    // 작업자 필수 확인 — 발행 때 고정한 판 (없으면 옛 문서 v0, src/work/check-items.js)
+    checkList: checkListOfDoc(doc),
+    // 특별 지시 — 발행 때 고정 (자동 + 사무실 글, src/work/special-notes.js). 옛 문서는 빈 값
+    specialNotes: specialNotesOfDoc(doc),
   };
+}
+
+/**
+ * 특별 지시 빨간 상자 — 그 역할의 글을 지시서 맨 위에 (2026-11-05 사장님 「자동 + 사무실 글」). 없으면 '' (옛 문서 · 지시 없음은 바이트 그대로).
+ *   ☐ = 종이 확인 칸. 재단 · 조립 · 설치는 작업자 화면 필수 확인에도 같은 글이 뜬다.
+ */
+export function specialNotesBox(notes, roles) {
+  const blocks = roles
+    .map((r) => [r, Array.isArray(notes && notes[r]) ? notes[r] : []])
+    .filter(([, list]) => list.length)
+    .map(([r, list]) => `<div class="special-notes"><div class="sn-title">⚠ 특별 지시 — ${esc(NOTE_ROLE_LABEL[r] || r)}</div>${list
+      .map((n) => `<div class="sn-item">☐ ${esc(n.text)} <span class="sn-src">${n.src === 'office' ? '사무실' : '자동'}</span></div>`)
+      .join('')}</div>`);
+  return blocks.join('');
+}
+
+/** 섹션 HTML 의 첫 쪽 맨 위(쪽 머리 뒤)에 끼운다 */
+function withTopBox(html, box) {
+  if (!box) return html;
+  const open = '<div class="sheet">';
+  const at = html.indexOf(open);
+  return at >= 0 ? `${html.slice(0, at + open.length)}${box}${html.slice(at + open.length)}` : `${box}${html}`;
 }
 
 // ── 꾸러미 ───────────────────────────────────────────────────────
@@ -156,9 +193,9 @@ function isDrawerFrontRow(m) {
 }
 
 /** 꾸러미 머리 숫자의 재료 — 사내/도어재 시트·행, 통·서랍·도어 수. (순수, 시험용으로 노출) */
-/** 사내에서 자르는 행 — 도어재(외주)와 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주)을 뺀 나머지. */
+/** 사내에서 자르는 행 — 도어재(외주) · 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주) · 석재 상판(상판 업체)을 뺀 나머지. */
 function isInHouseRow(m) {
-  return !isDoorClass(m) && !isOutsourcedCutRow(m);
+  return !isDoorClass(m) && !isOutsourcedCutRow(m) && !isOutsourcedTopRow(m);
 }
 
 /** 재단 시트에서 재단 외주 조각을 뺀다. 다 빠지면 null (그 원판은 사내에서 자르지 않는다). */
@@ -342,7 +379,7 @@ function fmtMeters(mm) {
 
 // ── ① 표지 ───────────────────────────────────────────────────────
 
-function renderBoxes(ctx) {
+export function renderBoxes(ctx) {
   const boxes = ctx.items.map((item, i) => {
     const r = ctx.renders ? ctx.renders.find((x) => x && x.item_index === i) : null;
     const url = r && r.path ? ctx.renderUrls.get(r.path) : null;
@@ -429,7 +466,7 @@ function coverSheet(ctx) {
     <dt>설계 해시</dt><dd class="doc-no">${esc(String(snapshot.content_hash).slice(0, 12))}</dd>
   </dl>
 
-  <div class="section-title">정면도</div>
+  <div class="section-title">${drawingTitle(ctx)}</div>
   ${elevationBlock(ctx)}
 
   <div class="section-title">정면 렌더 <span class="muted">참고</span></div>
@@ -471,7 +508,7 @@ function moduleSheets(ctx) {
           [
             esc(label),
             `<b>${num(mi + 1)}</b>`,
-            esc(MODULE_POS[m.pos] || m.pos || '-'),
+            esc(modulePosLabel(m)),
             esc(m.name || m.type || '-'),
             dims3(m.w, m.h, m.d),
             num(m.doorCount || 0),
@@ -507,12 +544,26 @@ function moduleSheets(ctx) {
 
 // ── 정면도 · ⑪ 모듈 치수도 (elevation.js) ─────────────────────────
 
-/** 품목마다 치수 정면도 + 안내(위치 정보 없음 등). 빨간 검증 경고는 그림 안에 있다. */
-function elevationBlock(ctx) {
+/** 품목 i 의 플래너 ISO 도면 서명 주소 — 발행 때 고정한 것 (없으면 null) */
+function isoUrlOf(ctx, i) {
+  const r = Array.isArray(ctx.isoRenders) ? ctx.isoRenders.find((x) => x && x.item_index === i) : null;
+  return r && r.path && ctx.renderUrls ? ctx.renderUrls.get(r.path) || null : null;
+}
+
+/** 도면 칸 제목 — 플래너 ISO 도면이 하나라도 있으면 「도면 (ISO 뷰)」, 아니면 정면도 */
+export function drawingTitle(ctx) {
+  return (ctx.items || []).some((_, i) => isoUrlOf(ctx, i)) ? '도면 <span class="muted">ISO 뷰 — 플래너 도면</span>' : '정면도';
+}
+
+/** 품목마다 치수 정면도 + 안내(위치 정보 없음 등). 빨간 검증 경고는 그림 안에 있다.
+ *  플래너 ISO 도면이 있으면 그것을 싣는다 (2026-11-05 사장님 「정면도 말고 iso 뷰」 — 선 굵기 범례 · 치수는 플래너 그림 안에) */
+export function elevationBlock(ctx) {
   if (ctx.items.length === 0) return '<div class="muted">품목 없음</div>';
   return ctx.items
     .map((item, i) => {
       const label = esc(itemLabel(item, i));
+      const iso = isoUrlOf(ctx, i);
+      if (iso) return `<div class="elev-box iso-plan"><img src="${esc(iso)}" alt="${label} ISO 도면" style="width:100%;height:auto"><div class="elev-cap">${label} · ISO 뷰 (플래너 도면 · mm) · 번호 = 모듈 명세 번호</div></div>`;
       // 사장님 결정 Q4: 벽이 둘 이상인 코너 품목은 아이소메트릭 (isometric.js)
       if (isCornerItem(item)) {
         const runs = runLengths(item)
@@ -546,7 +597,7 @@ function moduleDrawingsSheet(ctx) {
       ].filter(Boolean);
       return `
     <div class="module-card">
-      <div class="mc-head"><b>${num(mi + 1)}</b> ${esc(label)} · ${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')}</div>
+      <div class="mc-head"><b>${num(mi + 1)}</b> ${esc(label)} · ${esc(modulePosLabel(m))} ${esc(m.name || m.type || '-')}</div>
       ${svg || '<div class="ph">치수 없음</div>'}
       <div class="mc-foot">몸통 ${dims3(m.w, m.h, m.d)}${bits.length ? ` · ${esc(bits.join(' · '))}` : ''}</div>
     </div>`;
@@ -585,12 +636,49 @@ function hardwareModuleName(h) {
   return null;
 }
 
+/** 라벨 번호 목록 → 글 (12 · 12–14 · 3, 7–9). 이어진 번호는 줄인다. */
+function labelRunsText(nos) {
+  const sorted = [...new Set(nos)].sort((a, b) => a - b);
+  const runs = [];
+  for (const n of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && n === last[1] + 1) last[1] = n;
+    else runs.push([n, n]);
+  }
+  return runs.map(([a, b]) => (a === b ? num(a) : `${num(a)}–${num(b)}`)).join(', ');
+}
+
+/** 라벨 칸 — 보이는 것은 번호, 부재 ID 는 data-pid 에만 (인쇄에 안 나오고 찾기 · 시험이 쓴다) */
+function labelNoCell(text, pid) {
+  return `<span data-pid="${esc(pid)}">${text}</span>`;
+}
+
+/** 자재 행의 라벨 칸 — 낱개(`partId#k`)마다 번호 하나. ks 를 주면 그 낱개만 (배치에 없는 부재). */
+function rowLabelText(ctx, m, index, ks = null) {
+  const base = partIdOf(m, index);
+  // 석재 상판은 라벨이 없다 — 상판 업체가 가져온다 (2026-11-05)
+  if (isOutsourcedTopRow(m)) return labelNoCell('<span class="muted">상판 업체</span>', base);
+  const list = ks || Array.from({ length: qtyOf(m) }, (_, k) => k);
+  return labelNoCell(labelRunsText(list.map((k) => ctx.labelNo.get(`${base}#${k}`)).filter(Boolean)), base);
+}
+
+/** 조각 id 들 (`partId#k`, 소부품은 partId + 수량) → 라벨 칸 */
+function pieceLabelText(ctx, ids, qty = 0) {
+  const nos = [];
+  for (const raw of ids) {
+    const id = String(raw || '');
+    if (ctx.labelNo.has(id)) nos.push(ctx.labelNo.get(id));
+    else for (let k = 0; k < qty; k++) { const n = ctx.labelNo.get(`${id}#${k}`); if (n) nos.push(n); }
+  }
+  return labelNoCell(labelRunsText(nos), ids.join(' '));
+}
+
 function partsTable(ctx, rows) {
   const body = rows
     .map(({ row: m, index }) =>
       tr(
         [
-          `<span class="mono">${esc(partIdOf(m, index))}</span>`,
+          rowLabelText(ctx, m, index),
           esc(m.part || ''),
           `${esc(m.material || '')} ${num(m.thickness)}T`,
           `${num(m.w)} × ${num(m.h)}`,
@@ -599,13 +687,13 @@ function partsTable(ctx, rows) {
           edgeCell(m),
           esc(m.note || ''),
         ],
-        ['', '', '', 'num', 'num', '', '', ''],
+        ['num', '', '', 'num', 'num', '', '', ''],
       ),
     )
     .join('');
   return `<table class="compact">${thead(
-    ['partId', '부품', '자재', '가로 × 세로', '수량', '마감', '엣지', '비고'],
-    ['', '', '', 'num', 'num', '', '', ''],
+    ['라벨', '부품', '자재', '가로 × 세로', '수량', '마감', '엣지', '비고'],
+    ['num', '', '', 'num', 'num', '', '', ''],
   )}<tbody>${body}</tbody></table>`;
 }
 
@@ -615,6 +703,11 @@ function hardwareRowsTable(rows) {
     .map((h) => tr([esc(h.category || ''), esc(h.item || ''), esc(h.spec || ''), num(h.qty), esc(h.unit || ''), esc(h.note || '')], ['', '', '', 'num', '', '']))
     .join('');
   return `<table class="compact">${thead(['철물', '품목', '규격', '수량', '단위', '비고'], ['', '', '', 'num', '', ''])}<tbody>${body}</tbody></table>`;
+}
+
+/** 키팅 시트 HTML — 종이에는 싣지 않고(2026-11-05) 검증 · 시험용으로만 (모듈마다 판재 · 철물이 제 모듈로 묶이는지) */
+export function kittingHtml(doc, snapshot) {
+  return kittingSheets(buildContext(doc, snapshot, new Map()));
 }
 
 function kittingSheets(ctx) {
@@ -768,8 +861,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
       const no = labelNo.get(p.partId);
       return tr(
         [
-          no ? num(no) : '',
-          `<span class="mono">${esc(p.partId || '')}</span>`,
+          labelNoCell(no ? num(no) : '', p.partId || ''),
           esc(p.part || ''),
           `${num(p.w)} × ${num(p.h)}`,
           num(p.x),
@@ -778,7 +870,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
           m ? `${edgeSvg(rowEdges(m))}${edgeText(m)}` : '<span class="muted">행 미확인</span>',
           m ? esc(m.note || '') : '',
         ],
-        ['num', '', '', 'num', 'num', 'num', '', '', ''],
+        ['num', '', 'num', 'num', 'num', '', '', ''],
       );
     })
     .join('');
@@ -794,23 +886,23 @@ function cutSheetBlock(ctx, sheet, labelNo) {
   <div class="cut-head">
     <b>시트 #${num(sheet.no)}</b> ${esc(sheet.material || '')} ${num(sheet.thickness)}T · ${esc(sheet.partClass || '')}
     · 원판 ${num(sheet.size && sheet.size.w)} × ${num(sheet.size && sheet.size.h)} · 조각 ${num(parts.length)} · 수율 ${fmtPct(sheet.yield)}${layout}
-    <span class="checks">재단 ☐ 엣지 표시 ☐</span>
+    <span class="checks">${itemsFor(ctx.checkList, 'cut', 'sheet').map((x) => `${esc(x.short || x.label)} ☐`).join(' ')}</span>
   </div>
   <div class="cut-sheet">
     <div class="cut-svg">${svg}</div>
     <div class="cut-parts">
-      <table class="compact">${thead(['라벨', 'partId', '부품', 'w × h', 'x', 'y', '회전', '엣지 (두께 · 변 길이×개수)', '비고'], ['num', '', '', 'num', 'num', 'num', '', '', ''])}<tbody>${rows}</tbody></table>
+      <table class="compact">${thead(['라벨', '부품', 'w × h', 'x', 'y', '회전', '엣지 (두께 · 변 길이×개수)', '비고'], ['num', '', 'num', 'num', 'num', '', '', ''])}<tbody>${rows}</tbody></table>
     </div>
   </div>`;
 }
 
-/** 배치가 없을 때의 폴백 — 자재 재단 목록 (+ 엣지). */
+/** 배치가 없을 때의 폴백 — 자재 재단 목록 (+ 엣지). ks = 그 행에서 실을 낱개 (배치에 없는 부재), 없으면 전부. */
 function flatMaterialTable(ctx, rows) {
   const body = rows
-    .map(({ row: m, index }) =>
+    .map(({ row: m, index, ks }) =>
       tr(
         [
-          `<span class="mono">${esc(partIdOf(m, index))}</span>`,
+          rowLabelText(ctx, m, index, ks),
           esc(m.itemLabel || ''),
           esc(m.module || ''),
           esc(m.part || ''),
@@ -822,13 +914,13 @@ function flatMaterialTable(ctx, rows) {
           `${edgeSvg(rowEdges(m))}${edgeText(m)}`,
           esc(m.note || ''),
         ],
-        ['', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
+        ['num', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
       ),
     )
     .join('');
   return `<table class="compact">${thead(
-    ['partId', '품목', '모듈', '부품', '자재', '두께', '가로', '세로', '수량', '엣지', '비고'],
-    ['', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
+    ['라벨', '품목', '모듈', '부품', '자재', '두께', '가로', '세로', '수량', '엣지', '비고'],
+    ['num', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
   )}<tbody>${body}</tbody></table>`;
 }
 
@@ -869,9 +961,23 @@ function edgeTotalsTable(rows) {
 }
 
 /** vendor: 외주처용 판 — 사내 안내(도어재 행방·알바 메모)를 빼고 제목을 바꾼다. 부재·배치·엣지는 같다. */
+/**
+ * 주문 확인 칸 — 정본 목록(check-items.js)의 주문 범위 항목 (시작 전 · 끝). 조건(confirm · outlet)은 동결본으로 거른다. 없으면 빈 글.
+ */
+function orderChecksBlock(ctx, role) {
+  // 특별 지시 항목(note)은 빨간 상자에 있다 — 여기서는 빼고
+  const list = itemsFor(ctx.checkList, role, 'order').filter((x) => !x.note && x.paper !== 'sign' && itemApplies(x, null, ctx.snapshot));
+  if (!list.length) return '';
+  const line = (xs) => xs.map((x) => `${esc(x.label)}${x.must ? '' : ' <span class="muted">(권장)</span>'}${x.photo === 'need' ? ' <span class="muted">· 사진</span>' : ''} ☐`).join(' &nbsp; ');
+  const start = list.filter((x) => x.at === 'start');
+  const end = list.filter((x) => x.at === 'end');
+  const other = list.filter((x) => x.at !== 'start' && x.at !== 'end');
+  return `<div class="order-checks" style="margin:4px 0 8px;padding:4px 6px;border:1px solid #999;font-size:9.5pt;line-height:1.7"><b>주문 확인</b>${start.length ? ` <span class="muted">시작 전</span> ${line(start)}` : ''}${other.length ? ` ${line(other)}` : ''}${end.length ? ` <span class="muted">끝</span> ${line(end)}` : ''}</div>`;
+}
+
 function cutSheets(ctx, { vendor = false } = {}) {
   const counts = workCounts(ctx);
-  const labelNo = labelNumbers(ctx.materials);
+  const labelNo = ctx.labelNo;
   const inHouse = ctx.materials
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => isInHouseRow(row));
@@ -911,7 +1017,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
   const byMat = [...byMatMap.entries()].map(([k, v]) => `${esc(k)} ${num(v)}장`).join(' · ');
 
   const offcuts = (Array.isArray(plan.offcuts) ? plan.offcuts : []).filter((o) => sheetNos.has(o.sheetNo));
-  const offRows = offcuts
+  const offRowsOf = (list) => list
     .map((o) => tr([num(o.sheetNo), o.kind === 'strip' ? '스트립 잔여' : '원판 잔여', `${num(o.w)} × ${num(o.h)}`, num(o.x), num(o.y), num(o.free)], ['num', '', 'num', 'num', 'num', 'num']))
     .join('');
   const smalls = (Array.isArray(plan.smallParts) ? plan.smallParts : []).filter((s) => {
@@ -919,10 +1025,10 @@ function cutSheets(ctx, { vendor = false } = {}) {
     const hit = ctx.rowById.get(s.partId);
     return !(hit && isOutsourcedCutRow(hit.row));
   });
-  const smallRows = smalls
+  const smallRowsOf = (list) => list
     .map((s) => {
       const hit = ctx.rowById.get(s.partId);
-      return tr([`<span class="mono">${esc(s.partId || '')}</span>`, esc(s.part || ''), `${esc(s.material || '')} ${num(s.thickness)}T`, `${num(s.w)} × ${num(s.h)}`, num(s.qty), hit ? edgeText(hit.row) : '', hit ? esc(hit.row.note || '') : ''], ['', '', '', 'num', 'num', '', '']);
+      return tr([pieceLabelText(ctx, [s.partId], qtyOf(s)), esc(s.part || ''), `${esc(s.material || '')} ${num(s.thickness)}T`, `${num(s.w)} × ${num(s.h)}`, num(s.qty), hit ? edgeText(hit.row) : '', hit ? esc(hit.row.note || '') : ''], ['num', '', '', 'num', 'num', '', '']);
     })
     .join('');
   const missingRows = uncoveredInHouse(ctx.materials, plan);
@@ -931,21 +1037,59 @@ function cutSheets(ctx, { vendor = false } = {}) {
     const ids = Array.isArray(u.partIds) ? u.partIds : [];
     return !(ids.length && ids.every((id) => isOutsourcedCutRow(rowOfPiece(ctx, { partId: id }))));
   });
-  const unRows = unalloc
-    .map((u) => tr([esc(Array.isArray(u.partIds) ? u.partIds.join(', ') : ''), esc(Array.isArray(u.parts) ? u.parts.join(', ') : ''), `${esc(u.material || '')} ${num(u.thickness)}T`, `${num(u.w)} × ${num(u.h)}`, num(u.qty)], ['', '', '', 'num', 'num']))
+  const unRowsOf = (list) => list
+    .map((u) => tr([pieceLabelText(ctx, Array.isArray(u.partIds) ? u.partIds : []), esc(Array.isArray(u.parts) ? u.parts.join(', ') : ''), `${esc(u.material || '')} ${num(u.thickness)}T`, `${num(u.w)} × ${num(u.h)}`, num(u.qty)], ['num', '', '', 'num', 'num']))
     .join('');
+  const smallTable = (rows) => `<div class="sub-title">소부품 (원판 미배치 — 잔재에서 뽑는다)</div><table class="compact">${thead(['라벨', '부품', '자재', 'w × h', '수량', '엣지', '비고'], ['num', '', '', 'num', 'num', '', ''])}<tbody>${rows}</tbody></table>`;
+  const unTable = (rows) => `<div class="sub-title">미배치 (원판 초과)</div><div class="warn">원판보다 큰 부재가 있다 — 별도 재단.</div><table class="compact">${thead(['라벨', '부품', '자재', 'w × h', '수량'], ['num', '', '', 'num', 'num'])}<tbody>${rows}</tbody></table>`;
+
+  // 원장 묶음(자재 · 두께 · 부재 구분)마다 따로 — 2026-11-05 사장님 메모 「부재 종류마다」 → 「원장 묶음마다 따로」 · 「그림 또는 표로 볼 수 있도록 버튼」.
+  //   묶음마다 새 쪽에서 시작하고, 화면에서는 [그림] [표] [둘 다] · [이 묶음만 인쇄] (인쇄에는 단추가 안 나온다 — CUT_VIEW_SCRIPT)
+  const groups = [];
+  for (const s of sheets) {
+    const key = `${s.material || ''}|${s.thickness ?? ''}|${s.partClass || ''}`;
+    let g = groups.find((x) => x.key === key);
+    if (!g) { g = { key, material: s.material, thickness: s.thickness, partClass: s.partClass, sheets: [] }; groups.push(g); }
+    g.sheets.push(s);
+  }
+  const classOfPiece = (x) => x.partClass || partClassOf(x.part, x.thickness);
+  const inGroup = (g, x) => x.material === g.material && Number(x.thickness) === Number(g.thickness) && classOfPiece(x) === g.partClass;
+  const groupBlock = (g, gi) => {
+    const nos = new Set(g.sheets.map((s) => s.no));
+    const offRows = offRowsOf(offcuts.filter((o) => nos.has(o.sheetNo)));
+    const smallRows = smallRowsOf(smalls.filter((s) => inGroup(g, s)));
+    const unRows = unRowsOf(unalloc.filter((u) => inGroup(g, u)));
+    const pieces = g.sheets.reduce((n, s) => n + (Array.isArray(s.parts) ? s.parts.length : 0), 0);
+    return `
+  <div class="cut-group${gi ? ' cut-group-next' : ''}" id="cut-group-${gi}" data-group="${gi}" data-view="both">
+    <div class="cut-group-head">
+      <b>${esc(g.material || '')} ${num(g.thickness)}T · ${esc(g.partClass || '')}</b> <span class="muted">원장 ${num(g.sheets.length)}장 · 조각 ${num(pieces)}</span>
+      <span class="cut-btns no-print" role="group" aria-label="보기"><button type="button" data-cut-view="draw" aria-pressed="false">그림</button><button type="button" data-cut-view="table" aria-pressed="false">표</button><button type="button" data-cut-view="both" aria-pressed="true">둘 다</button><button type="button" data-cut-print="${gi}">이 묶음만 인쇄</button></span>
+    </div>
+    ${g.sheets.map((s) => cutSheetBlock(ctx, s, labelNo)).join('')}
+    ${offRows ? `<div class="sub-title">잔재 (60mm 이상)</div><table class="compact">${thead(['시트', '종류', 'w × h', 'x', 'y', '남는 쪽'], ['num', '', 'num', 'num', 'num', 'num'])}<tbody>${offRows}</tbody></table>` : ''}
+    ${smallRows ? smallTable(smallRows) : ''}
+    ${unRows ? unTable(unRows) : ''}
+  </div>`;
+  };
+  // 그 자재 · 두께 원장이 없는 소부품 · 미배치 — 맨 뒤에 한 번
+  const loneSmall = smallRowsOf(smalls.filter((s) => !groups.some((g) => inGroup(g, s))));
+  const loneUn = unRowsOf(unalloc.filter((u) => !groups.some((g) => inGroup(g, u))));
+  const tabs = groups.length > 1
+    ? `<div class="cut-tabs no-print">${groups.map((g, gi) => `<a href="#cut-group-${gi}">${esc(g.material || '')} ${num(g.thickness)}T · ${esc(g.partClass || '')} ${num(g.sheets.length)}장</a>`).join('')}</div>`
+    : '';
 
   return `
 <div class="sheet">
   <div class="section-title">${title} <span class="muted">사내 원판 ${num(sheets.length)}장${byMat ? ` (${byMat})` : ''} · 톱날 ${num(plan.kerf)} · 트림 ${num(plan.trim)}</span></div>
-  <div class="muted">굵은 실선 = 엣지 0.6 · 이중선 = 엣지 1.0 · 선 없음 = 엣지 없음 · 굵은 숫자 = 라벨 번호. 표의 변 길이는 부재 기준 (회전해도 같다).</div>
+  <div class="muted">굵은 실선 = 엣지 0.6 · 이중선 = 엣지 1.0 · 선 없음 = 엣지 없음 · 굵은 숫자 = 라벨 번호${ctx.labelOrder === 'cut' ? ' (재단 차례 — 원장 1 조각부터)' : ''}. 표의 변 길이는 부재 기준 (회전해도 같다).</div>
   ${doorNote}
-  ${sheets.map((s) => cutSheetBlock(ctx, s, labelNo)).join('')}
-  ${offRows ? `<div class="sub-title">잔재 (60mm 이상)</div><table class="compact">${thead(['시트', '종류', 'w × h', 'x', 'y', '남는 쪽'], ['num', '', 'num', 'num', 'num', 'num'])}<tbody>${offRows}</tbody></table>` : ''}
-  ${smallRows ? `<div class="sub-title">소부품 (원판 미배치 — 잔재에서 뽑는다)</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량', '엣지', '비고'], ['', '', '', 'num', 'num', '', ''])}<tbody>${smallRows}</tbody></table>` : ''}
-  ${unRows ? `<div class="sub-title">미배치 (원판 초과)</div><div class="warn">원판보다 큰 부재가 있다 — 별도 재단.</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량'], ['', '', '', 'num', 'num'])}<tbody>${unRows}</tbody></table>` : ''}
+  ${tabs}
+  ${vendor ? '' : orderChecksBlock(ctx, 'cut')}${groups.map(groupBlock).join('')}
+  ${loneSmall ? smallTable(loneSmall) : ''}
+  ${loneUn ? unTable(loneUn) : ''}
   ${outsourcedBlock}
-  ${missingRows.length ? `<div class="sub-title">배치에 없는 부재</div><div class="warn">재단 배치와 자재표가 어긋난다 (스냅샷 재발행 권장) — 아래 부재는 목록대로 따로 재단.</div>${flatMaterialTable(ctx, missingRows.map(({ row, index, missing }) => ({ row: { ...row, qty: missing.length }, index })))}` : ''}
+  ${missingRows.length ? `<div class="sub-title">배치에 없는 부재</div><div class="warn">재단 배치와 자재표가 어긋난다 (스냅샷 재발행 권장) — 아래 부재는 목록대로 따로 재단.</div>${flatMaterialTable(ctx, missingRows.map(({ row, index, missing }) => ({ row: { ...row, qty: missing.length }, index, ks: missing })))}` : ''}
   ${totalsBlock}
 </div>`;
 }
@@ -1024,29 +1168,26 @@ export function boringRows(materials, hardware) {
 
 // ── ⑥ 조립 순서 체크 ─────────────────────────────────────────────
 
-/** 공장 단계 — 각자 자기 작업을 스스로 검수한다. 보링 공정은 없다 (컵 보링은 도어 외주). */
-export const ASSEMBLY_STEPS = ['재단', '엣지', '조립', '도어 달기', '서랍', '검수·포장'];
+/** 공장 단계 — 각자 자기 작업을 스스로 검수한다. 보링 공정은 없다 (컵 보링은 도어 외주). 정본은 src/work/check-items.js (v0 = 이 칸들). */
+export const ASSEMBLY_STEPS = itemsFor({ roles: CHECK_LISTS.v0 }, 'assembly', 'module').map((x) => x.label);
 
 function assemblySheet(ctx) {
   const box = '☐';
   const na = '—';
+  const steps = itemsFor(ctx.checkList, 'assembly', 'module');
   const rows = ctx.items.flatMap((item, i) => {
     const label = itemLabel(item, i);
     const modules = Array.isArray(item.modules) ? item.modules : [];
     return modules.map((m, mi) => {
-      const hasDoor = Number(m.doorCount) > 0;
-      const hasDrawer = Boolean(m.isDrawer);
+      const on = steps.map((x) => itemApplies(x, m));
       return tr(
         [
           esc(label),
-          `<b>${num(mi + 1)}</b> ${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')} <span class="muted">${num(m.w)}×${num(m.h)}</span>`,
-          box, box, box,
-          hasDoor ? box : na,
-          hasDrawer ? box : na,
-          box,
+          `<b>${num(mi + 1)}</b> ${esc(modulePosLabel(m))} ${esc(m.name || m.type || '-')} <span class="muted">${num(m.w)}×${num(m.h)}</span>`,
+          ...on.map((y) => (y ? box : na)),
           '', '',
         ],
-        ['', '', 'box', 'box', 'box', hasDoor ? 'box' : 'na', hasDrawer ? 'box' : 'na', 'box', 'blank', 'blank'],
+        ['', '', ...on.map((y) => (y ? 'box' : 'na')), 'blank', 'blank'],
       );
     });
   });
@@ -1055,9 +1196,9 @@ function assemblySheet(ctx) {
 <div class="sheet">
   <div class="section-title">⑥ 조립 순서 체크 <span class="muted">— 칸은 해당 없음</span></div>
   <table class="check compact">
-    ${thead(['품목', '모듈', ...ASSEMBLY_STEPS, '완료일', '서명'])}
-    <tbody>${rows.join('') || tr(['모듈 없음', '', '', '', '', '', '', '', '', ''])}</tbody>
-  </table>
+    ${thead(['품목', '모듈', ...steps.map((x) => x.short || x.label), '완료일', '서명'])}
+    <tbody>${rows.join('') || tr(['모듈 없음', '', ...steps.map(() => ''), '', ''])}</tbody>
+  </table>${orderChecksBlock(ctx, 'assembly')}
 </div>`;
 }
 
@@ -1077,7 +1218,8 @@ function diffSheet(ctx) {
   const d = p.diff || { added: [], removed: [], changed: [] };
   const partRow = (r) =>
     tr([`<span class="mono">${esc(r.partId || r.key || '')}</span>`, esc(r.itemLabel || ''), esc(r.module || ''), esc(r.part || ''), `${num(r.w)} × ${num(r.h)} × ${num(r.thickness)}`, num(r.qty), esc(r.finishCode || '-')], ['', '', '', '', 'num', 'num', '']);
-  const head = thead(['partId', '품목', '모듈', '부품', 'w × h × t', '수량', '마감'], ['', '', '', '', 'num', 'num', '']);
+  // rev 차이는 부재 ID 그대로 — 라벨 번호는 rev 마다 다시 매겨져 두 rev 를 잇지 못한다
+  const head = thead(['부재 ID', '품목', '모듈', '부품', 'w × h × t', '수량', '마감'], ['', '', '', '', 'num', 'num', '']);
   const changedRows = (d.changed || [])
     .map((r) =>
       tr([
@@ -1097,7 +1239,7 @@ function diffSheet(ctx) {
   ${nothing ? '<div class="muted" style="margin-top:6pt">부재 변경 없음</div>' : ''}
   ${(d.added || []).length ? `<div class="sub-title">추가 (${num(d.added.length)})</div><table class="compact">${head}<tbody>${d.added.map(partRow).join('')}</tbody></table>` : ''}
   ${(d.removed || []).length ? `<div class="sub-title">삭제 (${num(d.removed.length)})</div><table class="compact">${head}<tbody>${d.removed.map(partRow).join('')}</tbody></table>` : ''}
-  ${(d.changed || []).length ? `<div class="sub-title">변경 (${num(d.changed.length)})</div><table class="compact">${thead(['partId', '모듈', '부품', '변경'])}<tbody>${changedRows}</tbody></table>` : ''}
+  ${(d.changed || []).length ? `<div class="sub-title">변경 (${num(d.changed.length)})</div><table class="compact">${thead(['부재 ID', '모듈', '부품', '변경'])}<tbody>${changedRows}</tbody></table>` : ''}
 </div>`;
 }
 
@@ -1116,21 +1258,48 @@ export function labelUnits(materials) {
   return units;
 }
 
-/** 라벨 순서 — 사내 재단 부재 먼저(재단 직후 부착), MDF 18T 재단 외주·도어재는 뒤(입고 시 부착). */
-export function labelGroups(materials) {
+/**
+ * 라벨 순서 — 사내 재단 부재 먼저(재단 직후 부착), MDF 18T 재단 외주·도어재는 뒤(입고 시 부착).
+ * 석재 상판(top)은 상판 업체가 가져와 현장에서 얹는다 — 라벨 없음 (묶음은 부재 보존을 세려고 남긴다).
+ */
+export function labelGroups(materials, cutPlan = null) {
   const units = labelUnits(materials);
+  const inHouse = units.filter((u) => isInHouseRow(u.row));
   return {
-    inHouse: units.filter((u) => isInHouseRow(u.row)),
+    inHouse: cutPlan && Array.isArray(cutPlan.sheets) ? cutOrderOf(inHouse, cutPlan) : inHouse,
     outsourced: units.filter((u) => isOutsourcedCutRow(u.row)),
     door: units.filter((u) => isDoorClass(u.row)),
+    top: units.filter((u) => isOutsourcedTopRow(u.row)),
   };
 }
 
-/** 조각 id → 라벨 번호 (1부터, labelGroups 순서). 재단표와 라벨이 같은 번호를 쓴다. */
-export function labelNumbers(materials) {
-  const { inHouse, outsourced, door } = labelGroups(materials);
+/**
+ * 사내 라벨을 재단 차례로 (2026-11-05 사장님 A) — 원장 1 의 조각부터 놓인 차례대로, 그다음 소부품 · 미배치 · 배치에 없는 부재 (자재 행 차례).
+ *   재단 기사가 자르면서 1, 2, 3 … 차례로 붙인다. (순수, 시험용으로 노출)
+ */
+export function cutOrderOf(units, plan) {
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const out = [];
+  const taken = new Set();
+  const take = (id) => {
+    const u = byId.get(String(id));
+    if (u && !taken.has(u.id)) { taken.add(u.id); out.push(u); }
+  };
+  (plan.sheets || []).forEach((s) => (Array.isArray(s.parts) ? s.parts : []).forEach((p) => take(p.partId)));
+  (Array.isArray(plan.smallParts) ? plan.smallParts : []).forEach((sp) => { for (let k = 0; k < qtyOf(sp); k++) take(`${sp.partId}#${k}`); });
+  (Array.isArray(plan.unallocated) ? plan.unallocated : []).forEach((u) => (Array.isArray(u.partIds) ? u.partIds : []).forEach(take));
+  units.forEach((u) => take(u.id));
+  return out;
+}
+
+/** 조각 id → 라벨 번호 (1부터, labelGroups 순서). 재단표와 라벨이 같은 번호를 쓴다. cutPlan 을 주면 사내 부재는 재단 차례 */
+export function labelNumbers(materials, cutPlan = null) {
+  const { inHouse, outsourced, door } = labelGroups(materials, cutPlan);
   return new Map([...inHouse, ...outsourced, ...door].map((u, i) => [u.id, i + 1]));
 }
+
+/** 이 문서의 라벨 묶음 — 고정한 차례대로 */
+const docLabelGroups = (ctx) => labelGroups(ctx.materials, ctx.labelOrder === 'cut' ? ctx.cutPlan : null);
 
 function labelCell(unit, no, ctx) {
   const m = unit.row;
@@ -1143,14 +1312,15 @@ function labelCell(unit, no, ctx) {
   const s = ctx.swatchByCode.get(m.finishCode);
   const hex = normalizeHex(s && s.color_hex);
   const sides = edgeSidesText(m);
+  // 2026-11-05 (작업지시서 손보기 2): 번호를 크게 한 줄 — 긴 부재 ID 가 번호를 밀어내던 것. 부재 ID 는 QR 안에만 (data-pid 는 찾기용)
+  const where = [m.itemLabel, m.module].map((v) => String(v || '').trim()).filter(Boolean).join(' · ');
   return `
-  <div class="label">
+  <div class="label" data-pid="${esc(unit.id)}">
     ${qr}
     <div class="lt">
-      <div class="pid"><b>${num(no)}</b> · ${esc(unit.id)}</div>
-      <div>${esc(m.itemLabel || '')} · ${esc(m.module || '')}</div>
-      <div><b>${esc(m.part || '')}</b> · ${esc(m.material || '')}</div>
-      <div class="dim">${num(m.w)} × ${num(m.h)} × ${num(m.thickness)}</div>
+      <div class="no"><b>${num(no)}</b><span class="mod">${esc(where)}</span></div>
+      <div><b>${esc(m.part || '')}</b> · ${esc(m.material || '')} ${num(m.thickness)}T</div>
+      <div class="dim">${num(m.w)} × ${num(m.h)}</div>
       <div>${m.finishCode ? `${hex ? `<span class="chip" style="background:${hex}"></span>` : ''}<span class="mono">${esc(m.finishCode)}</span>` : '<span class="muted">마감 기본</span>'}</div>
       <div class="edge-line">${edgeSvg(rowEdges(m))}${sides === '없음' ? '엣지 없음' : `${fmtEdgeT(m.edgeT)} · ${esc(sides)}`}</div>
     </div>
@@ -1158,7 +1328,7 @@ function labelCell(unit, no, ctx) {
 }
 
 function labelSheets(ctx) {
-  const { inHouse, outsourced, door } = labelGroups(ctx.materials);
+  const { inHouse, outsourced, door } = docLabelGroups(ctx);
   const total = inHouse.length + outsourced.length + door.length;
   if (total === 0) return '';
   const pages = [];
@@ -1209,6 +1379,38 @@ export function isMaidaRow(materials, row, hardware) {
  * 도어 행에는 경첩 컵 위치(경첩 비고의 보링, 도어 상단 기준 mm)를 붙인다.
  * 금액도 고객 이름도 싣지 않는다 — 문서번호만.
  */
+/**
+ * 도어 한 장 앞모습 (2026-11-05 사장님 메모 「작업 지시서 내에서는 무조건 그림」) — 가로 × 세로 · 경첩 컵 자리(상단 기준, 플랩은 천판 쪽 폭 변) · 엣지.
+ *   컵은 경첩 쪽 한 변에 그린다 — 좌 · 우는 모듈의 경첩 방향을 따른다 (그림은 자리 · 간격만). 같은 축척으로 그려 크기를 견줄 수 있다.
+ */
+export function doorDrawingSvg(m, boring, scale = 0.16) {
+  const w = Math.max(0, Number(m.w) || 0);
+  const h = Math.max(0, Number(m.h) || 0);
+  if (!w || !h) return '';
+  const W = w * scale, H = h * scale;
+  const ml = 34, mt = 10, mr = 30, mb = 22;
+  const e = rowEdges(m) || {};
+  const thick = (on) => (on ? 2.4 : 0.6);
+  const flap = boring && boring.side === 'top';
+  const cups = boring ? (boring.positions || []).map((p) => Number(p) * scale).filter((p) => Number.isFinite(p)) : [];
+  const cupSvg = cups.map((p) => (flap
+    ? `<circle cx="${(ml + p).toFixed(1)}" cy="${(mt + 22 * scale + 4).toFixed(1)}" r="${Math.max(2.2, 35 * scale / 2).toFixed(1)}" fill="none" stroke="#1d4f91" stroke-width="0.9"/>`
+    : `<circle cx="${(ml + 22 * scale + 4).toFixed(1)}" cy="${(mt + p).toFixed(1)}" r="${Math.max(2.2, 35 * scale / 2).toFixed(1)}" fill="none" stroke="#1d4f91" stroke-width="0.9"/>`)).join('');
+  const dims = cups.map((p, i) => (flap ? '' : `<text x="${ml - 3}" y="${(mt + p + 3).toFixed(1)}" font-size="7" text-anchor="end" fill="#1d4f91">${num(boring.positions[i])}</text>`)).join('');
+  // 크기를 viewBox 그대로(px) 적어 늘이지 않는다 — 장끼리 같은 축척
+  const vw = (ml + W + mr).toFixed(0), vh = (mt + H + mb).toFixed(0);
+  return `<svg class="door-drawing" width="${vw}" height="${vh}" viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" font-family="'Malgun Gothic', sans-serif">`
+    + `<rect x="${ml}" y="${mt}" width="${W.toFixed(1)}" height="${H.toFixed(1)}" fill="#fafafa" stroke="none"/>`
+    + `<line x1="${ml}" y1="${mt}" x2="${(ml + W).toFixed(1)}" y2="${mt}" stroke="#000" stroke-width="${thick(e.T)}"/>`
+    + `<line x1="${ml}" y1="${(mt + H).toFixed(1)}" x2="${(ml + W).toFixed(1)}" y2="${(mt + H).toFixed(1)}" stroke="#000" stroke-width="${thick(e.B)}"/>`
+    + `<line x1="${ml}" y1="${mt}" x2="${ml}" y2="${(mt + H).toFixed(1)}" stroke="#000" stroke-width="${thick(e.L)}"/>`
+    + `<line x1="${(ml + W).toFixed(1)}" y1="${mt}" x2="${(ml + W).toFixed(1)}" y2="${(mt + H).toFixed(1)}" stroke="#000" stroke-width="${thick(e.R)}"/>`
+    + cupSvg + dims
+    + `<text x="${(ml + W / 2).toFixed(1)}" y="${(mt + H + 14).toFixed(1)}" font-size="8.5" text-anchor="middle">${num(w)}</text>`
+    + `<text x="${(ml + W + 4).toFixed(1)}" y="${(mt + H / 2 + 3).toFixed(1)}" font-size="8.5">${num(h)}</text>`
+    + '</svg>';
+}
+
 function doorOrderSheet(ctx) {
   const counts = workCounts(ctx);
   const title = '⑩ 도어재 발주서';
@@ -1242,7 +1444,7 @@ function doorOrderSheet(ctx) {
           const b = boringById.get(pid);
           return tr(
             [
-              `<span class="mono">${esc(pid)}</span>`,
+              rowLabelText(ctx, m, index),
               `${esc(m.itemLabel || '')} · ${esc(moduleNameOf(m.module) || m.module || '')}`,
               esc(m.part || ''),
               `${num(m.w)} × ${num(m.h)} × ${num(m.thickness)}`,
@@ -1251,13 +1453,13 @@ function doorOrderSheet(ctx) {
               b ? `${num(b.count)}구 · ${esc(b.positions.join(', '))}${b.side === 'top' ? ' <span class="muted">(플랩 — 천판 쪽 폭 변)</span>' : ''}${b.warn ? ` <span class="warn">${esc(b.warn)}</span>` : ''}`
                 : isMaidaRow(ctx.materials, m, ctx.hardware) ? '<span class="muted">마이다 — 보링 없음</span>' : '',
             ],
-            ['', '', '', 'num', 'num', '', ''],
+            ['num', '', '', 'num', 'num', '', ''],
           );
         })
         .join('');
       return `
   <div class="sub-title">${head} <span class="muted">${num(list.length)}종 · ${num(pieces)}장</span></div>
-  <table class="compact">${thead(['partId', '품목 · 모듈', '부품', '가로 × 세로 × 두께', '수량', '엣지', '경첩 컵 (상단 기준 mm)'], ['', '', '', 'num', 'num', '', ''])}<tbody>${body}</tbody></table>`;
+  <table class="compact">${thead(['라벨', '품목 · 모듈', '부품', '가로 × 세로 × 두께', '수량', '엣지', '경첩 컵 (상단 기준 mm)'], ['num', '', '', 'num', 'num', '', ''])}<tbody>${body}</tbody></table>`;
     })
     .join('');
 
@@ -1268,6 +1470,13 @@ function doorOrderSheet(ctx) {
     : '';
 
   const pieces = rows.reduce((s, { row }) => s + qtyOf(row), 0);
+  // 도어 · 서랍 앞판마다 앞모습 (몰딩 · 걸레받이 · 목찬넬 같은 긴 부재는 표로 충분)
+  const isFront = (m) => m.slot === 'door' || m.slot === 'drawerFront' || m.part === '도어' || m.part === '서랍도어';
+  const cards = rows.filter(({ row }) => isFront(row)).map(({ row: m, index }) => {
+    const b = boringById.get(partIdOf(m, index));
+    return `<div class="door-card">${doorDrawingSvg(m, b)}<div class="door-cap"><b>${rowLabelText(ctx, m, index)}</b> ${esc(m.part || '')} × ${num(m.qty)} · ${esc(moduleNameOf(m.module) || m.module || '')}${m.finishCode ? ` · <span class="mono">${esc(m.finishCode)}</span>` : ''}${b ? ` · 컵 ${num(b.count)}구${b.side === 'top' ? ' (천판 쪽)' : ''}` : isMaidaRow(ctx.materials, m, ctx.hardware) ? ' · 마이다' : ''}</div></div>`;
+  }).join('');
+  const cardBlock = cards ? `<div class="sub-title">도어 앞모습 <span class="muted">같은 축척 · 굵은 변 = 엣지 · 원 = 경첩 컵 (상단 기준 mm)</span></div><div class="door-grid">${cards}</div>` : '';
   return `
 <div class="sheet">
   <div class="section-title">${title} <span class="muted">금액 없음</span></div>
@@ -1279,6 +1488,7 @@ function doorOrderSheet(ctx) {
   </dl>
   ${blocks}
   ${orphanBlock}
+  ${cardBlock}
 </div>`;
 }
 
@@ -1302,8 +1512,9 @@ function packHeader(ctx, pack) {
     facts.push(['통 · 서랍 · 도어', `${num(counts.cabinets)}통 · 서랍 ${num(counts.drawers)} · 도어 ${num(counts.doors)}짝`]);
     if (labor) facts.push(['예상 시간', `조립 ${fmtMinutes(labor.assemblyMin)}`]);
   } else if (pack === 'labels') {
-    const g = labelGroups(ctx.materials);
-    facts.push(['라벨', `사내 ${num(g.inHouse.length)} · 도어재 ${num(g.door.length)} (A4 ${num(Math.ceil(g.inHouse.length / LABELS_PER_SHEET) + Math.ceil(g.door.length / LABELS_PER_SHEET))}쪽)`]);
+    const g = docLabelGroups(ctx);
+    const pages = [g.inHouse, g.outsourced, g.door].reduce((s, list) => s + Math.ceil(list.length / LABELS_PER_SHEET), 0);
+    facts.push(['라벨', `사내 ${num(g.inHouse.length)}${g.outsourced.length ? ` · 재단 외주 ${num(g.outsourced.length)}` : ''} · 도어재 ${num(g.door.length)} (A4 ${num(pages)}쪽)`]);
   }
   const showRenders = pack === 'assembly'; // 재단은 치수 정면도만 — 3D 렌더는 조립 참고용
   return `
@@ -1320,10 +1531,10 @@ function packHeader(ctx, pack) {
     </div>
   </div>
   <dl class="kv">
-    ${vendor ? '' : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
+    ${vendor ? '' : ctx.worker ? `<dt>주문</dt><dd>${esc(ctx.worker.orderLabel)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>` : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
     ${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}
   </dl>
-  ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">정면도</div>${elevationBlock(ctx)}` : ''}
+  ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">${drawingTitle(ctx)}</div>${elevationBlock(ctx)}` : ''}
   ${showRenders ? `<div class="section-title">정면 렌더 <span class="muted">참고</span></div>${renderBoxes(ctx)}` : ''}
   ${!vendor && doc.render_payload?.instructions ? `<div class="section-title">특기사항</div><div class="note">${esc(doc.render_payload.instructions)}</div>` : ''}
 </div>`;
@@ -1356,22 +1567,25 @@ function moduleSectionsSection(ctx) {
 }
 
 const PACK_SECTIONS = {
-  all: [coverSheet, moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), kittingSheets, (ctx) => cutSheets(ctx) + partDrawingsSection(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
+  all: [(ctx) => withTopBox(coverSheet(ctx), specialNotesBox(ctx.specialNotes, ['cut', 'assembly', 'door', 'top'])), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
   // 판재 도면은 재단 쪽 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
-  cut: [(ctx) => packHeader(ctx, 'cut'), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx)],
+  cut: [(ctx) => packHeader(ctx, 'cut') + specialNotesBox(ctx.specialNotes, ['cut']), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx)],
   // 외주처 종이 — 고객 이름·설계 제목·특기사항·정면도·시간 없음 (door 와 같은 원칙)
-  'cut-vendor': [(ctx) => packHeader(ctx, 'cut-vendor'), (ctx) => cutSheets(ctx, { vendor: true })],
+  'cut-vendor': [(ctx) => packHeader(ctx, 'cut-vendor') + specialNotesBox(ctx.specialNotes, ['cut']), (ctx) => cutSheets(ctx, { vendor: true })],
   // 모듈 단면도는 치수도 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
-  assembly: [(ctx) => packHeader(ctx, 'assembly'), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), kittingSheets, hardwareSheet, assemblySheet, diffSheet],
-  door: [doorOrderSheet], // 외주처 종이 — 고객 정보가 든 머리를 붙이지 않는다
-  top: [countertopSheets], // 상판 업체 종이 — 도어재 발주서와 같은 원칙
+  // ② 키팅은 싣지 않는다 (2026-11-05 사장님 — 검증만, kittingHtml)
+  assembly: [(ctx) => packHeader(ctx, 'assembly') + specialNotesBox(ctx.specialNotes, ['assembly']), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), hardwareSheet, assemblySheet, diffSheet],
+  door: [(ctx) => withTopBox(doorOrderSheet(ctx), specialNotesBox(ctx.specialNotes, ['door']))], // 외주처 종이 — 고객 정보가 든 머리를 붙이지 않는다
+  top: [(ctx) => withTopBox(countertopSheets(ctx), specialNotesBox(ctx.specialNotes, ['top']))], // 상판 업체 종이 — 도어재 발주서와 같은 원칙
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
 };
 
-export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null } = {}) {
+export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null, worker = null } = {}) {
   const key = normalizePack(pack) || 'all';
   const ctx = buildContext(doc, snapshot, renderUrls);
-  ctx.top = top; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
+  ctx.top = top;
+  // 작업자 보기 (작업자 포털 — work/checks.js): 설계 제목 대신 가린 주문 이름 (홍*동 · 주문번호)
+  ctx.worker = worker && worker.orderLabel ? worker : null; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
   const parts = PACK_SECTIONS[key].map((fn) => fn(ctx));
   // 꾸러미 머리는 따로 한 쪽을 쓰지 않는다 — 첫 섹션 쪽의 맨 위에 넣는다 (종이 한 장 아끼기)
   if (parts.length > 1 && parts[0].includes('class="pack-head"')) {
@@ -1382,7 +1596,8 @@ export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = ne
       ? `${parts[0].slice(0, at)}${open}${head}${parts[0].slice(at + open.length)}`
       : `${open}${head}</div>${parts[0]}`;
   }
-  const body = [toolbar ? PRINT_TOOLBAR : '', ...parts].join('\n');
+  // 재단 원장 묶음 단추 스크립트 — 묶음이 있는 꾸러미에만
+  const body = [toolbar ? PRINT_TOOLBAR : '', ...parts, parts.some((p) => p.includes('data-cut-view')) ? CUT_VIEW_SCRIPT : ''].join('\n');
   return documentShell({
     title: `${WORK_ORDER_PACKS[key].title} ${doc.doc_no}`,
     css: PRINT_CSS,

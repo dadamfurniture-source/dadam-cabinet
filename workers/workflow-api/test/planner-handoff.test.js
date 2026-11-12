@@ -1,0 +1,252 @@
+/**
+ * 간편 플래너 설계 받기 — POST /planner/designs (src/planner-handoff.js, DB 0035 designs.source · source_ref).
+ *
+ *   본사 대표 · 실장 · 관리자 → 본사 설계, 플래너 팩토리(Expert · Agent · MANAGER) 대표 · 실장 → 그 팩토리 설계 (아니면 403 not_planner_sender)
+ *   · 같은 플래너 설계 = 같은 앱 설계 (없으면 만들고, 있으면 그대로)
+ *   · 부재 ID 가 겹치면 INSERT 전에 422 · 0035 적용 전이면 409 db_pending · 동결은 createSnapshot 그대로.
+ * 사람 · 설계는 모두 지어낸 시험 값이다.
+ */
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { clearHqCompanyCache, ForbiddenError, ValidationError, ConflictError } from '../src/supabase.js';
+import { clearAdminCache } from '../src/reports/admin.js';
+import { receivePlannerDesign, duplicatePartIds, PLANNER_SOURCE } from '../src/planner-handoff.js';
+import worker from '../src/worker.js';
+import { HQ, PARTNER, companyRoute } from './fixtures/company.js';
+
+const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' };
+const OWNER = 'a0000000-0000-4000-8000-000000000001';
+const STAFF = 'a0000000-0000-4000-8000-000000000003';
+const P_OWNER = 'a0000000-0000-4000-8000-000000000011';
+const P_STAFF = 'a0000000-0000-4000-8000-000000000012';
+const S_OWNER = 'a0000000-0000-4000-8000-000000000021';
+const STANDARD = 'f0000000-0000-4000-8000-0000000000cc';
+const MEMBERS = [
+  { user_id: OWNER, company_id: HQ, role: 'owner', status: 'active' },
+  { user_id: STAFF, company_id: HQ, role: 'staff', status: 'active' },
+  { user_id: P_OWNER, company_id: PARTNER, role: 'owner', status: 'active' },
+  { user_id: P_STAFF, company_id: PARTNER, role: 'staff', status: 'active' },
+  { user_id: S_OWNER, company_id: STANDARD, role: 'owner', status: 'active' },
+];
+/** 업체 행 — 플래너를 쓰나 (planner-drafts.js canUsePlanner) */
+const COMPANIES = {
+  [HQ]: { id: HQ, kind: 'hq', name: '다담 공장', plan: null, status: 'active' },
+  [PARTNER]: { id: PARTNER, kind: 'partner', name: '가나 팩토리', plan: 'expert', status: 'active' },
+  [STANDARD]: { id: STANDARD, kind: 'partner', name: '다라 팩토리', plan: 'standard', status: 'active' },
+};
+
+const json = (rows, status = 200) => ({ ok: true, status, headers: { get: () => 'application/json' }, json: async () => rows, text: async () => JSON.stringify(rows) });
+const fail = (status, body) => ({ ok: false, status, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(body) });
+
+/** PostgREST 흉내 — designs 찾기 · 만들기, 동결 (cut-plan.test.js 와 같은 길) */
+function fakeSupabase({ existing = null, missing = false, uploadFails = false } = {}) {
+  const calls = { designPosts: [], snapshotPosts: [], designFinds: 0, uploads: [], renderRows: [] };
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    const method = init.method || 'GET';
+    const path = u.split('?')[0];
+    if (/\/companies\?/.test(u) && /kind/.test(new URL(u).searchParams.get('select') || '')) {
+      const row = COMPANIES[(new URL(u).searchParams.get('id') || '').replace(/^eq\./, '')];
+      return json(row ? [row] : []);
+    }
+    if (companyRoute(u, { members: MEMBERS })) return companyRoute(u, { members: MEMBERS });
+    if (/\/admin_roles\?/.test(u)) return json([]);
+    if (method === 'GET' && /\/designs\?/.test(u)) {
+      const q = new URL(u).searchParams;
+      if (q.get('source')) {
+        calls.designFinds += 1;
+        if (missing) return fail(400, { code: 'PGRST204', message: "Could not find the 'source' column of 'designs' in the schema cache" });
+        return json(existing ? [existing] : []);
+      }
+      const id = (q.get('id') || '').replace(/^eq\./, '');
+      const row = existing && existing.id === id ? existing : calls.designPosts.find((d) => d.id === id);
+      return json(row ? [{ company_id: HQ, ...row }] : []);
+    }
+    if (method === 'POST' && /\/designs$/.test(path)) {
+      const body = JSON.parse(init.body);
+      const row = { id: 'D-NEW', ...body };
+      calls.designPosts.push(row);
+      return json([row], 201);
+    }
+    if (/\/company_settings\?/.test(u)) return json([]);
+    if (/\/pricing_rule_sets\?/.test(u)) return json([{ id: 'RS1', name: 'seed', is_active: true }]);
+    if (/\/pricing_rules\?/.test(u)) return json([]);
+    if (method === 'GET' && /\/design_snapshots\?/.test(u)) return json([]);
+    if (method === 'POST' && /\/storage\/v1\/object\/renders\//.test(path)) {
+      if (uploadFails) return fail(500, { message: 'storage down' });
+      calls.uploads.push({ path: path.split('/object/renders/')[1], type: init.headers['Content-Type'], bytes: init.body.length });
+      return json({ Key: path });
+    }
+    if (method === 'POST' && /\/design_renders$/.test(path)) {
+      calls.renderRows.push(JSON.parse(init.body));
+      return json([{ id: 'R1', ...JSON.parse(init.body) }], 201);
+    }
+    if (method === 'POST' && /\/design_snapshots$/.test(path)) {
+      const body = JSON.parse(init.body);
+      calls.snapshotPosts.push(body);
+      return json([{ id: 'S1', created_at: '2026-11-04T00:00:00Z', ...body }], 201);
+    }
+    throw new Error('unexpected fetch ' + method + ' ' + u);
+  };
+  calls.restore = () => { globalThis.fetch = original; };
+  return calls;
+}
+
+function body(over) {
+  return Object.assign({
+    planner_design_id: 'proj-test-1',
+    title: '시험 설계 (합성)',
+    design: { items: [{ categoryId: 'sink', name: '싱크대', w: 2400, modules: [{ pos: 'lower', type: 'door', w: 900 }, { pos: 'upper', type: 'door', w: 900 }] }] },
+    bom: { materials: [
+      { partId: 'w1/floor/m1|0-lower-0-body:side-0', part: '측판', material: 'PB', thickness: 15, w: 550, h: 708, qty: 2 },
+      { partId: 'w1/floor/m2|0-lower-0-body:side-0', part: '측판', material: 'PB', thickness: 15, w: 550, h: 708, qty: 2 },
+    ] },
+    hardware: {},
+  }, over || {});
+}
+
+beforeEach(() => { clearHqCompanyCache(); clearAdminCache(); });
+
+test('부재 ID 겹침 — 비어 있는 ID 는 세지 않는다', () => {
+  assert.deepEqual(duplicatePartIds([{ partId: 'a' }, { partId: 'b' }, { partId: 'a' }, { part: 'x' }, { partId: '' }]), ['a']);
+  assert.deepEqual(duplicatePartIds(null), []);
+});
+
+test('처음 보내면 앱 설계를 만든다 — 출처 planner-lite · 플래너 설계 id · 주인은 보낸 사람, 동결본은 createSnapshot 그대로', async () => {
+  const f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body() });
+    assert.deepEqual([r.design_id, r.created, r.snapshot_id, r.reused], ['D-NEW', true, 'S1', false]);
+    const d = f.designPosts[0];
+    assert.deepEqual([d.source, d.source_ref, d.user_id, d.company_id, d.name, d.status, d.total_items, d.total_modules], [PLANNER_SOURCE, 'proj-test-1', OWNER, HQ, '시험 설계 (합성)', 'draft', 1, 2]);
+    assert.equal(f.snapshotPosts.length, 1);
+    assert.equal(f.snapshotPosts[0].design_id, 'D-NEW');
+    assert.equal(f.snapshotPosts[0].bom_payload.materials.length, 2, 'BOM 은 플래너가 보낸 그대로');
+  } finally { f.restore(); }
+});
+
+/** 1×1 PNG (합성) */
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
+
+test('정면 렌더 — 품목 uniqueId 마다 버킷 renders · design_renders front 에 넣는다, 모양이 틀리면 동결 전에 422, 못 올려도 동결은 그대로 (2026-11-05)', async () => {
+  let f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: `data:image/png;base64,${PNG_1PX}`, width: 1536, height: 900 }] }) });
+    assert.equal(r.renders_saved, 1);
+    assert.equal(f.uploads.length, 1);
+    assert.match(f.uploads[0].path, /^D-NEW\/1\/front-\d+-0\.png$/);
+    assert.equal(f.uploads[0].type, 'image/png');
+    assert.deepEqual([f.renderRows[0].design_id, f.renderRows[0].item_unique_id, f.renderRows[0].kind, f.renderRows[0].width], ['D-NEW', 1, 'front', 1536]);
+  } finally { f.restore(); }
+
+  f = fakeSupabase();
+  try {
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: btoa('not a png') }] }) }), (e) => e instanceof ValidationError);
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 0, png: PNG_1PX }] }) }), (e) => e instanceof ValidationError);
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.uploads.length, 0, '아무것도 쓰지 않는다');
+  } finally { f.restore(); }
+
+  f = fakeSupabase({ uploadFails: true });
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }] }) });
+    assert.deepEqual([r.snapshot_id, r.renders_saved], ['S1', 0]);
+    assert.equal(f.renderRows.length, 0);
+  } finally { f.restore(); }
+});
+
+/** 합성 ISO 도면 — 플래너 js/iso.js 가 그리는 모양 (선 범례 · 패턴 참조) */
+const ISO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><pattern id="h" width="4" height="4"/></defs>'
+  + '<path d="M10 10 L100 10" stroke="#000" stroke-width="0.5"/><path d="M10 20 L100 20" stroke="#000" stroke-width="0.25" stroke-dasharray="3 2"/>'
+  + '<rect fill="url(#h)" width="5" height="5"/><text x="10" y="40">외형선 0.5</text></svg>';
+
+test('ISO 도면 — kind iso SVG 는 버킷 renders (image/svg+xml) · design_renders iso, 스크립트 · 바깥 주소 SVG 는 동결 전에 422 (2026-11-05)', async () => {
+  let f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }, { item: 1, kind: 'iso', svg: ISO_SVG, width: 1400 }, { item: 1, kind: 'plan', svg: ISO_SVG }] }) });
+    assert.equal(r.renders_saved, 3);
+    assert.match(f.uploads[1].path, /^D-NEW\/1\/iso-\d+-1\.svg$/);
+    assert.equal(f.uploads[1].type, 'image/svg+xml');
+    assert.match(f.uploads[2].path, /^D-NEW\/1\/plan-\d+-2\.svg$/, '상판 탑뷰 (코너)');
+    assert.deepEqual([f.renderRows[0].kind, f.renderRows[1].kind, f.renderRows[1].width, f.renderRows[2].kind], ['front', 'iso', 1400, 'plan']);
+  } finally { f.restore(); }
+
+  f = fakeSupabase();
+  try {
+    for (const svg of [
+      ISO_SVG.replace('</svg>', '<script>alert(1)</script></svg>'),
+      ISO_SVG.replace('<svg ', '<svg onload="x()" '),
+      ISO_SVG.replace('url(#h)', 'url(https://x.test/a.png)'),
+      ISO_SVG.replace('</svg>', '<a href="https://x.test">x</a></svg>'),
+      ISO_SVG.replace('</svg>', '<foreignObject><div/></foreignObject></svg>'),
+      '<div>not svg</div>',
+    ]) {
+      await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'iso', svg }] }) }), (e) => e instanceof ValidationError, svg.slice(0, 60));
+    }
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'module', svg: ISO_SVG }] }) }), (e) => e instanceof ValidationError);
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.uploads.length, 0, '아무것도 쓰지 않는다');
+  } finally { f.restore(); }
+});
+
+test('다시 보내면 같은 앱 설계에 동결 — 새 설계를 만들지 않는다', async () => {
+  const f = fakeSupabase({ existing: { id: 'D-OLD', user_id: OWNER, name: '시험 설계 (합성)' } });
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body() });
+    assert.deepEqual([r.design_id, r.created], ['D-OLD', false]);
+    assert.equal(f.designPosts.length, 0);
+    assert.equal(f.snapshotPosts[0].design_id, 'D-OLD');
+  } finally { f.restore(); }
+});
+
+test('본사 직원(대표 · 실장 아님)은 보내지 못한다 — 403 not_planner_sender, 아무것도 쓰지 않는다', async () => {
+  const f = fakeSupabase();
+  try {
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: STAFF }, body: body() }), (e) => e instanceof ForbiddenError && e.code === 'not_planner_sender');
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.designFinds, 0);
+  } finally { f.restore(); }
+});
+
+test('플래너 팩토리(Expert) 대표 — 그 팩토리 설계로 만든다, 주인은 보낸 사람', async () => {
+  const f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: P_OWNER }, body: body() });
+    assert.deepEqual([r.design_id, r.created, r.snapshot_id], ['D-NEW', true, 'S1']);
+    const d = f.designPosts[0];
+    assert.deepEqual([d.company_id, d.user_id, d.source, d.source_ref], [PARTNER, P_OWNER, PLANNER_SOURCE, 'proj-test-1']);
+    assert.equal(f.snapshotPosts[0].design_id, 'D-NEW');
+  } finally { f.restore(); }
+});
+
+test('팩토리 직원 · 플래너를 못 쓰는 팩토리(Standard) 대표는 보내지 못한다 — 403 not_planner_sender, 아무것도 쓰지 않는다', async () => {
+  const f = fakeSupabase();
+  try {
+    for (const id of [P_STAFF, S_OWNER]) {
+      await assert.rejects(() => receivePlannerDesign(ENV, { user: { id }, body: body() }), (e) => e instanceof ForbiddenError && e.code === 'not_planner_sender');
+    }
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.designFinds, 0);
+  } finally { f.restore(); }
+});
+
+test('부재 ID 가 겹치면 INSERT 전에 422 · 플래너 설계 id · 이름이 없어도 422', async () => {
+  const f = fakeSupabase();
+  try {
+    const dup = body();
+    dup.bom.materials[1].partId = dup.bom.materials[0].partId;
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: dup }), (e) => e instanceof ValidationError && /부재 ID/.test(e.message));
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ planner_design_id: '../x' }) }), ValidationError);
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ title: '  ' }) }), ValidationError);
+    assert.equal(f.designPosts.length + f.snapshotPosts.length, 0);
+  } finally { f.restore(); }
+});
+
+test('DB 0035 적용 전 — 409 db_pending', async () => {
+  const f = fakeSupabase({ missing: true });
+  try {
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body() }), (e) => e instanceof ConflictError && e.details && e.details.code === 'db_pending');
+  } finally { f.restore(); }
+});
+
+test('라우트 — POST /planner/designs 는 로그인이 있어야 한다', async () => {
+  const res = await worker.fetch(new Request('https://w.example/planner/designs', { method: 'POST', body: '{}' }), ENV, { waitUntil() {} });
+  assert.equal(res.status, 401);
+});

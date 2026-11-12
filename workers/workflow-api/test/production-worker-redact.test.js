@@ -7,6 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { companyRoute } from './fixtures/company.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import worker from '../src/worker.js';
@@ -91,7 +92,8 @@ function factoryDb({ assignments, logs }) {
       return json([{ id: L1, user_id: U1, label: '재단 작업자', expires_at: '2099-01-01T00:00:00Z', revoked_at: null }]);
     }
     if (u.includes('/production_worker_links?') && method === 'PATCH') return json([{ id: L1 }]);
-    if (u.includes('/production_settings?')) return json([]);
+    if (u.includes('/company_settings?')) return json([]);
+    if (companyRoute(u)) return companyRoute(u);
     if (u.includes('/designs?')) return json([{ id: D1 }]);
     if (u.includes('/orders?')) return json(ORDERS);
     if (u.includes('/design_snapshots?')) return json([SNAP]);

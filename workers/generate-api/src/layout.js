@@ -744,7 +744,7 @@ export function buildPlannerReadPrompt(c) {
   // 2026-10-19: 꺾인 벽 입면 (ㄱ자·ㄷ자) — 함께 보일 때만. 주벽 입면 뒤 번호로.
   const wallSides = plannerReadWalls(c.designSpec).map((w) => w.side);
   const rets = (Array.isArray(c.returnElevations) ? c.returnElevations : []).filter((r) => r && wallSides.includes(r.side));
-  rets.forEach((r, i) => {
+  rets.forEach((r) => {
     images.push(
       `IMAGE ${images.length + 1} — FRONT ELEVATION of the ${r.side.toUpperCase()} wall return of the same plan, seen straight on${r.labeled ? ', with its unit IDs' : ''}. Use it only to tell which unit is which.`
     );

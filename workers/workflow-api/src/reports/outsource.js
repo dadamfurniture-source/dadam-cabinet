@@ -4,14 +4,16 @@
  * Step 4 의 외주 꾸러미(도어재 발주서 · 재단·엣지 의뢰서)는 지금껏 뽑을 수만 있었다 — 보냈다는 기록이 없었다.
  * [발주 처리] 가 업체 · 입고 예정일 · 수량을 outsource_order 한 행으로 남기고, 보관함에서 입고/취소로 바꾼다.
  * 도어재 발주가 된 주문은 생산 계획의 '도어 발주 마감' 추천 · 아침 경고에서 빠진다 (production/service.js doorOrderedIds).
+ * [발주 처리] 는 협력업체면 Expert 이상만 (2026-11-08, documents.js OUTSOURCE_PLANS) — 403 plan_required.
  */
 
 import { ConflictError, ValidationError, insertOne, selectMany, selectOne } from '../supabase.js';
 import { countertopRequests, countertopModelIds, countertopQty, workdaysBefore, TOP_VENDOR_KEY } from '../countertop.js';
-import { getDocumentForOwner } from '../documents.js';
+import { OUTSOURCE_PLANS, assertCompanyPlan, getDocumentForOwner } from '../documents.js';
 import { outsourceCounts } from '../templates/work-order.js';
 import { workdays } from '../production/planner.js';
-import { getSettings } from '../production/service.js';
+import { companySettings } from '../production/service.js';
+import { getSiteInfo } from '../site-info.js';
 import { OUTSOURCE_PACKS, kstDay, reportFromOutsource } from './record.js';
 
 const TABLE = 'work_reports';
@@ -54,8 +56,11 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
   const pack = String(body.pack || '');
   const def = OUTSOURCE_PACKS[pack];
   if (!def) throw new ValidationError('pack 은 door · cut-vendor · top 중 하나여야 합니다');
-  const { doc, snapshot } = await getDocumentForOwner(env, { documentId, user });
+  // 외주 발주 기록은 업체 · 수량 · 날짜뿐 — 업체 구성원 누구나
+  const { doc, snapshot, design } = await getDocumentForOwner(env, { documentId, user });
   if (doc.doc_type !== 'work_order') throw new ValidationError('작업지시서에서만 외주 발주를 처리합니다');
+  // 협력업체는 Expert 이상 (작업지시서와 같다 — documents.js OUTSOURCE_PLANS). 다담 공장 설계는 그대로. 지난 발주 보기(목록)는 막지 않는다
+  await assertCompanyPlan(env, design.company_id, OUTSOURCE_PLANS, '외주 발주는');
 
   const today = kstDay();
   const expected = body.expected_on ? String(body.expected_on).slice(0, 10) : null;
@@ -67,7 +72,8 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
     throw new ConflictError(`이미 발주 처리했습니다 — ${e.period_start} ${(e.metrics && e.metrics.vendor) || ''} (${e.status === 'received' ? '입고' : '발주'}). 다시 보내려면 한 번 더 확인해 주세요.`);
   }
 
-  const { settings } = await getSettings(env, { user });
+  // 업체 이름 · 납기 · 휴일 · 상판 기본값은 설계가 속한 업체의 설정
+  const { settings } = await companySettings(env, design.company_id);
   let quantities;
   let vendorKey = def.vendorKey;
   if (pack === 'top') {
@@ -93,7 +99,8 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
     note: typeof body.note === 'string' ? body.note : null,
     createdBy: user.id,
   });
-  return insertOne(env, TABLE, row);
+  // 발주 기록의 업체 = 설계의 업체 — 협력업체 발주는 그 업체 것 (본사 외주 성적표 · 관리자 보관함에 섞이지 않는다)
+  return insertOne(env, TABLE, { ...row, company_id: design.company_id });
 }
 
 /** Step 4 카드용 — 이 문서의 설계에 걸린 외주 발주 (취소 포함, 최신순). */
@@ -121,14 +128,15 @@ export async function listOutsourceOrders(env, { user, documentId }) {
 }
 
 /**
- * 상판 요청서 인쇄 시점 자료 — 설계 주인의 생산 설정(업체 · 기본값 · 마감 근무일 · 공휴일), 가장 이른 설치일, 고른 가전 모델.
+ * 상판 요청서 인쇄 시점 자료 — 설계가 속한 업체의 설정(업체 · 기본값 · 마감 근무일 · 공휴일), 가장 이른 설치일, 고른 가전 모델,
+ * 현장 정보(엘리베이터 — 2026-11-05 사장님 「엘리베이터 있는지 여부도 확인」, 인쇄할 때 값 · 못 읽으면 발행 때 값).
  * 하나라도 못 읽으면 그 칸만 [확인 필요] 로 남기고 종이는 나온다.
  */
 export async function loadCountertopContext(env, { doc, snapshot }) {
-  const ctx = { today: kstDay(), installDate: null, deadline: null, leadDays: 4, vendors: {}, countertop: null, models: new Map() };
+  const ctx = { today: kstDay(), installDate: null, deadline: null, leadDays: 4, vendors: {}, countertop: null, models: new Map(), siteInfo: (doc.render_payload && doc.render_payload.site_info) || null };
   try {
-    const design = await selectOne(env, 'designs', { id: `eq.${doc.design_id}`, select: 'user_id' });
-    const { settings } = await getSettings(env, { user: { id: design ? design.user_id : null } });
+    const design = await selectOne(env, 'designs', { id: `eq.${doc.design_id}`, select: 'company_id' });
+    const { settings } = await companySettings(env, design ? design.company_id : null);
     ctx.vendors = settings.vendors;
     ctx.countertop = settings.countertop;
     ctx.leadDays = settings.leads.topLeadDays;
@@ -141,6 +149,12 @@ export async function loadCountertopContext(env, { doc, snapshot }) {
     }
   } catch (e) {
     console.warn('countertop context (settings/schedule) failed:', e && e.message);
+  }
+  try {
+    const site = await getSiteInfo(env, doc.design_id);
+    if (site) ctx.siteInfo = site;
+  } catch (e) {
+    console.warn('countertop context (site info) failed:', e && e.message);
   }
   const ids = countertopModelIds(snapshot);
   if (ids.length) {

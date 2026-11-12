@@ -6,6 +6,8 @@
  * 라우트 (W11-2 범위):
  *   GET  /health
  *   POST /designs/:designId/snapshots   — 설계+BOM 동결 (멱등)
+ *   POST /planner/designs               — 간편 플래너 설계 받기 → 앱 설계 찾거나 만들고 동결 (본사 대표 · 실장 · 관리자, src/planner-handoff.js)
+ *   GET /planner/access · /planner/drafts(…) · /planner/my-modules(…) · /planner/recommend — 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
  *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
@@ -24,14 +26,49 @@
  *   PATCH /schedules/:scheduleId           — 일정 수정
  *   POST /schedules/batches/:batchId/notify — Slack 재전송 (멱등)
  *
- *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
+ *   GET  /admin/consult-inbox · /admin/consultations/:id/candidates · POST /admin/consultations/:id/assign
+ *   GET  /admin/companies · GET|PUT /admin/companies/:id/evaluation — 다담 본사 상담 분배 (src/distribution/)
+ *   GET  /company/consults · GET /company/consults/:id/image · POST /company/consults/:id/accept|decline
+ *   GET|PUT /company/service-settings
+ *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
+ *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
+ *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
+ *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
+ *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
+ *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
+ *   GET|PUT /company/shifts — 근무 일정(쉬는 날), 구성원이 보고 대표 · 실장이 적는다 (src/work-shifts.js, DB 0060)
+ *   GET|POST /stock/items · PATCH /stock/items/:id · POST /stock/items/:id/moves · GET /stock/moves — 재고 품목 · 입출고 (src/stock.js, DB 0059)
+ *   GET|POST /stock/offcuts · PATCH /stock/offcuts/:id · GET /stock/offcuts/:id/events · POST /stock/offcuts/labels · GET /stock/summary — 자투리 · 재고 숫자 (src/stock-offcuts.js, DB 0059)
+ *   GET|POST /stock/orders · POST /stock/orders/:id/receive · POST /stock/orders/:id/cancel — 재고 구매 발주 (src/stock-orders.js, DB 0062)
+ *   GET /stock/needs · PUT /stock/links · POST /stock/needs/:orderId/issue · GET /stock/needs/:orderId/offcuts — 작업지시 자재 ↔ 재고 (src/stock-needs.js, DB 0063)
+ *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
+ *   GET  /company/sites?kind=install|as · PUT /company/sites/geo · PUT /company/as-requests/:id/visit —
+ *                                 설치 · A/S 지도 + 표: 현장 좌표 · A/S 방문 일정 (src/company-sites.js, DB 0058)
+ *
+ *   GET  /ledger/me · /ledger/accounts · /ledger/book · GET|PUT /ledger/settings
+ *   POST /ledger/entries · /ledger/entries/:id/void · /ledger/entries/:id/correct
+ *   GET|POST /ledger/documents — 회계장부 (src/ledger/)
+ *   GET  /ledger/review · POST /ledger/review/post · POST /ledger/documents/:id/post|return|reject|reread
+ *   GET  /ledger/business-status — 사진 확인 · 국세청 사업자 상태 (src/ledger/review.js, 읽기 걸기 src/ledger/extract.js)
+ *   GET  /ledger/notices · POST /ledger/notices/seen — 장부 알림 (src/ledger/notices.js, 만드는 것은 DB 0033)
+ *   GET  /ledger/dashboard — 회계 한눈에 (src/ledger/dashboard.js, 묶음은 DB 0034)
+ *   GET  /ledger/close-memo — 월 마감 메모 (src/ledger/close-memo.js — 서버가 센 손볼 곳, AI 없음)
+ *   GET|POST /orders/:orderId/reports · POST …/reports/photo · GET /admin/order-reports — 수주 완료 보고 (src/order-reports.js, DB 0043)
+ *   POST /me/orders/:orderId/as-requests(/photo) · GET /me/as-requests · POST /me/as-requests/:id/cancel ·
+ *   GET /company/as-requests · POST /company/as-requests/:id/receive|done · GET /admin/as-requests — 고객 A/S 접수 (src/as-requests.js, DB 0045)
+ *   GET  /brief/today — 아침 브리핑 본문 (비서를 쓰는 업체 구성원, src/brief.js)
+ *   POST|GET /production-requests · GET /production-requests/:id · POST …/:id/choose|cancel — Manager 업체 제작 의뢰
+ *   GET /admin/production-requests · POST …/:id/review|recommend · GET …/:id/suggestions — 본사 추천
+ *   GET /factory/production-requests · POST …/:id/accept|decline — 고른 팩토리의 받기 (src/production-requests/, DB 0050)
+ *
+ *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
  *
  * 인증: 내부 API 는 Supabase 사용자 JWT (Authorization: Bearer).
  *       고객 공유 링크는 X-Share-Token 헤더 (W11-4).
  */
 
-import { handleOptions, jsonResponse, htmlResponse, isAllowedOrigin } from './cors.js';
+import { handleOptions, jsonResponse, htmlResponse, isAllowedOrigin, corsHeaders } from './cors.js';
 import { createRouter } from './router.js';
 import { normalizePack, WORK_ORDER_PACKS } from './templates/work-order.js';
 import {
@@ -41,9 +78,12 @@ import {
   ValidationError,
   ConflictError,
   GoneError,
+  TooLargeError,
+  RateLimitError,
   DbError,
   verifyJwt,
-  assertDesignOwner,
+  assertDesignAccess,
+  hqCompanyId,
   selectOne,
 } from './supabase.js';
 import {
@@ -54,16 +94,17 @@ import {
   reportSummary,
   backfillReports,
 } from './reports/service.js';
-import { isAdmin } from './reports/admin.js';
 import { getManagementSummary } from './management/service.js';
 import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
-import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
+import { createSnapshot, listSnapshots, getSnapshotForViewer, previewQuote, quoteForViewer } from './snapshots.js';
+import { receivePlannerDesign } from './planner-handoff.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
   listDocuments,
   getDocumentForOwner,
+  documentForViewer,
   revokeDocument,
   renderDocument,
   resolvePrintAssets,
@@ -79,7 +120,8 @@ import {
   addCost,
   deleteCost,
 } from './orders.js';
-import { listReworks, addRework, deleteRework } from './rework.js';
+import { listOrderEvents, listOrderRequests, decideOrderEvent } from './order-events.js';
+import { listReworks, addRework, deleteRework, reworksForViewer } from './rework.js';
 import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
 import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
 import { listPayments, addPayment, updatePayment, deletePayment, updateCostDates, addCashBalance } from './payments.js';
@@ -103,7 +145,24 @@ import {
   listAssignments,
   getSettings,
   saveSettings,
+  assertHqMoney,
+  assertHqProduction,
 } from './production/service.js';
+import { getBooksSummary } from './books.js';
+import { createEntry, voidEntry, correctEntry, getBook, listAccounts, listLedgerOrders } from './ledger/entries.js';
+import { uploadDocument, listDocuments as listLedgerDocuments } from './ledger/documents.js';
+import { listReview, postDocument, postBatch, decideDocument, rereadDocument, businessStatus } from './ledger/review.js';
+import { runExtractDue } from './ledger/extract.js';
+import { runLedgerNotices, listNotices, markNoticesSeen } from './ledger/notices.js';
+import { ledgerDashboard } from './ledger/dashboard.js';
+import { getBrief, runMorningBrief } from './brief.js';
+import { listReceivables, listPayables } from './ledger/money.js';
+import { getCloseMemo } from './ledger/close-memo.js';
+import { addOrderReport, addReportPhoto, listOrderReports, listReportsAdmin } from './order-reports.js';
+import { addAsPhoto, addAsRequest, listMyAsRequests, cancelMyAsRequest, listCompanyAsRequests, receiveAsRequest, finishAsRequest, listAsAdmin, runAsAlerts } from './as-requests.js';
+import { listSupplierModes, setSupplierMode, holdDocuments, listHeld, supplierEntries, attachStatements } from './ledger/statements.js';
+import { runLedgerPendingNotices } from './push/ledger-hooks.js';
+import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
 import {
   createWorkerLink,
   listWorkerLinks,
@@ -116,6 +175,7 @@ import {
   getCalibration,
   applyCalibration,
 } from './production/worker-access.js';
+import { runConsultNotices, runPartnerApplicationNotices, isConsultNoticeMinute } from './consult-notify.js';
 import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite } from './work/invites.js';
 import {
@@ -141,6 +201,82 @@ import {
   removeAssignment,
 } from './work/assignments.js';
 import { addWorkerUpdate, addCompanyUpdate } from './work/updates.js';
+import {
+  getFactoryToday,
+  addFactoryWorklog,
+  markFactoryAssignmentDone,
+  linkFactoryAccount,
+  listFactoryWorkers,
+  assignFactoryWorker,
+  endFactoryWorker,
+} from './work/factory.js';
+import {
+  factoryPack,
+  getFactoryChecks,
+  postFactoryCheck,
+  assignmentPack,
+  getAssignmentChecks,
+  postAssignmentCheck,
+  postFactoryPhoto,
+  postAssignmentPhoto,
+  getOrderChecks,
+} from './work/checks.js';
+import { acceptConsultation, listMyProjects } from './projects.js';
+import {
+  consultInbox,
+  consultCandidates,
+  assignConsultation,
+  notifyConsultAssigned,
+  listCompaniesAdmin,
+  getCompanyEvaluation,
+  putCompanyEvaluation,
+} from './distribution/admin.js';
+import {
+  listCompanyConsults,
+  readCompanyConsultImage,
+  acceptCompanyConsult,
+  declineCompanyConsult,
+  runAssignmentExpiry,
+  getServiceSettings,
+  putServiceSettings,
+  myScore,
+} from './distribution/company.js';
+import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
+import { listCompanyQuotes } from './company-quotes.js';
+import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
+import { getCompanySummary } from './company-summary.js';
+import { listShifts, putShift } from './work-shifts.js';
+import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
+import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
+import { listStockOrders, createStockOrder, receiveStockOrder, cancelStockOrder } from './stock-orders.js';
+import { listStockNeeds, putStockLink, issueStockForOrder, listOffcutCandidates } from './stock-needs.js';
+import { listCompanySchedules } from './company-schedules.js';
+import { listCompanySites, saveSiteGeo, setAsVisit } from './company-sites.js';
+import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
+import { setProjectAssignee, assigneeCandidates } from './company-assignee.js';
+import {
+  plannerAccess,
+  listDrafts,
+  getDraft,
+  saveDraft,
+  discardDraft,
+  getAppState,
+  putAppState,
+  addPhoto as addPlannerPhoto,
+  readPhoto as readPlannerPhoto,
+  deletePhoto as deletePlannerPhoto,
+  listMyModules,
+  saveMyModule,
+  deleteMyModule,
+  recommendOf,
+  SAVE_BODY_MAX_BYTES,
+} from './planner-drafts.js';
+import { createRequest, listMyRequests, getMyRequest, chooseFactory, cancelMyRequest } from './production-requests/manager.js';
+import { listRequestsAdmin, reviewRequest, suggestionsFor, recommendFactories } from './production-requests/admin.js';
+import { listFactoryRequests, acceptFactoryRequest, declineFactoryRequest, runProductionOfferExpiry } from './production-requests/factory.js';
+import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
+import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
+import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -151,6 +287,15 @@ async function readJson(request) {
   } catch {
     return null;
   }
+}
+
+/**
+ * 응답을 막지 않고 뒤에서 돌린다 (ctx.waitUntil). ctx 가 없으면 기다린다.
+ * job 은 던지지 않는 일이어야 한다 (앱 알림 넣기 — src/push/hooks.js).
+ */
+async function afterResponse(ctx, job) {
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
+  else await job;
 }
 
 // ===== 핸들러 =====
@@ -177,7 +322,7 @@ async function handleCreateSnapshot(request, env, { params, user }) {
   const body = await readJson(request);
   if (!body) throw new ValidationError('JSON 본문을 해석할 수 없습니다');
 
-  const { snapshot, reused } = await createSnapshot(env, {
+  const { snapshot, reused, money } = await createSnapshot(env, {
     designId: params.designId,
     user,
     body,
@@ -198,7 +343,8 @@ async function handleCreateSnapshot(request, env, { params, user }) {
         panel_count: snapshot.panel_count,
         // B4: 재단 배치 원판 장수. 배치를 안 보냈거나 DB 컬럼이 없으면 null
         sheet_count: snapshot.sheet_count === undefined ? null : snapshot.sheet_count,
-        quote: snapshot.quote_payload, // W11-3 이후 채워짐
+        // W11-3 이후 채워짐. 원가 · 수금 권한이 없으면 원가 · 마진 칸을 뺀다
+        quote: quoteForViewer(snapshot.quote_payload, money),
         reused,
         created_at: snapshot.created_at,
       },
@@ -218,7 +364,7 @@ async function handleListSnapshots(request, env, { params, user }) {
 }
 
 async function handleGetSnapshot(request, env, { params, user }) {
-  const snapshot = await getSnapshot(env, { snapshotId: params.snapshotId, user });
+  const snapshot = await getSnapshotForViewer(env, { snapshotId: params.snapshotId, user });
   return jsonResponse(request, env, { success: true, data: snapshot });
 }
 
@@ -292,30 +438,24 @@ async function handleListDocuments(request, env, { params, user }) {
 }
 
 async function handleGetDocument(request, env, { params, user }) {
-  const { doc, snapshot } = await getDocumentForOwner(env, {
+  // 문서 행 그대로 — 원가 · 수금 권한이 없으면 render_payload.quote 의 원가 · 마진만 뺀다
+  const { doc, snapshot, money } = await getDocumentForOwner(env, {
     documentId: params.documentId,
     user,
   });
   return jsonResponse(request, env, {
     success: true,
-    data: { ...doc, snapshot_rev: snapshot.rev, snapshot_content_hash: snapshot.content_hash },
+    data: { ...documentForViewer(doc, money), snapshot_rev: snapshot.rev, snapshot_content_hash: snapshot.content_hash },
   });
 }
 
-/** 내부용 인쇄 화면. 작업지시서는 여기서 연다. */
 /**
- * 인쇄용 문서 — 설계 주인 것, 또는 관리자(보관함에서 남의 작업지시서를 연다 — work-reports-archive.plan.md §5).
+ * 내부용 인쇄 화면. 작업지시서는 여기서 연다.
+ * 접근은 설계 접근 규칙 그대로 — 관리자는 본사 설계 문서를 연다 (보관함에서 남의 작업지시서 — work-reports-archive.plan.md §5),
+ * 협력업체 설계 문서는 열지 못한다. 인쇄물에는 원가 · 마진이 없다.
  */
 async function getDocumentForPrint(env, { documentId, user }) {
-  try {
-    return await getDocumentForOwner(env, { documentId, user });
-  } catch (err) {
-    if (!(err instanceof ForbiddenError) || !(await isAdmin(env, user))) throw err;
-    const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
-    const snapshot = doc ? await selectOne(env, 'design_snapshots', { id: `eq.${doc.snapshot_id}`, select: '*' }) : null;
-    if (!doc || !snapshot) throw new NotFoundError('문서를 찾을 수 없습니다');
-    return { doc, snapshot };
-  }
+  return getDocumentForOwner(env, { documentId, user });
 }
 
 async function handlePrintDocument(request, env, { params, user }) {
@@ -381,13 +521,13 @@ async function handlePublicConfirm(request, env) {
 }
 
 async function handleGetSiteInfo(request, env, { params, user }) {
-  await assertDesignOwner(env, params.designId, user.id);
+  await assertDesignAccess(env, params.designId, user, { money: false });
   const site = await getSiteInfo(env, params.designId);
   return jsonResponse(request, env, { success: true, data: site });
 }
 
 async function handleSaveSiteInfo(request, env, { params, user }) {
-  await assertDesignOwner(env, params.designId, user.id);
+  await assertDesignAccess(env, params.designId, user, { money: false });
   const body = (await readJson(request)) || {};
   const saved = await saveSiteInfo(env, params.designId, body);
   return jsonResponse(request, env, { success: true, data: saved });
@@ -399,39 +539,58 @@ async function handleCreateOrder(request, env, { params, user, ctx }) {
     user,
   });
   // 새 수주면 생산 계획을 다시 돌려 대표에게 인력 추천을 보낸다. 응답을 막지 않고, 실패해도 수주는 그대로다.
+  // 제안은 본사 Slack 으로 나가므로 본사 수주일 때만.
   if (!reused && ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(
-      proposePlan(env, {
-        user,
-        trigger: 'order_created',
-        orderId: order.id,
-        triggerLabel: `새 수주 ${order.customer_name ? order.customer_name + ' · ' : ''}${order.order_no}`,
-      }).catch((e) => console.error('production proposal failed:', e && e.message)),
+      (async () => {
+        if (!(await isHqWork(env, { companyId: order.company_id }))) return;
+        await proposePlan(env, {
+          user,
+          trigger: 'order_created',
+          orderId: order.id,
+          triggerLabel: `새 수주 ${order.customer_name ? order.customer_name + ' · ' : ''}${order.order_no}`,
+        });
+      })().catch((e) => console.error('production proposal failed:', e && e.message)),
     );
   }
   return jsonResponse(request, env, { success: true, data: { ...order, reused } }, reused ? 200 : 201);
 }
 
 // ── 생산 계획 · 인력 추천 ──
+/** 본사 설계 · 수주의 일인가 — 생산 계획 · 제안은 본사 Slack 으로 나간다. companyId 를 모르면 설계에서 읽는다 */
+async function isHqWork(env, { companyId = null, designId = null }) {
+  const hq = await hqCompanyId(env);
+  if (companyId) return companyId === hq;
+  const design = designId ? await selectOne(env, 'designs', { id: `eq.${designId}`, select: 'company_id' }) : null;
+  return Boolean(design) && design.company_id === hq;
+}
+
 /**
- * 계획에 영향을 주는 변경(설치 일정 등록·변경, 수주 취소) 뒤에 응답을 막지 않고 다시 계획한다.
+ * 계획에 영향을 주는 변경(설치 일정 등록·변경, 수주 취소 · 되살리기) 뒤에 응답을 막지 않고 다시 계획한다.
+ * 본사 설계 · 수주의 변경일 때만 (scope: { companyId } 또는 { designId }).
  * 실패는 로그만 남긴다 — 원래 요청(일정·수주 저장)은 이미 끝났다.
  */
-function replanLater(env, ctx, user, triggerLabel) {
+function replanLater(env, ctx, user, triggerLabel, scope) {
   if (!ctx || typeof ctx.waitUntil !== 'function') return;
   ctx.waitUntil(
-    proposePlan(env, { user, trigger: 'manual', triggerLabel })
-      .catch((e) => console.error('production replan failed:', e && e.message)),
+    (async () => {
+      if (!(await isHqWork(env, scope))) return;
+      await proposePlan(env, { user, trigger: 'manual', triggerLabel });
+    })().catch((e) => console.error('production replan failed:', e && e.message)),
   );
 }
 
 async function handleGetProductionPlan(request, env, { user }) {
+  // 계획 · 제안은 본사 일 — 협력업체 구성원은 403 not_hq (생산 화면은 설정만 보여 준다)
+  await assertHqProduction(env, user);
   const url = new URL(request.url);
   const data = await computePlan(env, { user, today: url.searchParams.get('today') || undefined });
   return jsonResponse(request, env, { success: true, data });
 }
 
 async function handleCreateProposal(request, env, { user }) {
+  // 제안은 본사 Slack 으로 나간다 — 협력업체 구성원이면 제안도 Slack 도 만들지 않는다 (403 not_hq)
+  await assertHqProduction(env, user);
   const data = await proposePlan(env, { user, trigger: 'manual', triggerLabel: '수동 재계산' });
   return jsonResponse(request, env, { success: true, data }, 201);
 }
@@ -561,9 +720,214 @@ async function handleWorkerAssignmentDone(request, env, { params }) {
   return jsonResponse(request, env, { success: true, data: await markAssignmentDone(env, { link, assignmentId: params.assignmentId, done: body.done !== false }) });
 }
 
+/** 「내 계정에 잇기」 — 로그인(JWT) + 이 기기의 생산 링크(X-Worker-Token) → 공장 배정 (work/factory.js) */
+async function handleFactoryLink(request, env, { user }) {
+  const data = await linkFactoryAccount(env, { user, token: request.headers.get('X-Worker-Token') || '' });
+  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
+}
+
 async function handleMonthlySummary(request, env, { user }) {
+  // 월 고정비는 본사 설정이다 — 본사 대표 · 실장 · 관리자만 (아니면 403 not_money). 월 마감 cron 은 이 경로를 거치지 않는다
+  await assertHqMoney(env, user);
   const url = new URL(request.url);
-  return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month') }) });
+  // 본사 수주 전부 (누가 만든 설계든) — 월 마감 보고(cron)는 예전처럼 설계 주인별
+  return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month'), scope: 'hq' }) });
+}
+
+/** 업체 장부 요약 — 그 업체 대표 · 실장만 (src/books.js). 금액이 담겨 캐시에 남기지 않는다 */
+async function handleBooksSummary(request, env, { user }) {
+  const url = new URL(request.url);
+  return jsonResponse(request, env, { success: true, data: await getBooksSummary(env, { user, month: url.searchParams.get('month') }) }, 200, NO_STORE);
+}
+
+// ===== 회계장부 (src/ledger/) — 금액 · 사진 상태가 담겨 캐시에 남기지 않는다 =====
+
+async function handleLedgerMe(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await ledgerMe(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handleLedgerAccounts(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listAccounts(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handleLedgerOrders(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await listLedgerOrders(env, { user }) }, 200, NO_STORE);
+}
+
+async function handleLedgerBook(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await getBook(env, {
+    user,
+    company: q.get('company') || undefined,
+    month: q.get('month'),
+    from: q.get('from'),
+    to: q.get('to'),
+    includeVoid: q.get('include_void') === '1',
+  });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleGetLedgerSettings(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await getLedgerSettings(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handlePutLedgerSettings(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await putLedgerSettings(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleCreateLedgerEntry(request, env, { user }) {
+  const body = await readJson(request);
+  const { entry, reused } = await createEntry(env, { user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data: { entry, reused } }, reused ? 200 : 201, NO_STORE);
+}
+
+async function handleVoidLedgerEntry(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await voidEntry(env, { user, entryId: params.id, body }) }, 200, NO_STORE);
+}
+
+async function handleCorrectLedgerEntry(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await correctEntry(env, { user, entryId: params.id, body }) }, 201, NO_STORE);
+}
+
+async function handleUploadLedgerDocument(request, env, { user, ctx }) {
+  const { document, reused } = await uploadDocument(env, { user, request, ctx });
+  return jsonResponse(request, env, { success: true, data: { document, reused } }, reused ? 200 : 201, NO_STORE);
+}
+
+async function handleListLedgerDocuments(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await listLedgerDocuments(env, {
+    user,
+    company: q.get('company') || undefined,
+    status: q.get('status'),
+    mine: q.get('mine') === '1',
+    before: q.get('before'),
+    limit: q.get('limit'),
+  });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+// 사진 확인 (src/ledger/review.js) — 읽은 칸 · 금액 · 서명 주소가 담겨 캐시에 남기지 않는다
+
+async function handleLedgerReview(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await listReview(env, {
+    user,
+    company: q.get('company') || undefined,
+    status: q.get('status'),
+    before: q.get('before'),
+    limit: q.get('limit'),
+  });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handlePostLedgerDocument(request, env, { params, user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await postDocument(env, { user, documentId: params.id, body }) }, 201, NO_STORE);
+}
+
+async function handlePostLedgerBatch(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await postBatch(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleReturnLedgerDocument(request, env, { params, user, ctx }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await decideDocument(env, { user, documentId: params.id, body, status: 'returned', ctx }) }, 200, NO_STORE);
+}
+
+async function handleRejectLedgerDocument(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await decideDocument(env, { user, documentId: params.id, body, status: 'rejected' }) }, 200, NO_STORE);
+}
+
+async function handleRereadLedgerDocument(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: await rereadDocument(env, { user, documentId: params.id }) }, 202, NO_STORE);
+}
+
+async function handleLedgerDashboard(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await ledgerDashboard(env, { user, company: q.get('company') || undefined, month: q.get('month') || undefined, months: q.get('months') });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleLedgerReceivables(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listReceivables(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handleLedgerPayables(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listPayables(env, { user, company }) }, 200, NO_STORE);
+}
+
+/** 월 마감 메모 — ?month= (기본 지난달, 한국 시간) · ?company= 본사 보기 */
+async function handleLedgerCloseMemo(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await getCloseMemo(env, { user, company: q.get('company') || undefined, month: q.get('month') || undefined });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleLedgerSuppliers(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listSupplierModes(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handlePutLedgerSupplier(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await setSupplierMode(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleHoldLedgerDocuments(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await holdDocuments(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleUnholdLedgerDocuments(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await holdDocuments(env, { user, body, release: true }) }, 200, NO_STORE);
+}
+
+async function handleLedgerHeld(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listHeld(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handleLedgerHeldEntries(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await supplierEntries(env, { user, company: q.get('company') || undefined, bizNo: q.get('biz_no'), nameKey: q.get('name_key') });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleAttachLedgerStatements(request, env, { params, user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await attachStatements(env, { user, entryId: params.id, body }) }, 200, NO_STORE);
+}
+
+async function handleBrief(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await getBrief(env, { user }) }, 200, NO_STORE);
+}
+
+async function handleLedgerNotices(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await listNotices(env, { user, company: q.get('company') || undefined, limit: q.get('limit') });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleLedgerNoticesSeen(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await markNoticesSeen(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleBusinessStatus(request, env, { user }) {
+  const bizNo = new URL(request.url).searchParams.get('biz_no');
+  return jsonResponse(request, env, { success: true, data: await businessStatus(env, { user, bizNo }) }, 200, NO_STORE);
 }
 
 // 경영 대시보드 (Claude 프로젝트 문서 "다담 경영 대시보드" 1단계) — 관리자만, 회사 전체
@@ -584,19 +948,21 @@ async function handleListOrders(request, env, { user }) {
 }
 
 async function handleGetOrder(request, env, { params, user }) {
-  const data = await getOrder(env, { orderId: params.orderId, user });
+  // 원가 · 마진 · 수금 · 재작업 비용은 원가 · 수금 권한(대표 · 실장 · 본사 주인 · 관리자)이 있을 때만 싣는다
+  const { money, ...data } = await getOrder(env, { orderId: params.orderId, user });
   // 재작업 · A/S — 표가 아직 없으면(2단계 SQL 전) null 이고 화면이 안내를 띄운다
-  data.reworks = await listReworks(env, params.orderId);
+  data.reworks = reworksForViewer(await listReworks(env, params.orderId), money);
   // 설치 후 한 문항 — 같은 방식으로 표가 없으면 null
   data.feedback = await getFeedback(env, params.orderId);
   // 수금 일정 — 표가 없으면 null
-  data.payments = await listPayments(env, params.orderId);
+  if (money) data.payments = await listPayments(env, params.orderId, { online: true });
   return jsonResponse(request, env, { success: true, data });
 }
 
 async function handleAddPayment(request, env, { params, user }) {
   const body = (await readJson(request)) || {};
-  return jsonResponse(request, env, { success: true, data: await addPayment(env, { orderId: params.orderId, user, body }) }, 201);
+  const data = await addPayment(env, { orderId: params.orderId, user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201);
 }
 
 async function handleUpdatePayment(request, env, { params, user }) {
@@ -686,16 +1052,55 @@ async function handleDeleteRework(request, env, { params, user }) {
 
 async function handleUpdateOrder(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
-  const order = await updateOrder(env, { orderId: params.orderId, user, patch });
-  // 취소되면 그 주문이 차지하던 공장 시간이 풀린다
-  if (patch.status === 'cancelled') replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim());
+  const { order, event, pending } = await updateOrder(env, { orderId: params.orderId, user, patch });
+  // 대표 승인이 필요한 바꾸기를 대표가 아닌 사람이 했다 — 요청만 남았고 수주는 그대로다. 대표들에게 앱 알림
+  if (pending) {
+    await afterResponse(ctx, notifyOrderRequest(env, event));
+    return jsonResponse(request, env, { success: true, data: event }, 202);
+  }
+  // 취소되면 그 주문이 차지하던 공장 시간이 풀리고, 되살리면 다시 차지한다
+  if (event && event.to_status === 'cancelled') {
+    replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim(), { companyId: order && order.company_id });
+  }
+  if (event && event.kind === 'revive') replanAfterRevive(env, ctx, user, order);
   return jsonResponse(request, env, { success: true, data: order });
+}
+
+/** 되살리기(취소 → 접수)가 적용됐다 — 취소 때처럼 다시 계획한다 (본사 수주일 때만) */
+function replanAfterRevive(env, ctx, user, order) {
+  replanLater(env, ctx, user, `수주 되살리기 ${order && order.order_no ? order.order_no : ''}`.trim(), { companyId: order && order.company_id });
+}
+
+/** 수주 기록 (최근 것 먼저) + 지금 바꿀 수 있는 상태 · 승인 권한 — 수주를 볼 수 있는 사람 누구나 */
+async function handleListOrderEvents(request, env, { params, user }) {
+  const data = await listOrderEvents(env, { orderId: params.orderId, user });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+/** 내가 대표인 업체에서 승인을 기다리는 요청 (?state=pending) */
+async function handleListOrderRequests(request, env, { user }) {
+  const url = new URL(request.url);
+  const items = await listOrderRequests(env, { user, state: url.searchParams.get('state') || 'pending' });
+  return jsonResponse(request, env, { success: true, data: { items } });
+}
+
+/** 대표의 승인 · 반려 — { decision: 'approved' | 'rejected' } */
+async function handleDecideOrderEvent(request, env, { params, user, ctx }) {
+  const body = (await readJson(request)) || {};
+  const data = await decideOrderEvent(env, { eventId: params.eventId, user, decision: body.decision });
+  // 승인으로 되살리기가 적용됐다
+  if (data.order && data.event && data.event.kind === 'revive' && data.event.state === 'approved') {
+    replanAfterRevive(env, ctx, user, data.order);
+  }
+  // 요청한 사람에게 결과 앱 알림
+  await afterResponse(ctx, notifyOrderRequestDecided(env, data.event));
+  return jsonResponse(request, env, { success: true, data });
 }
 
 async function handleAddCost(request, env, { params, user }) {
   const body = (await readJson(request)) || {};
-  const cost = await addCost(env, { orderId: params.orderId, user, body });
-  return jsonResponse(request, env, { success: true, data: cost }, 201);
+  const { cost, reused } = await addCost(env, { orderId: params.orderId, user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data: cost }, reused ? 200 : 201);
 }
 
 async function handleDeleteCost(request, env, { params, user }) {
@@ -707,7 +1112,7 @@ async function handleDeleteCost(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: out });
 }
 
-async function handlePublicDecision(request, env) {
+async function handlePublicDecision(request, env, { ctx } = {}) {
   const { token, pin } = shareCredentials(request);
   const body = (await readJson(request)) || {};
   const { doc } = await recordDecision(env, request, {
@@ -719,6 +1124,8 @@ async function handlePublicDecision(request, env) {
     // CD-6: 집계 가능한 수정 요청 사유 (자유 메모와 병행)
     reasons: body.reasons,
   });
+  // 설계 업체 대표 · 실장 + 설계를 만든 사람에게 앱 알림 (설계 제목 · 고객 이름은 싣지 않는다)
+  await afterResponse(ctx, notifyConfirmationDecided(env, doc));
 
   return jsonResponse(request, env, {
     success: true,
@@ -738,7 +1145,7 @@ async function handleCreateSchedules(request, env, { params, user, ctx }) {
   // Slack 전송은 응답 후에 일어난다. 실패해도 일정은 이미 저장돼 있다.
   // 설치 일정이 들어오면 생산 마감이 바뀌므로 계획을 다시 돌린다.
   if (Array.isArray(body.items) && body.items.some((it) => it && it.type === 'installation')) {
-    replanLater(env, ctx, user, '설치 일정 등록');
+    replanLater(env, ctx, user, '설치 일정 등록', { designId: params.designId });
   }
   return jsonResponse(request, env, { success: true, data }, 201);
 }
@@ -753,7 +1160,7 @@ async function handleUpdateSchedule(request, env, { params, user, ctx }) {
   const row = await updateSchedule(env, { scheduleId: params.scheduleId, user, patch });
   // 설치 날짜가 옮겨지거나 취소되면 마감이 바뀐다
   if (row && row.type === 'installation' && (patch.scheduled_at !== undefined || patch.status !== undefined)) {
-    replanLater(env, ctx, user, '설치 일정 변경');
+    replanLater(env, ctx, user, '설치 일정 변경', { designId: row.design_id });
   }
   return jsonResponse(request, env, { success: true, data: row });
 }
@@ -763,10 +1170,169 @@ async function handleResendSlack(request, env, { params, user, ctx }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
+// ===== 상담 확정 · 내 프로젝트 (src/projects.js) =====
+
+/** 관리자 — 본사 상담 일정 확정 + 고객 · 프로젝트 잇기 (상담의 연결 칸은 서버만 바꾼다) */
+async function handleAcceptConsultation(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const data = await acceptConsultation(env, { user, consultationId: params.id, body });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+// ===== 다담 본사 상담 분배 (관리자, src/distribution/admin.js) — 이름 · 연락처가 담겨 캐시에 남기지 않는다 =====
+
+async function handleConsultInbox(request, env, { user }) {
+  const data = await consultInbox(env, { user, query: queryOf(request) });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleConsultCandidates(request, env, { params, user }) {
+  const data = await consultCandidates(env, { user, consultationId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 배정 — 업체 대표 · 실장 앱 알림은 응답 뒤에 (실패해도 배정은 그대로) */
+async function handleAssignConsultation(request, env, { params, user, ctx }) {
+  const body = (await readJson(request)) || {};
+  const { data, notice } = await assignConsultation(env, { user, consultationId: params.id, body });
+  await afterResponse(ctx, notifyConsultAssigned(env, notice));
+  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
+}
+
+async function handleListCompaniesAdmin(request, env, { user }) {
+  const data = await listCompaniesAdmin(env, { user, query: queryOf(request) });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleGetCompanyEvaluation(request, env, { params, user }) {
+  const data = await getCompanyEvaluation(env, { user, companyId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handlePutCompanyEvaluation(request, env, { params, user }) {
+  const body = await readJson(request);
+  const data = await putCompanyEvaluation(env, { user, companyId: params.id, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+// ===== 업체 쪽 상담 (src/distribution/company.js) — 이름 · 연락처가 담겨 캐시에 남기지 않는다 =====
+
+async function handleCompanyConsults(request, env, { user }) {
+  const data = await listCompanyConsults(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 상담 연출컷 첫 장 — 이미지 그대로 (앱이 본인 토큰으로 받아 blob 주소로 그린다) */
+async function handleCompanyConsultImage(request, env, { params, user }) {
+  const { bytes, mime } = await readCompanyConsultImage(env, { user, consultationId: params.id });
+  return new Response(bytes, {
+    status: 200,
+    headers: { ...corsHeaders(request, env), ...NO_STORE, 'Content-Type': mime, 'X-Content-Type-Options': 'nosniff' },
+  });
+}
+
+async function handleAcceptCompanyConsult(request, env, { params, user }) {
+  const data = await acceptCompanyConsult(env, { user, consultationId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 못 받음 — 본문 없이 204 */
+async function handleDeclineCompanyConsult(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  await declineCompanyConsult(env, { user, consultationId: params.id, body });
+  return new Response(null, { status: 204, headers: { ...corsHeaders(request, env), ...NO_STORE } });
+}
+
+async function handleGetServiceSettings(request, env, { user }) {
+  const data = await getServiceSettings(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handlePutServiceSettings(request, env, { user }) {
+  const body = await readJson(request);
+  const data = await putServiceSettings(env, { user, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleMyScore(request, env, { user }) {
+  const data = await myScore(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+// ===== 업체 고객 · 프로젝트 (src/company-projects.js) — 고객 이름 · 전화가 담겨 캐시에 남기지 않는다 =====
+
+// ===== 다담 본사 › 업체관리 › 등록 업체 (src/hq-companies.js) — 본사 대표 · 실장, 보기만 =====
+
+async function handleHqCompanies(request, env, { user }) {
+  const data = await listHqCompanies(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleHqCompanyProjects(request, env, { params, user }) {
+  const data = await listHqCompanyProjects(env, { user, companyId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleHqCompanyMembers(request, env, { params, user }) {
+  const data = await listHqCompanyMembers(env, { user, companyId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleCompanyProjects(request, env, { user }) {
+  const data = await listCompanyProjects(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleCreateCompanyProject(request, env, { user }) {
+  const body = await readJson(request);
+  const data = await createCompanyProject(env, { user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201, NO_STORE);
+}
+
+async function handleCompanyDesigns(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await listCompanyDesigns(env, { user }) }, 200, NO_STORE);
+}
+
+async function handleLinkDesignProject(request, env, { params, user }) {
+  const body = await readJson(request);
+  const data = await linkDesignProject(env, { user, designId: params.designId, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 프로젝트 담당자 정하기 · 비우기 — 대표 · 실장 (src/company-assignee.js) */
+async function handleSetProjectAssignee(request, env, { params, user }) {
+  const body = await readJson(request);
+  const data = await setProjectAssignee(env, { user, projectId: params.id, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 담당자 후보 · 추천 차례 — 대표 · 실장 */
+async function handleAssigneeCandidates(request, env, { params, user }) {
+  const data = await assigneeCandidates(env, { user, projectId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 로그인한 사람의 고객 행에 걸린 프로젝트 — 금액 · 일정이 담겨 캐시에 남기지 않는다 */
+async function handleMyProjects(request, env, { user }) {
+  // data 는 프로젝트 배열 그대로 (앱 화면 계약)
+  const data = await listMyProjects(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 // ===== 작업자 포털 (docs/01-plan/worker-portal-contract.md §3) =====
 
 /** 작업자 이름 · 휴대폰이 담길 수 있어 중간 캐시 · 브라우저 캐시에 남기지 않는다 */
 const NO_STORE = { 'Cache-Control': 'no-store, private' };
+
+/** src/work/* 본문을 그대로 읽는 함수 (env, { user, params, request }) → data (작업자 필수 확인 사진 — work/checks.js) */
+function rawRoute(fn, status = 200) {
+  return async (request, env, { params, user }) => jsonResponse(request, env, { success: true, data: await fn(env, { user, params, request }) }, status, NO_STORE);
+}
+
+/** src/work/* HTML 함수 (env, { user, params, query }) → 인쇄 화면 (작업자 꾸러미 — work/checks.js) */
+function htmlRoute(fn) {
+  return async (request, env, { params, user }) => htmlResponse(request, env, await fn(env, { user, params, query: queryOf(request) }));
+}
 
 /** src/work/* 함수 (env, { user, params, body, query, ctx }) → data 를 라우트 핸들러로 */
 function workRoute(fn, status = 200) {
@@ -777,12 +1343,55 @@ function workRoute(fn, status = 200) {
   };
 }
 
+/** 간편 플래너 설계 저장 — 본문을 상한까지만 읽는다 (설계 5MB) */
+async function handleSavePlannerDraft(request, env, { user }) {
+  const declared = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declared) && declared > SAVE_BODY_MAX_BYTES) throw new TooLargeError('설계가 너무 큽니다');
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > SAVE_BODY_MAX_BYTES) throw new TooLargeError('설계가 너무 큽니다');
+  let body = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = null;
+  }
+  const data = await saveDraft(env, { user, body: body || {} });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 간편 플래너 설계 사진 — 이미지 바이트 그대로 (비공개, 캐시 없음) */
+async function handleReadPlannerPhoto(request, env, { params, user }) {
+  const { bytes, mime } = await readPlannerPhoto(env, { user, params });
+  return new Response(bytes, { status: 200, headers: { ...corsHeaders(request, env), ...NO_STORE, 'Content-Type': mime } });
+}
+
 // ===== 라우팅 =====
 
 const router = createRouter([
   { method: 'GET', path: '/health', auth: 'none', handler: handleHealth },
 
+  // 앱 알림 (web push) — 공개 키 · 이 기기 등록 · 지우기 (src/push/routes.js)
+  { method: 'GET',    path: '/push/key',           auth: 'none', handler: handlePushKey },
+  { method: 'POST',   path: '/push/subscriptions', auth: 'jwt',  handler: handleSavePushSubscription },
+  { method: 'DELETE', path: '/push/subscriptions', auth: 'jwt',  handler: handleDeletePushSubscription },
+
   { method: 'POST', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleCreateSnapshot },
+  { method: 'POST', path: '/planner/designs', auth: 'jwt', handler: workRoute(receivePlannerDesign, 201) },
+  // 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
+  { method: 'GET',    path: '/planner/access',                     auth: 'jwt', handler: workRoute(plannerAccess) },
+  { method: 'GET',    path: '/planner/drafts',                     auth: 'jwt', handler: workRoute(listDrafts) },
+  { method: 'POST',   path: '/planner/drafts',                     auth: 'jwt', handler: handleSavePlannerDraft },
+  { method: 'GET',    path: '/planner/drafts/:id',                 auth: 'jwt', handler: workRoute(getDraft) },
+  { method: 'POST',   path: '/planner/drafts/:id/discard',         auth: 'jwt', handler: workRoute(discardDraft) },
+  { method: 'GET',    path: '/planner/drafts/:id/app-state',       auth: 'jwt', handler: workRoute(getAppState) },
+  { method: 'PUT',    path: '/planner/drafts/:id/app-state',       auth: 'jwt', handler: workRoute(putAppState) },
+  { method: 'POST',   path: '/planner/drafts/:id/photos',          auth: 'jwt', handler: rawRoute(addPlannerPhoto, 201) },
+  { method: 'GET',    path: '/planner/drafts/:id/photos/:file',    auth: 'jwt', handler: handleReadPlannerPhoto },
+  { method: 'DELETE', path: '/planner/drafts/:id/photos/:file',    auth: 'jwt', handler: workRoute(deletePlannerPhoto) },
+  { method: 'GET',    path: '/planner/my-modules',                 auth: 'jwt', handler: workRoute(listMyModules) },
+  { method: 'POST',   path: '/planner/my-modules',                 auth: 'jwt', handler: workRoute(saveMyModule, 201) },
+  { method: 'DELETE', path: '/planner/my-modules/:id',             auth: 'jwt', handler: workRoute(deleteMyModule) },
+  { method: 'GET',    path: '/planner/recommend',                  auth: 'jwt', handler: workRoute(recommendOf) },
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
   { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
@@ -804,6 +1413,8 @@ const router = createRouter([
 
   { method: 'POST', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleCreateSchedules },
   { method: 'GET', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleListSchedules },
+  // 설계를 프로젝트에 잇기 · 풀기 (그 업체 대표 · 실장, 협력업체 설계는 만든 사람도)
+  { method: 'PUT', path: '/designs/:designId/project', auth: 'jwt', handler: handleLinkDesignProject },
   { method: 'PATCH', path: '/schedules/:scheduleId', auth: 'jwt', handler: handleUpdateSchedule },
   { method: 'POST', path: '/schedules/batches/:batchId/notify', auth: 'jwt', handler: handleResendSlack },
 
@@ -812,6 +1423,25 @@ const router = createRouter([
   { method: 'GET',    path: '/orders',                      auth: 'jwt', handler: handleListOrders },
   { method: 'GET',    path: '/orders/:orderId',             auth: 'jwt', handler: handleGetOrder },
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
+  // 수주 상태 기록 · 대표 승인 (src/order-events.js)
+  { method: 'GET',    path: '/orders/:orderId/events',      auth: 'jwt', handler: handleListOrderEvents },
+  // 수주 완료 보고 (src/order-reports.js, DB 0043)
+  { method: 'GET',    path: '/orders/:orderId/reports',     auth: 'jwt', handler: workRoute(listOrderReports) },
+  { method: 'POST',   path: '/orders/:orderId/reports',     auth: 'jwt', handler: workRoute(addOrderReport, 201) },
+  { method: 'POST',   path: '/orders/:orderId/reports/photo', auth: 'jwt', handler: rawRoute(addReportPhoto, 201) },
+  { method: 'GET',    path: '/admin/order-reports',         auth: 'jwt', handler: workRoute(listReportsAdmin) },
+  // 고객 A/S 접수 (src/as-requests.js, DB 0045)
+  { method: 'POST',   path: '/me/orders/:orderId/as-requests/photo', auth: 'jwt', handler: rawRoute(addAsPhoto, 201) },
+  { method: 'POST',   path: '/me/orders/:orderId/as-requests', auth: 'jwt', handler: workRoute(addAsRequest, 201) },
+  { method: 'GET',    path: '/me/as-requests',              auth: 'jwt', handler: workRoute(listMyAsRequests) },
+  { method: 'POST',   path: '/me/as-requests/:id/cancel',   auth: 'jwt', handler: workRoute(cancelMyAsRequest) },
+  { method: 'GET',    path: '/company/as-requests',         auth: 'jwt', handler: workRoute(listCompanyAsRequests) },
+  { method: 'POST',   path: '/company/as-requests/:id/receive', auth: 'jwt', handler: workRoute(receiveAsRequest) },
+  { method: 'POST',   path: '/company/as-requests/:id/done', auth: 'jwt', handler: workRoute(finishAsRequest) },
+  { method: 'GET',    path: '/admin/as-requests',           auth: 'jwt', handler: workRoute(listAsAdmin) },
+  { method: 'GET',    path: '/orders/:orderId/checks',      auth: 'jwt', handler: workRoute(getOrderChecks) },
+  { method: 'GET',    path: '/order-requests',              auth: 'jwt', handler: handleListOrderRequests },
+  { method: 'POST',   path: '/order-events/:eventId/decide', auth: 'jwt', handler: handleDecideOrderEvent },
   { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
   { method: 'DELETE', path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleDeleteCost },
   { method: 'PATCH',  path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleUpdateCostDates },
@@ -822,7 +1452,128 @@ const router = createRouter([
   { method: 'DELETE', path: '/orders/:orderId/reworks/:reworkId', auth: 'jwt', handler: handleDeleteRework },
   { method: 'POST',   path: '/orders/:orderId/feedback-link', auth: 'jwt', handler: handleCreateFeedbackLink },
 
-  // 거래처 · 공급처 (관리자만)
+  // 상담 확정 (관리자, 본사 상담) · 내 프로젝트 (로그인한 고객)
+  { method: 'POST', path: '/consultations/:id/accept', auth: 'jwt', handler: handleAcceptConsultation },
+  { method: 'GET',  path: '/me/projects',              auth: 'jwt', handler: handleMyProjects },
+
+  // 다담 본사 상담 분배 · 업체 평가표 (관리자)
+  { method: 'GET',  path: '/admin/consult-inbox',                 auth: 'jwt', handler: handleConsultInbox },
+  { method: 'GET',  path: '/admin/consultations/:id/candidates',  auth: 'jwt', handler: handleConsultCandidates },
+  { method: 'POST', path: '/admin/consultations/:id/assign',      auth: 'jwt', handler: handleAssignConsultation },
+  { method: 'GET',  path: '/admin/companies',                     auth: 'jwt', handler: handleListCompaniesAdmin },
+  { method: 'GET',  path: '/admin/companies/:id/evaluation',      auth: 'jwt', handler: handleGetCompanyEvaluation },
+  { method: 'PUT',  path: '/admin/companies/:id/evaluation',      auth: 'jwt', handler: handlePutCompanyEvaluation },
+
+  // 업체 쪽 상담 — 목록 · 설정 읽기는 구성원, 받기 · 못 받음 · 설정 고치기 · 내 점수는 대표 · 실장
+  { method: 'GET',  path: '/company/consults',                    auth: 'jwt', handler: handleCompanyConsults },
+  { method: 'GET',  path: '/company/consults/:id/image',          auth: 'jwt', handler: handleCompanyConsultImage },
+  { method: 'POST', path: '/company/consults/:id/accept',         auth: 'jwt', handler: handleAcceptCompanyConsult },
+  { method: 'POST', path: '/company/consults/:id/decline',        auth: 'jwt', handler: handleDeclineCompanyConsult },
+  { method: 'GET',  path: '/company/service-settings',            auth: 'jwt', handler: handleGetServiceSettings },
+  { method: 'PUT',  path: '/company/service-settings',            auth: 'jwt', handler: handlePutServiceSettings },
+  { method: 'GET',  path: '/company/my-score',                    auth: 'jwt', handler: handleMyScore },
+  // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Manager 이상 협력업체)
+  { method: 'GET',  path: '/hq/companies',                        auth: 'jwt', handler: handleHqCompanies },
+  { method: 'GET',  path: '/hq/companies/:id/projects',           auth: 'jwt', handler: handleHqCompanyProjects },
+  { method: 'GET',  path: '/hq/companies/:id/members',            auth: 'jwt', handler: handleHqCompanyMembers },
+  { method: 'GET',  path: '/company/projects',                    auth: 'jwt', handler: handleCompanyProjects },
+  { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
+  { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
+  { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
+  { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
+  // 업체 견적 목록 — 고객 확인서 모아 읽기 (src/company-quotes.js)
+  { method: 'GET',  path: '/company/quotes',                      auth: 'jwt', handler: workRoute((env, a) => listCompanyQuotes(env, a)) },
+  // 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
+  { method: 'GET',  path: '/company/customers',                   auth: 'jwt', handler: workRoute((env, a) => listCompanyCustomers(env, a)) },
+  { method: 'PATCH', path: '/company/customers/:id',              auth: 'jwt', handler: workRoute((env, a) => updateCompanyCustomer(env, a)) },
+  // 업체 숫자 — 견적 흐름 · 리드타임 (src/company-summary.js)
+  { method: 'GET',  path: '/company/summary',                     auth: 'jwt', handler: workRoute((env, a) => getCompanySummary(env, a)) },
+  // 근무 일정 — 쉬는 날만 (src/work-shifts.js, DB 0060)
+  { method: 'GET',  path: '/company/shifts',                      auth: 'jwt', handler: workRoute((env, a) => listShifts(env, a)) },
+  { method: 'PUT',  path: '/company/shifts',                      auth: 'jwt', handler: workRoute((env, a) => putShift(env, a)) },
+  // 재고 — 판재 · 철물 품목과 입출고 (src/stock.js, DB 0059)
+  { method: 'GET',  path: '/stock/items',                         auth: 'jwt', handler: workRoute((env, a) => listStockItems(env, a)) },
+  { method: 'POST', path: '/stock/items',                         auth: 'jwt', handler: workRoute((env, a) => createStockItem(env, a), 201) },
+  { method: 'PATCH', path: '/stock/items/:id',                    auth: 'jwt', handler: workRoute((env, a) => updateStockItem(env, a)) },
+  { method: 'POST', path: '/stock/items/:id/moves',               auth: 'jwt', handler: workRoute((env, a) => addStockMove(env, a), 201) },
+  { method: 'GET',  path: '/stock/moves',                         auth: 'jwt', handler: workRoute((env, a) => listStockMoves(env, a)) },
+  // 재고 — 자투리 자재 · 라벨 QR · 구매 · 재고 숫자 (src/stock-offcuts.js, DB 0059). labels 는 :id 보다 먼저
+  { method: 'GET',  path: '/stock/offcuts',                       auth: 'jwt', handler: workRoute((env, a) => listOffcuts(env, a)) },
+  { method: 'POST', path: '/stock/offcuts',                       auth: 'jwt', handler: workRoute((env, a) => createOffcut(env, a), 201) },
+  { method: 'POST', path: '/stock/offcuts/labels',                auth: 'jwt', handler: workRoute((env, a) => makeOffcutLabels(env, a)) },
+  { method: 'PATCH', path: '/stock/offcuts/:id',                  auth: 'jwt', handler: workRoute((env, a) => updateOffcut(env, a)) },
+  { method: 'GET',  path: '/stock/offcuts/:id/events',            auth: 'jwt', handler: workRoute((env, a) => listOffcutEvents(env, a)) },
+  { method: 'GET',  path: '/stock/summary',                       auth: 'jwt', handler: workRoute((env, a) => getStockSummary(env, a)) },
+  // 재고 구매 발주 — 철물 · 판재 발주 기록과 입고 (src/stock-orders.js, DB 0062). 생산 › 외주 발주(/reports)와 다른 것
+  { method: 'GET',  path: '/stock/orders',                        auth: 'jwt', handler: workRoute((env, a) => listStockOrders(env, a)) },
+  { method: 'POST', path: '/stock/orders',                        auth: 'jwt', handler: workRoute((env, a) => createStockOrder(env, a), 201) },
+  { method: 'POST', path: '/stock/orders/:id/receive',            auth: 'jwt', handler: workRoute((env, a) => receiveStockOrder(env, a)) },
+  { method: 'POST', path: '/stock/orders/:id/cancel',             auth: 'jwt', handler: workRoute((env, a) => cancelStockOrder(env, a)) },
+  // 작업지시 자재 ↔ 재고 — 수주별 자재 상태 · 짝표 · 수주 자재 출고 · 자투리 후보 (src/stock-needs.js, DB 0063)
+  { method: 'GET',  path: '/stock/needs',                         auth: 'jwt', handler: workRoute((env, a) => listStockNeeds(env, a)) },
+  { method: 'PUT',  path: '/stock/links',                         auth: 'jwt', handler: workRoute((env, a) => putStockLink(env, a)) },
+  { method: 'POST', path: '/stock/needs/:orderId/issue',          auth: 'jwt', handler: workRoute((env, a) => issueStockForOrder(env, a), 201) },
+  { method: 'GET',  path: '/stock/needs/:orderId/offcuts',        auth: 'jwt', handler: workRoute((env, a) => listOffcutCandidates(env, a)) },
+  { method: 'GET',  path: '/company/schedules',                   auth: 'jwt', handler: workRoute((env, a) => listCompanySchedules(env, a)) },
+  // 설치 · A/S 지도 + 표 (src/company-sites.js, DB 0058)
+  { method: 'GET',  path: '/company/sites',                       auth: 'jwt', handler: workRoute((env, a) => listCompanySites(env, a)) },
+  { method: 'PUT',  path: '/company/sites/geo',                   auth: 'jwt', handler: workRoute(saveSiteGeo) },
+  { method: 'PUT',  path: '/company/as-requests/:id/visit',       auth: 'jwt', handler: workRoute(setAsVisit) },
+
+  // Manager 업체 제작 의뢰 (src/production-requests/, DB 0050) — 내기 · 고르기 · 거두기는 Manager 업체 대표 · 실장,
+  // 본사 추천은 관리자, 받기 · 못 받음은 고른 팩토리의 대표 · 실장
+  { method: 'POST', path: '/production-requests',                 auth: 'jwt', handler: workRoute(createRequest, 201) },
+  { method: 'GET',  path: '/production-requests',                 auth: 'jwt', handler: workRoute(listMyRequests) },
+  { method: 'GET',  path: '/production-requests/:id',             auth: 'jwt', handler: workRoute(getMyRequest) },
+  { method: 'POST', path: '/production-requests/:id/choose',      auth: 'jwt', handler: workRoute(chooseFactory) },
+  { method: 'POST', path: '/production-requests/:id/cancel',      auth: 'jwt', handler: workRoute(cancelMyRequest) },
+  { method: 'GET',  path: '/admin/production-requests',           auth: 'jwt', handler: workRoute(listRequestsAdmin) },
+  { method: 'POST', path: '/admin/production-requests/:id/review', auth: 'jwt', handler: workRoute(reviewRequest) },
+  { method: 'GET',  path: '/admin/production-requests/:id/suggestions', auth: 'jwt', handler: workRoute(suggestionsFor) },
+  { method: 'POST', path: '/admin/production-requests/:id/recommend', auth: 'jwt', handler: workRoute(recommendFactories, 201) },
+  { method: 'GET',  path: '/factory/production-requests',         auth: 'jwt', handler: workRoute(listFactoryRequests) },
+  { method: 'POST', path: '/factory/production-requests/:id/accept', auth: 'jwt', handler: workRoute(acceptFactoryRequest) },
+  { method: 'POST', path: '/factory/production-requests/:id/decline', auth: 'jwt', handler: workRoute(declineFactoryRequest) },
+
+  // 업체 장부 요약 (그 업체 대표 · 실장)
+  { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
+
+  // 회계장부 (Agent 업체 — 자격은 company_entitled(DB 0047), 사진 AI 읽기도 Agent. 금액 · 장부는 대표 · 실장, 사진 올리기는 구성원 누구나)
+  { method: 'GET',  path: '/ledger/me',                 auth: 'jwt', handler: handleLedgerMe },
+  { method: 'GET',  path: '/ledger/accounts',           auth: 'jwt', handler: handleLedgerAccounts },
+  { method: 'GET',  path: '/ledger/book',               auth: 'jwt', handler: handleLedgerBook },
+  { method: 'GET',  path: '/ledger/orders',             auth: 'jwt', handler: handleLedgerOrders },
+  { method: 'GET',  path: '/ledger/settings',           auth: 'jwt', handler: handleGetLedgerSettings },
+  { method: 'PUT',  path: '/ledger/settings',           auth: 'jwt', handler: handlePutLedgerSettings },
+  { method: 'POST', path: '/ledger/entries',            auth: 'jwt', handler: handleCreateLedgerEntry },
+  { method: 'POST', path: '/ledger/entries/:id/void',   auth: 'jwt', handler: handleVoidLedgerEntry },
+  { method: 'POST', path: '/ledger/entries/:id/correct', auth: 'jwt', handler: handleCorrectLedgerEntry },
+  { method: 'GET',  path: '/ledger/documents',          auth: 'jwt', handler: handleListLedgerDocuments },
+  { method: 'POST', path: '/ledger/documents',          auth: 'jwt', handler: handleUploadLedgerDocument },
+  { method: 'GET',  path: '/ledger/review',             auth: 'jwt', handler: handleLedgerReview },
+  { method: 'POST', path: '/ledger/review/post',        auth: 'jwt', handler: handlePostLedgerBatch },
+  { method: 'POST', path: '/ledger/documents/:id/post', auth: 'jwt', handler: handlePostLedgerDocument },
+  { method: 'POST', path: '/ledger/documents/:id/return', auth: 'jwt', handler: handleReturnLedgerDocument },
+  { method: 'POST', path: '/ledger/documents/:id/reject', auth: 'jwt', handler: handleRejectLedgerDocument },
+  { method: 'POST', path: '/ledger/documents/:id/reread', auth: 'jwt', handler: handleRereadLedgerDocument },
+  { method: 'GET',  path: '/ledger/business-status',    auth: 'jwt', handler: handleBusinessStatus },
+  { method: 'GET',  path: '/ledger/notices',            auth: 'jwt', handler: handleLedgerNotices },
+  { method: 'GET',  path: '/ledger/dashboard',          auth: 'jwt', handler: handleLedgerDashboard },
+  // 아침 브리핑 (src/brief.js)
+  { method: 'GET',  path: '/brief/today',               auth: 'jwt', handler: handleBrief },
+  { method: 'GET',  path: '/ledger/receivables',        auth: 'jwt', handler: handleLedgerReceivables },
+  { method: 'GET',  path: '/ledger/payables',           auth: 'jwt', handler: handleLedgerPayables },
+  { method: 'GET',  path: '/ledger/close-memo',         auth: 'jwt', handler: handleLedgerCloseMemo },
+  { method: 'GET',  path: '/ledger/suppliers',          auth: 'jwt', handler: handleLedgerSuppliers },
+  { method: 'PUT',  path: '/ledger/suppliers',          auth: 'jwt', handler: handlePutLedgerSupplier },
+  { method: 'POST', path: '/ledger/documents/hold',     auth: 'jwt', handler: handleHoldLedgerDocuments },
+  { method: 'POST', path: '/ledger/documents/unhold',   auth: 'jwt', handler: handleUnholdLedgerDocuments },
+  { method: 'GET',  path: '/ledger/held',               auth: 'jwt', handler: handleLedgerHeld },
+  { method: 'GET',  path: '/ledger/held/entries',       auth: 'jwt', handler: handleLedgerHeldEntries },
+  { method: 'POST', path: '/ledger/entries/:id/attach', auth: 'jwt', handler: handleAttachLedgerStatements },
+  { method: 'POST', path: '/ledger/notices/seen',       auth: 'jwt', handler: handleLedgerNoticesSeen },
+
+  // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
   { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
   { method: 'POST',  path: '/counterparties',     auth: 'jwt', handler: handleCreateCounterparty },
   { method: 'PATCH', path: '/counterparties/:id', auth: 'jwt', handler: handleUpdateCounterparty },
@@ -898,6 +1649,24 @@ const router = createRouter([
   { method: 'GET',   path: '/work/admin/workers/:id/events',          auth: 'jwt', handler: workRoute(listWorkerEvents) },
   { method: 'POST',  path: '/work/admin/invites',                     auth: 'jwt', handler: workRoute(createInvite, 201) },
 
+  // 공장 작업자 — 작업자 계정으로 하는 공장 일 · 본사의 공장 배정 (src/work/factory.js, DB 0024)
+  { method: 'GET',   path: '/work/factory',                           auth: 'jwt', handler: workRoute(getFactoryToday) },
+  { method: 'POST',  path: '/work/factory/worklogs',                  auth: 'jwt', handler: workRoute(addFactoryWorklog, 201) },
+  { method: 'POST',  path: '/work/factory/assignments/:id/done',      auth: 'jwt', handler: workRoute(markFactoryAssignmentDone) },
+  { method: 'POST',  path: '/work/factory/link',                      auth: 'jwt', handler: handleFactoryLink },
+  // 작업자 꾸러미 · 필수 확인 (src/work/checks.js, DB 0035 work_checks) — 내 역할 꾸러미만, 체크는 지금 문서 판에
+  { method: 'GET',   path: '/work/factory/orders/:orderId/pack',      auth: 'jwt', handler: htmlRoute(factoryPack) },
+  { method: 'GET',   path: '/work/factory/orders/:orderId/checks',    auth: 'jwt', handler: workRoute(getFactoryChecks) },
+  { method: 'POST',  path: '/work/factory/orders/:orderId/checks',    auth: 'jwt', handler: workRoute(postFactoryCheck, 201) },
+  { method: 'POST',  path: '/work/factory/orders/:orderId/checks/photo', auth: 'jwt', handler: rawRoute(postFactoryPhoto, 201) },
+  { method: 'GET',   path: '/work/assignments/:id/pack',              auth: 'jwt', handler: htmlRoute(assignmentPack) },
+  { method: 'GET',   path: '/work/assignments/:id/checks',            auth: 'jwt', handler: workRoute(getAssignmentChecks) },
+  { method: 'POST',  path: '/work/assignments/:id/checks',            auth: 'jwt', handler: workRoute(postAssignmentCheck, 201) },
+  { method: 'POST',  path: '/work/assignments/:id/checks/photo',      auth: 'jwt', handler: rawRoute(postAssignmentPhoto, 201) },
+  { method: 'GET',   path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(listFactoryWorkers) },
+  { method: 'POST',  path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(assignFactoryWorker, 201) },
+  { method: 'POST',  path: '/production/factory-workers/:id/end',     auth: 'jwt', handler: workRoute(endFactoryWorker) },
+
   { method: 'GET',  path: '/public/production/today',                          auth: 'none', handler: handleWorkerToday },
   { method: 'POST', path: '/public/production/worklogs',                       auth: 'none', handler: handleWorkerLog },
   { method: 'POST', path: '/public/production/assignments/:assignmentId/done', auth: 'none', handler: handleWorkerAssignmentDone },
@@ -909,13 +1678,16 @@ const router = createRouter([
   { method: 'POST', path: '/public/confirm/decision', auth: 'none', handler: handlePublicDecision },
 ]);
 
+/** 평일 아침 7시(KST) — UTC 22:00 일~목 (wrangler.toml [triggers] crons) */
+export const DAILY_BRIEF_CRON = '0 22 * * SUN-THU';
+
 function errorResponse(request, env, err) {
-  const known = [AuthError, ForbiddenError, NotFoundError, ValidationError, ConflictError, GoneError];
+  const known = [AuthError, ForbiddenError, NotFoundError, ValidationError, ConflictError, GoneError, TooLargeError, RateLimitError];
   if (known.some((C) => err instanceof C)) {
     return jsonResponse(
       request,
       env,
-      { success: false, message: err.message, details: err.details || undefined },
+      { success: false, message: err.message, code: err.code || undefined, details: err.details || undefined },
       err.statusCode,
     );
   }
@@ -949,8 +1721,63 @@ export default {
     }
   },
 
-  /** 평일 아침 7시(KST) 생산 요약 — wrangler.toml [triggers] crons */
+  /**
+   * cron 둘 (wrangler.toml [triggers] crons — 값을 바꾸면 여기 판정도 같이 고칠 것.
+   * 계정 전체 cron 개수 한도(Workers Free 5개) 때문에 1분 cron 하나에 여러 일을 싣는다):
+   *   DAILY_BRIEF_CRON — 평일 아침 7시(KST) 생산 요약 · 월 마감
+   *   PUSH_SEND_CRON   — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js),
+   *                      24시간 지난 상담 배정 되돌리기 (src/distribution/company.js runAssignmentExpiry),
+   *                      24시간 지난 제작 의뢰 답 기다림 → 답 없음 (src/production-requests/factory.js runProductionOfferExpiry),
+   *                      장부 사진 읽기 다시 걸기 (src/ledger/extract.js runExtractDue) · 확인할 사진 알림
+   *                      (src/push/ledger-hooks.js runLedgerPendingNotices),
+   *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js),
+   *                      08:00~08:09(KST) 아침 브리핑 알림 (src/brief.js runMorningBrief)
+   */
   async scheduled(event, env, ctx) {
+    if (event.cron === PUSH_SEND_CRON) {
+      ctx.waitUntil(
+        runPushSender(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push sender failed:', e && e.statusCode ? e.statusCode : 'error')),
+      );
+      // 장부 사진 읽기 — 올린 직후 걸기가 빠졌거나 읽기가 실패 · 멈춘 사진을 다시 건다 (src/ledger/extract.js, 던지지 않는다).
+      // 같이: 읽기가 막 끝난 업체의 대표 · 실장에게 확인할 사진 알림 (src/push/ledger-hooks.js, 던지지 않는다).
+      // assistant-api 바인딩이 있을 때만 (없으면 걸 곳도, 새로 끝나는 읽기도 없다)
+      if (env.ASSISTANT) {
+        ctx.waitUntil(
+          Promise.all([runExtractDue(env), runLedgerPendingNotices(env, { nowMs: event.scheduledTime })]),
+        );
+      }
+      // 장부 알림 — 분마다 나눠 훑기 · 국세청 · 아침 묶음 (src/ledger/notices.js, 던지지 않는다)
+      ctx.waitUntil(runLedgerNotices(env, { nowMs: event.scheduledTime }));
+      // 아침 브리핑 — 08:00 부터 업체마다 정해진 분에 「오늘 볼 것 N건」 (src/brief.js, 던지지 않는다)
+      ctx.waitUntil(runMorningBrief(env, { nowMs: event.scheduledTime }));
+      // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
+      ctx.waitUntil(
+        runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),
+      );
+      // 24시간 지난 제작 의뢰 답 기다림 → 답 없음, 본사가 다시 추천 (src/production-requests/factory.js, 던지지 않는다)
+      ctx.waitUntil(runProductionOfferExpiry(env, { nowMs: event.scheduledTime }));
+      if (isPushCleanupTime(event.scheduledTime)) {
+        ctx.waitUntil(
+          runPushCleanup(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push cleanup failed:', e && e.statusCode ? e.statusCode : 'error')),
+        );
+      }
+      if (isConsultNoticeMinute(event.scheduledTime)) {
+        ctx.waitUntil(
+          runConsultNotices(env).catch((e) => console.error('consultation notice failed:', e && e.message)),
+        );
+        // 새 업체 신청은 따로 — 실패해도 상담 알림은 그대로 돈다
+        ctx.waitUntil(
+          runPartnerApplicationNotices(env).catch((e) => console.error('partner application notice failed:', e && e.message)),
+        );
+        // A/S 접수 — 48시간 넘게 아무도 안 받은 것을 본사 Slack 에 (src/as-requests.js, 던지지 않는다)
+        ctx.waitUntil(runAsAlerts(env, { nowMs: event.scheduledTime }));
+      }
+      return;
+    }
+    if (event.cron !== DAILY_BRIEF_CRON) {
+      console.warn('unknown cron:', event.cron);
+      return;
+    }
     ctx.waitUntil(
       runDailyBriefs(env).catch((e) => console.error('daily production brief failed:', e && e.message)),
     );

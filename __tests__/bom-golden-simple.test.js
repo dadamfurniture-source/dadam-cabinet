@@ -293,6 +293,21 @@ describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
     expect(X.bomSimpleShelfQtyOf({ pos: 'lower', type: 'tall', h: 2190 }, gen)).toEqual({ qty: 6, defaulted: true });
   });
 
+  test('서랍장은 구조 선반 수(shelfCount)가 실려 와도 선반 없음 — 싱크 하부장과 같다 (2026-10-22 「싱크 규칙으로 통일」)', () => {
+    global.dlog = global.dlog || (() => {});
+    const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
+    const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
+    for (const name of ['storage', 'vanity']) {
+      const item = JSON.parse(JSON.stringify(FIXTURES.storage));
+      item.categoryId = name;
+      // 플래너 구조는 서랍 모듈에도 선반을 남긴다 (자동계산 calcDefaultShelves) — 브리지가 shelfCount 1 로 싣는다
+      item.modules.forEach((m) => { if (m.pos === 'lower' && m.type === 'storage') m.shelfCount = 1; });
+      const rows = new MaterialExtractor().extract({ items: [item] }).materials;
+      const shelves = (id) => rows.filter((r) => r.moduleKey === `0-${id}` && r.part === '선반').reduce((n, r) => n + r.qty, 0);
+      expect([name, shelves('l2'), shelves('l1')]).toEqual([name, 0, 1]);
+    }
+  });
+
   test('도어 수: 숫자면 그대로(0 존중), isOpen 은 0, 아니면 한 장 최대 600 (플래너와 같다)', () => {
     expect(X.bomSimpleDoorCountOf({ doorCount: 0 }, 900)).toEqual({ count: 0, defaulted: false });
     expect(X.bomSimpleDoorCountOf({ doorCount: 1 }, 900)).toEqual({ count: 1, defaulted: false });
@@ -304,12 +319,13 @@ describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
     expect(X.bomSimpleDoorCountOf({}, 1300)).toEqual({ count: 3, defaulted: true });
   });
 
-  test('깊이 폴백: mod.d → item.d → 카테고리 기본, 상부는 295', () => {
+  test('깊이 폴백: mod.d → item.d → 카테고리 기본, 상부는 카테고리 upperD (신발장 350 — 2026-10-28 사장님, 그 밖 295)', () => {
     const shoe = X.BOM_SIMPLE_CATEGORY_RULES.shoerack;
     expect(X.bomSimpleDepthOf({ d: 320 }, 'lower', { d: 350 }, shoe)).toBe(320);
     expect(X.bomSimpleDepthOf({}, 'lower', { d: 380 }, shoe)).toBe(380);
     expect(X.bomSimpleDepthOf({}, 'lower', {}, shoe)).toBe(350);
-    expect(X.bomSimpleDepthOf({}, 'upper', { d: 380 }, shoe)).toBe(295);
+    expect(X.bomSimpleDepthOf({}, 'upper', { d: 380 }, shoe)).toBe(350);
+    expect(X.bomSimpleDepthOf({}, 'upper', { d: 500 }, X.BOM_SIMPLE_CATEGORY_RULES.vanity)).toBe(295);
   });
 
   test('레일 길이 문턱 (bom-protocol.md §4-2)', () => {

@@ -1,59 +1,50 @@
 /**
  * 작업자 링크 · 실측 기록 · 보정.
  *
- * 작업자는 계정이 없다. 대표가 만든 링크의 토큰(X-Worker-Token)이 곧 권한이다.
+ * 링크 작업자는 계정이 없다. 대표가 만든 링크의 토큰(X-Worker-Token)이 곧 권한이다.
+ * 계정이 있는 공장 작업자는 공장 배정으로 같은 일을 한다 (work/factory.js) — 링크는 「내 계정에 잇기」로 옮긴다.
  * 토큰은 발급 응답에서 1회만 평문으로 주고 DB 에는 해시만 둔다 (고객 공유 링크와 같은 방식).
  * 링크로 할 수 있는 일은 좁게 둔다: 오늘 할 일 보기, 실측 기록 남기기, 내 지시 완료 체크.
+ * 새 링크는 더 만들지 않는다 (410 links_closed) — 작업자는 계정으로 일한다: 작업자 신청 → 승인 → 본사 공장 배정.
+ * 남은 링크는 만료 · 끊기 · 「내 계정에 잇기」 전까지 그대로 열린다.
+ * 실측 기록에 적는 주문은 링크 주인의 본사 수주(생산 계획에 들어가는 범위, orders.js listOwnHqOrders)만 받는다.
  * 금액(일당·비용)은 작업자 화면에 내보내지 않는다. 고객은 가린 이름(홍*동)과 주문번호로만 (결정 ★15, redact.js).
  */
 
 import { pepperedHash } from '../util/hash.js';
-import { selectOne, selectMany, insertOne, updateById, AuthError, ValidationError, NotFoundError } from '../supabase.js';
-import { computePlan, getSettings, saveSettings, kstDate } from './service.js';
+import { selectOne, selectMany, insertOne, updateById, hqCompanyId, activeMemberships, AuthError, ValidationError, NotFoundError, GoneError } from '../supabase.js';
+import { computePlan, hqSettings, companySettings, assertSettingsEditor, writeCompanySettings, kstDate } from './service.js';
 import { calibrate, calibrationPatch } from './calibration.js';
 import { maskOrderLabel, workerAssignmentText } from './redact.js';
 
-const TOKEN_BYTES = 24;
-const MAX_LINK_DAYS = 365;
 const ROLES = ['cutter', 'edge', 'asm'];
 
-function toBase64Url(bytes) {
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 const hashWorkerToken = (env, token) => pepperedHash(env.SHARE_TOKEN_PEPPER, 'worker', token);
 
-/** 토큰은 fragment 에 싣는다 — 링크 미리보기·Referer·접속 로그로 새지 않게 (share.js 와 같은 이유). */
-function workerUrl(env, token) {
-  return `${String(env.PUBLIC_BASE_URL || '').replace(/\/+$/, '')}/production-worker.html#t=${token}`;
-}
-
 // ── 대표: 링크 관리 ──
-export async function createWorkerLink(env, { user, body }) {
-  const label = String((body && body.label) || '').trim();
-  if (!label || label.length > 50) throw new ValidationError('작업자 이름(1~50자)이 필요합니다');
-  const days = Math.min(MAX_LINK_DAYS, Math.max(1, Math.round(Number(body && body.days) || 90)));
-  const bytes = new Uint8Array(TOKEN_BYTES);
-  crypto.getRandomValues(bytes);
-  const token = toBase64Url(bytes);
-  const expires = new Date(Date.now() + days * 86400000).toISOString();
-  const row = await insertOne(env, 'production_worker_links', {
-    user_id: user.id,
-    label,
-    token_hash: await hashWorkerToken(env, token),
-    expires_at: expires,
-  });
-  return { id: row.id, label: row.label, expires_at: row.expires_at, url: workerUrl(env, token) };
+/** 새 링크는 만들지 않는다 — 옛 화면에서 눌러도 사유가 보이게 410 links_closed (아무것도 쓰지 않는다) */
+export async function createWorkerLink() {
+  throw new GoneError(
+    '새 작업자 링크는 만들지 않습니다. 작업자는 작업자 포털에서 신청 → 승인 뒤 「공장 배정」에서 배정해 주세요',
+    'links_closed'
+  );
 }
 
+/** 내가 만든 링크 — linked: 「내 계정에 잇기」로 끊긴 링크 (공장 배정 link_id) */
 export async function listWorkerLinks(env, { user }) {
-  return (await selectMany(env, 'production_worker_links', {
+  const links = (await selectMany(env, 'production_worker_links', {
     user_id: `eq.${user.id}`,
     select: 'id,label,expires_at,revoked_at,last_used_at,created_at',
     order: 'created_at.desc',
     limit: '100',
   })) || [];
+  if (!links.length) return links;
+  const rows = (await selectMany(env, 'factory_workers', {
+    link_id: `in.(${links.map((l) => l.id).join(',')})`,
+    select: 'link_id',
+  })) || [];
+  const linked = new Set(rows.map((r) => r.link_id));
+  return links.map((l) => ({ ...l, linked: linked.has(l.id) }));
 }
 
 export async function revokeWorkerLink(env, { user, linkId }) {
@@ -64,12 +55,19 @@ export async function revokeWorkerLink(env, { user, linkId }) {
 }
 
 // ── 작업자: 토큰 확인 ──
+/** 새 링크가 없으니 끊기거나 만료된 링크는 계정으로 안내한다 */
+const APPLY_HINT = '작업자 포털에서 작업자 신청을 해 주세요 — 승인되면 본사가 공장에 배정합니다';
 export async function resolveWorker(env, token) {
   if (!token || token.length < 20 || token.length > 100) throw new AuthError('작업자 링크가 올바르지 않습니다');
   const link = await selectOne(env, 'production_worker_links', { token_hash: `eq.${await hashWorkerToken(env, token)}`, select: '*' });
   if (!link) throw new AuthError('작업자 링크가 올바르지 않습니다');
-  if (link.revoked_at) throw new AuthError('끊긴 링크입니다. 대표에게 새 링크를 받으세요');
-  if (new Date(link.expires_at) < new Date()) throw new AuthError('만료된 링크입니다. 대표에게 새 링크를 받으세요');
+  if (link.revoked_at) {
+    // 「내 계정에 잇기」로 끊긴 링크는 작업자 계정으로 하라고 알린다 (work/factory.js)
+    const linked = await selectOne(env, 'factory_workers', { link_id: `eq.${link.id}`, select: 'id' });
+    if (linked) throw new AuthError('이 링크는 작업자 계정에 이어졌습니다. 작업자 포털에 로그인해 「공장」에서 해 주세요');
+    throw new AuthError(`끊긴 링크입니다. ${APPLY_HINT}`);
+  }
+  if (new Date(link.expires_at) < new Date()) throw new AuthError(`만료된 링크입니다. ${APPLY_HINT}`);
   return link;
 }
 
@@ -159,14 +157,42 @@ export function validateWorklog(body) {
   };
 }
 
+/**
+ * 작업 기록의 업체 — 주문에 묶이면 그 주문의 업체, 아니면 링크의 업체(링크를 만든 사람의 active 업체).
+ * 링크를 만든 사람이 어느 업체 구성원도 아니면(관리자 · 예전 본사 설계 주인) 본사.
+ */
+export async function worklogCompanyOf(env, { link, orderId }) {
+  if (orderId) {
+    const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: 'company_id' });
+    if (order && order.company_id) return order.company_id;
+  }
+  const [membership] = await activeMemberships(env, { id: link.user_id });
+  return membership ? membership.company_id : hqCompanyId(env);
+}
+
+/**
+ * 실측 기록의 주문 — 링크 주인이 만든 본사 설계의 본사 수주만 (생산 계획 · 오늘 할 일과 같은 범위). 아니면 422.
+ * link = 계획 주인 { user_id } (공장 배정의 plan_user_id 도 같은 뜻 — work/factory.js)
+ */
+export async function assertOwnHqOrder(env, link, orderId) {
+  const hq = await hqCompanyId(env);
+  const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, company_id: `eq.${hq}`, select: 'id,design_id' });
+  const design = order && order.design_id
+    ? await selectOne(env, 'designs', { id: `eq.${order.design_id}`, user_id: `eq.${link.user_id}`, company_id: `eq.${hq}`, select: 'id' })
+    : null;
+  if (!design) throw new ValidationError('이 링크로 기록할 수 있는 주문이 아닙니다', { field: 'order_id' });
+}
+
 export async function addWorklog(env, { link, body }) {
   const v = validateWorklog(body);
+  if (v.order_id) await assertOwnHqOrder(env, link, v.order_id);
   const row = await insertOne(env, 'production_worklogs', {
     ...v,
     user_id: link.user_id,
     link_id: link.id,
     worker_label: link.label,
     work_date: kstDate(),
+    company_id: await worklogCompanyOf(env, { link, orderId: v.order_id }),
   });
   return { id: row.id, role: row.role, units: row.units, minutes: row.minutes };
 }
@@ -180,25 +206,30 @@ export async function markAssignmentDone(env, { link, assignmentId, done }) {
 }
 
 // ── 대표: 기록 · 보정 ──
-export async function listWorklogs(env, { user, from }) {
+/** 내 링크들의 작업 기록. companyId 를 주면 그 업체 기록만 */
+export async function listWorklogs(env, { user, from, companyId = null }) {
   const q = { user_id: `eq.${user.id}`, select: '*', order: 'work_date.desc,created_at.desc', limit: '500' };
   if (from) q.work_date = `gte.${String(from).slice(0, 10)}`;
+  if (companyId) q.company_id = `eq.${companyId}`;
   return (await selectMany(env, 'production_worklogs', q)) || [];
 }
 
+/** 표준시간 보정 — 본사 작업 기록을 본사 설정의 표준시간과 견준다 (생산 계획이 본사 설정으로 돈다). */
 export async function getCalibration(env, { user, days = 30 }) {
   const from = kstDate(new Date(Date.now() - days * 86400000).toISOString());
-  const logs = await listWorklogs(env, { user, from });
-  const { settings } = await getSettings(env, { user });
+  const logs = await listWorklogs(env, { user, from, companyId: await hqCompanyId(env) });
+  const { settings } = await hqSettings(env);
   return { from, days, result: calibrate(logs, settings.standards) };
 }
 
-/** 보정 적용 — 저장된 설정에 표준시간만 덮어쓴다. */
+/** 보정 적용 — 본사 설정에 표준시간만 덮어쓴다. 본사 대표 · 실장 · 관리자만 (아니면 403). */
 export async function applyCalibration(env, { user, roles }) {
+  const hq = await hqCompanyId(env);
+  await assertSettingsEditor(env, user, hq);
   const { result } = await getCalibration(env, { user });
   const patch = calibrationPatch(result, roles);
   if (!Object.keys(patch.standards).length) throw new ValidationError('적용할 보정값이 없습니다 (기록이 부족합니다)');
-  const { saved } = await getSettings(env, { user });
+  const { saved } = await companySettings(env, hq);
   const body = { ...(saved || {}), standards: { ...((saved && saved.standards) || {}), ...patch.standards } };
-  return saveSettings(env, { user, body });
+  return writeCompanySettings(env, { companyId: hq, user, body });
 }

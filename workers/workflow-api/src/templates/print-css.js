@@ -101,6 +101,37 @@ table.compact th, table.compact td { padding: 2pt 3pt; font-size: 8.5pt; }
 .pack-head { margin-bottom: 8pt; padding-bottom: 4pt; border-bottom: 0.8pt solid #000; }
 .cut-head .checks { float: right; font-size: 10pt; letter-spacing: .5pt; }
 
+/* 도어재 발주서 — 도어마다 앞모습 (2026-11-05) */
+.door-grid { display: flex; flex-wrap: wrap; gap: 6pt 10pt; align-items: flex-end; }
+.door-card { break-inside: avoid; page-break-inside: avoid; max-width: 48%; }
+.door-card svg.door-drawing { display: block; max-width: 100%; height: auto; }
+.door-card .door-cap { max-width: 60mm; }
+.door-card .door-cap { font-size: 8pt; line-height: 1.35; }
+
+/* 특별 지시 — 지시서 맨 위 빨간 상자 (2026-11-05 사장님 「자동 + 사무실 글」) */
+.special-notes { border: 1.6pt solid #b3261e; padding: 4pt 7pt; margin: 4pt 0 8pt; break-inside: avoid; page-break-inside: avoid; }
+.special-notes .sn-title { font-weight: 700; color: #b3261e; margin-bottom: 1pt; }
+.special-notes .sn-item { font-size: 10pt; line-height: 1.6; }
+.special-notes .sn-src { font-size: 7.5pt; color: #555; border: 0.5pt solid #999; border-radius: 2pt; padding: 0 3pt; margin-left: 3pt; }
+
+/* 재단 원장 묶음 — 묶음마다 새 쪽 · 화면에서 [그림] [표] [둘 다] · [이 묶음만 인쇄] (2026-11-05 사장님) */
+.cut-group-next { break-before: page; page-break-before: always; }
+.cut-group-head { display: flex; align-items: baseline; gap: 6pt; flex-wrap: wrap; border-bottom: 1pt solid #000; padding-bottom: 2pt; margin: 8pt 0 4pt; }
+.cut-btns { margin-left: auto; display: inline-flex; gap: 3pt; flex-wrap: wrap; }
+.cut-btns button { font: inherit; font-size: 8.5pt; padding: 1pt 7pt; border: 0.6pt solid #1d4f91; background: #fff; color: #1d4f91; border-radius: 3pt; cursor: pointer; }
+.cut-btns button[aria-pressed="true"] { background: #1d4f91; color: #fff; }
+.cut-tabs { display: flex; flex-wrap: wrap; gap: 4pt; margin: 4pt 0; }
+.cut-tabs a { font-size: 8.5pt; border: 0.6pt solid #888; border-radius: 3pt; padding: 1pt 6pt; color: #000; text-decoration: none; }
+.cut-group[data-view="draw"] .cut-parts { display: none; }
+.cut-group[data-view="draw"] .cut-sheet .cut-svg { flex: 1 1 100%; }
+.cut-group[data-view="draw"] .cut-sheet .cut-svg svg { max-height: 230mm; }
+.cut-group[data-view="table"] .cut-svg { display: none; }
+@media print {
+  body.print-group .sheet:not(:has(.print-target)) { display: none !important; }
+  body.print-group .cut-group:not(.print-target) { display: none !important; }
+  body.print-group .print-target.cut-group-next { break-before: auto; page-break-before: auto; }
+}
+
 /* 치수 정면도 · 모듈 치수도 카드 (elevation.js) */
 .elev-box { border: 0.4pt solid #000; padding: 3pt; margin: 2pt 0 6pt; break-inside: avoid; page-break-inside: avoid; font-size: 8.5pt; }
 .elev-box svg.elevation { display: block; width: 100%; height: auto; max-height: 120mm; }
@@ -123,8 +154,10 @@ table.check td.na { text-align: center; color: #666; background: repeating-linea
   overflow: hidden; break-inside: avoid; page-break-inside: avoid;
 }
 .label svg.qr { width: 24mm; height: 24mm; flex: 0 0 24mm; }
-.label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; }
-.label .lt .pid { font-family: 'Consolas', monospace; font-size: 7pt; word-break: break-all; }
+.label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; flex: 1 1 auto; }
+.label .lt .no { display: flex; align-items: baseline; gap: 1.5mm; min-width: 0; }
+.label .lt .no b { font-size: 16pt; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.label .lt .no .mod { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .label .lt .dim { font-size: 10pt; font-weight: 700; }
 .label .lt .edge-line .edge-svg { width: 14pt; height: 9pt; }
 
@@ -148,6 +181,36 @@ table.check td.na { text-align: center; color: #666; background: repeating-linea
 }
 
 @media print { .no-print { display: none !important; } }
+`;
+
+/**
+ * 재단 원장 묶음 단추 — [그림] [표] [둘 다] 는 그 묶음의 data-view, [이 묶음만 인쇄] 는 그 묶음만 남기고 인쇄 (끝나면 되돌린다).
+ * 문서는 document.write · blob 으로 열려 인라인 스크립트가 돈다 (documentShell 에 CSP 없음).
+ */
+export const CUT_VIEW_SCRIPT = `
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    var v = t && t.closest && t.closest('[data-cut-view]');
+    if (v) {
+      var g = v.closest('.cut-group');
+      g.setAttribute('data-view', v.getAttribute('data-cut-view'));
+      g.querySelectorAll('[data-cut-view]').forEach(function (b) { b.setAttribute('aria-pressed', b === v ? 'true' : 'false'); });
+      return;
+    }
+    var p = t && t.closest && t.closest('[data-cut-print]');
+    if (p) {
+      var target = p.closest('.cut-group');
+      target.classList.add('print-target');
+      document.body.classList.add('print-group');
+      var done = function () { target.classList.remove('print-target'); document.body.classList.remove('print-group'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      window.print();
+    }
+  });
+})();
+</script>
 `;
 
 /** 인쇄 버튼 — 화면에서만 보인다. */

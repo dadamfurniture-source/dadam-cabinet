@@ -1,0 +1,91 @@
+name = "dadam-assistant-api"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
+
+# 업체 AI 비서 — 대화마다 Durable Object(AssistantSession) 하나가 Claude 를 부른다 (src/session.js).
+# 객체는 SESSION_LOCATION(기본 enam, 미국 동부)에 만든다 — 홍콩 콜로 발신은 api.anthropic.com 이 403 으로 막는다
+# (generate-api 2026-09-12 실측). 그래서 이 워커에는 프록시가 없다.
+
+[vars]
+# 사용자 인증용 공개값 (js/config.js 에 이미 있다). service_role 키는 시크릿이다.
+SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_OV4D2-LwhTMj8YJ711HTvA_lA2jk_PW"
+
+# 브라우저 CORS 허용 오리진 (쉼표 구분, 목록 밖이면 Allow-Origin 을 싣지 않는다)
+CORS_ORIGINS = "https://dadamfurniture.com,http://localhost:8000,http://127.0.0.1:8000"
+
+# Claude — 모델 · 생각 정도 · 처리 지역. inference_geo "us" 는 모든 토큰 요금 1.1배 (src/meter.js)
+# 모델은 claude-haiku-5-5 · claude-sonnet-5-5 · claude-opus-5-5 가운데 하나 — 요금표(src/meter.js RATES)에 없는 모델은 가장 비싼 값으로 센다
+ANTHROPIC_MODEL = "claude-haiku-5-5"
+EFFORT = "medium"
+INFERENCE_GEO = "us"
+# 한 차례 답의 최대 토큰 (생각 포함) — 예산 잡기도 이 값으로 어림한다
+MAX_OUTPUT_TOKENS = "8000"
+# 한 대화의 최대 차례 — 넘으면 새 대화를 시작한다 (차례마다 지난 대화 전부를 다시 보내므로 비용이 커진다)
+MAX_TURNS = "30"
+# 대화 객체를 만드는 곳 (Durable Object locationHint) — 사진 읽기 객체 · 안내 모드 객체도 같은 곳
+SESSION_LOCATION = "enam"
+
+# 안내 모드 (src/guide.js) — 로그인한 누구나 앱 쓰는 법을 묻는다. 도구 없음 · 짧은 답이라 생각 정도 low · 답 3000 토큰까지
+# 하루 질문 수 한도 · 끄기는 DB(assistant_global.guide_daily_limit · guide_on, database/migrations/0048) — 배포 없이 바꾼다
+GUIDE_MODEL = "claude-haiku-5-5"
+GUIDE_EFFORT = "low"
+GUIDE_MAX_OUTPUT_TOKENS = "3000"
+
+# 영수증 · 명세표 사진 읽기 (src/extract/) — 모델 · 생각 정도 · 최대 답 토큰 · 사진마다 자동 시도 수(매분 cron 다시 걸기)
+# 읽기는 Sonnet 5.5, 읽기 전 방향 묻기는 Haiku 5.5 (각도 하나만 답한다)
+EXTRACT_MODEL = "claude-sonnet-5-5"
+ORIENT_MODEL = "claude-haiku-5-5"
+EXTRACT_EFFORT = "medium"
+EXTRACT_MAX_TOKENS = "8000"
+EXTRACT_MAX_ATTEMPTS = "2"
+
+# 읽기 도구 — workflow-api 를 묻는 사람의 토큰으로 부른다 (src/tools.js). 같은 계정 워커끼리는 주소 대신 서비스 바인딩
+[[services]]
+binding = "WORKFLOW_API"
+service = "dadam-workflow-api"
+
+# 하루 한 번 03:40(한국) — 시작한 지 90일 지난 대화 지우기 (src/retention.js). 유료 플랜이라 cron 자리가 넉넉하다
+[triggers]
+crons = ["40 18 * * *"]
+
+[[durable_objects.bindings]]
+name = "ASSISTANT_SESSION"
+class_name = "AssistantSession"
+
+[[durable_objects.bindings]]
+name = "EXTRACT_JOB"
+class_name = "ExtractJob"
+
+# 안내 모드 — 사람마다 하나 (idFromName('guide:' + 사람)). 저장소는 쓰지 않는다
+[[durable_objects.bindings]]
+name = "GUIDE_SESSION"
+class_name = "GuideSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AssistantSession"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ExtractJob"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["GuideSession"]
+
+# 사진 읽기 전에 돌리기 (src/extract/job.js rotatePhoto) — 방향을 물어 0 이 아니면 돌린 JPEG 를 읽는다. 버킷의 사진은 그대로.
+# Images 무료 플랜: 달마다 서로 다른 변환 5,000개까지 (넘으면 새 변환이 9422 오류 → 그 시도는 rotate_failed_9422)
+[images]
+binding = "IMAGES"
+
+# 차례 보내기 분 한도 — 사람마다(안내 모드 질문은 키 guide:사람 으로 따로 센다). 넘으면 429 rate_limited. namespace_id 는 계정 안에서 겹치지 않는 정수
+[[ratelimits]]
+name = "ASSISTANT_TURN_LIMIT"
+namespace_id = "7501"
+simple = { limit = 10, period = 60 }
+
+# 시크릿 (Cloudflare 대시보드 › Workers › dadam-assistant-api › 설정 › 변수와 시크릿):
+#   SUPABASE_SERVICE_ROLE_KEY   필수 — 비서 표 · 자격 · 예산 함수
+#   ANTHROPIC_API_KEY           필수 — 없으면 차례가 error 로 끝난다

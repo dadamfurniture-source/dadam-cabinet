@@ -57,7 +57,6 @@ python3 .claude/skills/planner-qa/scripts/planner_flow.py --help
 - 개별 모듈 패널은 초안이다 — '적용' 전에는 저장·3D·BOM 에 안 들어간다(다른 모듈을 고르면 자동 적용).
 - 칸 타입 '서랍'은 칸이 하나일 때만 있고, 모듈을 하부 서랍 구성으로 바꾼다. BOM 브리지가 서랍으로 읽는 모양은 그것뿐이다.
 - 구조 단계에서 BOM 에 갔다 오면 브리지 경고 띠(`#plannerBridgeWarnings`)가 클릭을 가로챈다. 닫고 누른다.
-- 레거시 플래너(`lib/planner.ts`)는 고치지 않는다.
 
 ## 6. 시험
 

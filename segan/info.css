@@ -1,0 +1,701 @@
+/* ============================================================
+   segan/info.css — 알리는 화면: AI 시스템 소개(about.html) · 구독(plans.html) · 매거진(blog.html · 글 blog-*.html)
+   v5 토큰만 쓴다 (segan/shell.css). 라운드 · 섀도 없음, 헤어라인 보더만, tan 은 꾸밈에만,
+   navy 는 강조 하나(금액). 폰 먼저 — 누르는 곳은 44px 이상.
+   ============================================================ */
+
+.in-lead {
+  margin: 0 0 28px;
+  max-width: 640px;
+  font-size: 14.5px;
+  line-height: 1.85;
+  color: var(--v5-ink-62);
+  word-break: keep-all;
+}
+
+.in-h2 {
+  margin: 44px 0 14px;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  word-break: keep-all;
+}
+
+.in-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--v5-ink-60);
+  word-break: keep-all;
+}
+
+/* ── [소개 | 구독] — 폰 · 태블릿만 (PC 는 위 메뉴에 둘 다 있다) ── */
+.in-seg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0 24px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.in-seg a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--v5-ink-60);
+  font-size: 13.5px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+.in-seg a + a {
+  border-left: 1px solid var(--v5-line-18);
+}
+
+.in-seg a[aria-current='page'] {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+/* ── 버튼 ── */
+.in-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 28px 0 0;
+}
+
+.in-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--v5-ink);
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  word-break: keep-all;
+}
+
+.in-btn--solid {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.in-btn:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+/* ── 소개: 흐름 (상자 + 화살표, 폰은 위 → 아래) ── */
+.ab-flow {
+  display: grid;
+  gap: 26px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: ab-step;
+}
+
+.ab-step {
+  position: relative;
+  padding: 16px 16px 16px 52px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  counter-increment: ab-step;
+}
+
+.ab-step::before {
+  content: counter(ab-step, decimal-leading-zero);
+  position: absolute;
+  top: 17px;
+  left: 16px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+/* 다음 상자로 — 꾸밈 (읽는 순서는 목록 차례) */
+.ab-step + .ab-step::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  width: 0;
+  height: 14px;
+  border-left: 1px solid var(--v5-tan);
+}
+
+.ab-step b {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 400;
+  word-break: keep-all;
+}
+
+.ab-step span {
+  display: block;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+  word-break: keep-all;
+}
+
+.ab-loop {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--v5-ink-55);
+  word-break: keep-all;
+}
+
+/* 강점 */
+.ab-points {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.ab-points li {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.ab-points b {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 400;
+  word-break: keep-all;
+}
+
+.ab-points span {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--v5-ink-60);
+  word-break: keep-all;
+}
+
+/* ── 구독: 등급 넷 ── */
+.pl-tiers {
+  display: grid;
+  gap: 14px;
+}
+
+.pl-tier {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 18px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.pl-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.pl-price {
+  min-height: 1.6em;
+  margin: 8px 0 0;
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--v5-navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-price small {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.pl-credit {
+  min-height: 1.7em;
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-inherit {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-55);
+}
+
+.pl-feats {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pl-feats li {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.pl-tier .in-btn {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.pl-after {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.pl-state {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  font-size: 13.5px;
+  color: var(--v5-ink);
+  word-break: keep-all;
+}
+
+.pl-state:empty {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.pl-notes {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-notes li {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--v5-ink-60);
+  word-break: keep-all;
+}
+
+/* ── 매거진 — 글 목록(blog.html): 분류 칸마다 그 분류의 글 ── */
+.bl-cats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bl-cat {
+  padding: 16px 18px 4px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.bl-cat h2 {
+  margin: 0;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+.bl-posts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bl-posts li + li {
+  border-top: 1px solid var(--v5-line);
+}
+
+/* 글 하나 — 칸 전체가 링크 (제목 · 한 줄 소개 · 읽는 시간) */
+.bl-post {
+  display: block;
+  padding: 14px 0 16px;
+  color: var(--v5-ink);
+  text-decoration: none;
+  word-break: keep-all;
+}
+
+.bl-post:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+.bl-post-cat {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+.bl-post-title {
+  display: block;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.55;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+}
+
+.bl-post:hover .bl-post-title {
+  text-decoration-color: var(--v5-line-25);
+}
+
+.bl-post-dek {
+  display: block;
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--v5-ink-60);
+}
+
+.bl-post-time {
+  display: block;
+  margin: 10px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-55);
+}
+
+/* ── 매거진 글 (blog-*.html) — 읽기 한 칸. 표는 칸마다 옆으로 넘긴다 (본문은 옆으로 넘어가지 않는다) ── */
+.ma-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -10px 0 6px;
+  color: var(--v5-ink);
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.ma-back:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+.ma-article {
+  font-size: 15.5px;
+  font-weight: 400;
+  line-height: 1.85;
+  word-break: keep-all;
+}
+
+.ma-head {
+  margin: 0 0 26px;
+  padding: 0 0 24px;
+  border-bottom: 1px solid var(--v5-line-18);
+}
+
+.ma-cat {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+.ma-title {
+  margin: 0 0 12px;
+  font-size: 24px;
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.ma-dek {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--v5-ink-62);
+}
+
+.ma-meta {
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-55);
+}
+
+.ma-head + p,
+.ma-article section p {
+  margin: 0 0 14px;
+}
+
+/* 머리 다음 첫 문단 — 글 들어가는 말 */
+.ma-head + p {
+  font-size: 16.5px;
+  line-height: 1.85;
+}
+
+.ma-article h2 {
+  margin: 48px 0 14px;
+  padding: 20px 0 0;
+  border-top: 1px solid var(--v5-line-18);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+.ma-article ul {
+  margin: 0 0 14px;
+  padding: 0 0 0 1.25em;
+}
+
+.ma-article li {
+  margin: 0 0 6px;
+}
+
+.ma-article a {
+  color: var(--v5-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--v5-line-25);
+  text-underline-offset: 4px;
+}
+
+.ma-article a:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+/* 출처 · 기준 같은 작은 글 */
+/* 문단의 줄 높이도 작은 글에 맞춘다 (본문 줄 높이로 벌어지지 않게) */
+.ma-article .ma-note {
+  margin-top: -4px;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.75;
+  color: var(--v5-ink-60);
+}
+
+.ma-note small {
+  font-size: inherit;
+}
+
+/* 표 — 칸 안에서만 옆으로 넘긴다 (390px 폰에서 본문이 옆으로 밀리지 않게) */
+.ma-table {
+  max-width: 100%;
+  margin: 20px 0 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.ma-table:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+.ma-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  line-height: 1.65;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 칸이 넷 이상이면 좁은 폭에서 글이 한 글자씩 꺾이지 않게 표 폭을 지킨다 (그만큼 옆으로 넘긴다) */
+.ma-table .ma-cols-4 {
+  min-width: 34rem;
+}
+
+.ma-table .ma-cols-5 {
+  min-width: 40rem;
+}
+
+.ma-table .ma-cols-6 {
+  min-width: 42rem;
+}
+
+.ma-table caption {
+  padding: 0 0 8px;
+  caption-side: top;
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-60);
+}
+
+.ma-table th,
+.ma-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--v5-line-12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ma-table thead th {
+  border-top: 1px solid var(--v5-ink);
+  border-bottom-color: var(--v5-line-25);
+  background: var(--v5-well);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ma-table tbody {
+  background: var(--v5-paper);
+}
+
+/* 줄 머리(종류 · 브랜드 이름) — 「평행 리프트」 같은 짧은 이름이 두 줄로 꺾이지 않게 */
+.ma-table tbody th {
+  min-width: 7.5em;
+  font-weight: 500;
+}
+
+/* 끝 — 고객이 확인할 것 (네모는 꾸밈, 누르는 칸이 아니다) */
+.ma-final {
+  margin: 48px 0 0;
+  padding: 20px 18px 6px;
+  border: 1px solid var(--v5-ink);
+  background: var(--v5-paper);
+}
+
+.ma-article .ma-final h2 {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+}
+
+.ma-article .ma-check {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ma-check li {
+  position: relative;
+  margin: 0;
+  padding: 11px 0 11px 28px;
+  border-top: 1px solid var(--v5-line);
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.ma-check li::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--v5-tan);
+}
+
+/* 다른 글 */
+.ma-more {
+  margin: 56px 0 0;
+}
+
+.ma-more .in-h2 {
+  margin-top: 0;
+}
+
+.ma-more .bl-posts {
+  border-top: 1px solid var(--v5-ink);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+@media (min-width: 768px) {
+  .pl-tiers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 분류 넷 — 두 칸씩 두 줄 (글 소개가 읽히는 폭) */
+  .bl-cats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 글 — 넓은 화면에서도 한 줄이 너무 길지 않게 읽기 폭으로 */
+  .sg-main.ma {
+    max-width: 816px;
+  }
+
+  .ma-article {
+    font-size: 16px;
+  }
+
+  .ma-title {
+    font-size: 30px;
+  }
+
+  .ma-dek {
+    font-size: 16px;
+  }
+
+  .ma-head + p {
+    font-size: 17px;
+  }
+
+  .ma-article h2 {
+    font-size: 19px;
+  }
+
+  .ma-final {
+    padding: 24px 26px 8px;
+  }
+}
+
+/* PC — 위 메뉴에 소개 · 구독이 둘 다 있다, 흐름은 가로 */
+@media (min-width: 1024px) {
+  .in-seg {
+    display: none;
+  }
+
+  .pl-tiers {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ab-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 26px 34px;
+  }
+
+  /* 가로 — 화살표는 왼쪽 옆 */
+  .ab-step + .ab-step::after {
+    top: 50%;
+    left: -27px;
+    width: 20px;
+    height: 0;
+    border-top: 1px solid var(--v5-tan);
+    border-left: 0;
+  }
+
+  /* 줄의 첫 상자 (4번째) — 옆 화살표 없이, 차례는 번호로 */
+  .ab-step:nth-child(3n + 1)::after {
+    display: none;
+  }
+
+  .ab-points {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 34px;
+  }
+}

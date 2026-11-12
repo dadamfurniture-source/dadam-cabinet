@@ -1,0 +1,118 @@
+{
+  "title": "0038 Expert 회계 — 장부 자격(Expert · Agent · 시험) · 사진 AI 읽기 자격(Agent · 시험) · 예산 잡기 · 매분 읽을 사진 · 월 보고 알림 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_e",
+    "company_a",
+    "company_n",
+    "company_t",
+    "doc_e",
+    "doc_a",
+    "entry_in",
+    "entry_out"
+  ],
+  "users": [
+    "e_owner_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_e}}, 'partner', 'probe E', 'expert', 'active'), ({{company_a}}, 'partner', 'probe A', 'agent', 'active'), ({{company_n}}, 'partner', 'probe N', 'expert', 'suspended'), ({{company_t}}, 'partner', 'probe T', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_e}}, {{e_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.assistant_settings (company_id, enabled, trial, monthly_limit_micros) VALUES ({{company_e}}, true, false, 1000000), ({{company_a}}, true, false, 1000000), ({{company_t}}, false, true, NULL)",
+    "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256, created_at) VALUES ({{doc_e}}, {{company_e}}, {{e_owner_user}}, 'probe/' || {{doc_e}}::text, 'image/jpeg', 100, repeat('1', 64), now() - interval '3650 days'), ({{doc_a}}, {{company_a}}, {{e_owner_user}}, 'probe/' || {{doc_a}}::text, 'image/jpeg', 100, repeat('2', 64), now() - interval '3650 days')",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, counterparty_name, amount, vat_amount, evidence_type, payment_method, source, created_by) VALUES ({{entry_in}}, {{company_e}}, date '2026-10-15', 'income', 'income.sales', NULL, 500000, 50000, 'tax_invoice', 'transfer', 'manual', {{e_owner_user}}), ({{entry_out}}, {{company_e}}, date '2026-10-20', 'expense', 'purchase.materials', '가나목재', 200000, 20000, 'card', 'card', 'manual', {{e_owner_user}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "e_owner": {
+      "role": "authenticated",
+      "user": "e_owner_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "자격 — Expert 는 장부 full · AI 읽기 none, Agent 와 시험 예외(Expert 라도)는 둘 다 full, 활성 아닌(정지) 업체는 장부 · 사진이 없으면 none (서버만)",
+      "sql": "select public.company_entitled({{company_e}}, 'ledger') || '/' || public.company_entitled({{company_e}}, 'ledger_ai') || ',' || public.company_entitled({{company_a}}, 'ledger') || '/' || public.company_entitled({{company_a}}, 'ledger_ai') || ',' || public.company_entitled({{company_n}}, 'ledger') || '/' || public.company_entitled({{company_n}}, 'ledger_ai') || ',' || public.company_entitled({{company_t}}, 'ledger') || '/' || public.company_entitled({{company_t}}, 'ledger_ai')",
+      "expect": {
+        "service_role": "full/none,full/full,none/none,full/full",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "자격 — 사람을 주면 active 구성원만 (Expert 대표 full, 구성원 아님 none)",
+      "sql": "select public.company_entitled({{company_e}}, 'ledger', {{e_owner_user}}) || '/' || public.company_entitled({{company_e}}, 'ledger', {{other_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "full/none"
+      }
+    },
+    {
+      "name": "예산 잡기 — Expert 는 한도가 있어도 사진 읽기 · 비서 대화 모두 not_entitled",
+      "sql": "select (select r->>'reason' from public.assistant_budget_reserve({{company_e}}, 'extract', 'probe-0038-e', 1000, null, null) r) || '/' || (select r->>'reason' from public.assistant_budget_reserve({{company_e}}, 'chat', 'probe-0038-c', 1000, null, null) r)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "not_entitled/not_entitled"
+      }
+    },
+    {
+      "name": "예산 잡기 — Agent 사진 읽기는 자격으로 막지 않음 (그다음 전체 스위치 · 한도는 그대로)",
+      "sql": "select coalesce(r->>'reason', 'ok') <> 'not_entitled' from public.assistant_budget_reserve({{company_a}}, 'extract', 'probe-0038-a', 1000, null, null) r",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "매분 읽을 사진 — Agent 업체 사진만, Expert 사진은 걸지 않음",
+      "sql": "select count(*) filter (where d.document_id = {{doc_e}}) || '/' || count(*) filter (where d.document_id = {{doc_a}}) from public.ledger_extract_due(100, 0, 600, 2, null) d",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0/1"
+      }
+    },
+    {
+      "name": "월 보고는 서버만 — 그 달 장부 줄이 있는 회계 자격 업체마다 하나 (다시 돌려도), 줄 없는 달 · 줄 없는 업체 · 자격 없는 업체는 없음",
+      "sql": "select public.ledger_month_report_scan(date '2026-09-01'); select public.ledger_month_report_scan(date '2026-10-01'); select public.ledger_month_report_scan(date '2026-10-31'); select string_agg(n.kind || ':' || n.urgency || ':' || (n.data->>'month') || ':' || (n.data->>'rows') || ':' || (n.data->>'income') || ':' || (n.data->>'expense') || ':' || (n.data->>'profit'), ',') from public.ledger_notices n where n.company_id in ({{company_e}}, {{company_a}}, {{company_n}}, {{company_t}}) and n.kind = 'month_report'",
+      "expect": {
+        "service_role": "month_report:digest:2026-10:2:500000:200000:300000",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "알림 종류 month_report — 아침 묶음만 (now 는 거절)",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_e}}, 'month_report', 'now', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "알림 종류 month_report — 아침 묶음이면 넣어짐",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_e}}, 'month_report', 'digest', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    }
+  ]
+}

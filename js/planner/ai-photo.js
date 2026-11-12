@@ -79,17 +79,17 @@ const PLANNER_AI_PHOTO_CREDIT = 20;
 /** 상태 폴링 간격 (ai-design.html POLL_MS 와 같다) */
 const PLANNER_AI_PHOTO_POLL_MS = 3000;
 /**
- * 등급 관문 (사장님 결정 2026-10-20): expert · agent 등급과 관리자(admin · super_admin)만 쓴다.
+ * 등급 관문 (사장님 결정 2026-10-20 · 2026-11-08 Manager 부터): manager · expert · agent 등급과 관리자(admin · super_admin)만 쓴다.
  * **정본은 워커**(workers/generate-api/src/tier-gate.js — 403 `planner_tier`)다. 여기는 같은 순서의
  * 사본으로 버튼을 잠그고 안내만 한다 — 화면이 열려 있어도 서버가 거절한다.
- * 등급 순서는 database/tier-agent.sql profiles_tier_check · js/detaildesign-access.js TIER_RANK 와 같다
+ * 등급 순서는 database/migrations/0047_tier_manager.sql profiles_tier_check · js/detaildesign-access.js TIER_RANK 와 같다
  * (그 파일의 POLICY.minTier 는 상세설계용 'standard' 라 그대로 못 쓴다).
  */
-const PLANNER_AI_PHOTO_TIER_RANK = Object.freeze({ standard: 0, expert: 1, agent: 2 });
-const PLANNER_AI_PHOTO_MIN_TIER = 'expert';
+const PLANNER_AI_PHOTO_TIER_RANK = Object.freeze({ standard: 0, manager: 1, expert: 2, agent: 3 });
+const PLANNER_AI_PHOTO_MIN_TIER = 'manager';
 const PLANNER_AI_PHOTO_ADMIN_ROLES = Object.freeze(['admin', 'super_admin']);
 /** 워커 PLANNER_TIER_MESSAGE 와 같은 문장 — 서버 메시지가 오면 그것이 이긴다 */
-const PLANNER_AI_PHOTO_TIER_TEXT = '사진으로 만들기는 Expert 등급부터 쓸 수 있습니다';
+const PLANNER_AI_PHOTO_TIER_TEXT = '사진으로 만들기는 Manager 등급부터 쓸 수 있습니다';
 
 /** 순수 판정 (워커 plannerTierAllowed 의 사본). 모르는 등급은 막는다. */
 function plannerAiPhotoTierAllowed({ isAdmin, tier } = {}) {

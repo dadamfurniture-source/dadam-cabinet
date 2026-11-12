@@ -1,0 +1,59 @@
+{
+  "title": "0009 간편 플래너 시공 완료 확인 — planner_completions 역할별 읽기 · 쓰기 + dataset_exportable 이 dadam_planner 만 넓히는지 (scripts/rls-probe.mjs)",
+  "ids": ["g_done", "g_open", "g_other"],
+  "users": ["admin_user", "plain_user"],
+  "setup": [
+    "INSERT INTO public.admin_roles (user_id, role) VALUES ({{admin_user}}, 'admin')",
+    "INSERT INTO public.dataset_samples (sample_id, source, group_key, media, phase, label_source, license) VALUES ('planner-lite:design:probe-' || {{g_done}}::text || ':photo:c1', 'dadam_planner', 'planner-lite:design:probe-' || {{g_done}}::text, 'photo', 'after', 'structured', 'restricted-internal'), ('planner-lite:design:probe-' || {{g_done}}::text || ':photo:a1', 'dadam_planner', 'planner-lite:design:probe-' || {{g_done}}::text, 'generated', 'after', 'structured', 'restricted-internal'), ('planner-lite:design:probe-' || {{g_open}}::text || ':photo:c1', 'dadam_planner', 'planner-lite:design:probe-' || {{g_open}}::text, 'photo', 'after', 'structured', 'restricted-internal'), ('probe-other-' || {{g_other}}::text, 'dadam_design', 'planner-lite:design:probe-' || {{g_other}}::text, 'photo', 'after', 'structured', 'restricted-internal')",
+    "INSERT INTO public.planner_completions (group_key, complete_photos, confirmed_by) VALUES ('planner-lite:design:probe-' || {{g_done}}::text, 1, {{admin_user}}), ('planner-lite:design:probe-' || {{g_other}}::text, 1, {{admin_user}})"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "plain": { "role": "authenticated", "user": "plain_user" },
+    "admin": { "role": "authenticated", "user": "admin_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "읽기 planner_completions (가짜 2행)",
+      "sql": "select count(*) from public.planner_completions where group_key in ('planner-lite:design:probe-' || {{g_done}}::text, 'planner-lite:design:probe-' || {{g_other}}::text)",
+      "expect": { "anon": "deny", "admin": 2, "service_role": 2, "*": 0 }
+    },
+    {
+      "name": "넣기 planner_completions — 워커(service_role)만",
+      "sql": "insert into public.planner_completions (group_key, complete_photos, confirmed_by) values ('planner-lite:design:probe-' || {{g_open}}::text, 1, {{admin_user}})",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "고치기 planner_completions — 워커만",
+      "sql": "update public.planner_completions set complete_photos = 2 where group_key = 'planner-lite:design:probe-' || {{g_done}}::text",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "지우기 planner_completions — 워커만",
+      "sql": "delete from public.planner_completions where group_key = 'planner-lite:design:probe-' || {{g_done}}::text",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "묶음 키 모양 · 사진 0장은 받지 않는다",
+      "sql": "insert into public.planner_completions (group_key, complete_photos, confirmed_by) values ('planner-lite:design:../x', 0, {{admin_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "내보내기 — 시공 완료 확인한 플래너 설계의 사진 (AI 연출은 빠진다)",
+      "sql": "select count(*) from public.dataset_exportable where group_key = 'planner-lite:design:probe-' || {{g_done}}::text",
+      "expect": { "anon": "deny", "admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "내보내기 — 확인 안 한 플래너 설계는 그대로 안 나간다",
+      "sql": "select count(*) from public.dataset_exportable where group_key = 'planner-lite:design:probe-' || {{g_open}}::text",
+      "expect": { "anon": "deny", "*": 0 }
+    },
+    {
+      "name": "내보내기 — 다른 다담 출처는 같은 묶음 키라도 넓히지 않는다",
+      "sql": "select count(*) from public.dataset_exportable where sample_id = 'probe-other-' || {{g_other}}::text",
+      "expect": { "anon": "deny", "*": 0 }
+    }
+  ]
+}

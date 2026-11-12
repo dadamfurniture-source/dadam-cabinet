@@ -1,0 +1,117 @@
+{
+  "title": "0042 프로젝트 담당자 — 그 업체의 지금 구성원만(대표 · 실장 · 직원), 나간 사람 · 남의 업체 사람은 거절, 바뀔 때 assigned_at, 비우기 가능, 구성원은 못 쓴다, 승인 카드 종류 project_assign (scripts/rls-probe.mjs --migration database/migrations/0042_project_assignee.sql)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "cust_x",
+    "proj_x",
+    "proj_new",
+    "proj_bad",
+    "conv_x",
+    "act_assign"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "x_gone_user",
+    "y_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active'), ({{company_x}}, {{x_gone_user}}, 'manager', 'removed'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{cust_x}}, {{company_x}}, 'probe 고객')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{proj_x}}, {{company_x}}, {{cust_x}}, 'probe')",
+    "INSERT INTO public.assistant_conversations (id, company_id, user_id, title) VALUES ({{conv_x}}, {{company_x}}, {{x_owner_user}}, 'probe')"
+  ],
+  "roles": {
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "직원을 담당자로 — 정한 때가 찍힌다",
+      "sql": "update public.projects set assignee_id = {{x_staff_user}}, assigned_by = {{x_owner_user}} where id = {{proj_x}}; select (assignee_id = {{x_staff_user}}) || '/' || (assigned_at is not null) || '/' || (assigned_by = {{x_owner_user}}) from public.projects where id = {{proj_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/true/true"
+      }
+    },
+    {
+      "name": "나간 구성원은 거절",
+      "sql": "update public.projects set assignee_id = {{x_gone_user}} where id = {{proj_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "남의 업체 사람은 거절",
+      "sql": "update public.projects set assignee_id = {{y_owner_user}} where id = {{proj_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "비우기 — 담당자 없음",
+      "sql": "update public.projects set assignee_id = null where id = {{proj_x}}; select coalesce(assignee_id::text, 'none') from public.projects where id = {{proj_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "none"
+      }
+    },
+    {
+      "name": "만들 때 대표를 담당자로 — 정한 때가 찍힌다",
+      "sql": "insert into public.projects (id, company_id, customer_id, title, assignee_id) values ({{proj_new}}, {{company_x}}, {{cust_x}}, 'probe', {{x_owner_user}}); select (assigned_at is not null)::text from public.projects where id = {{proj_new}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "만들 때 남의 업체 사람은 거절",
+      "sql": "insert into public.projects (id, company_id, customer_id, title, assignee_id) values ({{proj_bad}}, {{company_x}}, {{cust_x}}, 'probe', {{y_owner_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "구성원은 담당자를 못 쓴다 (쓰기는 서버만 — 쓰기 정책이 없어 0줄)",
+      "sql": "update public.projects set assignee_id = {{x_staff_user}} where id = {{proj_x}}",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "rows:0"
+      }
+    },
+    {
+      "name": "승인 카드 종류 project_assign",
+      "sql": "insert into public.assistant_actions (id, company_id, conversation_id, user_id, kind, state, params, expect, card) values ({{act_assign}}, {{company_x}}, {{conv_x}}, {{x_owner_user}}, 'project_assign', 'proposed', '{\"project_id\":\"p\"}'::jsonb, '{}'::jsonb, '{\"title\":\"t\"}'::jsonb); select kind from public.assistant_actions where id = {{act_assign}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "project_assign"
+      }
+    }
+  ]
+}

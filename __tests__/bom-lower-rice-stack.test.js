@@ -9,6 +9,8 @@
  *   서랍 모듈   서랍 1칸 · 위는 하부장 상단 목찬넬과 같다 (따내기 70×40 · 목찬넬 전면 52 + 지면 40 — 그 모듈의 부재)
  *   밥솥장 위   목대 30 × W × 18T 2장, 도어 색 — 앞(몸통 앞선에서 22 안쪽) · 뒤
  *   상판 아래 목찬넬 줄은 그 칸에서 끊긴다 · 걸레받이 · 상판은 이어진다 (밑 서랍 모듈이 그 자리를 센다)
+ *   끊겨 나뉜 목찬넬 자리 중 그 칸에 닿은 자리는 800 보다 짧아도 붙는 길이 그대로 — 2026-10-26 사장님 "600 그대로"
+ *   (쌓기 칸에서 끊긴 짧은 목찬넬, sink.md EP 「조각」 — 깊이 예외와 같은 keepShort). 현장 자름 비고 · tags.siteCut 없음.
  */
 const { loadConverter, LEDGER_SPECS } = require('../test-utils/bom-parts');
 const { loadExtractors } = require('../test-utils/bom-golden/golden');
@@ -16,6 +18,8 @@ require('../js/detaildesign/bom-open-cabinet-rules.js');
 const RR = require('../js/detaildesign/bom-rice-cabinet-rules.js');
 const Asm = require('../js/detaildesign/bom-assembly.js');
 const Check = require('../js/detaildesign/assembly-check.js');
+// 2026-10-26 「조각」 — 800 보다 짧은 조각 비고 · 자리 계획 (상자 · 밥솥장 규칙을 실은 뒤에 추출기를 싣는다)
+const { BOM_LINE_PIECE_SITE_NOTE, bomLinePlacesOf, bomPlanPlaces } = require('../js/detaildesign/extractors.js');
 
 const SPECS = Object.assign({}, LEDGER_SPECS, { handle: '찬넬 (목찬넬)', finishLeftType: 'None', finishLeftWidth: 0, finishRightType: 'None', finishRightWidth: 0 });
 const D = 550, BACK = 70, AREA_D = 650;
@@ -31,14 +35,14 @@ const rice = (door, dir) => ({
   legH: 0, shelves: [], rice: { door },
 });
 
-/** 하부 줄: 2도어 600 · [서랍 drawerH + 밥솥장 (708 − drawerH − 30) + 목대 30] 450 · 2도어 600 */
-function line(door, dir, drawerH = RR.RULES.LOWER_STACK.DRAWER_H) {
+/** 하부 줄: 2도어 600 · [서랍 drawerH + 밥솥장 (708 − drawerH − 30) + 목대 30] 450 · 2도어 600. placed 면 평면 자리(plane → _place)도 싣는다 */
+function line(door, dir, drawerH = RR.RULES.LOWER_STACK.DRAWER_H, placed = false) {
   const modules = [
     { id: 'l0', section: 'lower', W: 600, H: 870, D, x: 0, y: BACK, areaH: 870 },
     { id: 'd1', section: 'lower', W: 450, H: 150 + drawerH, D, x: 600, y: BACK, areaH: 150 + drawerH, stackTop: 'rice' },
     { id: 'r1', section: 'lower', W: 450, H: (708 - drawerH - 30) + 30 + 12, D, x: 600, y: BACK, areaH: 870, riceBelow: 'drawer' },
     { id: 'l2', section: 'lower', W: 600, H: 870, D, x: 1050, y: BACK, areaH: 870 },
-  ];
+  ].map((m) => (placed ? Object.assign(m, { plane: { cx: m.x + m.W / 2, cy: m.y + m.D / 2 }, rotation: 0 }) : m));
   const structures = { l0: door2(600), d1: drawer1(), r1: rice(door, dir), l2: door2(600) };
   const conv = loadConverter()._convertPlannerModules({ modules, structures, hasStructures: true }, Object.assign({}, SPECS));
   const item = { categoryId: 'sink', w: 1650, h: 2310, d: AREA_D, specs: Object.assign({}, SPECS), modules: conv.modules };
@@ -105,13 +109,25 @@ describe('BOM', () => {
     expect(b.map((m) => [m.material, m.thickness, m.w, m.h, m.qty, m.slot])).toEqual([['MDF', 18, 30, 450, 2, 'door']]);
   });
 
-  test('줄 — 상판 아래 목찬넬은 밥솥장 칸에서 끊겨 600 두 장 · 걸레받이 · 상판은 1650 한 장', () => {
+  test('줄 — 상판 아래 목찬넬은 밥솥장 칸에서 끊겨 600 두 장 (붙는 길이 그대로) · 걸레받이 · 상판은 1650 한 장', () => {
     const { materials } = line('none');
     const ep = (p) => materials.filter((m) => /EP|상판/.test(m.module) && m.part === p).map((m) => [m.h, m.qty]);
+    // 2026-10-26 사장님 "600 그대로" — 쌓기 칸에서 끊긴 짧은 목찬넬은 800 으로 내지 않는다 (현장 자름 비고 없음)
     expect(ep('목찬넬(전면)')).toEqual([[600, 2]]);
     expect(ep('목찬넬(지면)')).toEqual([[600, 2]]);
+    expect(materials.filter((m) => /EP/.test(m.module) && /^목찬넬/.test(m.part)).some((m) => String(m.note || '').includes(BOM_LINE_PIECE_SITE_NOTE))).toBe(false);
     expect(materials.filter((m) => m.part === '걸레받이').map((m) => m.w)).toEqual([1650]);
     expect(materials.find((m) => m.part === '상판').w).toBe(1650);
+  });
+
+  test('평면 자리(_place)가 있어도 같다 — 쌓인 밥솥장은 자리에서 빠지고, 목찬넬만 그 칸에서 나뉜다 · 명세 못 놓은 행 없음', () => {
+    const { conv, materials, spec } = line('none', 'left', RR.RULES.LOWER_STACK.DRAWER_H, true);
+    expect(conv.modules.every((m) => !!m._place)).toBe(true);
+    const ep = (p) => materials.filter((m) => /EP/.test(m.module) && m.part === p).map((m) => [m.h, m.qty]);
+    expect(ep('목찬넬(전면)')).toEqual([[600, 2]]);
+    expect(ep('목찬넬(지면)')).toEqual([[600, 2]]);
+    expect(materials.filter((m) => m.part === '걸레받이').map((m) => [m.w, m.qty])).toEqual([[1650, 1]]);
+    expect(spec.unplaced.filter((u) => u.reason !== 'shelf-height-unknown')).toEqual([]);
   });
 });
 
@@ -137,7 +153,30 @@ describe('조립 명세', () => {
     const runs = spec.items[0].runs || [];
     const ch = runs.filter((r) => r.parts.some((p) => p.part === '목찬넬(전면)'));
     expect(ch.map((r) => r.hostModuleKey).sort()).toEqual(['0-planner-l0-0', '0-planner-l2-0']);
+    // "600 그대로" — 명세 재단 600 = 발주 600, 현장 자름 표시(tags.siteCut) 없음
+    const pcs = ch.map((r) => r.parts.find((p) => p.part === '목찬넬(전면)'));
+    expect(pcs.map((p) => [p.cut.h, p.tags.siteCut])).toEqual([[600, undefined], [600, undefined]]);
     expect(runs.some((r) => r.hostModuleKey === '0-planner-r1-rice')).toBe(false);
+  });
+});
+
+describe('목찬넬 자리 — 쌓기 칸에 닿은 자리만 짧아도 그대로 (2026-10-26 사장님 "600 그대로")', () => {
+  /** 하부 줄 a 600 · 쌓기 s 450 · b 600 · 쿡탑장 c 300 · e 600 — placed 면 벽 A 자리(_place) */
+  const mod = (id, w, x, extra, placed) => Object.assign({ id, pos: 'lower', w, d: D }, extra || {},
+    placed ? { _place: { cx: x + w / 2, cy: D / 2, run: [1, 0], front: [0, 1], w, d: D, z0: 0, h: 870 } } : {});
+  const plan = (placed) => {
+    const mods = [mod('a', 600, 0, null, placed), mod('s', 450, 600, { stackTop: 'rice' }, placed), mod('b', 600, 1050, null, placed),
+      mod('c', 300, 1650, { type: 'cook' }, placed), mod('e', 600, 1950, null, placed)];
+    return bomPlanPlaces(bomLinePlacesOf(mods, (m) => !m.stackTop && m.type !== 'cook', (m) => !!m.stackTop))
+      .map((pl) => [pl.units.map((u) => u.ids.join('')).join(''), !!pl.stackBound, pl.pieces.map((p) => [p.len, p.order, p.site])]);
+  };
+
+  test.each([[false], [true]])('쌓기 칸 양옆 a · b 는 600 그대로, 쿡탑장에서만 끊긴 e 는 800 (현장 자름) — 자리(_place) %s', (placed) => {
+    expect(plan(placed)).toEqual([
+      ['a', true, [[600, 600, false]]],
+      ['b', true, [[600, 600, false]]],
+      ['e', false, [[600, 800, true]]],
+    ]);
   });
 });
 

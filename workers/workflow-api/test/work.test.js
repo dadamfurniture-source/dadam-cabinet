@@ -12,8 +12,10 @@ import worker from '../src/worker.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { computeJobStatus, pickNextJob } from '../src/work/jobs.js';
 import { effectiveStatus, jobCard, jobDetail, findForbiddenKeys, FORBIDDEN_KEYS, SITE_NOTE } from '../src/work/reveal.js';
-import { buildWorkSlack } from '../src/work/notify.js';
+import { buildWorkSlack, notifyWork } from '../src/work/notify.js';
+import { clearHqCompanyCache } from '../src/supabase.js';
 import { hashInviteToken } from '../src/work/invites.js';
+import { HQ, PARTNER } from './fixtures/company.js';
 
 const ENV = {
   SUPABASE_URL: 'https://x.supabase.co',
@@ -53,7 +55,8 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const DEFAULTS = {
   workers: () => ({ phone: null, kinds: [], region_label: null, status: 'pending', photo_consent: false, approved_by: null, approved_at: null, reject_reason: null, invited_via: null, last_seen_at: null, updated_at: new Date().toISOString() }),
   worker_invites: () => ({ kinds_preset: [], display_name_preset: null, used_at: null, used_by: null, created_by: null }),
-  work_jobs: () => ({ status: 'draft', detail: null, region_label: null, starts_at: null, ends_at: null, apply_deadline: null, slots: 1, mode: 'open', pay_amount: null, pay_unit: null, pay_visible: false, order_id: null, design_id: null, version: 0, cancel_reason: null, updated_at: new Date().toISOString() }),
+  // company_id — DB 기본값(본사, 0006 work_jobs.company_id DEFAULT hq_company_id()) 그대로
+  work_jobs: () => ({ company_id: HQ, status: 'draft', detail: null, region_label: null, starts_at: null, ends_at: null, apply_deadline: null, slots: 1, mode: 'open', pay_amount: null, pay_unit: null, pay_visible: false, order_id: null, design_id: null, version: 0, cancel_reason: null, updated_at: new Date().toISOString() }),
   work_applications: () => ({ status: 'applied', message: null, decided_by: null, decided_at: null, decide_reason: null }),
   work_assignments: () => ({ application_id: null, started_at: null, submitted_at: null, accepted_at: null, revision_count: 0, no_show: false, release_reason: null, updated_at: new Date().toISOString() }),
   work_updates: () => ({ assignment_id: null, issue_chips: [], amends_id: null, visible_to_worker: true }),
@@ -204,13 +207,15 @@ function seed(db) {
     { ...base, id: W2, user_id: U_W2, display_name: '시험기사B', phone: '010-0000-0002', kinds: ['install'], status: 'approved' },
     { ...base, id: WP, user_id: U_PEND, display_name: '시험대기', phone: null, kinds: ['install'], status: 'pending', approved_at: null },
   ];
-  db.tables.orders = [{ id: ORDER, order_no: 'DD-TEST-1', customer_name: CUSTOMER_NAME, contract_amount: 9900000 }];
+  db.tables.orders = [{ id: ORDER, order_no: 'DD-TEST-1', customer_name: CUSTOMER_NAME, contract_amount: 9900000, company_id: HQ }];
+  db.tables.companies = [{ id: HQ, kind: 'hq' }, { id: PARTNER, kind: 'partner' }];
 }
 
 let db;
 const originalFetch = globalThis.fetch;
 beforeEach(() => {
   clearAdminCache();
+  clearHqCompanyCache();
   db = makeDb();
   seed(db);
   globalThis.fetch = db.fetch;
@@ -603,7 +608,7 @@ test('초대 링크 — 1회용 · 만료 410 · 없는 토큰 404 · 이미 작
   assert.equal(bad.status, 422, '지난 만료일');
   const inv = await call('POST', '/work/admin/invites', { token: 'tok-admin', body: { kinds_preset: ['as'], display_name_preset: '시험초대', expires_at: '2099-01-01T00:00:00Z' } });
   assert.equal(inv.status, 201);
-  assert.match(inv.data.url, /^https:\/\/dadam\.test\/worker\.html#invite=[A-Za-z0-9_-]{30,}$/);
+  assert.match(inv.data.url, /^https:\/\/dadam\.test\/segan\/work\.html#invite=[A-Za-z0-9_-]{30,}$/);
   const token = inv.data.url.split('#invite=')[1];
   const stored = rowOf('worker_invites', inv.data.id);
   assert.equal(stored.token_hash, await hashInviteToken(ENV, token));
@@ -628,7 +633,7 @@ test('초대 링크 — 1회용 · 만료 410 · 없는 토큰 404 · 이미 작
 
 test('공개 신청 — pending 으로 등록, 두 번째는 409, 관리자 승인 뒤 신청 가능 · 잘못된 전이 409', async () => {
   const body = { display_name: '시험신청', phone: '010-0000-0009', kinds: ['install'], region_label: '시험시', consent_version: 'v1', photo_consent: false };
-  assert.equal((await call('POST', '/work/register', { token: 'tok-cust', body: { ...body, kinds: ['cutting'] } })).status, 422);
+  assert.equal((await call('POST', '/work/register', { token: 'tok-cust', body: { ...body, kinds: ['welding'] } })).status, 422, '모르는 종류 (재단 cutting · 엣지 edge 는 받는다)');
   assert.equal((await call('POST', '/work/register', { token: 'tok-cust', body: { ...body, consent_version: '' } })).status, 422);
   const r = await call('POST', '/work/register', { token: 'tok-cust', body });
   assert.equal(r.status, 201);
@@ -677,6 +682,50 @@ test('Slack — 신청 · 철회 · 거절 · 포기 · 완료 · 문제 보고,
   }
   assert.ok(all.includes(`https://dadam.test/admin/work-jobs.html?job=${job.id}`));
   assert.ok(texts.every((t) => t.startsWith('[작업자 포털]')));
+});
+
+test('Slack — 본사 작업만: 협력업체 작업(협력업체 주문에서 만든 것)의 신청 · 철회 · 거절 · 포기 · 완료 · 문제 보고는 보내지 않는다', async () => {
+  const PARTNER_ORDER = 'e0000000-0000-4000-8000-0000000000bb';
+  db.tables.orders.push({ id: PARTNER_ORDER, order_no: 'DD-TEST-P', customer_name: '시험고객', contract_amount: 1, company_id: PARTNER });
+  const job = await makeJob({ order_id: PARTNER_ORDER, title: '협력업체 설치' });
+  assert.equal(rowOf('work_jobs', job.id).company_id, PARTNER);
+  const a2 = await call('POST', `/work/jobs/${job.id}/apply`, { token: 'tok-w2', body: {} });
+  assert.equal(a2.status, 201);
+  await call('POST', `/work/applications/${a2.data.id}/withdraw`, { token: 'tok-w2' });
+  const asg = await assign(job, 'tok-w1');
+  await call('POST', `/work/assignments/${asg.id}/start`, { token: 'tok-w1' });
+  await call('POST', `/work/assignments/${asg.id}/updates`, { token: 'tok-w1', body: { kind: 'issue', body: '문제', issue_chips: ['현장 조건 다름'] } });
+  assert.equal((await call('POST', `/work/assignments/${asg.id}/updates`, { token: 'tok-w1', body: { kind: 'result', body: '완료' } })).status, 201);
+
+  const direct = await makeJob({ mode: 'direct', title: '협력업체 지정', order_id: PARTNER_ORDER });
+  const offer = await call('POST', `/work/admin/jobs/${direct.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  assert.equal((await call('POST', `/work/assignments/${offer.data.id}/decline`, { token: 'tok-w2', body: { reason: '일정' } })).data.status, 'declined');
+  const third = await makeJob({ title: '협력업체 포기', order_id: PARTNER_ORDER });
+  const asg3 = await assign(third, 'tok-w2');
+  assert.equal((await call('POST', `/work/assignments/${asg3.id}/release`, { token: 'tok-w2', body: { reason: '사정' } })).data.status, 'released');
+
+  assert.deepEqual(db.slack, [], '협력업체 작업은 본사 Slack 으로 가지 않는다');
+
+  // 같은 흐름이라도 본사 작업이면 보낸다 · 작업이 없는 가입 신청은 그대로
+  const hqJob = await makeJob({ order_id: ORDER, title: '본사 설치' });
+  await call('POST', `/work/jobs/${hqJob.id}/apply`, { token: 'tok-w2', body: {} });
+  const reg = await call('POST', '/work/register', { token: 'tok-cust', body: { display_name: '시험신청', phone: '010-0000-0009', kinds: ['install'], region_label: '시험시', consent_version: 'v1', photo_consent: false } });
+  assert.equal(reg.status, 201);
+  assert.deepEqual(db.slack.map((p) => p.text.split(' — ')[0]), ['[작업자 포털] 작업 신청', '[작업자 포털] 작업자 가입 신청']);
+});
+
+test('notifyWork — 작업 업체를 모르면 보내지 않는다, 본사 작업 · 작업 없음은 보낸다', async () => {
+  await notifyWork(ENV, null, 'application_created', { job: { id: 'j1', kind: 'install', title: '업체 모름' }, workerName: 'A' });
+  await notifyWork(ENV, null, 'application_created', { job: { id: 'j2', kind: 'install', title: '협력', company_id: PARTNER }, workerName: 'A' });
+  assert.equal(db.slack.length, 0);
+  await notifyWork(ENV, null, 'application_created', { job: { id: 'j3', kind: 'install', title: '본사', company_id: HQ }, workerName: 'A' });
+  await notifyWork(ENV, null, 'worker_registered', { workerName: 'B' });
+  assert.equal(db.slack.length, 2);
+  // 본사 행을 못 찾아도 던지지 않는다 (보내지도 않는다)
+  clearHqCompanyCache();
+  db.tables.companies = [];
+  await notifyWork(ENV, null, 'issue_reported', { job: { id: 'j4', kind: 'install', title: '본사', company_id: HQ } });
+  assert.equal(db.slack.length, 2);
 });
 
 test('직접 지정 — 승인 · 종류 맞는 작업자만, 수락하면 정원에 들고 정원이 찼으면 수락 409', async () => {
@@ -955,7 +1004,7 @@ test('표가 아직 없으면 — 목록은 빈 결과, /work/me 는 { ready:fal
   for (const t of ['workers', 'worker_invites', 'worker_notes', 'work_jobs', 'work_applications', 'work_assignments', 'work_updates', 'work_job_events']) db.missing.add(t);
   const me = await call('GET', '/work/me', { token: 'tok-w1' });
   assert.equal(me.status, 200);
-  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 }, next_job: null });
+  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 }, next_job: null, factory: null });
   for (const tab of ['open', 'mine', 'done']) {
     const r = await call('GET', `/work/jobs?tab=${tab}`, { token: 'tok-w1' });
     assert.deepEqual([r.status, r.data.items], [200, []], tab);
@@ -1234,4 +1283,24 @@ test('GET /work/admin/workers/:id/events — 최근순, support 도 읽는다, �
   const reg = await call('POST', '/work/register', { token: 'tok-cust', body: { display_name: '시험신청', kinds: ['install'], consent_version: 'v1' } });
   assert.equal(reg.status, 201);
   assert.equal((await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'approved' } })).status, 200);
+});
+
+test('작업 만들기 — 주문에서 만들면 업체(company_id)를 그 주문 것으로, 아니면 DB 기본값', async () => {
+  const PARTNER_ORDER = 'e0000000-0000-4000-8000-0000000000bb';
+  db.tables.orders.push({ id: PARTNER_ORDER, order_no: 'DD-TEST-P', customer_name: '시험고객', contract_amount: 1, company_id: PARTNER });
+  const insertOf = (title) => db.calls.find((c) => c.method === 'POST' && c.url.endsWith('/work_jobs') && c.body.title === title).body;
+
+  const fromPartner = await call('POST', '/work/admin/jobs', { token: 'tok-admin', body: { kind: 'install', title: '협력업체 주문 설치', order_id: PARTNER_ORDER } });
+  assert.equal(fromPartner.status, 201, JSON.stringify(fromPartner.body));
+  assert.equal(insertOf('협력업체 주문 설치').company_id, PARTNER);
+
+  const fromHq = await call('POST', '/work/admin/jobs', { token: 'tok-admin', body: { kind: 'install', title: '본사 주문 설치', order_id: ORDER } });
+  assert.equal(fromHq.status, 201);
+  assert.equal(insertOf('본사 주문 설치').company_id, HQ);
+
+  // 주문 없이 만들면 주문을 읽지도, 칸을 보내지도 않는다 — DB 기본값(본사)
+  const plain = await call('POST', '/work/admin/jobs', { token: 'tok-admin', body: { kind: 'assembly', title: '주문 없는 작업' } });
+  assert.equal(plain.status, 201);
+  assert.ok(!('company_id' in insertOf('주문 없는 작업')));
+  assert.equal(db.calls.filter((c) => c.method === 'GET' && c.url.includes('/orders?') && c.url.includes('select=company_id')).length, 2);
 });

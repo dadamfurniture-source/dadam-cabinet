@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 매거진 글 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다 -->
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기 · 매거진 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111214" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111214" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111214" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111214" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026111214" />
+    <link rel="stylesheet" href="info.css?v=2026111214" />
+    <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
+         열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
+    <script src="../js/config.js?v=2026111214"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
+    <script src="shell.js?v=2026111214" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026111214" defer></script>
+  </head>
+  <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
+  <body class="sg-app" data-tab="blog">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main ma" id="main">
+      <a class="ma-back" href="blog.html">‹ 매거진</a>
+
+      <article class="ma-article" data-slug="edge-finish" data-category="설치">
+        <header class="ma-head">
+          <p class="ma-cat">설치</p>
+          <h1 class="sg-h1 ma-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</h1>
+          <p class="ma-dek">
+            붙박이 가구가 벽 · 천장 · 바닥과 만나는 자리를 무엇으로 메우는지, 도면과 견적서에서 무엇을 볼지 정리합니다.
+          </p>
+          <p class="ma-meta">읽는 시간 약 4분</p>
+        </header>
+
+        <p>
+          붙박이 가구는 벽과 천장 사이에 맞춰 짜 넣습니다. 벽과 천장은 완전히 곧거나 반듯하지 않은 경우가 많습니다.
+          가구는 정해진 크기의 장을 이어 붙여 만듭니다. 그래서 가구 끝과 벽 · 천장 사이에는 늘 메울 자리가 남습니다. 이
+          자리를 무엇으로 어떻게 메우느냐가 마감입니다.
+        </p>
+
+        <section>
+          <h2>마감이 들어가는 자리</h2>
+          <p>
+            마감은 네 곳에 들어갑니다. 가구 좌우 끝(벽 옆), 가구 위(천장 아래), 가구 아래(바닥 위), 그리고 ㄱ자 · ㄷ자
+            배치의 코너입니다.
+          </p>
+          <p>
+            장을 벽 사이 폭에 꼭 맞게 만들면 설치할 때 들어가지 않을 수 있습니다. 그래서 장은 조금 작게 만들고, 남는
+            틈을 마감재로 가립니다.
+          </p>
+          <p>
+            마감재도 폭을 차지합니다. 장을 넣을 수 있는 폭은 벽 사이 폭에서 좌우 마감과 코너 마감을 뺀 만큼입니다.
+            마감을 넓게 잡을수록 수납 폭이 줄어듭니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>좌우 마감: 몰딩 · 휠라 · 쫄 · EP</h2>
+          <p>
+            가구 줄의 끝이 벽에 닿는 자리에는 틈을 가리는 마감재를 댑니다. 종류에 따라 앞에서 보이는 모습이 다릅니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="좌우 끝 마감 비교" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>
+                좌우 끝 마감 비교
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">종류</th>
+                  <th scope="col">무엇인가</th>
+                  <th scope="col">앞에서 보이는 것</th>
+                  <th scope="col">물어볼 것</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">몰딩</th>
+                  <td>가구 끝과 벽이 만나는 곳에 세워 대는 띠</td>
+                  <td>벽 쪽의 띠</td>
+                  <td>위아래로 어디까지 덮는지</td>
+                </tr>
+                <tr>
+                  <th scope="row">휠라</th>
+                  <td>가구와 벽 사이 틈을 메우는 판. 앞면을 도어 앞선에 맞춥니다.</td>
+                  <td>판의 면</td>
+                  <td>도어와 색 · 재질이 같은지</td>
+                </tr>
+                <tr>
+                  <th scope="row">쫄</th>
+                  <td>마감재의 엣지 쪽이 앞에서 보이는 마감</td>
+                  <td>판의 엣지(두께 쪽)</td>
+                  <td>보이는 엣지를 무엇으로 감쌌는지</td>
+                </tr>
+                <tr>
+                  <th scope="row">EP</th>
+                  <td>가구 끝 옆면에 덧대는 판</td>
+                  <td>옆면을 덮은 판</td>
+                  <td>덧대는 판의 색 · 재질</td>
+                </tr>
+                <tr>
+                  <th scope="row">마감 없음</th>
+                  <td>마감재 없이 둡니다.</td>
+                  <td>가구 옆면과 벽 사이 틈</td>
+                  <td>틈이 얼마나 남는지</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            마감재가 덮는 범위는 업체와 설계마다 다릅니다. 바닥부터 천장까지 덮는지, 옆 도어 높이만큼만 덮는지는
+            정면도에서 확인합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>휠라와 쫄은 다른 마감입니다</h2>
+          <p>휠라와 쫄은 서로 다른 마감입니다. 차이는 앞에서 보이는 부분에 있습니다.</p>
+          <ul>
+            <li>휠라는 앞에서 판의 면이 보입니다. 도어와 나란한 면이 틈을 덮습니다.</li>
+            <li>쫄은 앞에서 마감재의 엣지가 보입니다. 판의 두께 쪽이 앞을 향합니다.</li>
+          </ul>
+          <p>
+            쫄은 엣지가 그대로 드러나는 마감입니다. 그래서 엣지를 무엇으로 감쌌는지, 도어 색과 맞는지가 겉모습을
+            정합니다. 엣지 재질과 붙이는 방식은 「<a href="blog-materials.html">보드부터 엣지까지, 가구 자재 읽는 법</a
+            >」에서 다룹니다.
+          </p>
+          <p>
+            견적서에 휠라와 쫄이 따로 적혀 있으면 각각 어느 자리에 들어가는지 물어봅니다. 이름만으로 모양이 떠오르지
+            않으면 정면도나 시공 사진으로 보여 달라고 합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>위 마감: 상몰딩 · 인몰딩 · 무몰딩</h2>
+          <p>천장까지 올라가는 가구는 가구 위와 천장 사이를 어떻게 마감할지 정해야 합니다. 방법은 세 가지입니다.</p>
+          <div class="ma-table" role="region" aria-label="천장 마감 비교" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>
+                천장 마감 비교
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">종류</th>
+                  <th scope="col">몰딩 자리</th>
+                  <th scope="col">앞에서 보이는 모습</th>
+                  <th scope="col">확인할 것</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">상몰딩</th>
+                  <td>도어 앞선 위</td>
+                  <td>도어 위에 몰딩 띠가 보입니다.</td>
+                  <td>몰딩 높이와 색</td>
+                </tr>
+                <tr>
+                  <th scope="row">인몰딩</th>
+                  <td>몸통 앞선, 도어 뒤</td>
+                  <td>도어가 몰딩을 덮어 도어 면이 천장 가까이까지 이어집니다.</td>
+                  <td>도어 높이가 얼마가 되는지</td>
+                </tr>
+                <tr>
+                  <th scope="row">무몰딩</th>
+                  <td>없음</td>
+                  <td>가구 위와 천장 사이에 좁은 틈이 남습니다.</td>
+                  <td>천장 높이를 여러 곳에서 쟀는지</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            무몰딩은 몰딩이 없어 천장과의 틈이 그대로 보입니다. 천장이 고르지 않으면 틈 폭이 자리마다 달라 보일 수
+            있습니다.
+          </p>
+          <p>
+            판에서 잘라 만드는 몰딩은 원판 길이보다 길 수 없습니다. 그래서 긴 벽에서는 몰딩을 이어 붙입니다. 이음매가
+            어디에 오는지, 후드 같은 기기 자리에서 몰딩이 어떻게 이어지는지 도면으로 확인합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>아래 마감: 걸레받이 · 좌대 · 띄움</h2>
+          <p>
+            싱크대 하부장은 보통 높이를 맞출 수 있는 다리발 위에 서고, 앞을 걸레받이로 가립니다. 붙박이장과 키큰장은
+            좌대(받침) 위에 세우기도 합니다. 신발장은 바닥에서 띄워 다는 방식도 있습니다. 띄워 달면 좌대나 다리발이
+            없습니다.
+          </p>
+          <p>
+            아래 마감도 높이를 차지합니다. 다리발, 걸레받이, 좌대 높이에 따라 장 몸통의 높이가 달라집니다. 도면에 이
+            높이들이 적혀 있는지 봅니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>실측과 견적에서 자주 놓치는 것</h2>
+          <ul>
+            <li>마감 폭만큼 수납 폭이 줄어든다는 점을 잊습니다. 마감을 바꾸면 장 크기도 바뀔 수 있습니다.</li>
+            <li>천장 높이를 한 곳에서만 잽니다. 무몰딩은 천장 상태가 그대로 드러납니다.</li>
+            <li>견적서의 마감 이름만 보고 넘어갑니다. 휠라 · 쫄 · EP는 생김새가 다르니 그림으로 확인합니다.</li>
+            <li>ㄱ자 · ㄷ자 배치에서 코너 마감을 빠뜨립니다.</li>
+            <li>품목마다 고를 수 있는 위 마감을 묻지 않습니다. 싱크대와 붙박이장을 함께 맞춘다면 각각 물어봅니다.</li>
+          </ul>
+        </section>
+
+        <section class="ma-final" aria-labelledby="maCheckTitle">
+          <h2 id="maCheckTitle">고객이 확인할 것</h2>
+          <ul class="ma-check">
+            <li>좌우 끝 마감 종류(몰딩 · 휠라 · 쫄 · EP · 없음)와 마감 폭</li>
+            <li>마감재가 위아래로 덮는 범위</li>
+            <li>쫄로 마감하는 자리라면 보이는 엣지의 재질과 색</li>
+            <li>휠라 · 몰딩 · EP가 도어와 같은 색 · 재질인지</li>
+            <li>천장 마감(상몰딩 · 인몰딩 · 무몰딩)과 실측한 천장 높이</li>
+            <li>긴 벽에서 몰딩 이음매가 오는 자리</li>
+            <li>다리발 · 걸레받이 · 좌대 높이</li>
+            <li>마감 폭을 뺀 실제 수납 폭</li>
+            <li>ㄱ자 · ㄷ자 배치라면 코너 마감</li>
+          </ul>
+        </section>
+      </article>
+
+      <nav class="ma-more" aria-labelledby="maMoreTitle">
+        <h2 class="in-h2" id="maMoreTitle">다른 글</h2>
+        <ul class="bl-posts">
+          <li>
+            <a class="bl-post" href="blog-materials.html">
+              <small class="bl-post-cat">자재</small>
+              <b class="bl-post-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-hardware.html">
+              <small class="bl-post-cat">하드웨어</small>
+              <b class="bl-post-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-kitchen-appliances.html">
+              <small class="bl-post-cat">주방기기</small>
+              <b class="bl-post-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

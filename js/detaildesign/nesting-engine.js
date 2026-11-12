@@ -48,13 +48,36 @@
   /** 자재 이름만으로 회전을 막는 목록 — 결이 있는 표면재. PET 는 결 무늬(우드)일 때만. */
   const NO_ROTATE_MATERIALS = [/무늬목/, /우드/i, /wood/i, /결\s*PET/i, /PET.*(우드|결)/i];
 
-  /** 원판을 나누는 부재 구분 — ai-design-report.js getPartType 과 같은 규칙 (본체/도어/뒷판 원판 분리). */
-  function partClassOf(partName) {
+  /** 「뒷판」 원판 묶음은 이 두께 미만만 — 얇은 뒷판 · 서랍밑판(MDF 3T). 생산 부하(workers/workflow-api production/workload.js)의 뒷판 기준과 같다. */
+  const THIN_BACK_LIMIT = 5;
+
+  /**
+   * 원판을 나누는 부재 구분 — ai-design-report.js getPartType 과 같은 규칙 (본체/도어/뒷판 원판 분리).
+   *   두께를 알면 5T 이상 뒷판(오픈 상자 · 밥솥장 · 홈카페장 18T 뒷판)은 같은 두께 몸통 판과 한 원장 —
+   *   2026-11-05 사장님 「MDF 18T 뒷판은 18T 몸통 판과 같은 원장」 (작업지시서 손보기 F). 두께를 모르면 예전처럼 이름만 본다.
+   */
+  function partClassOf(partName, thickness) {
     const s = String(partName || '');
     if (/도어/.test(s)) return '도어';
-    if (/뒷판|서랍밑판/.test(s)) return '뒷판';
+    if (/뒷판|서랍밑판/.test(s)) {
+      const t = num(thickness);
+      return t >= THIN_BACK_LIMIT ? '본체' : '뒷판';
+    }
     if (/몰딩|걸레받이|목찬넬|마감/.test(s)) return '도어';
     return '본체';
+  }
+
+  /**
+   * 재단 배치에서 빼는 상판 — 상판 업체에 발주하는 석재 (2026-10-18 사장님: 상판 발주 요청서 대상, data-constants.js TOP_MATERIALS).
+   *   2026-11-05 사장님 「석재 상판은 사내 재단 원장에서 뺀다 · MDF · PB 상판은 그대로 재단」 (작업지시서 손보기 5).
+   */
+  const OUTSOURCED_TOP_MATERIALS = ['인조대리석', '엔지니어드 스톤', '세라믹'];
+
+  /** 석재 상판 행인가 — 상판 칸(slot top) 또는 부품 이름 「상판」 이고 자재가 석재 */
+  function isOutsourcedTop(m) {
+    if (!m) return false;
+    const isTop = m.slot === 'top' || String(m.part || '') === '상판';
+    return isTop && OUTSOURCED_TOP_MATERIALS.indexOf(String(m.material || '').trim()) >= 0;
   }
 
   function num(v) {
@@ -373,8 +396,8 @@
    *   kerf        number           톱날 (전역 CUT_KERF → 4)
    *   trim        number           가장자리 트림, 네 변 각각 (기본 10)
    *   noRotateMaterials [RegExp|string]  회전 금지 자재 (기본 무늬목·우드·결 PET)
-   *   partClass   fn(partName)     원판 그룹을 가르는 부재 구분 (기본 partClassOf)
-   * @returns cutPlan — bom-protocol.md §7-3
+   *   partClass   fn(partName, thickness)  원판 그룹을 가르는 부재 구분 (기본 partClassOf)
+   * @returns cutPlan — bom-protocol.md §7-3. 석재 상판(isOutsourcedTop)은 배치하지 않고 skipped 로 돌려준다
    */
   function plan(materials, opts) {
     opts = opts || {};
@@ -387,17 +410,23 @@
 
     // 1. 행 정규화 + 정렬 (결정성의 뿌리: 입력 순서에 의존하지 않는다)
     const rows = [];
+    const skipped = [];
     (Array.isArray(materials) ? materials : []).forEach((m, i) => {
       if (!m || typeof m !== 'object') return;
       const w = num(m.w), h = num(m.h), qty = Math.round(num(m.qty));
       if (w <= 0 || h <= 0 || qty <= 0) return;
+      const partId = m.partId != null && m.partId !== '' ? String(m.partId) : `row-${i}`;
+      if (isOutsourcedTop(m)) {
+        skipped.push({ partId, part: String(m.part || ''), material: String(m.material || ''), thickness: num(m.thickness), w, h, qty, reason: 'outsourced-top' });
+        return;
+      }
       const rotatable = rotatableOf(m, noRotate);
       rows.push({
-        partId: m.partId != null && m.partId !== '' ? String(m.partId) : `row-${i}`,
+        partId,
         part: String(m.part || ''),
         material: String(m.material || ''),
         thickness: num(m.thickness),
-        partClass: classOf(m.part),
+        partClass: classOf(m.part, num(m.thickness)),
         w, h, qty,
         edge: typeof m.edge === 'string' ? m.edge : '',
         itemLabel: typeof m.itemLabel === 'string' ? m.itemLabel : '',
@@ -585,6 +614,7 @@
       groups,
       smallParts,
       unallocated,
+      skipped,
       summary: {
         sheetsByMaterial,
         sheetCount: sheets.length,
@@ -593,6 +623,7 @@
         partsPlaced,
         smallCount: smallParts.reduce((s, p) => s + p.qty, 0),
         unallocatedCount: unallocated.reduce((s, u) => s + u.qty, 0),
+        skippedCount: skipped.reduce((s, p) => s + p.qty, 0),
       },
     };
   }
@@ -608,13 +639,15 @@
   const NestingEngine = {
     plan,
     partClassOf,
+    isOutsourcedTop,
     basePartId,
     rotatableOf: (m, list) => rotatableOf(m || {}, list || NO_ROTATE_MATERIALS),
     DEFAULTS: Object.freeze({
       SHEET_W: DEFAULT_SHEET_W, SHEET_H: DEFAULT_SHEET_H, KERF: DEFAULT_KERF, TRIM: DEFAULT_TRIM,
-      SMALL_LIMIT, MAX_STACK, THIN_MIN, THIN_MAX,
+      SMALL_LIMIT, MAX_STACK, THIN_MIN, THIN_MAX, THIN_BACK_LIMIT,
     }),
     NO_ROTATE_MATERIALS: NO_ROTATE_MATERIALS.slice(),
+    OUTSOURCED_TOP_MATERIALS: OUTSOURCED_TOP_MATERIALS.slice(),
   };
 
   if (typeof window !== 'undefined') window.NestingEngine = NestingEngine;

@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 매거진 글 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다 -->
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기 · 매거진 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111214" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111214" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111214" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111214" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026111214" />
+    <link rel="stylesheet" href="info.css?v=2026111214" />
+    <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
+         열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
+    <script src="../js/config.js?v=2026111214"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
+    <script src="shell.js?v=2026111214" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026111214" defer></script>
+  </head>
+  <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
+  <body class="sg-app" data-tab="blog">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main ma" id="main">
+      <a class="ma-back" href="blog.html">‹ 매거진</a>
+
+      <article class="ma-article" data-slug="hardware" data-category="하드웨어">
+        <header class="ma-head">
+          <p class="ma-cat">하드웨어</p>
+          <h1 class="sg-h1 ma-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</h1>
+          <p class="ma-dek">레일 · 망 · 쇼바 · 리프트 장치의 종류, 국내에서 볼 수 있는 브랜드, 견적서에서 물어볼 것.</p>
+          <p class="ma-meta">읽는 시간 약 5분</p>
+        </header>
+
+        <p>
+          서랍과 도어를 여닫는 느낌은 대부분 철물이 정합니다. 같은 장이라도 레일과 리프트 장치에 따라 열리는 방식이
+          달라집니다. 철물은 장 안쪽에 숨어 있어 고를 때 놓치기 쉽습니다. 종류를 나눠 보고, 국내에서 볼 수 있는 브랜드와
+          견적서에서 물어볼 것을 정리합니다.
+        </p>
+
+        <section>
+          <h2>서랍레일 세 가지</h2>
+          <p>서랍레일은 서랍을 몸통에 걸어 미끄러지게 하는 철물입니다. 붙는 자리에 따라 세 가지로 나뉩니다.</p>
+          <div class="ma-table" role="region" aria-label="서랍레일 비교" tabindex="0">
+            <table>
+              <caption>
+                서랍레일 비교
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">종류</th>
+                  <th scope="col">붙는 자리</th>
+                  <th scope="col">서랍을 열면</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">볼레일</th>
+                  <td>서랍 옆면과 몸통 사이. 볼베어링으로 움직입니다.</td>
+                  <td>옆에 레일이 보입니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">언더레일</th>
+                  <td>서랍 밑</td>
+                  <td>레일이 밑에 숨어 잘 보이지 않습니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">박스 시스템</th>
+                  <td>레일과 금속 옆판이 한 벌</td>
+                  <td>금속 옆판이 서랍 옆면이 됩니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            세 가지 모두 천천히 닫히는 댐핑(소프트클로즈) 제품이 있습니다. 견적서에 「댐핑」이나 「소프트클로즈」가 적혀
+            있는지 봅니다.
+          </p>
+          <p>
+            레일은 길이별 규격으로 나옵니다. 장 깊이보다 레일이 많이 짧으면 서랍도 짧아져 장 안쪽 공간이 남습니다. 레일
+            종류에 따라 서랍 크기도 달라집니다. 언더레일은 서랍 밑에 레일 자리가 필요해서, 같은 칸이라도 서랍 안쪽
+            높이가 조금 줄 수 있습니다.
+          </p>
+          <p>
+            레일마다 견디는 무게(허용 하중)가 정해져 있습니다. 냄비나 그릇처럼 무거운 것을 넣을 서랍이면 하중을
+            물어봅니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>망장: 당겨 꺼내 쓰는 수납</h2>
+          <p>
+            망장은 장 안에 철망 바구니(망)를 달아 앞으로 당겨 꺼내 쓰는 장입니다. 양념병 같은 작은 물건을 두는 좁은
+            양념망장, 키큰장 깊은 칸을 쓰는 팬트리형, 코너 안쪽을 꺼내 쓰는 코너형이 있습니다.
+          </p>
+          <p>
+            앞판이 망 철물에 붙어 함께 당겨 나오는 형식은 경첩이 없습니다. 도어를 연 뒤 망을 따로 당기는 형식도 있으니
+            어느 쪽인지 확인합니다. 망 철물은 장 폭에 맞춘 규격으로 나옵니다. 장 폭과 망 규격이 맞는지, 망과 레일이
+            얼마까지 견디는지 봅니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>쇼바: 플랩 도어를 받치는 가스 스프링</h2>
+          <p>
+            플랩 도어는 위로 들어 여는 도어입니다. 이 도어를 받쳐 열린 채로 있게 하는 가스 스프링을 현장에서는 흔히
+            쇼바라고 부릅니다.
+          </p>
+          <p>
+            쇼바는 받칠 수 있는 힘에 따라 규격이 나뉩니다. 도어가 크고 무거울수록 힘이 센 쇼바가 필요합니다. 힘이 도어에
+            맞지 않으면 도어가 제자리에 서지 않거나, 닫을 때 힘이 많이 들 수 있습니다. 일반 쇼바와 천천히 움직이는 댐핑
+            쇼바를 나눠 내는 제조사도 있습니다(예: 국산 IREX).
+          </p>
+        </section>
+
+        <section>
+          <h2>리프트업: 큰 도어를 위로 여는 철물</h2>
+          <p>도어가 크거나 무거우면 쇼바 대신 전용 리프트업 철물을 씁니다. 움직임은 네 가지로 나눌 수 있습니다.</p>
+          <div class="ma-table" role="region" aria-label="리프트업 움직임과 브랜드별 제품" tabindex="0">
+            <table class="ma-cols-5">
+              <caption>
+                리프트업 움직임과 브랜드별 제품
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">움직임</th>
+                  <th scope="col">어떻게 열리나</th>
+                  <th scope="col">Blum</th>
+                  <th scope="col">Hettich</th>
+                  <th scope="col">Grass</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">고정식</th>
+                  <td>한 장 도어가 위로 들려 멈춥니다.</td>
+                  <td>AVENTOS HK top · HK-S · HK-XS</td>
+                  <td>Lift Advanced HK</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">평행 리프트</th>
+                  <td>한 장 도어가 장과 나란히 위로 올라갑니다.</td>
+                  <td>AVENTOS HL top</td>
+                  <td>Lift Advanced HL</td>
+                  <td>Kinvaro</td>
+                </tr>
+                <tr>
+                  <th scope="row">스윙 업</th>
+                  <td>한 장 도어가 장 위쪽으로 넘어가며 열립니다.</td>
+                  <td>AVENTOS HS top</td>
+                  <td>—</td>
+                  <td>Kinvaro</td>
+                </tr>
+                <tr>
+                  <th scope="row">이중 접이</th>
+                  <td>두 장 도어가 가운데서 접히며 올라갑니다.</td>
+                  <td>AVENTOS HF top</td>
+                  <td>Lift Advanced HF</td>
+                  <td>Kinvaro</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ma-note">
+            <small
+              >제품명은 제조사 표기입니다. 움직임 이름은 이 글에서 설명하려고 붙인 말이라 업체마다 부르는 말이 다를 수
+              있습니다.</small
+            >
+          </p>
+          <p>
+            Salice(Wind · Pacta), Kesseböhmer(FREElift 계열), 국산 한산지에스(세로형 · 기울임형 · 슬라이딩형 · 다운형)도
+            리프트 철물을 냅니다.
+          </p>
+          <p>
+            리프트업은 열린 도어가 차지할 공간이 필요합니다. 스윙 업처럼 위로 넘어가는 형식은 장 위에서 천장까지 거리를
+            봅니다. 열린 도어가 천장, 조명, 옆 장에 닿지 않는지 확인합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>브랜드 한눈에 보기</h2>
+          <div class="ma-table" role="region" aria-label="국내에서 볼 수 있는 철물 브랜드" tabindex="0">
+            <table class="ma-cols-5">
+              <caption>
+                국내에서 볼 수 있는 철물 브랜드
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">브랜드</th>
+                  <th scope="col">나라</th>
+                  <th scope="col">서랍 · 레일</th>
+                  <th scope="col">인출 수납</th>
+                  <th scope="col">플랩 · 리프트</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Blum(블룸)</th>
+                  <td>오스트리아</td>
+                  <td>박스 LEGRABOX · MERIVOBOX · TANDEMBOX, 러너 MOVENTO · TANDEM</td>
+                  <td>서랍 안 정리 ORGA-LINE · AMBIA-LINE</td>
+                  <td>AVENTOS</td>
+                </tr>
+                <tr>
+                  <th scope="row">Hettich(헤티히)</th>
+                  <td>독일</td>
+                  <td>박스 AvanTech YOU · ArciTech · InnoTech Atira, 러너 Actro 5D · Quadro, 볼레일 KA</td>
+                  <td>장 안 수납</td>
+                  <td>Lift Advanced HF · HK · HL</td>
+                </tr>
+                <tr>
+                  <th scope="row">Grass(그라스)</th>
+                  <td>오스트리아</td>
+                  <td>박스 Nova Pro Scala · Vionaro, 러너 Dynapro · Dynaneo</td>
+                  <td>Tavinea</td>
+                  <td>Kinvaro</td>
+                </tr>
+                <tr>
+                  <th scope="row">Salice(살리체)</th>
+                  <td>이탈리아</td>
+                  <td>숨은 러너, Adapto · Lineabox Easy 서랍</td>
+                  <td>붙박이장 Excessories</td>
+                  <td>Wind · Pacta · EvoLift · Tilt</td>
+                </tr>
+                <tr>
+                  <th scope="row">Kesseböhmer(케세보머)</th>
+                  <td>독일</td>
+                  <td>—</td>
+                  <td>팬트리 DISPENSA · TANDEM · CONVOY, 코너 LeMans · MagicCorner</td>
+                  <td>FREElift · FREEslim</td>
+                </tr>
+                <tr>
+                  <th scope="row">IREX(삼성정밀공업)</th>
+                  <td>국산</td>
+                  <td>볼레일 · 댐핑 볼레일 · 언더레일, 서랍</td>
+                  <td>—</td>
+                  <td>쇼바(일반 · 댐핑), 플랩 시스템</td>
+                </tr>
+                <tr>
+                  <th scope="row">문주하드웨어</th>
+                  <td>국산</td>
+                  <td>볼레일 · 서랍</td>
+                  <td>—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">세일하드웨어</th>
+                  <td>국산</td>
+                  <td>볼레일 · 언더레일 · 서랍</td>
+                  <td>—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">전한슬라이드</th>
+                  <td>국산</td>
+                  <td>볼베어링 레일 · 언더레일</td>
+                  <td>—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">더엠제이(명진)</th>
+                  <td>국산</td>
+                  <td>—</td>
+                  <td>인출망 · 팬트리장 · 키큰장 철물 · 매직스윙 · 붙박이장 인출바스켓</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">한산지에스</th>
+                  <td>국산</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>리프트업(세로형 · 기울임형 · 슬라이딩형 · 다운형), 가스 스프링</td>
+                </tr>
+                <tr>
+                  <th scope="row">케이지에스</th>
+                  <td>국산</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>리프트용 가스 스프링</td>
+                </tr>
+                <tr>
+                  <th scope="row">하츠</th>
+                  <td>국산</td>
+                  <td>—</td>
+                  <td>주방 수납(팬트리 · 코너)</td>
+                  <td>리프트업 도어</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ma-note">
+            <small
+              >제품명은 각 회사 공식 누리집 표기(2026년 10월 확인)입니다. 「—」은 이 글에서 확인하지 않은 칸입니다.
+              회사에 따라 그 품목도 낼 수 있습니다.</small
+            >
+          </p>
+          <p>
+            해외 브랜드는 국내 수입 · 유통처를 거쳐 들어옵니다. 고장 났을 때 부품을 어디서 구하고 A/S를 누가 맡는지 미리
+            물어봅니다. 같은 브랜드라도 제품 계열에 따라 기능이 다르니, 견적서에는 브랜드와 함께 제품명을 적어 달라고
+            합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>견적서에서 철물 읽는 법</h2>
+          <p>
+            철물은 견적서에 한 단어로만 적히면 무엇이 들어가는지 알 수 없습니다. 아래 표의 왼쪽 말이 보이면 오른쪽
+            내용이 함께 적혀 있는지 봅니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="견적서 철물 칸에 함께 적혀야 할 것" tabindex="0">
+            <table>
+              <caption>
+                견적서 철물 칸에 함께 적혀야 할 것
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">적힌 말</th>
+                  <th scope="col">함께 적혀야 할 것</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">서랍레일</th>
+                  <td>종류(볼레일 · 언더레일 · 박스), 댐핑 여부, 브랜드 · 제품명, 길이</td>
+                </tr>
+                <tr>
+                  <th scope="row">망장</th>
+                  <td>형식(양념 · 팬트리 · 코너), 앞판이 함께 나오는지, 브랜드 · 제품명</td>
+                </tr>
+                <tr>
+                  <th scope="row">쇼바</th>
+                  <td>힘 규격, 댐핑 여부, 도어마다 몇 개인지</td>
+                </tr>
+                <tr>
+                  <th scope="row">리프트업</th>
+                  <td>움직임 방식, 브랜드 · 제품명</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>자주 놓치는 것은 이렇습니다.</p>
+          <ul>
+            <li>「서랍레일 포함」처럼 종류 없이 적힌 견적을 그대로 받습니다.</li>
+            <li>무거운 그릇을 넣을 서랍의 허용 하중을 묻지 않습니다.</li>
+            <li>리프트업 도어가 열릴 때 차지하는 공간을 따지지 않습니다.</li>
+          </ul>
+        </section>
+
+        <section class="ma-final" aria-labelledby="maCheckTitle">
+          <h2 id="maCheckTitle">고객이 확인할 것</h2>
+          <ul class="ma-check">
+            <li>서랍레일 종류(볼레일 · 언더레일 · 박스)와 댐핑 여부</li>
+            <li>레일 길이가 장 깊이에 맞는지, 허용 하중은 얼마인지</li>
+            <li>망장 형식과 장 폭에 맞는 망 규격</li>
+            <li>플랩 도어 크기 · 무게에 맞는 쇼바 힘</li>
+            <li>리프트업 움직임 방식과 열린 도어가 차지할 공간</li>
+            <li>견적서에 브랜드와 제품명이 적혀 있는지</li>
+            <li>부품 · A/S를 받을 국내 창구</li>
+          </ul>
+        </section>
+      </article>
+
+      <nav class="ma-more" aria-labelledby="maMoreTitle">
+        <h2 class="in-h2" id="maMoreTitle">다른 글</h2>
+        <ul class="bl-posts">
+          <li>
+            <a class="bl-post" href="blog-materials.html">
+              <small class="bl-post-cat">자재</small>
+              <b class="bl-post-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-edge-finish.html">
+              <small class="bl-post-cat">설치</small>
+              <b class="bl-post-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
+              <small class="bl-post-time">읽는 시간 약 4분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-kitchen-appliances.html">
+              <small class="bl-post-cat">주방기기</small>
+              <b class="bl-post-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

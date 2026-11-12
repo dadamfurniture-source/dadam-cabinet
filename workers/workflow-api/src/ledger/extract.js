@@ -1,0 +1,97 @@
+/**
+ * 회계장부 — 사진 읽기 걸기. 읽기는 assistant-api 가 한다.
+ *
+ *   서비스 바인딩 ASSISTANT → dadam-assistant-api 의 이름 있는 진입점 LedgerExtract, RPC extract({ documentId, again }).
+ *   곧바로 { ok: true, queued: true } | { ok: false, reason } — 미국 Durable Object 에 줄을 세울 뿐이고 읽기는 따로 돈다.
+ *   그 객체가 ledger_extract_begin 으로 시도를 잡고 ledger_extractions 에 결과를 쓴다 (database/migrations/0029 · 0031).
+ *   바인딩이 없으면(로컬 · 시험) 한 번만 적고 건너뛴다 — 사진 올리기 · 확인은 그대로 된다.
+ *
+ *   올린 직후   새 사진이면 uploadDocument(documents.js)가 ctx.waitUntil(requestExtractIfAi) — 같은 사진을 다시 올린 reused 는 걸지 않는다
+ *   AI 읽기 자격  사진 AI 읽기는 Agent · 다담 공장 · 다담 본사 · 시험 업체만 (DB 0038 · 0056 · 0057 ledger_ai). 올린 직후 · 다시 읽기는 requestExtractIfAi 가 먼저 보고,
+ *               매분 cron 은 DB ledger_extract_due 가 ledger_ai 업체 사진만 준다. Expert 사진은 사람이 직접 적는다
+ *   매분 cron   runExtractDue — rpc ledger_extract_due(DUE_LIMIT 장, DUE_WAIT_SEC 기다림, DUE_STUCK_SEC 멈춤, MAX_ATTEMPTS,
+ *               REREAD_BELOW 판)가 준 사진마다 건다 (올린 직후 걸기가 실패했거나 읽기가 실패 · 멈춘 사진,
+ *               REREAD_BELOW 보다 낮은 판으로 읽은 확인 기다리는 사진 — 이것은 다시(again)로 걸어 새 판으로 읽는다)
+ */
+import { callRpc } from '../supabase.js';
+import { isUuid } from './checks.js';
+import { ledgerAi } from './access.js';
+
+/** 매분 cron — 한 번에 걸 사진 · 올린 뒤 기다릴 초 · 멈췄다고 볼 초 · 사진마다 자동 시도 */
+export const DUE_LIMIT = 5;
+export const DUE_WAIT_SEC = 120;
+export const DUE_STUCK_SEC = 600;
+export const MAX_ATTEMPTS = 2;
+/** 이 판보다 낮게 읽은 확인 기다리는 사진은 다시 건다 — 판 3 은 계정을 제안한다 (assistant-api SCHEMA_VERSION) */
+export const REREAD_BELOW = 3;
+
+let warnedNoBinding = false;
+
+function extractor(env) {
+  const b = env && env.ASSISTANT;
+  return b && typeof b.extract === 'function' ? b : null;
+}
+
+/** assistant-api 에 읽기를 건다 — 던지지 않는다 → { ok, queued?, reason? } */
+export async function requestExtract(env, documentId, { again = false } = {}) {
+  const b = extractor(env);
+  if (!b) {
+    if (!warnedNoBinding) {
+      console.warn('[Ledger] ASSISTANT binding missing — photo reading is not requested');
+      warnedNoBinding = true;
+    }
+    return { ok: false, reason: 'no_binding' };
+  }
+  try {
+    const out = await b.extract({ documentId, again: again === true });
+    return out && typeof out === 'object' ? out : { ok: false, reason: 'empty' };
+  } catch (e) {
+    console.error('[Ledger] extract request failed:', e && e.message);
+    return { ok: false, reason: 'failed' };
+  }
+}
+
+/** 사진 AI 읽기 자격(ledger_ai)이 있는 업체만 읽기를 건다 — 던지지 않는다 → { ok, queued?, reason? } (자격 없음 reason not_entitled) */
+export async function requestExtractIfAi(env, companyId, documentId, opts) {
+  try {
+    if (!(await ledgerAi(env, companyId))) return { ok: false, reason: 'not_entitled' };
+  } catch (e) {
+    console.error('[Ledger] ledger_ai check failed:', e && e.statusCode ? e.statusCode : 'error');
+    return { ok: false, reason: 'failed' };
+  }
+  return requestExtract(env, documentId, opts);
+}
+
+/** PostgREST 가 함수를 모른다 (0029 를 적용하기 전) */
+const isMissingFunction = (e) =>
+  !!e && (e.statusCode === 404 || /PGRST202|Could not find the function/.test(String(e.message)));
+
+/** 매분 cron — 다시 걸 사진마다 읽기를 건다 → { due, queued, skipped? } (던지지 않는다) */
+export async function runExtractDue(env) {
+  if (!extractor(env)) return { due: 0, queued: 0, skipped: 'no_binding' };
+  let rows;
+  try {
+    rows = await callRpc(env, 'ledger_extract_due', {
+      p_limit: DUE_LIMIT,
+      p_wait_sec: DUE_WAIT_SEC,
+      p_stuck_sec: DUE_STUCK_SEC,
+      p_max_attempts: MAX_ATTEMPTS,
+      p_reread_below: REREAD_BELOW,
+    });
+  } catch (e) {
+    if (isMissingFunction(e)) {
+      console.warn('[Ledger] ledger_extract_due missing — apply database/migrations/0031');
+      return { due: 0, queued: 0, skipped: 'no_function' };
+    }
+    console.error('[Ledger] extract due failed:', e && e.statusCode ? e.statusCode : 'error');
+    return { due: 0, queued: 0, skipped: 'error' };
+  }
+  const list = Array.isArray(rows) ? rows : [];
+  let queued = 0;
+  for (const r of list) {
+    if (!r || !isUuid(r.document_id)) continue;
+    const out = await requestExtract(env, r.document_id, { again: r.reread === true });
+    if (out.ok) queued += 1;
+  }
+  return { due: list.length, queued };
+}

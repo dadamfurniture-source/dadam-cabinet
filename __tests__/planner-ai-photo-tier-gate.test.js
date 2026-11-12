@@ -1,11 +1,11 @@
 /**
- * 「사진으로 만들기」 등급 관문 — 화면 (사장님 결정 2026-10-20).
+ * 「사진으로 만들기」 등급 관문 — 화면 (사장님 결정 2026-10-20 · 2026-11-08 Manager 부터).
  *
  * 정본은 워커(workers/generate-api/src/tier-gate.js · test/planner-tier-gate.test.js)다.
  * 화면은 같은 순서의 사본으로 **버튼만 잠그고 안내**한다 — 서버가 403 planner_tier 를 내면 그 메시지를 그대로 보인다.
  *
  * 보는 것:
- *   1) 순수 판정 — expert · agent · 관리자만 참. 사본 상수가 워커 정본과 같은 값이다
+ *   1) 순수 판정 — manager · expert · agent · 관리자만 참. 사본 상수가 워커 정본과 같은 값이다
  *   2) 로그인 전(access 를 모름)이면 화면은 지금 그대로다
  *   3) standard 면 올릴 곳 없이 안내 + 잠긴 버튼. 요청을 보내지 않는다
  *   4) expert · 관리자면 평소 화면 — 요청이 나간다
@@ -28,6 +28,7 @@ const WORKER_GATE = fs.readFileSync(
   path.join(__dirname, '..', 'workers', 'generate-api', 'src', 'tier-gate.js'),
   'utf8'
 );
+const DETAIL_ACCESS = fs.readFileSync(path.join(__dirname, '..', 'js', 'detaildesign-access.js'), 'utf8');
 
 const SCOPE = '::gold:1';
 const MODULES = [
@@ -86,12 +87,14 @@ const wait = (ms = 12) => new Promise((r) => setTimeout(r, ms));
 
 const DENIED = { allowed: false, tier: 'standard', isAdmin: false };
 const EXPERT = { allowed: true, tier: 'expert', isAdmin: false };
+const MANAGER = { allowed: true, tier: 'manager', isAdmin: false };
 
 // ────────────────────────────────────────────────────────────
 
 describe('순수 판정 — 워커 정본의 사본', () => {
-  test('expert · agent · 관리자만 참, standard · 모르는 값 · 없음은 거짓', () => {
+  test('manager · expert · agent · 관리자만 참, standard · 모르는 값 · 없음은 거짓', () => {
     expect(plannerAiPhotoTierAllowed({ tier: 'standard' })).toBe(false);
+    expect(plannerAiPhotoTierAllowed({ tier: 'manager' })).toBe(true);
     expect(plannerAiPhotoTierAllowed({ tier: 'expert' })).toBe(true);
     expect(plannerAiPhotoTierAllowed({ tier: 'agent' })).toBe(true);
     expect(plannerAiPhotoTierAllowed({ tier: null })).toBe(false);
@@ -102,11 +105,14 @@ describe('순수 판정 — 워커 정본의 사본', () => {
   });
 
   test('등급 순서 · 최소 등급 · 안내 문구가 워커 tier-gate.js 와 같다', () => {
-    expect(PLANNER_AI_PHOTO_TIER_RANK).toEqual({ standard: 0, expert: 1, agent: 2 });
-    expect(PLANNER_AI_PHOTO_MIN_TIER).toBe('expert');
-    expect(WORKER_GATE).toContain('{ standard: 0, expert: 1, agent: 2 }');
-    expect(WORKER_GATE).toContain("PLANNER_MIN_TIER = 'expert'");
+    expect(PLANNER_AI_PHOTO_TIER_RANK).toEqual({ standard: 0, manager: 1, expert: 2, agent: 3 });
+    expect(PLANNER_AI_PHOTO_MIN_TIER).toBe('manager');
+    expect(PLANNER_AI_PHOTO_TIER_TEXT).toBe('사진으로 만들기는 Manager 등급부터 쓸 수 있습니다');
+    expect(WORKER_GATE).toContain('{ standard: 0, manager: 1, expert: 2, agent: 3 }');
+    expect(WORKER_GATE).toContain("PLANNER_MIN_TIER = 'manager'");
     expect(WORKER_GATE).toContain(`'${PLANNER_AI_PHOTO_TIER_TEXT}'`);
+    // 상세설계 접근(js/detaildesign-access.js)의 등급 순서도 같은 사본
+    expect(DETAIL_ACCESS).toContain('const TIER_RANK = Object.freeze({ standard: 0, manager: 1, expert: 2, agent: 3 });');
   });
 
   test('403 planner_tier 는 서버 메시지를 그대로, 없으면 기본 안내', () => {
@@ -124,7 +130,7 @@ describe('화면', () => {
     expect(await p.AP.refreshAccess()).toBeNull();
     expect(body(p).querySelector('#aiPhotoDrop')).not.toBeNull();
     expect(body(p).querySelector('#aiPhotoTier')).toBeNull();
-    expect(text(p)).not.toContain('Expert 등급부터');
+    expect(text(p)).not.toContain('Manager 등급부터');
   });
 
   test('standard 면 안내 + 잠긴 버튼만 — 올릴 곳이 없고 크레딧 줄은 남는다', async () => {
@@ -152,8 +158,8 @@ describe('화면', () => {
     expect(body(p).querySelector('#aiPhotoGo').disabled).toBe(true);
   });
 
-  test('expert · 관리자는 평소 화면 — 요청이 mode:planner 로 나간다', async () => {
-    for (const access of [EXPERT, { allowed: true, tier: 'standard', isAdmin: true }]) {
+  test('manager · expert · 관리자는 평소 화면 — 요청이 mode:planner 로 나간다', async () => {
+    for (const access of [MANAGER, EXPERT, { allowed: true, tier: 'standard', isAdmin: true }]) {
       const p = boot();
       p.AP._o.access = async () => access;
       await p.AP.refreshAccess();
@@ -176,7 +182,7 @@ describe('화면', () => {
     p.AP._o.access = async () => null;
     await p.AP.refreshAccess();
     withPhoto(p);
-    p.AP._fetch = fakeFetch([{ status: 403, json: { success: false, code: 'planner_tier', error: '사진으로 만들기는 Expert 등급부터 쓸 수 있습니다 (서버)' } }]);
+    p.AP._fetch = fakeFetch([{ status: 403, json: { success: false, code: 'planner_tier', error: '사진으로 만들기는 Manager 등급부터 쓸 수 있습니다 (서버)' } }]);
     const r = await p.AP.submit();
     expect(r.ok).toBe(false);
     expect(p.AP._fetch.calls).toHaveLength(1);

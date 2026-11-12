@@ -1,0 +1,211 @@
+{
+  "title": "0052 시공사례 사진 새 경로 — 'p/<uuid>' 는 회원이 owner_id 본인으로 넣고 주인만 지운다, 'ai/<uuid>' 는 게시물 주인이 지운다 (트리거), 옛 '<본인 id>/' 정책 그대로, 탈퇴 정리 함수는 서버만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "gen_a",
+    "gen_b",
+    "gen_c",
+    "gen_d",
+    "post_ai",
+    "post_ai2",
+    "post_old",
+    "obj_p",
+    "obj_p2",
+    "obj_ai",
+    "obj_ai2",
+    "obj_new",
+    "obj_mv",
+    "obj_old"
+  ],
+  "users": [
+    "cust_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.generations (id, user_id, category, options) VALUES ({{gen_a}}, {{cust_user}}, 'sink', '{}'), ({{gen_b}}, {{cust_user}}, 'shoe', '{}'), ({{gen_c}}, {{other_user}}, 'sink', '{}'), ({{gen_d}}, {{cust_user}}, 'sink', '{}')",
+    "INSERT INTO storage.objects (bucket_id, name, owner_id) VALUES ('collection', 'p/' || {{obj_p}}::text || '.jpg', {{cust_user}}::text), ('collection', 'p/' || {{obj_p2}}::text || '.png', {{other_user}}::text), ('collection', 'ai/' || {{obj_ai}}::text || '.png', NULL), ('collection', 'ai/' || {{obj_ai2}}::text || '.png', {{other_user}}::text), ('collection', 'ai/' || {{obj_mv}}::text || '.png', NULL), ('collection', {{cust_user}}::text || '/probe-' || {{obj_old}}::text || '.jpg', {{cust_user}}::text)",
+    "INSERT INTO public.collection_posts (id, user_id, image_url, storage_path, category, source, generation_id) VALUES ({{post_ai}}, {{cust_user}}, 'https://probe.invalid/a.png', 'ai/' || {{obj_ai}}::text || '.png', 'kitchen', 'ai_render', {{gen_a}}), ({{post_ai2}}, {{cust_user}}, 'https://probe.invalid/b.png', 'ai/' || {{obj_ai2}}::text || '.png', 'builtin', 'ai_render', {{gen_b}}), ({{post_old}}, {{cust_user}}, 'https://probe.invalid/o.png', {{cust_user}}::text || '/gen-' || {{gen_d}}::text || '.png', 'kitchen', 'ai_render', {{gen_d}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "cust": {
+      "role": "authenticated",
+      "user": "cust_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "collection 버킷 storage 정책 (이름:명령:역할) — 옛 다섯 그대로 + 새 넣기 · 지우기",
+      "sql": "select string_agg(policyname || ':' || cmd || ':' || array_to_string(roles, ','), ' | ' order by policyname collate \"C\") from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'collection%'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "collection_delete_admin:DELETE:authenticated | collection_delete_own:DELETE:authenticated | collection_delete_owner:DELETE:authenticated | collection_insert_own:INSERT:authenticated | collection_insert_photo:INSERT:authenticated | collection_select_public:SELECT:public | collection_update_own:UPDATE:authenticated"
+      }
+    },
+    {
+      "name": "새 경로 넣기 'p/<uuid>.jpg' — 로그인한 회원이 owner_id 본인으로 (Storage 가 채우는 값), 로그인 전은 못 넣는다",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || gen_random_uuid()::text || '.jpg', auth.uid()::text)",
+      "expect": {
+        "anon": "deny",
+        "*": "ok"
+      }
+    },
+    {
+      "name": "새 경로 넣기 'p/<uuid>.png' — png 도",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || gen_random_uuid()::text || '.png', auth.uid()::text)",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "ok"
+      }
+    },
+    {
+      "name": "새 경로 넣기 — 남의 owner_id 로는 못 넣는다",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || gen_random_uuid()::text || '.jpg', {{other_user}}::text)",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "deny"
+      }
+    },
+    {
+      "name": "새 경로 넣기 — 'p/' 아래 폴더는 못 만든다 ('p/<id>/…')",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || auth.uid()::text || '/' || gen_random_uuid()::text || '.jpg', auth.uid()::text)",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "deny"
+      }
+    },
+    {
+      "name": "새 경로 넣기 — 이름은 소문자 uuid · jpg | png 만",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || upper(gen_random_uuid()::text) || '.jpg', auth.uid()::text)",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "deny"
+      }
+    },
+    {
+      "name": "새 경로 넣기 — 다른 확장자는 못 넣는다 (webp)",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || gen_random_uuid()::text || '.webp', auth.uid()::text)",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "deny"
+      }
+    },
+    {
+      "name": "'ai/' 에는 회원이 넣지 못한다 — 서버만",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'ai/' || gen_random_uuid()::text || '.png', auth.uid()::text)",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "옛 경로 넣기 '<본인 id>/…' 는 그대로 (지금 앱 segan/activity.js) — 남의 폴더는 못 넣는다",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', {{cust_user}}::text || '/' || gen_random_uuid()::text || '.jpg', auth.uid()::text)",
+      "roles": [
+        "anon",
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "cust": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "AI 연출컷 복사본의 주인 = 게시물 user_id (트리거) — 주인이 이미 있는 파일은 그대로",
+      "sql": "select (select (o.owner_id = {{cust_user}}::text)::text from storage.objects o where o.bucket_id = 'collection' and o.name = 'ai/' || {{obj_ai}}::text || '.png') || '/' || (select (o.owner_id = {{other_user}}::text)::text from storage.objects o where o.bucket_id = 'collection' and o.name = 'ai/' || {{obj_ai2}}::text || '.png')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/true"
+      }
+    },
+    {
+      "name": "자동 게시 (generate-api — service_role 이 'ai/' 에 올리고 게시물을 넣는다) → 그 파일의 주인이 게시물 주인",
+      "sql": "insert into storage.objects (bucket_id, name) values ('collection', 'ai/' || {{obj_new}}::text || '.png'); insert into public.collection_posts (user_id, image_url, storage_path, category, source, generation_id) values ({{other_user}}, 'https://probe.invalid/n.png', 'ai/' || {{obj_new}}::text || '.png', 'kitchen', 'ai_render', {{gen_c}}); select (o.owner_id = {{other_user}}::text)::text from storage.objects o where o.bucket_id = 'collection' and o.name = 'ai/' || {{obj_new}}::text || '.png'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "옛 게시물 옮기기 (storage_path 를 'ai/…' 로 바꾸면) → 그 파일의 주인이 게시물 주인",
+      "sql": "update public.collection_posts set storage_path = 'ai/' || {{obj_mv}}::text || '.png' where id = {{post_old}}; select (o.owner_id = {{cust_user}}::text)::text from storage.objects o where o.bucket_id = 'collection' and o.name = 'ai/' || {{obj_mv}}::text || '.png'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "지우기 'p/…' — 주인(owner_id)만",
+      "sql": "select set_config('storage.allow_delete_query', 'true', true); delete from storage.objects where bucket_id = 'collection' and name = 'p/' || {{obj_p}}::text || '.jpg'",
+      "roles": [
+        "cust",
+        "other",
+        "service_role"
+      ],
+      "expect": {
+        "cust": "rows:1",
+        "other": "rows:0",
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "내리기 (segan/make.js unpost — 게시물 행을 지운 뒤 'ai/…' 파일을 지운다) — 게시물 주인만",
+      "sql": "delete from public.collection_posts where id = {{post_ai}}; select set_config('storage.allow_delete_query', 'true', true); delete from storage.objects where bucket_id = 'collection' and name = 'ai/' || {{obj_ai}}::text || '.png'",
+      "roles": [
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "cust": "rows:1",
+        "other": "rows:0"
+      }
+    },
+    {
+      "name": "옛 경로 지우기 '<본인 id>/…' 는 그대로",
+      "sql": "select set_config('storage.allow_delete_query', 'true', true); delete from storage.objects where bucket_id = 'collection' and name = {{cust_user}}::text || '/probe-' || {{obj_old}}::text || '.jpg'",
+      "roles": [
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "cust": "rows:1",
+        "other": "rows:0"
+      }
+    },
+    {
+      "name": "탈퇴 정리 collection_owned_objects — 서버만, 회원이 주인인 'p/' · 'ai/' 파일만 (옛 경로 · 남의 파일 빼고)",
+      "sql": "select string_agg(case when f.path = 'p/' || {{obj_p}}::text || '.jpg' then 'p' when f.path = 'ai/' || {{obj_ai}}::text || '.png' then 'ai' else 'other' end, ',' order by f.path) from public.collection_owned_objects({{cust_user}}) f",
+      "expect": {
+        "service_role": "ai,p",
+        "*": "deny"
+      }
+    }
+  ]
+}

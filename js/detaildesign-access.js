@@ -28,8 +28,8 @@
     minTier: 'standard',          // D6 (2026-10-19 사장님: 모든 회원) — 이 등급 이상에게 연다. standard 는 무료 가입 등급
     approvedBypassesPlan: true,   // 본사 승인(파트너 등)은 플랜과 상관없이 연다
   });
-  // profiles_tier_check 의 등급 순서 (database/tier-agent.sql)
-  const TIER_RANK = Object.freeze({ standard: 0, expert: 1, agent: 2 });
+  // profiles_tier_check 의 등급 순서 (database/migrations/0047_tier_manager.sql — standard < manager < expert < agent)
+  const TIER_RANK = Object.freeze({ standard: 0, manager: 1, expert: 2, agent: 3 });
 
   // v2: 판정 기준이 '승인'에서 '플랜 + 승인'으로 바뀌어 옛 캐시를 버린다
   const STORAGE_KEY = 'dd_approval_cache_v2';

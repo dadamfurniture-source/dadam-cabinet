@@ -118,10 +118,17 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);   // 상부장이 없다
   });
 
-  test('몸통은 하부장과 같다 — 측판·지판·밴드·뒷판 (단별 H)', () => {
+  test('몸통은 하부장 짜임 — 측판·지판·뒷판 (단별 H), 맨 아래 단만 밴드 · 가운데 · 위 단은 천판 (2026-10-30 사장님)', () => {
     expect(one(rows, 'planner-tall-1-0', '측판')).toMatchObject({ w: 620, h: 979, qty: 2 });
     expect(one(rows, 'planner-tall-1-0', '지판')).toMatchObject({ w: 570, h: 620 });
-    expect(one(rows, 'planner-tall-1-0', '밴드')).toMatchObject({ w: 70, h: 570, qty: 2 });
+    // 「지금 짜임에서 밴드만 천판으로」 — 천판 = 지판과 같은 판, 밴드 없음
+    expect(one(rows, 'planner-tall-1-0', '천판')).toMatchObject({ w: 570, h: 620, qty: 1 });
+    expect(rowsOf(rows, 'planner-tall-1-0', '밴드')).toHaveLength(0);
+    expect(one(rows, 'planner-tall-2-0', '천판')).toMatchObject({ w: 570, h: 620, qty: 1 });
+    expect(rowsOf(rows, 'planner-tall-2-0', '밴드')).toHaveLength(0);
+    // "맨 아래 단만 하부장 처럼 밴드 구성 그대로" — 좌대 단은 밴드 2, 천판 없음
+    expect(one(rows, 'planner-tall-0-0', '밴드')).toMatchObject({ w: 70, h: 570, qty: 2 });
+    expect(rowsOf(rows, 'planner-tall-0-0', '천판')).toHaveLength(0);
     expect(one(rows, 'planner-tall-1-0', '뒷판')).toMatchObject({ thickness: 3, w: 599, h: 978 });   // 뒷판 우라 3T · 사쿠리 없음 → 측판 뒤 덮음 (W−1)×(H−1) (2026-10-19)
   });
 
@@ -178,8 +185,12 @@ describe('P1-2 상부장 없는 배치에는 상몰딩을 내지 않는다', () 
   test('하부 모듈이 하나도 없는 옛 저장 설계 — 상몰딩은 여전히 없고 걸레받이만 품목 폭 − 120 으로 떨어진다', () => {
     const rows = extract(sinkItem([]));
     expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);
-    // 2026-10-20 카드 「꺾임에서 나누기」: 4080 한 벽은 원판 2440 단위로 2440 + 1640
-    expect(rowsOf(rows, 'ep', '걸레받이').map((r) => [r.w, r.qty])).toEqual([[2440, 1], [4200 - 120 - 2440, 1]]);
+    // 2026-10-26 조각 (최대 2400 · 모듈 경계): 모듈이 없어 4080 한 단위 — 경계가 없으니 그 안에서 2400 마다 자르고 [확인 필요] (예전 2440 + 1640)
+    const { BOM_LINE_PIECE_CHECK_NOTE } = require('../js/detaildesign/extractors');
+    expect(rowsOf(rows, 'ep', '걸레받이').map((r) => [r.w, r.qty, r.note])).toEqual([
+      [2400, 1, `2400 넘으면 모듈 경계에서 나눔 (조각 800~2400) · ${BOM_LINE_PIECE_CHECK_NOTE}`],
+      [4200 - 120 - 2400, 1, `2400 넘으면 모듈 경계에서 나눔 (조각 800~2400) · ${BOM_LINE_PIECE_CHECK_NOTE}`],
+    ]);
   });
 });
 

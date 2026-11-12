@@ -16,6 +16,7 @@ import { ConflictError, NotFoundError, ValidationError, insertOne, selectMany, s
 import { isMissingRelation } from '../work-order-data.js';
 import { requireAdminEditor, requireAdminReader, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent, recordJobStatusChange } from './events.js';
+import { later, notifyWorkSchedule } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
 
@@ -353,17 +354,25 @@ export async function listJobsAdmin(env, { user, query = {} }) {
   }
 }
 
-/** POST /work/admin/jobs — 초안으로 만든다 (주소 · 연락처 칸은 받지 않는다) */
+/**
+ * POST /work/admin/jobs — 초안으로 만든다 (주소 · 연락처 칸은 받지 않는다).
+ * 주문에서 만드는 작업은 업체(company_id)를 그 주문 것으로 — 아니면 DB 기본값(본사)을 둔다.
+ */
 export async function createJobAdmin(env, { user, body }) {
   await requireAdminEditor(env, user);
   const fields = jobFields(body, { partial: false });
-  const job = await insertOne(env, 'work_jobs', { ...fields, status: 'draft', version: 0, created_by: user.id });
+  const row = { ...fields, status: 'draft', version: 0, created_by: user.id };
+  if (fields.order_id) {
+    const order = await selectOne(env, 'orders', { id: `eq.${fields.order_id}`, select: 'company_id' });
+    if (order) row.company_id = order.company_id;
+  }
+  const job = await insertOne(env, 'work_jobs', row);
   await recordEvent(env, { jobId: job.id, actorUserId: user.id, actorKind: 'admin', type: 'job_created', to: 'draft' });
   return job;
 }
 
 /** PATCH /work/admin/jobs/:id — draft · open 만, version 필수 */
-export async function patchJobAdmin(env, { user, params, body }) {
+export async function patchJobAdmin(env, { user, params, body, ctx }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업 id');
   const b = body || {};
@@ -381,6 +390,8 @@ export async function patchJobAdmin(env, { user, params, body }) {
   }
   const locked = await lockJob(env, { ...job, version: b.version }, { ...patch, status });
   await recordEvent(env, { jobId: id, actorUserId: user.id, actorKind: 'admin', type: 'job_updated', from: job.status, to: locked.status, payload: { fields: Object.keys(patch) } });
+  // 시작 · 끝 시각이 바뀌면 그 작업의 작업자에게 앱 알림 — 응답 뒤에
+  await later(ctx, notifyWorkSchedule(env, { before: job, after: locked }));
   return locked;
 }
 

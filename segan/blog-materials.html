@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 매거진 글 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다 -->
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>보드부터 엣지까지, 가구 자재 읽는 법 · 매거진 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111214" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111214" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111214" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111214" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026111214" />
+    <link rel="stylesheet" href="info.css?v=2026111214" />
+    <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
+         열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
+    <script src="../js/config.js?v=2026111214"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
+    <script src="shell.js?v=2026111214" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026111214" defer></script>
+  </head>
+  <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
+  <body class="sg-app" data-tab="blog">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main ma" id="main">
+      <a class="ma-back" href="blog.html">‹ 매거진</a>
+
+      <article class="ma-article" data-slug="materials" data-category="자재">
+        <header class="ma-head">
+          <p class="ma-cat">자재</p>
+          <h1 class="sg-h1 ma-title">보드부터 엣지까지, 가구 자재 읽는 법</h1>
+          <p class="ma-dek">몸통 보드, 친환경 등급, 표면재, 엣지. 네 가지만 알면 견적서의 자재 칸이 읽힙니다.</p>
+          <p class="ma-meta">읽는 시간 약 5분</p>
+        </header>
+
+        <p>
+          맞춤 가구 견적서에는 PB, MDF, E0, PET 같은 말이 짧게 적혀 있습니다. 모두 가구 속에 든 자재를 가리키는
+          말입니다. 이 글은 그 말을 차례로 풀고, 제작 업체에 무엇을 물어보면 좋은지 정리합니다.
+        </p>
+
+        <section>
+          <h2>보드 세 가지: PB · MDF · 합판</h2>
+          <p>
+            가구 판재는 나무를 잘게 나눈 뒤 접착제로 다시 붙여 만듭니다. 입자로 부수면 PB, 섬유로 풀면 MDF, 얇게 켜서
+            겹치면 합판이 됩니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="가구에 많이 쓰는 보드" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>
+                가구에 많이 쓰는 보드
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">보드</th>
+                  <th scope="col">만드는 방법</th>
+                  <th scope="col">특징</th>
+                  <th scope="col">흔한 쓰임</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">PB<br />파티클보드</th>
+                  <td>나무 입자(칩)를 접착제와 함께 눌러 굳힙니다.</td>
+                  <td>겉에 표면재를 입혀 씁니다. 습기에 덜 부풀게 만든 내수(MR) 제품이 따로 있습니다.</td>
+                  <td>몸통(측판 · 천판 · 지판)</td>
+                </tr>
+                <tr>
+                  <th scope="row">MDF<br />중밀도 섬유판</th>
+                  <td>나무를 섬유로 풀어 접착제와 고르게 섞은 뒤 압착합니다.</td>
+                  <td>속이 고르고 표면이 매끈합니다.</td>
+                  <td>PET · 도장 도어의 바탕, 뒷판</td>
+                </tr>
+                <tr>
+                  <th scope="row">합판</th>
+                  <td>얇은 단판을 결이 엇갈리게 세 겹 이상 붙입니다.</td>
+                  <td>자르는 방향에 따라 강도가 다릅니다.</td>
+                  <td>업체 사양에 따라 다릅니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            두께는 T로 적습니다. 15T는 두께 15mm라는 뜻입니다. 몸통 판은 보통 15T를 씁니다. 더 두꺼운 판을 쓰는 업체도
+            있으니, 견적서에 몸통 · 도어 · 뒷판의 보드와 두께가 따로 적혀 있는지 봅니다.
+          </p>
+          <p>
+            개수대 아래처럼 물을 쓰는 자리에는 내수(MR, Moisture Resistance) 보드를 쓰는지 물어볼 만합니다. MR 보드는
+            물을 먹어도 덜 부풀도록 만든 보드입니다. 얼마나 덜 부푸는지는 시험성적서의 흡수 두께 팽창률로 비교합니다.
+            숫자가 낮을수록 덜 부풉니다.
+          </p>
+          <p>
+            자르기 전의 큰 판을 원판이라 합니다. 원판은 보통 1220 × 2440이고, 흔히 4 × 8이라 부릅니다. 더 긴 1220 ×
+            2745(4 × 9) 원판도 있습니다. 키 큰 도어처럼 긴 부재가 필요하면 원판 한 장으로 되는지 확인합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>친환경 등급: SE0 · E0 · E1</h2>
+          <p>
+            보드를 붙이는 접착제에서는 포름알데히드가 나올 수 있습니다. 그래서 판재는 포름알데히드 방출량에 따라 등급을
+            나눕니다. 시험은 판의 겉면과 잘린 면을 함께 드러낸 시험편을 밀폐 용기(데시케이터)에 24시간 두고 잽니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="포름알데히드 방출 등급" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>
+                포름알데히드 방출 등급
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">등급</th>
+                  <th scope="col">평균 방출량</th>
+                  <th scope="col">최대 방출량</th>
+                  <th scope="col">읽는 법</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">SE0</th>
+                  <td>0.3 mg/L 이하</td>
+                  <td>0.4 mg/L 이하</td>
+                  <td>세 등급 가운데 방출량이 가장 적습니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">E0</th>
+                  <td>0.5 mg/L 이하</td>
+                  <td>0.7 mg/L 이하</td>
+                  <td>SE0 다음으로 적습니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">E1</th>
+                  <td>1.5 mg/L 이하</td>
+                  <td>2.1 mg/L 이하</td>
+                  <td>세 등급 가운데 방출량이 가장 많습니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ma-note">
+            <small>KS(한국산업표준) 목질 판재 기준, 데시케이터법 값입니다. 기준은 개정될 수 있습니다.</small>
+          </p>
+          <p>SE0의 끝 글자는 숫자 0입니다. Super E0를 줄인 말입니다.</p>
+          <p>
+            등급은 서류로 확인합니다. 시험성적서에 보드 제품명, 등급, 시험 날짜가 있는지 봅니다. 몸통과 도어가 서로 다른
+            보드라면 등급도 따로 확인합니다. 기준은 바뀔 수 있으니 성적서가 어느 기준으로 시험했는지도 함께 봅니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>표면재 네 가지: LPM · PET · 하이그로시 · 도장</h2>
+          <p>보드는 겉에 표면재를 입혀 씁니다. 표면재가 색과 무늬, 손에 닿는 느낌을 정합니다.</p>
+          <div class="ma-table" role="region" aria-label="표면재 비교" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>
+                표면재 비교
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">표면재</th>
+                  <th scope="col">만드는 방법</th>
+                  <th scope="col">겉모습</th>
+                  <th scope="col">흔히 쓰는 곳</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">LPM</th>
+                  <td>무늬를 인쇄한 종이(무늬지)를 보드 위에 열과 압력으로 붙입니다.</td>
+                  <td>나뭇결 · 단색 같은 인쇄 무늬</td>
+                  <td>몸통 · 붙박이장 판재</td>
+                </tr>
+                <tr>
+                  <th scope="row">PET</th>
+                  <td>PET 시트를 MDF 위에 붙입니다.</td>
+                  <td>유광 · 무광(슈퍼매트) 등</td>
+                  <td>주방가구 · 붙박이장 도어</td>
+                </tr>
+                <tr>
+                  <th scope="row">하이그로시</th>
+                  <td>고광택 PET 시트를 붙이거나 UV 코팅으로 광을 냅니다.</td>
+                  <td>거울처럼 비치는 광택</td>
+                  <td>도어</td>
+                </tr>
+                <tr>
+                  <th scope="row">도장</th>
+                  <td>도료를 칠해 굳힙니다. 맞춤 조색, UV 도장, 분체도장 등이 있습니다.</td>
+                  <td>색을 고르는 폭이 넓습니다.</td>
+                  <td>도어</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ma-note"><small>국내 보드 · 도어 회사의 공식 제품 설명을 묶어 정리했습니다.</small></p>
+          <p>
+            표면재에는 기능이 붙은 제품도 있습니다. 내오염, 내지문, 내스크래치, 항균 같은 이름입니다. 같은 PET라도
+            제품군마다 붙는 기능이 다릅니다. 견적서에 적힌 제품명으로 사양서를 찾아 기능을 확인합니다.
+          </p>
+          <p>
+            국내에서는 예림, 한솔홈데코, 유니드비티플러스, 크라텍 같은 회사가 보드나 표면재 제품을 냅니다. 회사마다
+            제품군 이름이 다릅니다. 이름이 낯설면 제작 업체에 보드 · 표면재 · 등급을 풀어서 적어 달라고 합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>엣지: 잘린 옆면을 감싸는 띠</h2>
+          <p>
+            보드를 자르면 옆면에 속이 드러납니다. 엣지는 이 옆면을 감싸는 띠입니다. 재질은 PP, PMMA(아크릴 계열), ABS,
+            PET, PVC 등이 쓰입니다. 붙이는 방식은 크게 둘입니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="엣지 붙이는 방식" tabindex="0">
+            <table>
+              <caption>
+                엣지 붙이는 방식
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">방식</th>
+                  <th scope="col">붙이는 법</th>
+                  <th scope="col">이음선</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">일반 엣지</th>
+                  <td>접착제를 발라 붙입니다.</td>
+                  <td>접착층 선이 보일 수 있습니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">레이저(제로 조인트) 엣지</th>
+                  <td>엣지 뒤쪽 기능층을 레이저나 뜨거운 바람으로 녹여 붙입니다. 따로 접착층이 없습니다.</td>
+                  <td>거의 드러나지 않습니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            엣지 회사로는 독일 REHAU 등이 있습니다. 엣지는 보드와 색 · 무늬를 맞춘 제품으로 나옵니다. 저방출 인증(예: UL
+            GREENGUARD)을 받은 엣지 제품도 있습니다.
+          </p>
+          <p>
+            가구 끝을 쫄로 마감하면 앞에서 판의 엣지가 그대로 보입니다. 이런 자리는 엣지 상태가 겉모습을 정합니다.
+            이음선이 보이는지, 모서리가 들뜨지 않았는지 샘플이나 시공 사례로 확인합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>견적서 자재 칸 읽는 법</h2>
+          <p>자재 칸에 「몸통 PB 15T LPM E0」라고 적혀 있다면 이렇게 읽습니다.</p>
+          <div class="ma-table" role="region" aria-label="자재 칸 한 줄 풀어 읽기" tabindex="0">
+            <table>
+              <caption>
+                자재 칸 한 줄 풀어 읽기
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">적힌 말</th>
+                  <th scope="col">뜻</th>
+                  <th scope="col">함께 볼 것</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">몸통</th>
+                  <td>측판 · 천판 · 지판처럼 장의 뼈대가 되는 판</td>
+                  <td>도어 · 뒷판과 따로 적혀 있는지</td>
+                </tr>
+                <tr>
+                  <th scope="row">PB</th>
+                  <td>보드 종류(파티클보드)</td>
+                  <td>물 쓰는 자리는 내수(MR)인지</td>
+                </tr>
+                <tr>
+                  <th scope="row">15T</th>
+                  <td>두께 15mm</td>
+                  <td>부위마다 두께</td>
+                </tr>
+                <tr>
+                  <th scope="row">LPM</th>
+                  <td>표면재(무늬지 압착)</td>
+                  <td>색 · 무늬 이름</td>
+                </tr>
+                <tr>
+                  <th scope="row">E0</th>
+                  <td>포름알데히드 방출 등급</td>
+                  <td>시험성적서</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>자주 놓치는 것은 이렇습니다.</p>
+          <ul>
+            <li>도어 등급만 확인하고 몸통 등급은 묻지 않습니다.</li>
+            <li>보드 이름 없이 「친환경 자재」라고만 적힌 견적서를 그대로 받습니다.</li>
+            <li>두께가 빠진 견적서를 그대로 받습니다.</li>
+            <li>색만 보고 엣지 재질과 붙이는 방식은 묻지 않습니다.</li>
+          </ul>
+        </section>
+
+        <section class="ma-final" aria-labelledby="maCheckTitle">
+          <h2 id="maCheckTitle">고객이 확인할 것</h2>
+          <ul class="ma-check">
+            <li>몸통 · 도어 · 뒷판이 각각 어떤 보드이고 두께가 몇 T인지</li>
+            <li>등급(SE0 · E0 · E1)이 부위마다 적혀 있고 시험성적서가 있는지</li>
+            <li>성적서의 시험 기준과 시험 날짜</li>
+            <li>개수대 아래처럼 물 쓰는 곳에 내수(MR) 보드를 쓰는지</li>
+            <li>도어 표면재 종류와 붙는 기능(내오염 · 내지문 · 항균 등)</li>
+            <li>엣지 재질과 붙이는 방식, 도어 색과 맞는지</li>
+            <li>키 큰 도어처럼 긴 부재가 원판 길이 안에 드는지</li>
+          </ul>
+        </section>
+      </article>
+
+      <nav class="ma-more" aria-labelledby="maMoreTitle">
+        <h2 class="in-h2" id="maMoreTitle">다른 글</h2>
+        <ul class="bl-posts">
+          <li>
+            <a class="bl-post" href="blog-edge-finish.html">
+              <small class="bl-post-cat">설치</small>
+              <b class="bl-post-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
+              <small class="bl-post-time">읽는 시간 약 4분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-hardware.html">
+              <small class="bl-post-cat">하드웨어</small>
+              <b class="bl-post-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-kitchen-appliances.html">
+              <small class="bl-post-cat">주방기기</small>
+              <b class="bl-post-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

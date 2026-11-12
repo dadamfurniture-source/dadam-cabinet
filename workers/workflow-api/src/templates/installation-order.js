@@ -14,6 +14,12 @@
 
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
+import { modulePosLabel } from './elevation.js';
+import { elevationBlock, renderBoxes, specialNotesBox, drawingTitle } from './work-order.js';
+import { specialNotesOfDoc } from '../work/special-notes.js';
+import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
+import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
+import { SITE_NOTE } from '../work/reveal.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -29,7 +35,6 @@ const CATEGORY_NAMES = {
   custom: '비규격장',
 };
 
-const MODULE_POS = { upper: '상부', lower: '하부' };
 
 const SCHEDULE_TYPES = {
   measurement: '실측',
@@ -63,8 +68,11 @@ function elevatorText(site) {
   return '<span class="missing">미확인</span>';
 }
 
-/** 표지 — 현장 정보가 본문이다. */
-function coverSheet(doc, snapshot, site) {
+/**
+ * 표지 — 현장 정보가 본문이다.
+ * worker (작업자 포털 — work/checks.js): 고객 칸은 가린 주문 이름, 주소 · 연락처는 열리지 않는다 (reveal.js — 공개 기간 ★7 미정).
+ */
+function coverSheet(doc, snapshot, site, worker) {
   const design = snapshot.design_payload || {};
   const items = Array.isArray(design.items) ? design.items : [];
   const s = site || {};
@@ -87,17 +95,19 @@ function coverSheet(doc, snapshot, site) {
   <table class="meta">
     <tbody>
       ${tr(['문서번호', esc(doc.doc_no), '발행일', ymd(doc.created_at)])}
-      ${tr(['고객', esc(doc.customer_name || doc.customer_name_masked || '-'), '설계 Rev', `r${snapshot.rev}`])}
+      ${tr(['고객', esc(worker ? worker.orderLabel : doc.customer_name || doc.customer_name_masked || '-'), '설계 Rev', `r${snapshot.rev}`])}
       ${tr(['품목 수', `${items.length}개`, '설계 해시', esc(String(snapshot.content_hash || '').slice(0, 12))])}
     </tbody>
   </table>
 
+  ${specialNotesBox(specialNotesOfDoc(doc), ['install'])}
+
   <h2>현장 정보</h2>
   <table class="meta">
     <tbody>
-      ${tr(['주소', orMissing([s.address, s.address_detail].filter(Boolean).join(' '), '주소'), '층', orMissing(s.floor, '층')])}
+      ${tr(['주소', worker ? esc(SITE_NOTE) : orMissing([s.address, s.address_detail].filter(Boolean).join(' '), '주소'), '층', orMissing(s.floor, '층')])}
       ${tr(['엘리베이터', elevatorText(s), '비고', esc(s.elevator_note || '-')])}
-      ${tr(['연락처', orMissing(s.contact_name ? `${s.contact_name} ${s.contact_phone || ''}`.trim() : '', '연락처'), '', ''])}
+      ${tr(['연락처', worker ? esc(SITE_NOTE) : orMissing(s.contact_name ? `${s.contact_name} ${s.contact_phone || ''}`.trim() : '', '연락처'), '', ''])}
     </tbody>
   </table>
 
@@ -115,12 +125,20 @@ function coverSheet(doc, snapshot, site) {
     <tbody>${summaryRows || tr(['-', '-', '-', '-'])}</tbody>
   </table>
 
-  <table class="sign">
+  ${installChecks(doc, snapshot)}<table class="sign">
     <tbody>
-      ${tr(['설치 담당', '', '검수', '', '고객 확인', ''])}
+      ${tr(itemsFor(checkListOfDoc(doc), 'install', 'order').filter((x) => x.paper === 'sign').flatMap((x) => [esc(x.label), '']))}
     </tbody>
   </table>
 </div>`;
+}
+
+/** 설치 확인 칸 — 정본 목록의 서명 아닌 항목 (v1). 조건(콘센트)은 동결본으로 거른다. v0 은 없다 */
+function installChecks(doc, snapshot) {
+  // 특별 지시 항목(note)은 표지 위 빨간 상자에 있다
+  const list = itemsFor(checkListOfDoc(doc), 'install', 'order').filter((x) => !x.note && x.paper !== 'sign' && itemApplies(x, null, snapshot));
+  if (!list.length) return '';
+  return `<h2>설치 확인</h2><div class="freetext">${list.map((x) => `${esc(x.label)}${x.must ? '' : ' <span class="muted">(권장)</span>'}${x.photo === 'need' ? ' <span class="muted">· 사진</span>' : ''} ☐`).join(' &nbsp; ')}</div>`;
 }
 
 /** 설치할 모듈 목록 — 자재가 아니라 "다는 것" 기준. */
@@ -131,7 +149,7 @@ function moduleSheet(snapshot) {
 
   items.forEach((item, i) => {
     const label = itemLabel(item, i);
-    (Array.isArray(item.modules) ? item.modules : []).forEach((m) => {
+    (Array.isArray(item.modules) ? item.modules : []).forEach((m, mi) => {
       const notes = [];
       if (m.isDrawer) notes.push(`서랍 ${num(m.drawerCount) || 1}단`);
       if (m.isEL) notes.push('EL');
@@ -141,7 +159,8 @@ function moduleSheet(snapshot) {
       rows.push(
         tr([
           esc(label),
-          esc(MODULE_POS[m.pos] || m.pos || '-'),
+          num(mi + 1),
+          esc(modulePosLabel(m)),
           esc(m.name || '-'),
           `${num(m.w)} × ${num(m.h)} × ${num(m.d)}`,
           `${num(m.doorCount) || 0}`,
@@ -156,14 +175,43 @@ function moduleSheet(snapshot) {
   <h2>설치 모듈 명세</h2>
   <p class="hint">H 는 몸통(카카스) 치수입니다. 전체 높이는 비고를 참고하세요.</p>
   <table>
-    ${thead(['품목', '위치', '모듈', 'W × H × D (mm)', '도어', '비고'])}
-    <tbody>${rows.join('') || tr(['-', '-', '-', '-', '-', '-'])}</tbody>
+    ${thead(['품목', '번호', '위치', '모듈', 'W × H × D (mm)', '도어', '비고'])}
+    <tbody>${rows.join('') || tr(['-', '-', '-', '-', '-', '-', '-'])}</tbody>
   </table>
 </div>`;
 }
 
-/** 일정 — 설치 팀이 알아야 할 앞뒤 공정. */
-function scheduleSheet(schedules) {
+/** 줄 부재 행 — 품목 단위 (엔진 moduleKey `…-ep`, 간편 플래너 「줄 부재」) */
+const isLineRow = (m) => (m.moduleKey && /-ep$/.test(String(m.moduleKey))) || String(m.module || '') === '줄 부재';
+
+/**
+ * 정면도 · 정면 렌더 · 줄 부재 (2026-11-05 사장님 E 「설치 지시서에 정면도 · 모듈 목록 · 상판 · 줄 부재」 · 메모 「작업 지시서 내에서는 무조건 그림」).
+ *   정면도 번호 = 설치 모듈 명세 번호. 렌더는 발행 때 고정한 것 (없으면 칸을 그리지 않는다).
+ */
+function drawingSheet(doc, snapshot, renderUrls) {
+  const design = snapshot.design_payload || {};
+  const items = Array.isArray(design.items) ? design.items : [];
+  if (!items.length) return '';
+  const rp = doc.render_payload || {};
+  const renders = Array.isArray(rp.renders) && rp.renders.length ? rp.renders : null;
+  const isoRenders = Array.isArray(rp.iso_renders) ? rp.iso_renders : null;
+  const ctx = { items, renders, isoRenders, renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})) };
+  const lines = materialsOf(snapshot).filter(isLineRow);
+  const lineRows = lines
+    .map((m) => tr([esc(m.part || ''), `${esc(m.material || '')} ${num(m.thickness)}T`, `${num(m.w)} × ${num(m.h)}`, num(m.qty), isOutsourcedTopRow(m) ? '상판 업체 시공' : esc(m.note || '')], ['', '', 'num', 'num', '']))
+    .join('');
+  return `
+<div class="sheet">
+  <h2>${drawingTitle(ctx)}</h2>
+  <p class="hint">번호 = 설치 모듈 명세 번호. 치수 mm.</p>
+  ${elevationBlock(ctx)}
+  ${renders ? `<h2>정면 렌더</h2>${renderBoxes(ctx)}` : ''}
+  ${lineRows ? `<h2>줄 부재 <span class="hint">현장에서 붙이는 것</span></h2><table>${thead(['부품', '자재', '가로 × 세로', '수량', '비고'])}<tbody>${lineRows}</tbody></table>` : ''}
+</div>`;
+}
+
+/** 일정 — 설치 팀이 알아야 할 앞뒤 공정. 작업자 보기는 장소를 열지 않는다 (주소일 수 있다). */
+function scheduleSheet(schedules, worker) {
   const list = Array.isArray(schedules) ? schedules : [];
   if (list.length === 0) return '';
 
@@ -172,8 +220,8 @@ function scheduleSheet(schedules) {
       tr([
         esc(SCHEDULE_TYPES[s.type] || s.type || '-'),
         ymdhm(s.scheduled_at),
-        esc(s.assignee_name || '-'),
-        esc(s.location || '-'),
+        worker ? '-' : esc(s.assignee_name || '-'),
+        worker ? '-' : esc(s.location || '-'),
         esc(s.status || '-'),
       ])
     )
@@ -189,12 +237,14 @@ function scheduleSheet(schedules) {
 </div>`;
 }
 
-export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = null, schedules = null } = {}) {
+export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null, renderUrls = new Map() } = {}) {
+  const w = worker && worker.orderLabel ? worker : null;
   const body = [
     toolbar ? PRINT_TOOLBAR : '',
-    coverSheet(doc, snapshot, site || (doc.render_payload || {}).site_info),
+    coverSheet(doc, snapshot, site || (doc.render_payload || {}).site_info, w),
+    drawingSheet(doc, snapshot, renderUrls),
     moduleSheet(snapshot),
-    scheduleSheet(schedules || (doc.render_payload || {}).schedules),
+    scheduleSheet(schedules || (doc.render_payload || {}).schedules, w),
   ]
     .filter(Boolean)
     .join('\n');

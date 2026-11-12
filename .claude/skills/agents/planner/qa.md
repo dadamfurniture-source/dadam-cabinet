@@ -4,10 +4,12 @@
 Planner 도메인의 코드 정확성, 빌드 안정성, 테스트 통과를 검증합니다.
 
 ## Validation Scope
-- lib/planner.ts
+- mockup-shell.html
+- mockup-structure.html
+- js/planner/*
 
 ## Validation Steps
-- TypeScript 타입 체크: npx tsc --noEmit
+- 플래너 시험: npx jest planner
 
 ## Workflow
 1. 검증 실행 (참조: _shared/qa-protocol.md)

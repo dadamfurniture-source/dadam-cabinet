@@ -8,20 +8,24 @@
  *   DELETE /api/generate/:id/share    공유 회수                    (JWT, 본인)
  *   POST   /api/generate/:id/layout   구성 분석 → 플래너용 layout  (JWT, 본인, 완료된 결과만)
  *   GET    /api/share                 공유 열람                    (X-Share-Token)
+ *   GET    /api/share/image/:n        공유 열람의 그림 n 번째      (X-Share-Token)
  *   POST   /api/admin/appliance-image 가전 모델 제품 사진 가져오기 (JWT, admin · super_admin)
- *   GET    /health · /diag            진단
+ *   GET    /health                    진단 (모델·콜로)
  *
  * 생성 자체는 job.js 의 GenerateJob(Durable Object, 미국 콜로) 이 alarm 으로 실행한다.
  * 이 파일은 인증·크레딧·입력 업로드·행 생성·조회만 한다.
  * 진행 상태의 정본은 generations 행이다 (폴링은 행만 읽는다).
+ * CORS 허용 목록·요청 한도·본문 크기는 guard.js (2026-10-26).
  */
 
-import { callGemini, geminiModel, probeRoutes, textModel } from './gemini.js';
-import { proxyStub } from './proxy.js';
+import { callGemini, geminiModel, textModel } from './gemini.js';
 import { imageProvider, plannerDefaultProvider, resolvePlannerProvider } from './images.js';
 import { openaiImageModel } from './openai.js';
+import { assertContentLength, corsHeaders, enforceRateLimit, readBodyText } from './guard.js';
 import {
   DEFAULT_STYLE,
+  DOOR_COLORS,
+  DOOR_FINISHES,
   KITCHEN_CATEGORIES,
   STYLES,
   buildChatPrompt,
@@ -30,11 +34,12 @@ import {
   cleanThemeNote,
   normalizeChat,
   normalizeDesignSpec,
+  normalizePlannerReform,
   resolveCategory,
   resolvePlannerAspect,
 } from './prompts.js';
 import { verifyJwt, AuthError } from './auth.js';
-import { consumeCredit, refundCredit, InsufficientCredit } from './credits.js';
+import { consumeCredit, refundCredit, InsufficientCredit, CompanyInactive } from './credits.js';
 import {
   selectOne,
   insertOne,
@@ -43,7 +48,9 @@ import {
   uploadObject,
   removeObjects,
   fetchObjectBase64,
+  openObject,
   extOf,
+  bucketName,
   NotFoundError,
   ForbiddenError,
   ConflictError,
@@ -62,6 +69,8 @@ import {
   checkShareAccessible,
   isInternalOnly,
 } from './share.js';
+import { OWNER_SIGNED_TTL_SEC, signImageUrls, toStorageRef } from './storage-urls.js';
+import { removeCollectionPostsFor } from './collection-post.js';
 
 // Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
 export { GeminiProxy } from './proxy.js';
@@ -75,16 +84,16 @@ const PUBLIC_COLUMNS =
   'id,parent_id,status,progress,step_label,error,category,title,options,wall_analysis,quote,images,layout,model,elapsed_ms,credit_cost,is_favorite,share_expires_at,share_revoked_at,created_at,completed_at';
 /** Anthropic 이미지 한도 5MB — base64 로는 4/3 배. 넘으면 분석하지 않는다. */
 const MAX_IMAGE_B64 = Math.floor((5 * 1024 * 1024 * 4) / 3);
-
-function corsHeaders(origin) {
-  return {
-    'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Share-Token',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  };
-}
+/**
+ * 요청 본문 상한 (2026-10-26). 가장 큰 정상 요청은 플래너 모드 — 방 사진(긴 변 1600 JPEG) + 도면 렌더 최대 7장
+ * (긴 변 1536 PNG) 이 base64 로 실린다. 일반 연출컷은 방 사진 + 참고 이미지 5장. 둘 다 이보다 한참 작다.
+ */
+const MAX_BODY_BYTES = 32 * 1024 * 1024;
+/**
+ * 받는 이미지 형식 — 버킷 확장자(supabase.js extOf)·가전 사진(appliance-image.js)과 같은 셋.
+ * 화면(ai-design.html · js/planner/ai-photo.js)은 image/jpeg · image/png 만 보낸다. 버킷에 그대로 Content-Type 으로 올라간다.
+ */
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 function json(body, status, headers) {
   return new Response(JSON.stringify(body), {
@@ -100,7 +109,25 @@ const CODE_BY_STATUS = {
   404: 'not_found',
   409: 'already_running',
   410: 'gone',
+  413: 'body_too_large',
+  429: 'rate_limited',
 };
+
+function badRequest(message, code) {
+  const e = new ValidationError(message);
+  e.code = code;
+  return e;
+}
+
+/** 본문 JSON — maxBytes 를 넘으면 413, JSON 이 아니면 400. */
+async function readJsonBody(request, maxBytes) {
+  const raw = await readBodyText(request, maxBytes);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw badRequest('body must be JSON', 'bad_json');
+  }
+}
 
 function errorResponse(e, headers) {
   const status = e.statusCode || (e instanceof AuthError ? 401 : 500);
@@ -113,16 +140,22 @@ function errorResponse(e, headers) {
 /**
  * 참고 이미지: {base64, mimeType, role?, note?} 객체 배열. 문자열만 온 예전 형식도 JPEG 로 받아 준다.
  * note 는 테마 사진의 설명(관리자가 적은 것) — 테마일 때만 받아 색감 추출에 힌트로 쓴다.
+ * 형식이 IMAGE_TYPES 밖이면 그 한 장만 버린다 (업로드 실패한 참고 이미지처럼 — 생성은 간다).
  */
 function normalizeRefs(list) {
   if (!Array.isArray(list)) return [];
   return list
     .map((r) => {
       if (typeof r === 'string') return { base64: r, mimeType: 'image/jpeg' };
-      if (!r || !r.base64) return null;
+      if (!r || typeof r.base64 !== 'string' || !r.base64) return null;
+      const mimeType = r.mimeType || r.mime || 'image/jpeg';
+      if (!IMAGE_TYPES.includes(mimeType)) {
+        console.warn('[Generate] ref skipped: image type not allowed');
+        return null;
+      }
       // theme = 색감만 빌린다 (추천안 한 장), 그 외(upload·case) = 설치 참고
       const role = r.role === 'theme' ? 'theme' : 'style';
-      const out = { base64: r.base64, mimeType: r.mimeType || r.mime || 'image/jpeg', role };
+      const out = { base64: r.base64, mimeType, role };
       const note = role === 'theme' ? cleanThemeNote(r.note) : null;
       if (note) out.note = note;
       return out;
@@ -139,9 +172,12 @@ function normalizeRefs(list) {
  */
 //   2026-10-19: ㄱ자·ㄷ자 꺾인 벽의 정면 입면 elevation_left · elevation_right (+ _labeled) — 선택, 최대 7장.
 //   design_spec.walls[] 에 그 벽이 있을 때만 프롬프트가 쓴다. 번호 붙은 것은 GPT 에만 (주벽 입면과 같은 규칙).
+//   2026-10-27: composite — 간편 플래너 「Blender 시안」(방 사진 그대로에 설계 3D 를 그 사진 카메라로 렌더해 얹은 사진, 사장님 "진행").
+//   선택. 있으면 잡이 IMAGE A 로 쓰고 도면 덩어리(1-d)를 칠하지 않는다 (job.js). JPEG 도 받는다.
 const RENDER_ROLES = [
   'elevation', 'elevation_labeled', 'massing',
   'elevation_left', 'elevation_left_labeled', 'elevation_right', 'elevation_right_labeled',
+  'composite',
 ];
 function normalizeRenders(list) {
   if (!Array.isArray(list)) return [];
@@ -149,7 +185,9 @@ function normalizeRenders(list) {
   for (const r of list) {
     if (!r || typeof r !== 'object' || !RENDER_ROLES.includes(r.role)) continue;
     if (typeof r.base64 !== 'string' || !r.base64 || byRole[r.role]) continue;
-    byRole[r.role] = { role: r.role, base64: r.base64, mimeType: r.mimeType || r.mime || 'image/png' };
+    const mimeType = r.mimeType || r.mime || 'image/png';
+    if (!IMAGE_TYPES.includes(mimeType)) continue; // 형식이 틀린 렌더는 없는 것으로 (입면이면 missing_render)
+    byRole[r.role] = { role: r.role, base64: r.base64, mimeType };
   }
   return RENDER_ROLES.filter((k) => byRole[k]).map((k) => byRole[k]);
 }
@@ -206,10 +244,13 @@ function publicView(row) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const headers = corsHeaders(request.headers.get('Origin') || '*');
+    const headers = corsHeaders(request.headers.get('Origin'), env);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     try {
+      // 본문 크기 — 어느 라우트든 인증·파싱보다 먼저 (선언된 길이만. 읽으면서 세는 건 라우트가 한다)
+      assertContentLength(request, MAX_BODY_BYTES);
+
       if (url.pathname === '/health' || url.pathname === '/') {
         return json(
           {
@@ -231,7 +272,6 @@ export default {
           headers
         );
       }
-      if (url.pathname === '/diag') return json(await diag(request, env), 200, headers);
 
       if (url.pathname === '/api/chat' && request.method === 'POST') {
         return json(await chat(request, env), 200, headers);
@@ -239,6 +279,10 @@ export default {
 
       if (url.pathname === '/api/share' && request.method === 'GET') {
         return json(await getShared(request, env), 200, headers);
+      }
+      const shareImage = url.pathname.match(/^\/api\/share\/image\/(\d{1,3})$/);
+      if (shareImage && request.method === 'GET') {
+        return await getSharedImage(request, env, Number(shareImage[1]), headers);
       }
 
       // 2026-10-20: 가전 모델 제품 사진 — 관리자가 제조사 사진을 우리 버킷으로 가져온다 (appliance-image.js)
@@ -275,13 +319,16 @@ export default {
 /**
  * POST /api/chat — 연출컷 ③ 상세 요청의 다음 한 마디 (2026-10-08).
  * 로그인한 손님만 — 익명으로 모델 호출을 열어 두지 않는다. 크레딧은 쓰지 않는다 (짧은 텍스트 한 번).
+ * 사용자마다 요청 한도 CHAT_LIMIT (wrangler.toml [[ratelimits]], 2026-10-26).
  * 본문: { category, messages:[{role:'me'|'ai', text}] } → { success, reply }
  */
 const CHAT_MAX_BODY = 32 * 1024;
 async function chat(request, env) {
   if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
-  await verifyJwt(request, env);
-  const raw = await request.text();
+  const user = await verifyJwt(request, env);
+  await enforceRateLimit(env.CHAT_LIMIT, user.id);
+  // 글자 수 검사는 아래 그대로 — UTF-8 은 UTF-16 한 칸에 최대 3바이트라, 그 3배까지만 읽는다
+  const raw = await readBodyText(request, CHAT_MAX_BODY * 3);
   if (raw.length > CHAT_MAX_BODY) throw new ValidationError('chat body too large');
   let body;
   try {
@@ -315,6 +362,8 @@ async function createGeneration(request, env, headers) {
 
   // 인증 — 본문을 읽기 전에. 인증 없는 요청이 수 MB base64 를 파싱하게 두지 않는다.
   const user = await verifyJwt(request, env);
+  // 요청 한도 (2026-10-26) — 사용자마다 GENERATE_LIMIT. 본문·DB 보다 먼저.
+  await enforceRateLimit(env.GENERATE_LIMIT, user.id);
 
   // 사용자당 실행 중 잡 1개.
   const active = await selectOne(env, 'generations', {
@@ -326,7 +375,8 @@ async function createGeneration(request, env, headers) {
     throw new ConflictError('이미 생성 중인 작업이 있습니다. 끝난 뒤 다시 시도해 주세요.');
   }
 
-  const body = await request.json();
+  const body = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw badRequest('body must be a JSON object', 'bad_json');
   const {
     room_image,
     image_type = 'image/jpeg',
@@ -350,7 +400,19 @@ async function createGeneration(request, env, headers) {
     customer_request,
     image_provider,
     place_guide,
+    planner_polish,
+    planner_clear,
+    planner_cleared,
+    planner_reform,
   } = body;
+
+  // 입력 검사 (2026-10-26) — 크레딧 차감 전에. 방 사진 형식은 버킷 Content-Type 으로 그대로 가고,
+  //   문짝 색·마감은 설치 프롬프트 FINISH 줄에 그대로 들어간다 — 화면이 보내는 값만 받는다 (prompts.js DOOR_COLORS).
+  if (!IMAGE_TYPES.includes(image_type)) {
+    throw badRequest(`image_type must be one of ${IMAGE_TYPES.join(', ')}`, 'bad_image_type');
+  }
+  if (!DOOR_COLORS.includes(door_color)) throw badRequest('door_color is not a known colour', 'bad_door_color');
+  if (!DOOR_FINISHES.includes(door_finish)) throw badRequest('door_finish is not a known finish', 'bad_door_finish');
 
   // 재생성: 부모의 입력을 그대로 쓴다 (업로드 생략).
   let parent = null;
@@ -372,7 +434,8 @@ async function createGeneration(request, env, headers) {
     return await createPlannerGeneration(request, env, headers, {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
       wall_width_override, water_from_left_override, exhaust_from_left_override,
-      fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35, place_guide,
+      fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35, place_guide, planner_polish,
+      planner_clear, planner_cleared, planner_reform,
     });
   }
 
@@ -448,10 +511,26 @@ async function createGeneration(request, env, headers) {
  *         image_provider ('openai' | 'gemini', 2026-10-18). 없거나 모르는 값이면 재생성 원본 값,
  *           그것도 없으면 PLANNER_IMAGE_PROVIDER (2026-10-19 기본 'openai' = GPT).
  *         renders 의 elevation_labeled (번호 붙은 입면, 2026-10-19) — GPT 가 그릴 때만 IMAGE B 로 쓴다.
+ *         planner_clear (2026-11-01, 방 비우기) — true 면 입면이 없어도 된다 (방 사진 한 장으로 빈 방을 그린다, options.clear).
+ *         planner_cleared (2026-11-01) — 다듬기(planner_polish)일 때만, 시안 배경이 비운 방이면 true (options.cleared — 정리 줄을 뺀다).
+ *         planner_reform (2026-11-02, 간편 플래너 냉장고장(리폼)) — 지금 냉장고장 칸 · 뗄 것 / 둘 것 (prompts.js normalizePlannerReform).
+ *           비우기 · 다듬기일 때만 options.reform — 비우기는 뗄 것만 지우고, 다듬기는 남은 뗄 것만 정리한다. 재생성은 원본 값을 잇는다.
  *   받지 않음: reference_images. (realize · engine · control_* 는 2026-10-19 경로째 지웠다 — 어느 모드도 읽지 않는다)
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
  */
+/** 플래너 다듬기 — 요청 true 거나 (요청이 없을 때) 재생성 원본이 다듬기였고, 시안(composite)이 실제로 갈 때만 */
+function plannerPolishOn(given, parent, renders, parentRenders) {
+  const want = given === true || (given === undefined && !!(parent && parent.options && parent.options.polish === true));
+  const hasComposite = parent ? parentRenders.some((r) => r && r.role === 'composite') : renders.some((r) => r.role === 'composite');
+  return want && hasComposite;
+}
+
+/** 플래너 참/거짓 옵션 — 요청 true 거나 (요청이 없을 때) 재생성 원본이 true. 참(true)만 받는다 */
+function plannerFlagOn(given, parent, key) {
+  return given === true || (given === undefined && !!(parent && parent.options && parent.options[key] === true));
+}
+
 /** 플래너 모드 초점거리 — 요청 값 → 재생성 원본 값. 8~200 밖이거나 없으면 키를 두지 않는다. */
 function plannerFocalOption(given, parent) {
   const ok = (v) => Number(v) >= 8 && Number(v) <= 200;
@@ -462,7 +541,7 @@ function plannerFocalOption(given, parent) {
 
 async function createPlannerGeneration(request, env, headers, p) {
   const { user, parent, room_image, image_type } = p;
-  // 등급 관문 (사장님 결정 2026-10-20, src/tier-gate.js): expert · agent · 관리자만. 진입 직후 — 검증·크레딧 차감보다
+  // 등급 관문 (사장님 결정 2026-10-20 · 2026-11-08, src/tier-gate.js): manager · expert · agent · 관리자만. 진입 직후 — 검증·크레딧 차감보다
   //   앞이라 거절(403 planner_tier)되면 아무것도 차감되지 않는다. 재생성도 여기를 지난다. 일반 경로는 관문이 없다.
   await assertPlannerTier(env, user);
   const category = resolveCategory(p.rawCategory || (parent && parent.category) || 'sink');
@@ -474,10 +553,14 @@ async function createPlannerGeneration(request, env, headers, p) {
   }
   const renders = normalizeRenders(p.renders);
   const parentRenders = parent && parent.inputs && Array.isArray(parent.inputs.renders) ? parent.inputs.renders : [];
+  // 2026-11-01: 방 비우기 (2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「무엇을 지울지: 추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」)
+  //   — 방 사진 한 장으로 설계 벽을 비운 빈 방을 그린다. 입면은 필요 없다. 다듬기와 같이 오면 비우기가 이긴다.
+  const clear = plannerFlagOn(p.planner_clear, parent, 'clear');
+  const polishOn = !clear && plannerPolishOn(p.planner_polish, parent, renders, parentRenders);
   const hasElevation = parent
     ? parentRenders.some((r) => r && r.role === 'elevation')
     : renders.some((r) => r.role === 'elevation');
-  if (!hasElevation) {
+  if (!hasElevation && !clear) {
     const e = new ValidationError('renders must include an elevation image when mode is planner');
     e.code = 'missing_render';
     throw e;
@@ -508,6 +591,21 @@ async function createPlannerGeneration(request, env, headers, p) {
     ...(p.place_guide === false || (p.place_guide === undefined && !!(parent && parent.options && parent.options.place_guide === false))
       ? { place_guide: false }
       : {}),
+    // 2026-10-27: Blender 시안이 IMAGE A 로 가는 생성 — 집계용 표시. **있을 때만** 키를 둔다 (재생성은 원본 입력을 그대로 쓴다)
+    ...(renders.some((r) => r.role === 'composite') || parentRenders.some((r) => r && r.role === 'composite') ? { place_render: true } : {}),
+    // 2026-11-01: 다듬기 (사장님 「C로 작업 실행」 — 간편 플래너 「AI: 다듬기만」) — 시안(composite)이 있을 때만, 요청 planner_polish:true
+    //   (재생성은 원본 값을 잇는다 — 요청이 false 면 끈다). **있을 때만** 키를 둔다. 잡은 시안 한 장 + 다듬기 지시문 (job.js polishOn)
+    ...(polishOn ? { polish: true } : {}),
+    // 2026-11-01: 시안 배경이 비운 방 — 다듬기일 때만 (잡이 정리 줄을 뺀다). **있을 때만** 키를 둔다. 재생성은 원본 값을 잇는다
+    ...(polishOn && plannerFlagOn(p.planner_cleared, parent, 'cleared') ? { cleared: true } : {}),
+    // 2026-11-01: 방 비우기 — 잡은 방 사진 한 장 + 비우기 지시문, 검사 · 대조 없음. **있을 때만** 키를 둔다
+    ...(clear ? { clear: true } : {}),
+    // 2026-11-02: 냉장고장(리폼) — 비우기 · 다듬기일 때만 (뗄 것만 지우기 · 남은 뗄 것만 정리). **있을 때만** 키를 둔다. 재생성은 원본 값을 잇는다
+    ...(() => {
+      if (!clear && !polishOn) return {};
+      const r = p.planner_reform !== undefined ? normalizePlannerReform(p.planner_reform) : normalizePlannerReform(parent && parent.options && parent.options.reform);
+      return r ? { reform: r } : {};
+    })(),
     // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
     //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
     image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),
@@ -553,6 +651,17 @@ async function enqueueGeneration(request, env, headers, { user, parent, category
           success: false,
           error: '이번 달 생성 횟수를 모두 사용했습니다.',
           code: 'insufficient_credit',
+        },
+        402,
+        headers
+      );
+    }
+    if (e instanceof CompanyInactive) {
+      return json(
+        {
+          success: false,
+          error: '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.',
+          code: 'company_inactive',
         },
         402,
         headers
@@ -634,7 +743,7 @@ async function enqueueGeneration(request, env, headers, { user, parent, category
  * 동기 응답(5~15초). 클라이언트(ai-design.html)는 응답을 받은 뒤 detaildesign.html?gen= 으로 간다.
  */
 async function createLayout(request, env, id, url) {
-  const { row } = await requireOwner(request, env, id);
+  const { user, row } = await requireOwner(request, env, id);
   if (row.status !== 'done') {
     const e = new ConflictError('완료된 결과만 설계로 가져올 수 있습니다');
     e.code = 'not_done';
@@ -649,6 +758,8 @@ async function createLayout(request, env, id, url) {
   if (row.layout && url.searchParams.get('force') !== '1') {
     return { success: true, layout: row.layout, cached: true };
   }
+  // 요청 한도 (2026-10-26) — Claude 를 실제로 부를 때만 센다 (첫 분석 · ?force=1). 캐시 응답은 세지 않는다.
+  await enforceRateLimit(env.LAYOUT_LIMIT, user.id);
   const base = (row.images || []).find((im) => im && im.slot === 'base');
   if (!base || !base.path) {
     const e = new NotFoundError('기본안 이미지가 없습니다');
@@ -691,7 +802,9 @@ async function getGeneration(request, env, id) {
     select: PUBLIC_COLUMNS,
   });
   if (!row) throw new NotFoundError('생성 결과를 찾을 수 없습니다');
-  return { success: true, generation: publicView(row) };
+  // 이미지 url 은 서명 URL 로 (2026-10-26, storage-urls.js) — 버킷이 비공개여도 열린다. path 는 그대로 싣는다.
+  const images = await signImageUrls(env, row.images, bucketName(env), OWNER_SIGNED_TTL_SEC);
+  return { success: true, generation: publicView({ ...row, images }) };
 }
 
 async function deleteGeneration(request, env, id) {
@@ -708,6 +821,8 @@ async function deleteGeneration(request, env, id) {
   const child = await selectOne(env, 'generations', { parent_id: `eq.${id}`, select: 'id' });
   // 2026-10-19: render-elevation_labeled · render-elevation_left … 도 입력이다 (역할 이름에 밑줄)
   const toRemove = child ? paths.filter((p) => !/\/(room|ref-\d+|render-[a-z_]+)\./.test(p)) : paths;
+  // 시공사례에 올라간 대표 연출컷도 함께 내린다 — 행과 collection 버킷의 복사본 (2026-10-27, collection-post.js)
+  await removeCollectionPostsFor(env, id);
   await removeObjects(env, toRemove);
   await deleteById(env, 'generations', id);
   return { success: true };
@@ -755,13 +870,14 @@ const SHARE_MESSAGES = {
   internal_only: '공유할 수 없는 결과입니다',
 };
 
-async function getShared(request, env) {
+/** X-Share-Token → 열 수 있는 행. 토큰이 없으면 401, 닫힌 링크면 checkShareAccessible 의 상태코드 */
+async function sharedRow(request, env, select) {
   const token = request.headers.get('X-Share-Token') || '';
   if (!token) throw new AuthError('공유 토큰이 없습니다');
   const hash = await hashShareToken(env, token);
   const row = await selectOne(env, 'generations', {
     share_token_hash: `eq.${hash}`,
-    select: '*',
+    select,
   });
   const check = checkShareAccessible(row);
   if (!check.ok) {
@@ -770,6 +886,23 @@ async function getShared(request, env) {
     err.code = check.reason;
     throw err;
   }
+  return row;
+}
+
+/** 공유 열람 그림 한 장의 버킷 안 경로 (path, 없으면 저장된 URL 에서) — 이 버킷 것이 아니면 null */
+function sharedImagePath(env, im) {
+  const bucket = bucketName(env);
+  const ref = im ? toStorageRef(im.path, bucket) || toStorageRef(im.url) : null;
+  return ref && ref.bucket === bucket ? ref.path : null;
+}
+
+async function getShared(request, env) {
+  const row = await sharedRow(request, env, '*');
+  // 그림 주소는 이 워커의 GET /api/share/image/:n (2026-11-09) — 버킷 경로(<user_id>/<generation_id>/…)를
+  //   공유받은 사람에게 내보내지 않는다. 그림도 같은 토큰을 X-Share-Token 헤더로 받아 매번 이 행을 다시 검사하므로
+  //   회수·만료되면 그 순간부터 그림도 닫힌다.
+  const origin = new URL(request.url).origin;
+  const images = Array.isArray(row.images) ? row.images : [];
   return {
     success: true,
     generation: {
@@ -777,10 +910,10 @@ async function getShared(request, env) {
       title: row.title,
       options: { design_style: row.options && row.options.design_style },
       // 붙박이장 내부 보기의 칸 구성·추천 이유도 싣는다 (2026-10-20). 고른 모델(by)은 공유하지 않는다.
-      images: (row.images || []).map((im) => ({
+      images: images.map((im, i) => ({
         slot: im.slot,
         label: im.label,
-        url: im.url,
+        url: sharedImagePath(env, im) ? `${origin}/api/share/image/${i}` : null,
         ...(im.structure && im.structure.plan
           ? {
               structure: {
@@ -799,26 +932,24 @@ async function getShared(request, env) {
   };
 }
 
-async function diag(request, env) {
-  const pick = (t) => (t.match(/(colo|loc|ip)=[^\n]*/g) || []).join(' ');
-  const out = { worker_colo: (request.cf && request.cf.colo) || null };
-  try {
-    out.worker_egress = pick(
-      await fetch('https://www.cloudflare.com/cdn-cgi/trace').then((r) => r.text())
-    );
-  } catch (e) {
-    out.worker_egress = 'ERR ' + e.message;
-  }
-  try {
-    const stub = proxyStub(env);
-    out.proxy_egress = stub
-      ? pick(await stub.fetch('https://gemini-proxy/').then((r) => r.text()))
-      : 'no binding';
-  } catch (e) {
-    out.proxy_egress = 'ERR ' + e.message;
-  }
-  out.job_binding = !!env.GENERATE_JOB;
-  out.service_role = !!env.SUPABASE_SERVICE_ROLE_KEY;
-  out.routes = await probeRoutes(env);
-  return out;
+/**
+ * GET /api/share/image/:n — 공유 열람 그림 n 번째 (images 차례, 0부터). 토큰 검사는 GET /api/share 와 같다.
+ * 버킷은 비공개라 service_role 로 읽어 그대로 흘려보낸다. 주소가 모든 링크에서 같으므로(/image/0 …)
+ * 브라우저 캐시에 남기지 않는다 — 다른 링크의 그림이 섞여 나오지 않게.
+ */
+async function getSharedImage(request, env, n, headers) {
+  const row = await sharedRow(request, env, 'status,options,images,share_expires_at,share_revoked_at');
+  const images = Array.isArray(row.images) ? row.images : [];
+  const path = n < images.length ? sharedImagePath(env, images[n]) : null;
+  if (!path) throw new NotFoundError('그림이 없습니다');
+  const res = await openObject(env, path);
+  return new Response(res.body, {
+    status: 200,
+    headers: {
+      ...headers,
+      'Content-Type': res.headers.get('Content-Type') || 'application/octet-stream',
+      'Cache-Control': 'no-store, private',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 }

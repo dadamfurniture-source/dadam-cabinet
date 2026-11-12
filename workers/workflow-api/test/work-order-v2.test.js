@@ -31,12 +31,14 @@ import {
   boringRows,
   labelUnits,
   groupByItemModule,
+  kittingHtml,
   LABELS_PER_SHEET,
 } from '../src/templates/work-order.js';
 import { issueDocument, resolvePrintAssets, renderDocument } from '../src/documents.js';
 import { createSignedUrls } from '../src/storage.js';
 import { DbError } from '../src/supabase.js';
 import * as fx from './fixtures/work-order-v2.js';
+import { HQ, companyRoute } from './fixtures/company.js';
 
 const ENV = {
   SUPABASE_URL: 'https://x.supabase.co',
@@ -200,6 +202,19 @@ test('collectRenders — 품목별 최신 정면만, 없는 품목은 path null'
   });
 });
 
+test('collectRenders — kind iso 는 플래너 ISO 도면만 찾는다 (2026-11-05)', async () => {
+  await withFetch((u) => {
+    if (/\/design_renders\?/.test(u)) {
+      assert.match(u, /kind=eq\.iso/);
+      return json([{ item_unique_id: 1, path: 'D1/1/iso-1.svg', width: 1400, height: null, created_at: '2026-11-05T02:00:00Z' }]);
+    }
+    return null;
+  }, async () => {
+    const out = await collectRenders(ENV, 'D1', [{ uniqueId: 1 }], 'iso');
+    assert.equal(out[0].path, 'D1/1/iso-1.svg');
+  });
+});
+
 test('collectRenders — design_renders 표가 없으면 전부 null (발행은 계속된다)', async () => {
   await withFetch((u) => (/\/design_renders\?/.test(u) ? fail(404, { code: 'PGRST205', message: 'Could not find the table' }) : null), async () => {
     const out = await collectRenders(ENV, 'D1', [{ uniqueId: 1 }]);
@@ -298,6 +313,7 @@ test('collectPrevRev — v2 문서면 parts_digest 로, v1 문서면 그 스냅�
 
 test('gatherWorkOrderPayload — v2 필드 전부 + cut_plan 은 스냅샷 값 그대로', async () => {
   await withFetch((u) => {
+    if (/\/design_renders\?/.test(u) && /kind=eq\.iso/.test(u)) return json([]);
     if (/\/design_renders\?/.test(u)) return json([{ item_unique_id: 1757900000123, path: 'D1/1757900000123/front.png', width: 2048, height: 1536, created_at: '2026-09-16T01:00:00Z' }]);
     if (/\/materials\?/.test(u)) return json([]);
     if (/\/design_documents\?/.test(u)) return json([]);
@@ -310,6 +326,15 @@ test('gatherWorkOrderPayload — v2 필드 전부 + cut_plan 은 스냅샷 값 �
     assert.deepEqual(out.cut_plan, fx.cutPlan());
     assert.equal(out.parts_digest.length, 5);
     assert.equal(out.prev_rev, null);
+    assert.equal(out.iso_renders, undefined, 'ISO 도면이 없으면 칸을 싣지 않는다');
+  });
+  await withFetch((u) => {
+    if (/\/design_renders\?/.test(u)) return json(/kind=eq\.iso/.test(u) ? [{ item_unique_id: 1757900000123, path: 'D1/1757900000123/iso.svg', width: 1400, height: 900, created_at: '2026-11-05T01:00:00Z' }] : []);
+    if (/\/(materials|design_documents)\?/.test(u)) return json([]);
+    return null;
+  }, async () => {
+    const out = await gatherWorkOrderPayload(ENV, { designId: 'D1', snapshot: fx.snapshot() });
+    assert.equal(out.iso_renders[0].path, 'D1/1757900000123/iso.svg');
   });
   await withFetch((u) => (/\/(design_renders|materials|design_documents)\?/.test(u) ? json([]) : null), async () => {
     const out = await gatherWorkOrderPayload(ENV, { designId: 'D1', snapshot: fx.snapshotV1() });
@@ -324,7 +349,8 @@ function issueRoute(snapshot, { prevDoc = null } = {}) {
   return (u, init) => {
     const method = init.method || 'GET';
     const path = u.split('?')[0];
-    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계' }]);
+    if (companyRoute(u)) return companyRoute(u);
+    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계', company_id: HQ }]);
     if (/\/design_snapshots\?id=eq\./.test(u)) return json([snapshot]);
     if (/\/design_snapshots\?/.test(u)) return json([]);
     if (method === 'POST' && /\/design_documents$/.test(path)) {
@@ -423,6 +449,33 @@ test('createSignedUrls — sign 엔드포인트에 경로 묶음을 보내고 �
   assert.equal((await createSignedUrls(ENV, 'renders', [])).size, 0);
 });
 
+test('resolvePrintAssets — 정면 렌더 + ISO 도면 경로를 한 번에 서명', async () => {
+  const doc = { ...fx.doc(), render_payload: { ...fx.doc().render_payload, iso_renders: [{ item_index: 0, path: 'D1/1/iso.svg' }] } };
+  await withFetch((u, init) => {
+    if (/\/object\/sign\/renders/.test(u)) {
+      const { paths } = JSON.parse(init.body);
+      assert.ok(paths.includes('D1/1/iso.svg'));
+      return json(paths.map((p) => ({ path: p, signedURL: `/object/sign/renders/${p}?token=t` })));
+    }
+    return null;
+  }, async () => {
+    const out = await resolvePrintAssets(ENV, doc);
+    assert.equal(out.renderUrls.get('D1/1/iso.svg'), `${ENV.SUPABASE_URL}/storage/v1/object/sign/renders/D1/1/iso.svg?token=t`);
+  });
+});
+
+test('ISO 도면 — 있으면 정면도 대신 <img> (작업지시서 · 설치 지시서), 서명 못 하면 정면도 그대로 (2026-11-05)', () => {
+  const doc = { ...fx.doc(), render_payload: { ...fx.doc().render_payload, iso_renders: [{ item_index: 0, item_unique_id: 1757900000123, path: 'D1/1/iso.svg' }] } };
+  const urls = new Map([['D1/1/iso.svg', 'https://x.supabase.co/storage/v1/object/sign/renders/D1/1/iso.svg?token=T']]);
+  const html = renderWorkOrder(doc, fx.snapshot(), { renderUrls: urls, pack: 'assembly' });
+  assert.ok(html.includes('<img src="https://x.supabase.co/storage/v1/object/sign/renders/D1/1/iso.svg?token=T"'));
+  assert.ok(html.includes('ISO 뷰 — 플래너 도면'));
+  const plain = renderWorkOrder(doc, fx.snapshot(), { pack: 'assembly' });
+  assert.ok(!plain.includes('ISO 뷰 — 플래너 도면') && plain.includes('정면도'), '서명 주소가 없으면 정면도');
+  const io = renderDocument({ ...doc, doc_type: 'installation_order' }, fx.snapshot(), { renderUrls: urls });
+  assert.ok(io.includes('iso.svg?token=T'));
+});
+
 test('resolvePrintAssets — 서명 실패해도 빈 Map (인쇄는 된다), 작업지시서가 아니면 조회 없음', async () => {
   await withFetch(() => fail(400, { message: 'Bucket not found' }), async () => {
     const out = await resolvePrintAssets(ENV, fx.doc());
@@ -463,14 +516,17 @@ test('① 표지 — 렌더가 없으면 자리표시, 경로는 있는데 서�
   assert.ok(unsigned.includes('렌더를 불러올 수 없음'));
 });
 
-test('② 키팅 — 품목 → 모듈 묶음, partId·마감 칩·엣지 도식·그 모듈의 경첩', () => {
+test('② 키팅 (검증만 — 종이에는 없음, 2026-11-05) — 품목 → 모듈 묶음, 라벨 번호·마감 칩·엣지 도식·그 모듈의 경첩', () => {
   const groups = groupByItemModule(fx.materials());
   assert.equal(groups.length, 1);
   assert.deepEqual(groups[0].modules.map((m) => m.module), ['하부장-개수대', '상부장-후드장']);
+  assert.ok(!renderWorkOrder(fx.doc(), fx.snapshot()).includes('② 모듈별 키팅'), '전체 꾸러미에 싣지 않는다');
 
-  const html = renderWorkOrder(fx.doc(), fx.snapshot());
+  const html = kittingHtml(fx.doc(), fx.snapshot());
   assert.ok(html.includes('② 모듈별 키팅 — 싱크대'));
-  assert.ok(html.includes('<span class="mono">0-l1-body:side-0</span>'));
+  // 라벨 번호 (수량 2 = 이어진 번호), 부재 ID 는 data-pid 에만
+  assert.ok(html.includes('<td class="num"><span data-pid="0-l1-body:side-0">1–2</span></td><td>측판</td>'));
+  assert.ok(!html.includes('<span class="mono">0-l1-body:side-0</span>'));
   assert.ok(html.includes('class="edge-svg"'));
   assert.ok(html.includes('PET 18T'));
   // 개수대 모듈 블록 안에 개수대 경첩이, 후드장 블록 안에 후드장 경첩이 있다
@@ -597,10 +653,14 @@ test('⑧ 라벨 — 부재 낱개마다 QR + partId#k + 품목/모듈/부품 + 
   assert.deepEqual(units.slice(0, 3).map((u) => u.id), ['0-l1-body:side-0#0', '0-l1-body:side-0#1', '0-l1-body:bottom-0#0']);
 
   const html = renderWorkOrder(fx.doc(), fx.snapshot());
-  assert.equal(html.split('<div class="label">').length - 1, 8);
+  assert.equal(html.split('<div class="label" data-pid=').length - 1, 8);
   assert.equal(html.split('<svg class="qr"').length - 1, 8);
-  assert.ok(html.includes('<div class="pid"><b>6</b> · 0-l1-door#0-0#1</div>'), '사내 4장(1–4) 뒤에 도어재 — 개수대 도어 둘째 장은 6번');
-  assert.ok(html.includes('<div class="dim">496 × 716 × 18</div>'));
+  // 번호는 크게 한 줄, 부재 ID 는 QR 안 · data-pid 에만 (2026-11-05 — 긴 ID 가 번호를 밀어내던 것)
+  assert.ok(html.includes('<div class="label" data-pid="0-l1-door#0-0#1">'), '사내 4장(1–4) 뒤에 도어재 — 개수대 도어 둘째 장');
+  assert.ok(html.includes('<div class="no"><b>6</b><span class="mod">싱크대 · 하부장-개수대</span></div>'), '둘째 장은 6번');
+  assert.ok(!html.includes('<div class="pid">'));
+  assert.ok(html.includes('<div><b>도어</b> · PET 18T</div>'));
+  assert.ok(html.includes('<div class="dim">496 × 716</div>'));
   assert.ok(html.includes('⑧ 부재 라벨 — 사내 재단 (재단 직후 부착) <span class="muted">1–4 / 8'));
   assert.ok(html.includes('⑧ 부재 라벨 — 도어재 (입고 시 부착) <span class="muted">5–8 / 8'));
   assert.ok(html.includes('0.6 · 720×1 · 550×2'), '라벨에 붙일 변');
@@ -617,11 +677,11 @@ test('⑧ 라벨 — 부재 낱개마다 QR + partId#k + 품목/모듈/부품 + 
 
 test('구 문서(v1 payload + v1 스냅샷) 도 전 섹션이 렌더된다 — 렌더 없음·코드만 범례·row-N 라벨·문자열 엣지', () => {
   const html = renderWorkOrder(fx.docV1(), fx.snapshotV1());
-  for (const s of ['정면 렌더 없음', '② 모듈별 키팅', '③ 재단·엣지 지시서', '재단 배치 없음', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
+  for (const s of ['정면 렌더 없음', '③ 재단·엣지 지시서', '재단 배치 없음', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
     assert.ok(html.includes(s), s);
   }
   assert.ok(html.includes('<span class="chip none"></span><span class="mono">PET-OAK-M</span>'), '카탈로그 조회가 없던 문서는 코드만');
-  assert.ok(html.includes('· row-0#0</div>'));
+  assert.ok(html.includes('<div class="label" data-pid="row-0#0">'));
   assert.ok(html.includes('재단 시트</dt><dd>배치 없음'));
   assert.ok(html.includes('class="edge-svg"'), '옛 행도 문자열 edge 로 도식을 그린다');
   assert.ok(!html.includes('528,000'));

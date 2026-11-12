@@ -15,6 +15,13 @@ export class InsufficientCredit extends Error {
   }
 }
 
+/** 협력업체 구성원인데 업체가 active 가 아니다 (정지 · 해지) — consume_credit 이 'company_inactive' 로 막는다. */
+export class CompanyInactive extends Error {
+  constructor() {
+    super('company_inactive');
+  }
+}
+
 function bearer(request) {
   const auth = request.headers.get('Authorization') || '';
   const m = auth.match(/^Bearer\s+(.+)$/i);
@@ -36,6 +43,7 @@ async function rpc(request, env, fn, args) {
   if (!res.ok) {
     // Postgres 의 RAISE EXCEPTION 은 message 로 실려 온다.
     if (text.includes('insufficient_credit')) throw new InsufficientCredit();
+    if (text.includes('company_inactive')) throw new CompanyInactive();
     throw new Error(`${fn} failed: ${res.status} ${text.slice(0, 200)}`);
   }
   return text ? JSON.parse(text) : null;

@@ -6,6 +6,13 @@
 import { eventBus, Events } from '../event-bus.js';
 import { API_ENDPOINTS } from '../constants.js';
 
+/**
+ * design-images 에 올리는 객체의 Cache-Control (2026-10-26) — 고객 사진이라 공유 캐시에 두지 않고 1시간만.
+ * js/supabase-utils.js PRIVATE_CACHE_CONTROL 과 같은 값. 본문을 바이트로 보내야 헤더가 그대로 저장된다
+ * (Blob·File 은 multipart 로 가고, 그러면 Storage 가 'max-age=<값>' 으로만 남긴다).
+ */
+const DESIGN_IMAGES_CACHE_CONTROL = 'private, max-age=3600';
+
 class SupabaseService {
   constructor() {
     this.client = null;
@@ -326,9 +333,10 @@ class SupabaseService {
     try {
       const { data, error } = await this.client.storage
         .from('design-images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
+        .upload(fileName, await file.arrayBuffer(), {
           upsert: false,
+          contentType: file.type || 'application/octet-stream',
+          headers: { 'cache-control': DESIGN_IMAGES_CACHE_CONTROL },
         });
 
       if (error) throw error;

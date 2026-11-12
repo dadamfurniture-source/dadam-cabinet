@@ -1,0 +1,102 @@
+{
+  "title": "0035 플래너 설계 받기 · 작업자 필수 확인 기록 — designs.source · source_ref 모양 · 회사마다 한 설계, work_checks 서버만 · 넣기 · 읽기만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "design_x",
+    "design_y",
+    "snap_x",
+    "doc_x",
+    "order_x"
+  ],
+  "users": [
+    "x_owner_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.designs (id, user_id, name, company_id, source, source_ref) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}}, 'planner-lite', 'probe-design-1')",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) VALUES ({{company_x}}, {{order_x}}, {{doc_x}}, 'cut', 'sheet:1', 'cut-sheet-cut', 'v1', true)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 work_checks — 서버만",
+      "sql": "select count(*) from public.work_checks where order_id = {{order_x}}",
+      "expect": {
+        "service_role": 1,
+        "*": "deny"
+      }
+    },
+    {
+      "name": "넣기 work_checks — 서버만",
+      "sql": "insert into public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked, memo) values ({{company_x}}, {{order_x}}, {{doc_x}}, 'assembly', 'module:0:1', 'asm-module-build', 'v1', true, '확인')",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "고치기 work_checks — 아무도 (쌓기만)",
+      "sql": "update public.work_checks set checked = false where order_id = {{order_x}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "지우기 work_checks — 아무도 (쌓기만)",
+      "sql": "delete from public.work_checks where order_id = {{order_x}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "역할 · 범위 · 항목 키 모양",
+      "sql": "insert into public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{order_x}}, {{doc_x}}, 'paint', '', 'x', 'v1', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "설계 출처 — 같은 회사 · 출처 · id 는 한 설계",
+      "sql": "insert into public.designs (id, user_id, name, company_id, source, source_ref) values ({{design_y}}, {{x_owner_user}}, 'probe2', {{company_x}}, 'planner-lite', 'probe-design-1')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "설계 출처 — 하나만 채우면 거절",
+      "sql": "insert into public.designs (id, user_id, name, company_id, source) values ({{design_y}}, {{x_owner_user}}, 'probe3', {{company_x}}, 'planner-lite')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    }
+  ]
+}

@@ -55,7 +55,7 @@
 - `price_key`(`PET-M`, `MFB` …) 로만 단가표(`FINISH_BASE_PRICE` / `pricing_rules`)에 연결. 가격은 카탈로그에 두지 않는다.
 - **불변조건 I6**: 코드는 더하기만. 이름 변경·삭제 금지 — 과거 작업지시서·단가에 박혀 있다.
 - 기존 한글 사양값(`specs.doorColorUpper='화이트'`, `doorFinishUpper='무광'`)은 계속 읽힌다. 단 `'무광'` 은 기판(PET/도장…)을 모르므로 코드를 짐작하지 않고 `MDF-DEFAULT` 로 두며 톤·색 코드만 채운다 — 판매 라인이 정해지면 `LEGACY_FINISH_MAP` 한 줄로 기본 기판을 지정한다 [확인 필요].
-- **행의 `finishCode` 우선순위 (B1, `extractors.js add()`)**: ① 디테일 마감 모델 `item.detail` (부재 > 모듈 > 섹션 > 품목 — `planner-finish.js plannerFinishResolve` 와 같은 해석, §7-1 의 partKey 로 부재를 가리킨다) → ② 모듈 `mod.doorFinish/doorColor/doorMaterialCode` → ③ 품목 사양 `specs.doorFinishUpper/Lower + doorColorUpper/Lower` (상/하 묶음은 `upper·hood → Upper`, 나머지 `Lower`). ②③ 은 도어·서랍도어에만 적용되고 `resolveDoorMaterial` 을 거치므로 한글 값은 코드가 비어 있다. 몸통·상판·손잡이·마감재·걸레받이는 ① 이 정한 때만 코드가 있고, 뒷판·서랍밑판(`slot: back`)은 언제나 빈 값이다.
+- **행의 `finishCode` 우선순위 (B1, `extractors.js add()`)**: ① 디테일 마감 모델 `item.detail` (부재 > 모듈 > 섹션 > 품목 — `planner-finish.js plannerFinishResolve` 와 같은 해석, §7-1 의 partKey 로 부재를 가리킨다) → ② 모듈 `mod.doorFinish/doorColor/doorMaterialCode` → ③ 품목 사양 `specs.doorFinishUpper/Lower + doorColorUpper/Lower` (상/하 묶음은 `upper·hood → Upper`, 나머지 `Lower`). ②③ 은 도어·서랍도어에만 적용되고 `resolveDoorMaterial` 을 거치므로 한글 값은 코드가 비어 있다. 몸통·상판·손잡이·마감재·걸레받이는 ① 이 정한 때만 코드가 있고, 뒷판·서랍밑판(`slot: back`)은 언제나 빈 값이다. 다만 **몰딩 · 걸레받이 · 목찬넬** (`BOM_TRIM_FOLLOWS_DOOR` — 마감재 칸의 몰딩 이름 · `kick` 키 · 손잡이 칸) 은 ① 에 제 색이 없으면 ① 의 그 자리 도어 색(`door` 슬롯, 부재 > 모듈 > 섹션 > 품목)을 받는다 (2026-11-06 사장님 「도어 색을 따라감」). EP · 휠라 · 멍가림판 · 좌대 · 가림판은 그대로다.
 
 ## 3. 카테고리별 BOM 산출 공식
 
@@ -104,10 +104,10 @@
 
 | 부품 | 자재 | 두께 | 크기 |
 |------|------|------|------|
-| 상몰딩 | MDF | 18T | moldingH × 상부장 폭 합 — **상부장이 있을 때만** (P1-2; 예전엔 `totalUpperW \|\| effectiveW` 로 하부 폭에 떨어졌다). 싱크는 후드 자리와 같은 벽 상부장 사이 빈 자리도 넣어 한 장, **벽마다 한 장** (ㄱ자 상부면 두 행 — 같은 길이는 수량), 상부장 사이에 서거나 줄 끝에 붙은 키큰장은 깊이가 같을 때만 그 위까지 이어 한 장 (2026-10-25 · 2026-10-26 사장님 확정 — sink.md EP) |
-| 걸레받이 | MDF | 18T | effectiveW × (legH-5) |
-| 목찬넬(전면) | MDF | 18T | 52 × effectiveW |
-| 목찬넬(지면) | MDF | 18T | 40 × effectiveW |
+| 상몰딩 | MDF | 18T | moldingH × 조각 길이 — **상부장이 있을 때만** (P1-2; 예전엔 `totalUpperW \|\| effectiveW` 로 하부 폭에 떨어졌다). 싱크는 후드 자리와 같은 벽 상부장 사이 빈 자리도 넣어 잇고, **벽마다** (ㄱ자 상부면 따로), 상부장 사이에 서거나 줄 끝에 붙은 키큰장은 깊이가 같을 때만 그 위까지 잇는다 — 깊이가 다른 키큰장 양옆은 다른 자리 (2026-10-25 · 2026-10-26 사장님 확정 — sink.md EP). 조각: 2026-10-26 사장님 확정 — 자리(벽마다 · 실제로 붙는 길이, 키큰장 · 빈 자리에서 따로)를 **모듈 경계에서 800~2400 조각**으로, 장 수가 가장 적게 · 앞 조각이 가장 길게 ("자르는 건 모듈길이별로 잘라야해" — 600 · 600 · 600 · 600 · 500 → 1800 + 1100). 800 보다 짧은 조각은 800 으로 내고 현장에서 자른다 — 이웃과 깊이가 달라 나뉜 자리는 짧아도 그대로 ("800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능."). 같은 발주 길이는 한 행에 수량 (sink.md EP 「조각」) |
+| 걸레받이 | MDF | 18T | 조각 길이 × (legH-5) — 자리 = 벽마다 붙어 있는 하부장 (`effectiveW` 몫, 키큰장 단 · 쿡탑장 · 상자 모듈 · 빈 자리에서 따로). 조각은 상몰딩과 같은 규칙 (예전 원판 2440 단위 나누기를 대신한다). 걸레받이카바는 자재 행 전체 길이 ÷ 2400 |
+| 목찬넬(전면) | MDF | 18T | 52 × 조각 길이 — 걸레받이와 같은 자리 · 같은 조각 (하부 밥솥장 칸에서만 더 나뉜다 — 그 칸에 닿은 자리는 800 보다 짧아도 붙는 길이 그대로, 2026-10-26 사장님 "600 그대로" (쌓기 칸에서 끊긴 짧은 목찬넬), sink.md) |
+| 목찬넬(지면) | MDF | 18T | 40 × 조각 길이 — 걸레받이와 같은 자리 · 같은 조각 (하부 밥솥장 칸에서만 더 나뉜다 — 그 칸에 닿은 자리는 짧아도 그대로 "600 그대로", sink.md) |
 | 휠라(좌) | MDF | 18T | finishLeftWidth × lowerH |
 | 휠라(우) | MDF | 18T | finishRightWidth × lowerH |
 | 상판 | 인조대리석 12 · 50T (2026-10-18) | `specs.topThickness` | (하부 폭 합 + 좌·우 마감 폭) × 품목 D(도면 그대로) · 이음은 상판 업체 판단 · **품목당 1장** · 코드 `TOP-*` (§2-1) — P1-3, `sink.md` §9 상판. 품목당 한 장은 사용자 결정(2026-09-15)이다 — ㄱ·ㄷ자도 폭 합 한 장, 런(배치 공간)마다 나누지 않는다. 3D 가 런마다 한 장 그리는 것은 표시용 단순화 |
@@ -258,7 +258,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 도어 | 몸통 | 슬라이딩 선반 재질 |
 |------|------|------|
 | 오픈 (없음) | 오픈장 상자 그대로 — MDF 18T 측판 2 · 천지판 2 · 뒷판 18T | MDF 18T (오픈장과 같은 색) |
-| 여닫이 · 리프트 · 포켓 | **일반 장 몸통** — 측판 · 지판 · 밴드 2 · 3T 뒷판 (하부장 · 키큰장 단과 같은 짜임), PB 품목 몸통 두께 (기본 15T · 18T 옵션) | PB 몸통 두께 (몸통과 같은 색) |
+| 여닫이 · 리프트 · 포켓 | **일반 장 몸통** — 측판 · 지판 · 천판 (W−2T)×D · 3T 뒷판 (하부장 짜임에서 밴드 2 대신 천판 — 2026-10-30 사장님), PB 품목 몸통 두께 (기본 15T · 18T 옵션) | PB 몸통 두께 (몸통과 같은 색) |
 
 슬라이딩 선반 (두께 말고는 오픈 · 도어 같은 식, 내경 = 몸통 안쪽 폭 — 오픈 W − 36, 도어 W − 2T. **여닫이**는 경첩 쪽 레일이 추가 목대에 붙어 선반 · 마이다의 내경에서 목대 두께를 더 뺀다):
 
@@ -502,7 +502,7 @@ cutPlan = {
   kerf: 4, trim: 10,          // 톱날 · 네 변 가장자리 트림(mm)
   sheets: [ {                 // 낱장 — 겹침 재단(stack)도 한 장씩 늘어놓는다
     no,                       // 1부터, 전체 고유
-    material, thickness, partClass,   // partClass ∈ 본체 | 도어 | 뒷판 (원판을 섞지 않는 그룹)
+    material, thickness, partClass,   // partClass ∈ 본체 | 도어 | 뒷판 (원판을 섞지 않는 그룹) — 뒷판은 5T 미만만, 5T 이상 뒷판은 본체 (2026-11-05)
     size: {w, h}, trim,
     layout: { no, stack, index, dir, rotated },   // 같은 그룹에서 같은 layout.no = 같은 배치를 stack 장 겹침. dir ∈ H(가로→세로) | V
     strips: [ { no, offset, size, used, remain } ],  // 1차 재단 스트립 (H: offset=y·size=높이, V: offset=x·size=너비)
@@ -513,7 +513,8 @@ cutPlan = {
   groups:  [ { key, material, thickness, partClass, sheetSize, sheetCount, firstSheetNo, needed, placed } ],
   smallParts:  [ { partId, part, material, thickness, partClass, w, h, qty, itemLabel } ],  // 한 변 ≤ 70 — 원판에 놓지 않는다
   unallocated: [ { material, thickness, partClass, w, h, qty, parts, partIds } ],           // 원판보다 큰 부재 등
-  summary: { sheetsByMaterial: {'PB_15': n}, sheetCount, totalYield, partsTotal, partsPlaced, smallCount, unallocatedCount }
+  skipped:     [ { partId, part, material, thickness, w, h, qty, reason } ],                 // 배치 안 함 — reason 'outsourced-top' = 석재 상판 (상판 업체 발주, 2026-11-05)
+  summary: { sheetsByMaterial: {'PB_15': n}, sheetCount, totalYield, partsTotal, partsPlaced, smallCount, unallocatedCount, skippedCount }
 }
 ```
 

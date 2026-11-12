@@ -10,6 +10,7 @@ import { assertAssignable, assertMine, requireAdminEditor, requireApprovedWorker
 import { recordEvent, recordJobStatusChange } from './events.js';
 import { computeJobStatus, countFilled, loadJob, loadJobAssignments, lockJob } from './jobs.js';
 import { notifyWork } from './notify.js';
+import { later, notifyWorkAssigned } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, effectiveStatus, workerApplication } from './reveal.js';
 import { assertUuid, optText } from './validate.js';
 
@@ -58,7 +59,8 @@ export async function withdrawApplication(env, { user, params, ctx }) {
   if (app.status !== 'applied') throw new ConflictError('대기 중인 신청만 철회할 수 있습니다');
   const rows = await updateBy(env, 'work_applications', { id: `eq.${id}`, status: 'eq.applied' }, { status: 'withdrawn' });
   if (!rows || !rows.length) throw new ConflictError('신청 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요');
-  const job = await selectOne(env, 'work_jobs', { id: `eq.${app.job_id}`, select: 'id,kind,title' });
+  // 알림은 본사 작업일 때만 — 업체 칸까지 읽는다 (src/work/notify.js)
+  const job = await selectOne(env, 'work_jobs', { id: `eq.${app.job_id}`, select: 'id,kind,title,company_id' });
   await recordEvent(env, {
     jobId: app.job_id, actorUserId: user.id, actorKind: 'worker', type: 'application_withdrawn', from: 'applied', to: 'withdrawn',
     payload: { worker_id: worker.id, application_id: id },
@@ -73,7 +75,7 @@ export async function withdrawApplication(env, { user, params, ctx }) {
  * POST /work/admin/applications/:id/approve — 신청 승인 → 배정 confirmed.
  * 정원이 찼으면 409. 동시에 두 관리자가 승인하면 version 잠금에 진 쪽이 배정 · 신청을 되돌리고 409.
  */
-export async function approveApplication(env, { user, params, body }) {
+export async function approveApplication(env, { user, params, body, ctx }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '신청 id');
   const reason = optText(body && body.reason, 200, '사유');
@@ -127,6 +129,8 @@ export async function approveApplication(env, { user, params, body }) {
     payload: { worker_id: worker.id, via: 'application' },
   });
   await recordJobStatusChange(env, job, locked);
+  // 뽑힌 작업자에게 앱 알림 — 응답 뒤에
+  await later(ctx, notifyWorkAssigned(env, { job: locked, assignment }));
   return { application: decided[0], assignment };
 }
 

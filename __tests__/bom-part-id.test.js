@@ -10,7 +10,7 @@
 global.dlog = () => {};
 
 const {
-  MaterialExtractor, HardwareExtractor, DrawingVisualizer, BOM_PART_DEFS, bomPartDefOf,
+  MaterialExtractor, HardwareExtractor, DrawingVisualizer, BOM_PART_DEFS, bomPartDefOf, BOM_TRIM_FOLLOWS_DOOR,
 } = require('../js/detaildesign/extractors.js');
 const { FIXTURES } = require('../test-utils/bom-golden/fixtures');
 
@@ -105,9 +105,10 @@ describe('slot — planner-finish 7 슬롯 + back', () => {
     // 2026-09-15: 서랍장 모듈 목찬넬은 중간 목찬넬(전면·지면) 두 부재 — 둘 다 손잡이 슬롯
     expect(slotOf('#1 하부장-서랍장-서랍모듈', '목찬넬(중간 전면)')).toBe('handle');
     expect(slotOf('#1 하부장-서랍장-서랍모듈', '목찬넬(중간 지면)')).toBe('handle');
-    expect(slotOf('#1 EP', '상몰딩')).toBe('finishing');
+    // 상몰딩 · 걸레받이는 모듈 경계 조각 (2026-10-26 사장님 확정 — 최대 2400 · 최소 800): sink15 상몰딩 2300 + 1200, 걸레받이 1800 + 1700
+    expect(rowsOf(rows, '#1 EP', '상몰딩').map((r) => r.slot)).toEqual(['finishing', 'finishing']);
     expect(slotOf('#1 EP', '휠라(좌)')).toBe('finishing');
-    expect(rowsOf(rows, '#1 EP', '걸레받이').map((r) => r.slot)).toEqual(['kick', 'kick']); // 2440 넘는 벽은 나뉜다
+    expect(rowsOf(rows, '#1 EP', '걸레받이').map((r) => r.slot)).toEqual(['kick', 'kick']); // 2400 넘는 자리는 모듈 경계에서 나뉜다
     expect(slotOf('긴옷-좌대', '좌대 측')).toBe('kick');
     expect(slotOf('#2 하부장-LT망장', '멍가림판')).toBe('finishing');
     expect(slotOf('#2 하부장-LT망장', '밴드(처짐방지·멍장)')).toBe('body');
@@ -214,8 +215,31 @@ describe('finishCode — 디테일 모델(부재 > 모듈 > 섹션 > 품목) > �
     expect(oneRow(rows, '하부장-EL장', '측판').material).toBe('PB');
     expect(code('하부장-EL장', '뒷판')).toBe('');
     expect(code('하부장-서랍장-서랍모듈', '서랍밑판')).toBe('');
-    expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.finishCode)).toEqual(['PNT-BLK-M', 'PNT-BLK-M']); // 2440 넘는 벽은 나뉜다             // 품목 kick
-    expect(code('EP', '상몰딩')).toBe('');                        // finishing 지정 없음
+    expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.finishCode)).toEqual(['PNT-BLK-M', 'PNT-BLK-M']); // 2400 넘는 자리는 나뉜다 — 품목 kick
+    expect(rowsOf(rows, 'EP', '상몰딩').map((r) => r.finishCode)).toEqual(['PNT-WHT-M', 'PNT-WHT-M']); // finishing 지정 없음 → 상부 도어 색 (조각 2300 + 1200)
+  });
+  test('몰딩 · 걸레받이 · 목찬넬은 제 색이 없으면 그 자리 도어 색 — EP · 휠라 · 몸통은 그대로 (2026-11-06)', () => {
+    const d = F.plannerFinishEmpty();
+    F.plannerFinishSet(d, 'item', 'door', 'PET-OAK-M');
+    F.plannerFinishSet(d, 'section', 'door', 'PNT-WHT-M', { section: 'upper' });
+    const r = extractRows(sinkWith(d));
+    expect(rowsOf(r, 'EP', '상몰딩').map((m) => m.finishCode)).toEqual(['PNT-WHT-M', 'PNT-WHT-M']);   // 상부 줄 = 상부 도어 색
+    expect(rowsOf(r, 'EP', '걸레받이').map((m) => m.finishCode)).toEqual(['PET-OAK-M', 'PET-OAK-M']); // 하부 줄 = 품목 도어 색
+    ['목찬넬(전면)', '목찬넬(지면)'].forEach((p) => expect(rowsOf(r, 'EP', p).every((m) => m.finishCode === 'PET-OAK-M')).toBe(true));
+    expect(oneRow(r, '하부장-서랍장-서랍모듈', '목찬넬(중간 전면)').finishCode).toBe('PET-OAK-M');
+    expect(oneRow(r, 'EP', '휠라(좌)').finishCode).toBe('');
+    expect(oneRow(r, '하부장-EL장', '측판').finishCode).toBe('');
+    // 자재 · 밴드 색은 그대로 — 색 코드만 받는다
+    expect(oneRow(r, 'EP', '휠라(좌)').material).toBe('MDF');
+    rowsOf(r, 'EP', '걸레받이').forEach((m) => expect(m.edgeCode).toBeNull());
+    // 디테일 모델이 없으면 예전처럼 빈 값
+    const none = extractRows(sinkWith(null));
+    expect(rowsOf(none, 'EP', '상몰딩').map((m) => m.finishCode)).toEqual(['', '']);
+    expect(Object.keys(BOM_TRIM_FOLLOWS_DOOR).sort()).toEqual(Object.keys(BOM_PART_DEFS).filter((n) =>
+      (BOM_PART_DEFS[n].slot === 'finishing' && /몰딩/.test(n)) || BOM_PART_DEFS[n].key === 'kick' || BOM_PART_DEFS[n].slot === 'handle').sort());
+    expect(BOM_TRIM_FOLLOWS_DOOR['내부서랍 좌우몰딩']).toBeUndefined();
+    expect(BOM_TRIM_FOLLOWS_DOOR['좌대 전후']).toBeUndefined();
+    expect(BOM_TRIM_FOLLOWS_DOOR['EP(좌)']).toBeUndefined();
   });
   test('플래너 셀 모듈(planner-X-2)은 X 의 모듈·부재 지정을 받는다', () => {
     const r = extractRows(sinkWith(detailFixture(), (item) => {
@@ -308,7 +332,7 @@ describe('detaildesign.html — planner-finish.js 를 extractors.js 앞에 싣�
     expect(i1).toBeGreaterThan(-1);
     expect(i2).toBeGreaterThan(i1);
     expect(i3).toBeGreaterThan(i2);
-    expect(srcs[i2]).toMatch(/\?v=\d+\.\d+/);
+    expect(srcs[i2]).toMatch(/\?v=\d+/);
   });
 
   test('planner-finish.js 의 최상위 이름을 상세설계 스크립트(외부·인라인)가 다시 선언하지 않는다', () => {
@@ -397,7 +421,7 @@ describe('엣지밴딩 — edges/edgeLen/edgeT/edgeCode + 요약 edgeBanding', (
     expect(oneRow(rows, 'EP', '휠라(좌)').edgeCode).toBe('PNT-WHT-M');
     expect(oneRow(rows, '하부장-서랍장', '측판').finishCode).toBe('MFB-WHT');
     expect(oneRow(rows, '하부장-서랍장', '측판').edgeCode).toBeNull();
-    expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.edgeCode)).toEqual([null, null]); // 2440 넘는 벽은 나뉜다
+    expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.edgeCode)).toEqual([null, null]); // 2400 넘는 자리는 나뉜다
     expect(oneRow(rows, '하부장-서랍장-서랍모듈', '목찬넬(중간 전면)').edgeCode).toBeNull();
   });
 

@@ -104,11 +104,27 @@ alarm 으로 실행한다. 진행 상태의 정본은 `generations` 행이고 �
 | `POST /api/generate/:id/share` | JWT | `{share_url, expires_at}` — 토큰은 1회만, 다시 부르면 회전 |
 | `DELETE /api/generate/:id/share` | JWT | 회수 |
 | `POST /api/generate/:id/layout` | JWT | `{layout}` — 기본안을 Claude 비전(ANTHROPIC_MODEL)으로 읽어 구성(세그먼트·가전·도어 수)을 남긴다. 완료된 결과만(409 `not_done`), 지원 품목만(400 `unsupported_category`: sink·island·fridge·storage·wardrobe). 이미 있으면 `cached:true`, `?force=1` 이면 재분석. 5~15초 동기 |
+| `POST /api/chat` | JWT | `{reply}` — 연출컷 ③ 상세 요청의 다음 한 마디 (텍스트 모델 1회, 크레딧 없음) |
 | `GET /api/share` | `X-Share-Token` | 이미지·견적. 만료·회수 410 |
-| `GET /health`, `GET /diag` | — | 모델·콜로 / 경로별 Gemini 상태 |
+| `GET /health` | — | 모델·공급자·콜로 (`/diag` 는 2026-10-26 지웠다) |
+
+## 요청 관문 (2026-10-26, `src/guard.js`)
+
+- **CORS**: `wrangler.toml` 의 `CORS_ORIGINS` 에 든 오리진만 `Access-Control-Allow-Origin` 을 받는다. 지금 목록은
+  `https://dadamfurniture.com` · `https://www.dadamfurniture.com` · `https://dadamfurniture-source.github.io` (GitHub Pages 사본) ·
+  `https://dadam-cabinet.pages.dev` · `https://*.dadam-cabinet.pages.dev` (Pages 미리보기) · `http://localhost:*` · `http://127.0.0.1:*`.
+  `*` 는 한 칸(서브도메인 한 단계 또는 포트)만 받는다. 새 도메인에서 화면을 열면 여기에 더한다.
+- **요청 한도** (`[[ratelimits]]`, 로그인 사용자 id 마다 · Cloudflare 위치마다 대략): `CHAT_LIMIT` 20회/60초 (`POST /api/chat`) ·
+  `GENERATE_LIMIT` 10회/60초 (`POST /api/generate`) · `LAYOUT_LIMIT` 5회/60초 (`POST …/layout` 에서 Claude 를 실제로 부를 때만, `?force=1` 포함).
+  넘으면 429 `rate_limited`. 바인딩은 배포 때 생긴다 — 대시보드 설정·새 시크릿 없음.
+- **본문 크기**: 32MB 를 넘으면 413 `body_too_large` (Content-Length 를 먼저 보고, 없으면 읽으면서 센다). `/api/chat` 은 예전대로 32KB.
+- **입력 검사** (크레딧 차감 전, 400): `image_type` 은 `image/jpeg` · `image/png` · `image/webp` 만 (`bad_image_type`).
+  참고 이미지·플래너 렌더는 형식이 틀린 장만 버린다 (입면이 그러면 `missing_render`).
+  `door_color` 는 `ai-design.html` `#doorColor` 의 값만 (`src/prompts.js` `DOOR_COLORS`, `bad_door_color`),
+  `door_finish` 는 `matte` 만 (`DOOR_FINISHES`, `bad_door_finish`). 화면에 색·마감을 더하면 두 목록에도 더한다.
 
 ## Gemini 호출 경로 (지역 차단)
 
 Cloudflare 워커는 HKG·KIX 콜로에서 뜨고, 거기서 Google AI Studio 는 게이트웨이·직접 호출을 모두
-`400 User location is not supported` 로 막는다 (2026-09-09 `/diag` 실측). 잡 DO 는 `locationHint: 'enam'` 으로
+`400 User location is not supported` 로 막는다 (2026-09-09 `/diag` 실측 — 그 라우트는 2026-10-26 지웠다). 잡 DO 는 `locationHint: 'enam'` 으로
 미국에서 뜨므로 직접 호출이 통하고, 막히면 `gemini.js` 가 gateway → direct → proxy(`GeminiProxy`) 순으로 넘어간다.

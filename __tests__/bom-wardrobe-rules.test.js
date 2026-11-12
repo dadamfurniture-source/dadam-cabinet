@@ -793,3 +793,50 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(zone.boxes.length).toBe(L.drawers);
   });
 });
+
+// 2026-11-01 사장님: "경첩방향에 속서랍 좌우 몰딩만 설치 되도록 해줘. 예: 좌경첩 도어라면 속서랍 좌측에만 몰딩처리, 양문형 이라면 좌우 둘다
+//   속서랍 몰딩처리, 우경첩 도어면 우측에만 속서랍 몰딩처리 따라서 속서랍 너비 규칙에 따라 변경됨"
+describe('속서랍 몰딩은 경첩 쪽만 (2026-11-01)', () => {
+  const I = R.INNER_DRAWER;
+  test('innerMoldingSidesOf — 외짝 좌 · 우경첩은 그 쪽만, 양문 · 경첩 모름(옛 설계)은 좌우 둘 다', () => {
+    expect(WR.innerMoldingSidesOf({ doorCount: 1, hingeSide: 'left' })).toEqual(['left']);
+    expect(WR.innerMoldingSidesOf({ doorCount: 1, hingeSide: 'right' })).toEqual(['right']);
+    expect(WR.innerMoldingSidesOf({ doorCount: 2 })).toEqual(['left', 'right']);
+    expect(WR.innerMoldingSidesOf({ doorCount: 2, hingeSide: 'left' })).toEqual(['left', 'right']);
+    expect(WR.innerMoldingSidesOf({ doorCount: 1 })).toEqual(['left', 'right']);
+    expect(WR.innerMoldingSidesOf({})).toEqual(['left', 'right']);
+    expect(WR.innerMoldingSidesOf(null)).toEqual(['left', 'right']);
+  });
+
+  test('innerDrawerLayout — 몰딩 하나면 모듈이 60 넓어지고(870 − 60 = 810) 몰딩 없는 쪽 측판에 붙는다, 상판은 통 내경 그대로', () => {
+    const both = WR.innerDrawerLayout({ Wi: 870, zoneH: 700, drawers: 2, T: 15, D: 620 });
+    expect([both.moldingSides, both.moldingQty, both.moduleW, both.moduleX]).toEqual([['left', 'right'], 2, 750, 0]);
+    const left = WR.innerDrawerLayout({ Wi: 870, zoneH: 700, drawers: 2, T: 15, D: 620, moldingSides: ['left'] });
+    expect([left.moldingSides, left.moldingQty, left.moduleW, left.moduleX]).toEqual([['left'], 1, 870 - I.SIDE_MOLDING_W, I.SIDE_MOLDING_W / 2]);
+    const right = WR.innerDrawerLayout({ Wi: 870, zoneH: 700, drawers: 2, T: 15, D: 620, moldingSides: ['right'] });
+    expect([right.moldingSides, right.moduleW, right.moduleX]).toEqual([['right'], 810, -30]);
+    // 전면 · 박스는 모듈 폭을 따라간다 — 상판 · 높이 · 깊이는 그대로
+    expect(left.frontW).toBe(810 - I.FRONT_TRIM);
+    expect(left.topPanelW).toBe(870);
+    expect([left.moduleH, left.moduleD, left.fronts.map((f) => f.h)]).toEqual([both.moduleH, both.moduleD, both.fronts.map((f) => f.h)]);
+    expect(left.boxes.every((b) => b.outerW > both.boxes[0].outerW)).toBe(true);
+    // 모르는 값은 좌우 둘 다 (예전과 같다)
+    expect(WR.innerDrawerLayout({ Wi: 870, zoneH: 700, drawers: 2, T: 15, D: 620, moldingSides: ['up'] }).moldingSides).toEqual(['left', 'right']);
+  });
+
+  test('innerDrawerPartsOf — 몰딩 수량 = 몰딩 수, 비고에 경첩 쪽', () => {
+    const left = WR.innerDrawerLayout({ Wi: 870, zoneH: 700, drawers: 2, T: 15, D: 620, moldingSides: ['left'] });
+    const mol = WR.innerDrawerPartsOf(left).find((r) => r.part === '내부서랍 좌우몰딩');
+    expect([mol.w, mol.h, mol.qty]).toEqual([700, 60, 1]);
+    expect(mol.note).toMatch(/좌경첩 쪽만/);
+    expect(WR.innerDrawerPartsOf(left).find((r) => r.part === '내부서랍 전면판').w).toBe(806);
+  });
+
+  test('layoutWardrobeModule — 통 도어 수 · 외짝 경첩이 내부 서랍 구역까지 간다', () => {
+    const zoneOf = (o) => WR.cabinetsOf(WR.layoutWardrobeModule(Object.assign({ W: 900, D: 620, T: 15, bodyH: 2180, preset: 'longDrawer', drawers: 2 }, o)))
+      .find((c) => c.drawerZone).drawerZone;
+    expect(zoneOf({}).moldingSides).toEqual(['left', 'right']);
+    expect(zoneOf({ doorCount: 2 }).moldingSides).toEqual(['left', 'right']);
+    expect([zoneOf({ doorCount: 1, hingeSide: 'right' }).moldingSides, zoneOf({ doorCount: 1, hingeSide: 'right' }).moduleW]).toEqual([['right'], 810]);
+  });
+});

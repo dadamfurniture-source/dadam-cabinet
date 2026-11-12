@@ -14,7 +14,9 @@ import { WORKER_ACCESS_STATUSES, loadSelfWorker, requireAdminEditor, requireAdmi
 import { recordWorkerEvent } from './events.js';
 import { MINE_STATUSES, loadMyAssignments, myJobCards, openJobsFor, pickNextJob } from './jobs.js';
 import { notifyWork } from './notify.js';
+import { later, notifyWorkerStatus } from '../push/work-hooks.js';
 import { workerSelf } from './reveal.js';
+import { factoryRolesOf, openFactoryOf } from './factory.js';
 import { assertUuid, kindsOf, oneOf, optBool, optPhone, optText, reqText } from './validate.js';
 
 export const WORKER_STATUSES = Object.freeze(['pending', 'approved', 'suspended', 'rejected']);
@@ -68,18 +70,19 @@ async function summaryFor(env, worker) {
 }
 
 /**
- * GET /work/me — { ready, worker, counts, next_job }. 표가 없으면 { ready:false } (화면은 메뉴 · 섹션을 숨긴다).
+ * GET /work/me — { ready, worker, counts, next_job, factory }. 표가 없으면 { ready:false } (화면은 메뉴 · 섹션을 숨긴다).
  * next_job 은 승인 · 정지 작업자의 내 작업 탭 중 하나 (JobCard, pickNextJob 규칙) — 없으면 null.
+ * factory 는 승인된 작업자의 열린 공장 배정 { roles, from_link } — 없으면 null (화면의 「공장」 탭, work/factory.js).
  */
 export async function getMe(env, { user }) {
   let worker;
   try {
     worker = await loadSelfWorker(env, user);
   } catch (err) {
-    if (isMissingRelation(err)) return { ready: false, worker: null, counts: { ...ZERO }, next_job: null };
+    if (isMissingRelation(err)) return { ready: false, worker: null, counts: { ...ZERO }, next_job: null, factory: null };
     throw err;
   }
-  if (!worker) return { ready: true, worker: null, counts: { ...ZERO }, next_job: null };
+  if (!worker) return { ready: true, worker: null, counts: { ...ZERO }, next_job: null, factory: null };
   let counts = { ...ZERO };
   let nextJob = null;
   if (WORKER_ACCESS_STATUSES.includes(worker.status)) {
@@ -89,7 +92,16 @@ export async function getMe(env, { user }) {
       if (!isMissingRelation(err)) throw err;
     }
   }
-  return { ready: true, worker: workerSelf(worker), counts, next_job: nextJob };
+  let factory = null;
+  if (worker.status === 'approved') {
+    try {
+      const f = await openFactoryOf(env, worker.id);
+      if (f) factory = { roles: factoryRolesOf(worker.kinds), from_link: !!f.link_id };
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+    }
+  }
+  return { ready: true, worker: workerSelf(worker), counts, next_job: nextJob, factory };
 }
 
 /** POST /work/register — 공개 신청 (pending). 이미 행이 있으면 409 */
@@ -143,7 +155,7 @@ export async function listWorkersAdmin(env, { user, query = {} }) {
 const sameKinds = (a, b) => JSON.stringify([...(a || [])].sort()) === JSON.stringify([...(b || [])].sort());
 
 /** PATCH /work/admin/workers/:id — 승인 · 반려 · 정지 · 종류 지정. 상태 · 종류가 바뀌면 worker_events 에 한 줄씩 */
-export async function patchWorkerAdmin(env, { user, params, body }) {
+export async function patchWorkerAdmin(env, { user, params, body, ctx }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업자 id');
   const b = body || {};
@@ -176,6 +188,10 @@ export async function patchWorkerAdmin(env, { user, params, body }) {
       workerId: id, actorUserId: user.id, actorKind: 'admin', type: 'status_changed',
       from: worker.status, to: patch.status, note: patch.status === 'rejected' ? patch.reject_reason : null,
     });
+  }
+  // 작업자 신청 결과 앱 알림 (승인 · 반려) — 응답 뒤에
+  if (patch.status === 'approved' || patch.status === 'rejected') {
+    await later(ctx, notifyWorkerStatus(env, { worker: rows[0], status: patch.status }));
   }
   if (patch.kinds && !sameKinds(patch.kinds, worker.kinds)) {
     await recordWorkerEvent(env, { workerId: id, actorUserId: user.id, actorKind: 'admin', type: 'kinds_changed', payload: { kinds: patch.kinds } });

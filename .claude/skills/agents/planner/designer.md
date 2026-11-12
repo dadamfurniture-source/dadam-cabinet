@@ -4,7 +4,9 @@
 Planner 도메인의 UI/UX 품질, 디자인 일관성, 접근성을 리뷰합니다.
 
 ## Review Scope
-- lib/planner.ts
+- mockup-shell.html
+- mockup-structure.html
+- js/planner/*
 
 ## Review Checklist
 - Three.js 렌더링 품질

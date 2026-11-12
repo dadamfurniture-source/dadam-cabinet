@@ -3,6 +3,7 @@
  *
  * 단가는 코드가 아니라 Supabase 의 pricing_rules 에 있다. 영업/대표가
  * SQL 한 줄로 바꿀 수 있어야 하고, 배포를 기다릴 이유가 없기 때문이다.
+ * 고객 견적은 장당 견적(quote-sheet.js)이라 지금은 범위 배수(range)만 읽는다 — m당 단가 견적은 그만두었다.
  *
  * rule set 은 불변(immutable)이다. 단가를 바꾸려면 새 version 을 만들고
  * is_active 를 옮긴다. 문서에는 rule_set_id 를 핀으로 박으므로 몇 달 뒤에
@@ -49,53 +50,9 @@ function makePricebook(ruleSet, rules) {
     version: ruleSet.version,
     ruleCount: rules.length,
 
-    /** 캐비닛 본체. position 은 'lower' | 'upper'. */
-    cabinet: (category, position) => get('cabinet', `${category}.${position}`),
-    countertop: (grade) => get('countertop', 'default', grade),
-    fixture: (key, grade) => get('fixture', key, grade),
-    labor: (key) => get('labor', key),
-    vatRate: () => {
-      const v = get('vat', 'rate');
-      return v === null ? 0 : v;
-    },
+    /** 확인서의 "최종 금액 범위" 배수 — 장당 견적이 단가표에서 읽는 것은 이것뿐이다 */
     rangeMin: () => get('range', 'min'),
     rangeMax: () => get('range', 'max'),
-
-    /**
-     * 기본 도어 단가 (₩/m²).
-     * 이 행이 없으면 도어 마감 업차지를 계상하지 않는다 — CABINET_PRICES 에
-     * 기본 도어가 포함돼 있다고 보면 baseline 없이 업차지를 더할 경우
-     * 도어값이 이중 계상되기 때문. 값이 확정되면 시드에 행을 추가하면 된다.
-     */
-    doorBaseline: () => get('door_baseline', 'default'),
-
-    /**
-     * 도어 자재 코드 → 단가 (₩/m²).
-     * mcp-server/src/config/bom-rules.defaults.ts:145 getDoorFinishPrice 포팅.
-     * 49 조합을 테이블에 펼치지 않고 base 7 × mult 7 로 조합한다.
-     */
-    doorFinishPrice: (finishCode) => {
-      if (!finishCode || finishCode === 'MDF-DEFAULT') return null;
-      const parts = String(finishCode).split('-');
-      if (parts.length < 2) return null;
-
-      let baseKey;
-      let colorCode;
-      if (parts.length === 3) {
-        // FINISH-COLOR-TONE (예: PET-OAK-M)
-        baseKey = `${parts[0]}-${parts[2]}`;
-        colorCode = parts[1];
-      } else {
-        // FINISH-COLOR (single tone, 예: MFB-WHT)
-        baseKey = parts[0];
-        colorCode = parts[1];
-      }
-
-      const base = get('door_finish_base', baseKey);
-      if (base === null) return null;
-      const mult = get('door_color_mult', colorCode);
-      return Math.round(base * (mult === null ? 1.0 : mult));
-    },
   };
 }
 

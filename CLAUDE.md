@@ -55,7 +55,24 @@
 ## 배포 주의사항
 - main 푸시 → GitHub Pages 자동 배포 (1-2분 소요)
 - Cloudflare CDN 캐시: 변경 후 Purge Everything 필요할 수 있음
+- 로컬 css·js 참조의 `?v=` 는 손으로 올리지 않는다 — `npm run asset-version` 이 사이트 전체를 한 값(`scripts/asset-version.json`)으로 찍는다. 어긋나면 `__tests__/asset-version.test.js` 가 막는다
+- `segan/` 파일(sw.js 빼고)을 바꾼 PR 은 `npm run asset-version` 으로 버전도 올린다 — 서비스 워커가 `?v=` 셸 파일을 캐시 먼저로 주기 때문. 버전을 올릴 때 적는 segan/ 해시와 다르면 같은 시험이 막는다
+- DB 변경은 `database/migrations/` 에 다음 번호 파일로 넣는다 (`database/migrations/README.md` — `database/*.sql` 은 옛 기록이라 고치지 않는다)
 - `.gitignore`에 포함된 파일: `.env`, `gcp-service-account.json`, `.claude/worktrees/`
+
+## SEGAN 앱 모션 규칙 (애플식, 웹)
+- 앱(`segan/`) 화면의 움직임은 `segan/motion.js` 한 벌로 만든다. 값은 애플이 쓰는 두 가지 — 응답(초) · 감쇠(1.0 = 튀지 않음)
+- 움직임은 상태 · 결과를 알려 줄 때만. 자주 누르는 곳에 꾸밈 움직임을 넣지 않는다
+- 기본 스프링: 감쇠 1.0 · 응답 0.35초. 튐(감쇠 0.8)은 손으로 던진 것(시트를 끌다 놓기 · 넘기기)에만
+- 누름: 누르는 순간 0.97배 · 0.1초, 떼면 스프링으로 돌아온다. 목록 줄은 줄이지 않고 바탕만 바로 바꾼다
+- 끊기: 움직이는 중에 다시 잡으면 지금 위치에서 이어 간다. 애니메이션 동안 입력을 막지 않는다
+- 숫자: 지난 값 → 새 값으로 굴린다 (감쇠 1.0 · 응답 0.6초), 고정폭 숫자
+- 차트: 선은 그려지며 들어오고(0.9초) 끝점을 찍는다. 훑기는 손가락을 1:1로 따라간다 (움직임 없음)
+- 화면 바꾸기: 들어온 쪽으로 나간다 (하위 화면 = 오른쪽, 돌아가기 = 왼쪽, 탭은 차례대로 좌우)
+- 시트: 끌기 1:1 · 위로는 고무줄(0.55) · 놓은 속도로 멈출 곳을 셈해 닫을지 정한다
+- transform · opacity 만 움직인다. 멈춘 모습이 곧 최종 모습이다 (불투명 0 으로 기다리게 두지 않는다)
+- 동작 줄이기: 밀기 · 스프링 대신 0.2초 흐려지기, 숫자는 바로 최종값. 투명도 줄이기: 유리는 불투명으로
+- 재질은 v5 그대로 — 각진 모서리 · 그림자 없음 · 가는 선 (유리 재질은 정한 뒤에만)
 
 ## 손잡이 프롬프트
 - 모든 카테고리: handleless (매립형)
@@ -68,21 +85,24 @@
 
 | 도메인 | Engineer 소유 파일 | 브랜치 prefix |
 |--------|-------------------|--------------|
-| 3D Planner (레거시, 정지) | `lib/planner.ts` | 수정 금지 (참고용) |
 | Image Gen | `ai-design.html`, `js/detaildesign/ai-design-report.js` | `agent/imggen-*` |
 | BOM/Materials | `calc-engine.js`, `extractors.js`, `bom.service.ts`, `bom.tool.ts`, `bom-rules.*`, `assembly-rules.js`, `bom-assembly.js`, `assembly-check.js`, `tools/cad/**`, `.github/workflows/cad-oracle.yml` | `agent/bom-*` |
 | Design UI | `ui-step1.js`, `ui-workspace.js`, `ui-fridge-el.js` | `agent/designui-*` |
 | Collection | `collection.html`, `database/collection-schema.sql` | `agent/collection-*` |
 | MCP Server | `mcp-server/src/**` (BOM 파일 제외) | `agent/mcp-*` |
 | Planner (활성) | `mockup-shell.html`, `mockup-structure.html`, `js/planner/*` (`planner-assembly-mesh.js`, `planner-export.js` 포함) | `agent/planner-*` |
-| Workflow Worker | `workers/workflow-api/**` (작업지시서·스냅샷·견적, `part-drawing.js`·`module-section.js`·`dxf-writer.js` 포함), `js/detaildesign/workflow-client.js` | `agent/workflow-*` |
+| Workflow Worker | `workers/workflow-api/**` (작업지시서·스냅샷·견적, `part-drawing.js`·`module-section.js`·`dxf-writer.js` 포함), `js/detaildesign/workflow-client.js`, `erp.html` | `agent/workflow-*` |
 | Worker Portal | `worker.html`, `js/worker-portal.js`, `js/mypage-work.js`, `admin/work-jobs.html`, `mypage.html` 의 `#myWorkSection` 부분, `database/work-jobs*.sql` | `agent/worker-*` |
 | Site Auth | `login.html`, `signup.html` (리다이렉트·OAuth·로그인 수단) | `agent/auth-*` |
 | Module Library | `docs/01-plan/module-library.plan.md` — 모듈 정의 · 검증은 별도 저장소 `dadamfurniture-source/dadam-module-library` (비공개, 이 저장소를 `engine/` 서브모듈로 쓴다) | `agent/modlib-*` |
+| App Shell (SEGAN) | `segan/**`, `scripts/stamp-asset-version.mjs`, `scripts/asset-version.json`, `scripts/segan-icons.mjs` | `agent/app-*` |
+| Database migrations | `database/migrations/**`, `database/probes/**`, `scripts/db-*.mjs`, `scripts/rls-probe.mjs` | `agent/db-*` |
+| AI Assistant | `workers/assistant-api/**` (Agent 업체 AI 비서 · 영수증 사진 읽기) | `agent/assistant-*` |
 
 CAD 베타 파일 소유는 결정 D11 (2026-10-18 승인, `docs/01-plan/planner-cad.plan.md`).
 모듈 라이브러리 소유는 2026-10-24 사장님 계획 승인 (`docs/01-plan/module-library.plan.md`). 같은 날 사장님 지시로 별도 저장소로 옮겼다 — 라이브러리는 선택값만 담고, 플래너·BOM·CAD 규칙은 이 저장소의 각 도메인이 고친다.
 작업자 포털 소유는 2026-10-20 사장님 결정 16 (`docs/01-plan/worker-portal.plan.md`). 서버 `workers/workflow-api/src/work/**` 는 Workflow Worker 영역.
+AI 비서 워커 소유는 2026-11-02 사장님 승인. 회계장부 서버 `workers/workflow-api/src/ledger/**` 와 `erp.html` 은 Workflow Worker, 장부 화면 `segan/ledger.*` 는 App Shell, 사진 읽기 결과는 AI Assistant 가 쓴다.
 
 ### 역할별 실행 순서
 1. **Engineer** → 코드 수정 + PR 생성

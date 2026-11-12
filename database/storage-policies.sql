@@ -2,13 +2,17 @@
 -- Supabase Storage 버킷 정책 설정
 -- design-images 버킷용 RLS 정책
 --
+-- 2026-10-26: 비공개 버킷 (database/private-photo-buckets.sql 과 같다). 고객 사진이라
+--   읽기는 본인 · 관리자만, 화면은 서명 URL 로 연다 (js/storage-urls.js).
+--   선행: public.is_admin() (database/fix-admin-rls-recursion.sql).
+--
 -- 사용법: Supabase Dashboard > SQL Editor에서 실행
 -- =============================================
 
--- 1. design-images 버킷이 없으면 생성
+-- 1. design-images 버킷이 없으면 생성 (비공개)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('design-images', 'design-images', true)
-ON CONFLICT (id) DO UPDATE SET public = true;
+VALUES ('design-images', 'design-images', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
 
 -- =============================================
 -- 2. 기존 정책 삭제 (재설정용)
@@ -22,6 +26,8 @@ DROP POLICY IF EXISTS "design-images_insert_own" ON storage.objects;
 DROP POLICY IF EXISTS "design-images_update_own" ON storage.objects;
 DROP POLICY IF EXISTS "design-images_delete_own" ON storage.objects;
 DROP POLICY IF EXISTS "design-images_select_public" ON storage.objects;
+DROP POLICY IF EXISTS "design-images_select_own" ON storage.objects;
+DROP POLICY IF EXISTS "design-images_select_admin" ON storage.objects;
 
 -- =============================================
 -- 3. Storage 정책 생성
@@ -59,11 +65,23 @@ CREATE POLICY "design-images_delete_own" ON storage.objects
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
--- 3-4. SELECT (읽기/다운로드): 공개 버킷이므로 모든 사용자 허용
-CREATE POLICY "design-images_select_public" ON storage.objects
+-- 3-4. SELECT (읽기/다운로드 · 서명 URL 발급): 본인 폴더만
+CREATE POLICY "design-images_select_own" ON storage.objects
     FOR SELECT
-    TO public
-    USING (bucket_id = 'design-images');
+    TO authenticated
+    USING (
+        bucket_id = 'design-images'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+    );
+
+-- 3-5. SELECT: 관리자는 전부
+CREATE POLICY "design-images_select_admin" ON storage.objects
+    FOR SELECT
+    TO authenticated
+    USING (
+        bucket_id = 'design-images'
+        AND public.is_admin()
+    );
 
 -- =============================================
 -- 4. 확인 쿼리
@@ -95,6 +113,7 @@ BEGIN
     RAISE NOTICE '  - design-images_insert_own: 본인 폴더 업로드';
     RAISE NOTICE '  - design-images_update_own: 본인 파일 수정';
     RAISE NOTICE '  - design-images_delete_own: 본인 파일 삭제';
-    RAISE NOTICE '  - design-images_select_public: 공개 읽기';
+    RAISE NOTICE '  - design-images_select_own: 본인 파일 읽기';
+    RAISE NOTICE '  - design-images_select_admin: 관리자 읽기';
     RAISE NOTICE '=============================================';
 END $$;

@@ -80,9 +80,9 @@ describe('브리지 — 옛 payload 는 그대로', () => {
     expect(placeOf({ W: 600, plane: { cx: 1, cy: 1 }, rotation: 45 }, 0, 600, 2300)).toBeNull();
   });
 
-  test('여섯 갈래(오픈장 · 밥솥장 · 홈카페장 · EL장 · 멍장 · 칸) 모두 자리를 단다', () => {
+  test('일곱 갈래(벤치 · 오픈장 · 밥솥장 · 홈카페장 · EL장 · 멍장 · 칸) 모두 자리를 단다', () => {
     const conv = sliceBalanced(UI, UI.indexOf('function _convertPlannerModules'));
-    expect(conv.split('placeLast(').length - 1).toBe(6); // 오픈장 · 밥솥장 · 홈카페장 · EL장 · 멍장 · 칸 (정의는 'placeLast = (')
+    expect(conv.split('placeLast(').length - 1).toBe(7); // 벤치(2026-10-29 신발장) · 오픈장 · 밥솥장 · 홈카페장 · EL장 · 멍장 · 칸 (정의는 'placeLast = (')
     expect(conv).toMatch(/placeLast\(m, \(Number\(c\.x\) \|\| 0\) - \(Number\(m\.x\) \|\| 0\), c\.w\)/);
   });
 });

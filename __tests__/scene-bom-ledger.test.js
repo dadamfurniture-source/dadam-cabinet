@@ -10,6 +10,8 @@
  *      명세 상자와 ±0.5mm 안이어야 하고, 모르는 id · 겹친 id · 행 일부만 그림은 **곧장 실패**한다 (허용 없음).
  *   2. 치수 대조 — 남은 것(예전 그리기 판재 ↔ id 로 안 맞춘 BOM 행)을 (모듈, 종류) 치수 다중집합으로.
  *      그 전에 정한 그림 차이(2026-10-26 상판 — BOM 한 장 ↔ 3D 배치 공간마다 조각)는 합이 맞을 때만 뺀다 (splitDeclaredTop).
+ *   정한 그림 차이 둘째 — 현장 자름 (2026-10-26): 800 보다 짧은 상몰딩 · 걸레받이 · 목찬넬 조각은 BOM 800 발주 · 명세와 3D 는 붙는 길이.
+ *      1단계 id 대조가 그 판재만 재단 치수 차이를 허용하고 declaredSiteCuts 로 센다 (ledger-diff.js diffById). 아래 '현장 자름' 시험이 잠근다.
  *      차이 개수는 래칫(test-utils/ledger-baseline.json)이 지킨다 — (픽스처, 종류, 차이) 마다 **늘면 실패**.
  *      줄면 통과하고 기준을 낮추라고 알린다:  UPDATE_LEDGER_BASELINE=1 npx jest __tests__/scene-bom-ledger.test.js
  *      (PowerShell: $env:UPDATE_LEDGER_BASELINE=1; npx jest __tests__/scene-bom-ledger.test.js). 늘어난 기준은 쓰지 않는다.
@@ -192,6 +194,50 @@ describe('정한 그림 차이 — 치수 대조 전에 합으로 맞춰 뺀다 
     expect(discrepancies.filter((d) => d.fixture === 'cornerL' && d.family === 'top').map((d) => d.kind).sort()).toEqual(['only3d', 'only3d', 'onlyBom']);
     // 뺀 픽스처에는 상판 차이가 남지 않는다
     expect(discrepancies.filter((d) => ['lShape', 'oblique'].includes(d.fixture) && d.family === 'top')).toEqual([]);
+  });
+});
+
+describe('정한 그림 차이 — 현장 자름 (2026-10-26 사장님 "800 보다 짧으면 그 길이 그대로 내는게 아니라 최소 800이상의 길이가 되어야한다는 거지")', () => {
+  // 래칫 밖 픽스처 (차이 개수 기준에 넣지 않는다): ㄱ자 하부 1800 + 옆 벽 600, 상부 600 하나 —
+  //   상몰딩 · 옆 벽 걸레받이 · 목찬넬이 800 보다 짧은 자리라 BOM 은 800 으로 내고 3D 는 붙는 길이 600 을 그린다
+  const shortPlaces = {
+    version: 1, savedAt: '2026-01-01T00:00:00.000Z', person: { cx: 1500, cy: 1500 },
+    modules: [
+      { section: 'lower', x: 0, y: 0, w: 1800, h: 650, moduleH: 870, rotation: 0, finishings: [] },
+      { section: 'lower', x: 1800, y: 650, w: 600, h: 650, moduleH: 870, rotation: 90, finishings: [] },
+      { section: 'upper', x: 0, y: 0, w: 600, h: 320, moduleH: 780, rotation: 0, finishings: [] },
+    ],
+  };
+
+  test('원장 픽스처에는 현장 자름이 없다 — 재단 치수 차이를 허용한 판재 0', () => {
+    Object.keys(LEDGER_FIXTURES).forEach((name) => expect([name, ledgers[name].byId.declaredSiteCuts]).toEqual([name, []]));
+  });
+
+  test('짧은 자리 — BOM 800 · 명세와 3D 600, id 대조가 정한 차이로 세고 치수 대조에는 차이가 남지 않는다', () => {
+    const p = bootPlanner3D(shortPlaces, { design: 'ledger', item: 'shortPlaces', assembly: true });
+    const asm = p.g('plannerCadSpec')();
+    const full = collectBomParts(p);
+    const pieces = collectSceneIdPieces(p);
+    const byId = diffById('shortPlaces', pieces, asm.spec, full.materials);
+    expect(byId.issues).toEqual([]);
+    expect(byId.declaredSiteCuts.map((d) => [d.partId, d.part, d.order, d.len]).sort()).toEqual([
+      ['0-ep-molding-0#0', '상몰딩', 800, 600],
+      ['0-ep-kick-1#0', '걸레받이', 800, 600],
+      ['0-ep-channel:front-1#0', '목찬넬(전면)', 800, 600],
+      ['0-ep-channel:back-1#0', '목찬넬(지면)', 800, 600],
+    ].sort());
+    // BOM 행은 800 · 비고 "현장에서 자름", 3D 판재는 붙는 길이 600
+    const ep = full.materials.filter((m) => /^0-ep-(molding|kick|channel)/.test(m.partId));
+    expect(ep.filter((m) => /현장에서 자름/.test(m.note)).map((m) => [m.partId, Math.max(m.w, m.h)])).toEqual([
+      ['0-ep-molding-0', 800], ['0-ep-kick-1', 800], ['0-ep-channel:front-1', 800], ['0-ep-channel:back-1', 800]]);
+    byId.declaredSiteCuts.forEach((d) => {
+      const pc = pieces.find((x) => x.partId === d.partId);
+      expect(Math.round(Math.max(...[0, 1, 2].map((i) => pc.max[i] - pc.min[i])))).toBe(600);
+    });
+    const scene = collectSceneParts(p).filter((r) => !r.partIds.length);
+    const bom = collectBomParts(p, { excludeRows: byId.matchedRows });
+    const top = splitDeclaredTop(scene, bom.parts);
+    expect(diffLedger('shortPlaces', top.scene, top.bom)).toEqual([]);
   });
 });
 

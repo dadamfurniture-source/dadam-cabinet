@@ -61,7 +61,7 @@ export async function getFeedback(env, orderId) {
 
 /** 링크 만들기 — 평문 토큰은 이 응답에서 한 번만 나간다 */
 export async function createFeedbackLink(env, { orderId, user }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: false });
   let existing;
   try {
     existing = await selectOne(env, 'install_feedback', { order_id: `eq.${orderId}`, select: 'id,answered_at' });

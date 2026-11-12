@@ -1,0 +1,1360 @@
+/* ============================================================
+   segan/ledger.css — 업체 회계장부 (segan/ledger.html). 색 · 선은 shell.css 의 v5 토큰.
+   사진 확인의 상태 색(확인 · 맞음 · 중복)만 여기서 정한다 — v5 에 상태 색이 없다.
+   ============================================================ */
+
+:root {
+  --lg-warn: #6f4c0c; /* 「확인」 글 */
+  --lg-warn-bg: #fbefd4; /* 「확인」 칸 바탕 */
+  --lg-warn-line: #c9952b;
+  --lg-ok: #2f6b4f; /* ✓ */
+  --lg-crit: #93301f; /* 중복 · 폐업 */
+}
+
+.lg-keep {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  color: var(--v5-ink);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* 알림 한 줄 — 화면 아래(폰은 아래 탭 위)에 띄운다, 누르면 닫는다 */
+.lg-state {
+  position: fixed;
+  bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom) + 12px);
+  left: 50%;
+  z-index: 45;
+  max-width: min(560px, calc(100% - 32px));
+  margin: 0;
+  padding: 10px 14px;
+  transform: translateX(-50%);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lg-state:empty {
+  display: none;
+}
+
+/* 머리 — 장부 고르기 · 달 · 보기만 */
+.lg-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.lg-top .lg-switch,
+.lg-top .lg-nav,
+.lg-top .lg-readonly {
+  margin: 0;
+}
+
+.lg-top .lg-readonly {
+  flex-basis: 100%;
+}
+
+/* 탭 — 폰은 위 가로 줄(붙어 있음), PC 는 왼쪽 세로 메뉴 */
+.lg-shell {
+  display: grid;
+  gap: 16px;
+}
+
+/* 탭 줄 · 판이 화면 폭을 늘리지 않게 (가로로 넘치면 탭 줄 안에서 민다) */
+.lg-shell > * {
+  min-width: 0;
+}
+
+.lg-tabs {
+  position: sticky;
+  top: calc(var(--sg-bar) + env(safe-area-inset-top));
+  z-index: 5;
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--v5-line-18);
+  background: var(--v5-invert);
+}
+
+.lg-tab {
+  flex: 1 0 auto;
+  padding: 11px 8px;
+  border: 0;
+  background: none;
+  color: var(--v5-ink-62);
+  font: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lg-tab[aria-selected='true'] {
+  color: var(--v5-navy);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--v5-navy);
+}
+
+.lg-tab:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: -2px;
+}
+
+.lg-tab-n {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 2px;
+  padding: 0 5px;
+  background: var(--lg-warn-bg);
+  color: var(--lg-warn);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-panes {
+  min-width: 0;
+}
+
+.lg-pane-title {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+/* 아래 탭이 없고 위 메뉴가 88px 인 폭 (segan/shell.css 1024px~) */
+@media (min-width: 1024px) {
+  .lg-state {
+    bottom: 24px;
+  }
+
+  /* SEGAN 비서 입력 줄(segan/guide.js — 화면 아래 20px · 높이 48px) 위로 */
+  body.sg-ai-on .lg-state {
+    bottom: 92px;
+  }
+
+  .lg-tabs {
+    top: 88px;
+  }
+}
+
+@media (min-width: 900px) {
+  .lg-shell {
+    grid-template-areas:
+      'top top'
+      'tabs panes';
+    grid-template-columns: 168px minmax(0, 1fr);
+    gap: 20px 32px;
+    align-items: start;
+  }
+
+  .lg-top {
+    grid-area: top;
+  }
+
+  .lg-tabs {
+    grid-area: tabs;
+    flex-direction: column;
+    top: 104px;
+    overflow: visible;
+    border-right: 1px solid var(--v5-line-18);
+    border-bottom: 0;
+  }
+
+  .lg-tab {
+    flex: none;
+    padding: 12px 16px;
+    text-align: left;
+  }
+
+  .lg-tab[aria-selected='true'] {
+    background: var(--v5-well);
+    box-shadow: inset 3px 0 0 var(--v5-navy);
+  }
+
+  .lg-panes {
+    grid-area: panes;
+  }
+}
+
+.lg-readonly {
+  margin: 0 0 16px;
+  color: var(--v5-tan);
+  font-size: 13px;
+}
+
+/* 보기만 안내의 등급 비교 링크 (segan/plans.html) */
+.lg-readonly-link {
+  min-height: 0;
+  padding: 0;
+  color: inherit;
+}
+
+.lg-box {
+  margin: 0 0 20px;
+  padding: 16px;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+/* mk-btn 같은 display 를 가진 칸도 hidden 이면 감춘다 */
+.lg [hidden] {
+  display: none !important;
+}
+
+.lg-box-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.lg-row .mk-input {
+  flex: 1 1 140px;
+}
+
+.lg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lg-reason {
+  grid-column: 1 / -1;
+}
+
+.lg-switch {
+  max-width: 320px;
+  margin: 0 0 16px;
+}
+
+.lg-nav {
+  margin: 4px 0 12px;
+}
+
+.lg-sum {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.lg-sum div {
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+.lg-sum dt {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lg-sum dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lg-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0 16px;
+}
+
+.lg-check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lg-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-item,
+.lg-empty {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-empty {
+  color: var(--v5-ink-55);
+  font-size: 13px;
+}
+
+.lg-line {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.lg-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lg-main small,
+.lg-meta {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.lg-amt {
+  flex: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lg-amt--in {
+  color: var(--v5-navy);
+}
+
+.lg-item--void .lg-main b,
+.lg-item--void .lg-amt {
+  color: var(--v5-ink-45);
+  text-decoration: line-through;
+}
+
+.lg-item-acts,
+.lg-void {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.lg-void input {
+  flex: 1 1 180px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* 영수증 · 명세표 사진 */
+/* 파일 칸은 단추가 연다 — display:none 이면 일부 iOS 가 click() 을 받지 않아 보이지 않게만 둔다 */
+.lg-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  opacity: 0;
+}
+
+.lg-note {
+  display: block;
+  max-width: 420px;
+}
+
+.lg-up-state {
+  min-height: 1em;
+  margin: 0 0 6px;
+  color: var(--v5-ink);
+  font-size: 13px;
+}
+
+.lg-up-fail {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  color: var(--v5-tan);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.lg-up-fail li + li {
+  margin-top: 4px;
+}
+
+.lg-sub {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lg-docs {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-doc {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-doc-line {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.lg-doc-line span {
+  color: var(--v5-ink-62);
+}
+
+.lg-doc b {
+  font-weight: 500;
+}
+
+.lg-doc[data-status='returned'] b {
+  color: var(--v5-tan);
+}
+
+.lg-doc small {
+  display: block;
+  margin-top: 2px;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* 확인할 사진 (대표 · 실장) */
+.lg-rv-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-rv {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-rv-open {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lg-rv-thumb {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-photo);
+}
+
+.lg-rv-thumb--none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--v5-ink-55);
+  font-size: 11px;
+}
+
+.lg-rv-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lg-rv-line {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.lg-rv-line span {
+  color: var(--v5-ink-62);
+}
+
+.lg-rv-line b {
+  font-weight: 500;
+}
+
+.lg-rv[data-read='failed'] .lg-rv-line b,
+.lg-rv[data-read='refused'] .lg-rv-line b,
+.lg-rv[data-read='skipped_budget'] .lg-rv-line b {
+  color: var(--v5-tan);
+}
+
+.lg-rv-main small {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.lg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 0;
+}
+
+.lg-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--v5-tan);
+  color: var(--v5-tan);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.lg-chip--warn {
+  border-color: var(--lg-warn-line);
+  background: var(--lg-warn-bg);
+  color: var(--lg-warn);
+}
+
+.lg-chip--crit {
+  border-color: var(--lg-crit);
+  color: var(--lg-crit);
+}
+
+.lg-chip--info {
+  border-color: var(--v5-line-25);
+  color: var(--v5-ink-62);
+}
+
+/* 바로 올려도 되는 사진 — 줄마다 올릴 값(일자 · 거래처 / 금액 · 계정) */
+.lg-ready {
+  margin: 0 0 12px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.lg-ready-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--v5-well);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-ready .lg-rv-list {
+  padding: 0 12px;
+}
+
+.lg-ready .lg-rv:last-child {
+  border-bottom: 0;
+}
+
+.lg-rv-ready1 {
+  font-weight: 500;
+}
+
+.lg-rv-ready2 {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 세금계산서 기다리는 명세표 — 거래처 · 달 묶음 */
+.lg-held {
+  margin: 0 0 12px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.lg-held-list {
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+}
+
+.lg-held-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+}
+
+.lg-held-row:last-child {
+  border-bottom: 0;
+}
+
+.lg-held-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lg-held-top span {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-held-late {
+  color: var(--lg-warn);
+  font-size: 12px;
+}
+
+.lg-held-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+/* 시트 위 명세표 상자 — 세금계산서를 따로 주나 · 모아 두기 */
+.lg-rv-inv {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-25);
+  background: var(--v5-well);
+  font-size: 13px;
+}
+
+.lg-rv-inv-note {
+  margin: 0;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+/* 붙이기 창 */
+.lg-at-docs {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-at-doc label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-at-amt {
+  color: var(--v5-ink-62);
+}
+
+.lg-at-cmp {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-at-cmp dt {
+  color: var(--v5-ink-62);
+}
+
+.lg-at-cmp dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}
+
+.lg-at-res {
+  min-height: 1em;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+.lg-at-res--good {
+  color: var(--lg-ok);
+}
+
+.lg-at-res--bad {
+  color: var(--lg-crit);
+}
+
+/* 거래처별 세금계산서 */
+.lg-sup-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lg-sup-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+}
+
+.lg-sup-row select {
+  min-height: 36px;
+}
+
+/* 사진 확인 시트 — 화면을 덮고, 시트 안만 넘긴다 */
+.lg-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px
+    calc(env(safe-area-inset-bottom, 0px) + 16px);
+  overflow-y: auto;
+  background: rgba(45, 42, 38, 0.45);
+}
+
+.lg-sheet {
+  width: 100%;
+  max-width: 760px;
+  margin: 0;
+}
+
+.lg-sheet-head {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.lg-rv-photo {
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0;
+  overflow: hidden; /* 90 · 270 도 돌린 사진의 원래 상자가 넘치지 않게 */
+  border: 1px solid var(--v5-line);
+  background: var(--v5-photo);
+  cursor: zoom-in;
+}
+
+/* 사진 돌리기 — 사진 바로 아래 오른쪽 */
+.lg-rv-rotate {
+  margin: -4px 0 10px;
+  text-align: right;
+}
+
+.lg-rv-photo img {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+/* 누르면 크게 — 사진 그대로의 높이 */
+.lg-rv-photo--big {
+  cursor: zoom-out;
+}
+
+.lg-rv-photo--big img {
+  max-height: none;
+}
+
+.lg-rv-read {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.lg-rv-amounts {
+  margin: 8px 0 12px;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lg-rv-amounts.lg-flag {
+  color: var(--v5-tan);
+}
+
+/* 꼭 볼 칸 — 일자 · 거래처 · 공급가 · 부가세 · 계정. 줄마다 [이름 | 칸 + 꼬리표 | ✓/확인] + 까닭 */
+.lg-rv-target {
+  margin: 12px 0 10px;
+}
+
+.lg-must-head {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lg-must-head small {
+  margin-left: 6px;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.lg-must {
+  margin: 0 0 12px;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-must-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-must-row[hidden] {
+  display: none;
+}
+
+.lg-must-row.lg-flag {
+  background: var(--lg-warn-bg);
+}
+
+.lg-must-k {
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lg-must-row.lg-flag .lg-must-k {
+  color: var(--lg-warn);
+  font-weight: 500;
+}
+
+.lg-must-v {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.lg-must-v input,
+.lg-must-v select {
+  box-sizing: border-box;
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-must-row.lg-flag input,
+.lg-must-row.lg-flag select {
+  border-color: var(--lg-warn-line);
+}
+
+.lg-mark {
+  min-width: 32px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.lg-mark--ok {
+  color: var(--lg-ok);
+}
+
+.lg-mark--chk {
+  padding: 1px 6px;
+  border: 1px solid var(--lg-warn-line);
+  background: var(--v5-paper);
+  color: var(--lg-warn);
+  white-space: nowrap;
+}
+
+.lg-tag {
+  padding: 0 6px;
+  background: var(--v5-well);
+  color: var(--v5-ink-62);
+  font-size: 11px;
+  line-height: 1.8;
+  white-space: nowrap;
+}
+
+.lg-tag--ai {
+  background: var(--lg-warn-bg);
+  color: var(--lg-warn);
+}
+
+.lg-must-why {
+  grid-column: 2 / -1;
+  color: var(--lg-warn);
+  font-size: 12px;
+}
+
+.lg-must-row:not(.lg-flag) .lg-must-why {
+  color: var(--v5-ink-62);
+}
+
+/* 더 보기 — 의심 칸이 있으면 펼친다 */
+.lg-more {
+  margin: 0 0 12px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-more summary {
+  padding: 8px 0;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lg-more summary:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+.lg-rv-items {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 더 보기 안의 확실하지 않은 칸 · 검사에 걸린 칸 */
+.lg-flag > span {
+  color: var(--v5-tan);
+}
+
+.lg-flag input,
+.lg-flag select {
+  border-color: var(--v5-tan);
+  box-shadow: inset 0 0 0 1px var(--v5-tan);
+}
+
+.lg-rv-biz {
+  margin-top: 0;
+}
+
+.lg-rv-biz-state {
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lg-rv-decide {
+  margin-bottom: 4px;
+}
+
+@media (min-width: 768px) {
+  .lg-rv-thumb {
+    width: 72px;
+    height: 72px;
+  }
+
+  .lg-rv-photo img {
+    max-height: 420px;
+  }
+}
+
+/* ── 매출 · 매입 판 (ledger-book.js) — 거름 · 찾기 · 표 + 옆 서랍, 폰은 서랍이 아래에서 올라온다 ── */
+.lg-bk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 0 0 12px;
+}
+
+.lg-seg {
+  display: inline-flex;
+  border: 1px solid var(--v5-line-25);
+}
+
+.lg-seg-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink-62);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lg-seg .lg-seg-btn + .lg-seg-btn {
+  border-left: 1px solid var(--v5-line-25);
+}
+
+#lgBkGroup {
+  border: 1px solid var(--v5-line-25);
+}
+
+.lg-seg-btn[aria-pressed='true'] {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.lg-bk-find {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-25);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.lg-bk-bar #lgAdd {
+  margin-left: auto;
+}
+
+.lg-bk {
+  display: grid;
+  gap: 16px;
+}
+
+.lg-tbl-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+.lg-tbl {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-tbl th,
+.lg-tbl td {
+  padding: 8px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lg-tbl th {
+  background: var(--v5-well);
+  color: var(--v5-ink-62);
+  font-weight: 400;
+}
+
+.lg-tbl .l {
+  text-align: left;
+}
+
+.lg-tbl tbody .lg-tr {
+  cursor: pointer;
+}
+
+.lg-tbl tbody .lg-tr:hover,
+.lg-tbl tbody .lg-tr.is-on {
+  background: var(--v5-well);
+}
+
+.lg-tbl tbody .lg-tr:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: -2px;
+}
+
+.lg-tr--void td {
+  color: var(--v5-ink-62);
+  text-decoration: line-through;
+}
+
+.lg-td-who {
+  max-width: 200px;
+  white-space: normal;
+}
+
+.lg-td-who b {
+  display: block;
+  font-weight: 500;
+}
+
+.lg-td-who small {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lg-td-muted {
+  color: var(--v5-ink-62);
+}
+
+.lg-src {
+  padding: 0 6px;
+  border: 1px solid var(--v5-line-25);
+  color: var(--v5-ink-62);
+  font-size: 11px;
+}
+
+.lg-tbl tfoot td {
+  border-top: 1px solid var(--v5-line-25);
+  border-bottom: 0;
+  font-weight: 500;
+}
+
+.lg-tbl-empty {
+  padding: 24px 10px;
+  color: var(--v5-ink-62);
+  text-align: center !important;
+}
+
+/* 서랍 — 폰: 아래에서 올라오는 시트 */
+.lg-drawer-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(45, 42, 38, 0.32);
+}
+
+.lg-drawer {
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  background: var(--v5-paper);
+}
+
+.lg-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.lg-drawer-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lg-drawer .lg-list {
+  margin: 0 0 8px;
+}
+
+.lg-drawer .lg-grid {
+  grid-template-columns: 1fr;
+}
+
+.lg-erp {
+  padding: 8px 0;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  list-style: none;
+}
+
+/* 받을 돈 · 낼 돈 */
+.lg-mny-box {
+  margin-top: 20px;
+}
+
+.lg-mny-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.lg-mny-sum {
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-mny-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lg-mny {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+}
+
+.lg-mny:last-child {
+  border-bottom: 0;
+}
+
+.lg-mny-main small {
+  display: block;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lg-mny-main b {
+  font-weight: 500;
+}
+
+.lg-mny-amt {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lg-mny--late small,
+.lg-mny--late .lg-mny-amt {
+  color: var(--lg-crit);
+}
+
+.lg-mny-empty {
+  padding: 8px 0;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+/* PC — 표 옆에 서랍 (겹창 아님) */
+@media (min-width: 1100px) {
+  .lg-bk {
+    grid-template-columns: minmax(0, 1fr) 264px;
+    align-items: start;
+  }
+
+  .lg-drawer-wrap {
+    position: sticky;
+    top: 104px;
+    inset: auto;
+    z-index: 1;
+    display: block;
+    background: none;
+  }
+
+  .lg-drawer {
+    max-height: calc(100vh - 128px);
+    padding: 16px;
+    border: 1px solid var(--v5-line);
+  }
+
+  /* 서랍 옆에서는 표를 줄여 넣는다 (거래처 칸이 줄을 바꾼다) */
+  .lg-tbl {
+    min-width: 0;
+  }
+
+  .lg-bk:has(.lg-drawer-wrap[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── 사진 판 — 상태 거름 · 사진 확인 창 PC 두 단 ── */
+/* 폰은 한 줄 — 넘치면 옆으로 민다 */
+.lg-ph-seg {
+  display: flex;
+  max-width: 100%;
+  margin: 0 0 12px;
+  overflow-x: auto;
+}
+
+.lg-ph-seg .lg-seg-btn {
+  flex: 0 0 auto;
+}
+
+@media (min-width: 1100px) {
+  .lg-sheet {
+    max-width: 1080px;
+  }
+
+  .lg-rv-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .lg-rv-left {
+    position: sticky;
+    top: 0;
+  }
+
+  .lg-rv-photo img {
+    max-height: 70vh;
+  }
+}
+
+/* ── 보고 — 머리의 보고서 · 내보내기, 월초 지난달 보고서 카드, 내보내기 창 ── */
+.lg-top-acts {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.lg-top-acts .mk-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.lg-month-card {
+  display: block;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--v5-navy);
+  background: var(--v5-well);
+  color: var(--v5-navy);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.lg-export {
+  max-width: 520px;
+}
+
+.lg-ex-range {
+  margin: 4px 0 12px;
+}
+
+.lg-ex-period {
+  margin: 8px 0 12px;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}

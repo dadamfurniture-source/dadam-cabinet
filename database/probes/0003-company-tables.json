@@ -1,0 +1,1086 @@
+{
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정 + 0020 상담까지 걸리는 날 + 0021 고객 확정 ~ 시공 완료 기간 · 시공 완료 희망 날짜 + 0022 평가표 본사 소통 + 0023 작업자 앱 알림 + 0024 공장 작업자 계정 + 0025 수주 온라인 결제 기록 + 0026 AI 비서 바탕(서버만 · 자격 · 예산 잡기 · 정산) + 0030 장부 · 비서 알림 종류",
+  "ids": [
+    "company_x",
+    "company_y",
+    "cust_x_linked",
+    "cust_x_plain",
+    "cust_x_spare",
+    "cust_y",
+    "cust_hq",
+    "proj_x_linked",
+    "proj_x_plain",
+    "proj_y",
+    "proj_hq",
+    "event_x",
+    "event_y",
+    "new_company",
+    "new_customer",
+    "new_project",
+    "design_x",
+    "design_y",
+    "design_hq",
+    "snap_x",
+    "doc_x",
+    "order_x",
+    "cons_x",
+    "cons_hq",
+    "gen_x",
+    "gen_hq_private",
+    "gen_hq_linked",
+    "app_a",
+    "invite_x",
+    "sub_x",
+    "ev_done",
+    "ev_pending",
+    "ev_early",
+    "cp_x",
+    "cp_hq",
+    "wr_x",
+    "wr_hq",
+    "ps_staff",
+    "ps_owner",
+    "nb_staff",
+    "nb_owner",
+    "cons_pf",
+    "cons_xc",
+    "asg_x"
+  ],
+  "users": ["hq_customer_user", "x_customer_user", "x_owner_user", "x_staff_user", "y_staff_user", "hq_member_user", "hq_admin_user", "x_removed_user"],
+  "setup": [
+    "INSERT INTO public.admin_roles (user_id, role) VALUES ({{hq_admin_user}}, 'admin')",
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active'), ({{company_x}}, {{x_removed_user}}, 'staff', 'removed'), ({{company_y}}, {{y_staff_user}}, 'staff', 'active'), (public.hq_company_id(), {{hq_member_user}}, 'staff', 'active')",
+    "INSERT INTO public.customers (id, company_id, user_id, name, phone) VALUES ({{cust_x_linked}}, {{company_x}}, {{x_customer_user}}, 'probe', NULL), ({{cust_x_plain}}, {{company_x}}, NULL, 'probe', '000-0000'), ({{cust_x_spare}}, {{company_x}}, NULL, 'probe', NULL), ({{cust_y}}, {{company_y}}, NULL, 'probe', NULL)",
+    "INSERT INTO public.customers (id, company_id, user_id) VALUES ({{cust_hq}}, public.hq_company_id(), {{hq_customer_user}})",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{proj_x_linked}}, {{company_x}}, {{cust_x_linked}}, 'probe'), ({{proj_x_plain}}, {{company_x}}, {{cust_x_plain}}, 'probe'), ({{proj_y}}, {{company_y}}, {{cust_y}}, 'probe'), ({{proj_hq}}, public.hq_company_id(), {{cust_hq}}, 'probe')",
+    "INSERT INTO public.company_events (id, company_id, actor_kind, type) VALUES ({{event_x}}, {{company_x}}, 'system', 'probe'), ({{event_y}}, {{company_y}}, 'system', 'probe')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}}), ({{design_y}}, {{y_staff_user}}, 'probe', {{company_y}}), ({{design_hq}}, {{hq_customer_user}}, 'probe', public.hq_company_id())",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}})",
+    "INSERT INTO public.order_costs (order_id, category, amount) VALUES ({{order_x}}, 'material', 0)",
+    "INSERT INTO public.order_payments (order_id, stage, amount) VALUES ({{order_x}}, 'deposit', 1)",
+    "INSERT INTO public.consultations (id, name, email, title, company_id) VALUES ({{cons_x}}, 'probe', 'probe@example.invalid', 'probe', {{company_x}}), ({{cons_hq}}, 'probe', 'probe@example.invalid', 'probe', public.hq_company_id())",
+    "INSERT INTO public.generations (id, user_id, category, company_id, origin, project_id) VALUES ({{gen_x}}, {{x_owner_user}}, 'probe', {{company_x}}, 'company', NULL), ({{gen_hq_private}}, {{hq_customer_user}}, 'probe', public.hq_company_id(), 'customer', NULL), ({{gen_hq_linked}}, {{hq_customer_user}}, 'probe', public.hq_company_id(), 'customer', {{proj_hq}})",
+    "INSERT INTO public.partner_applications (id, user_id, kind, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) VALUES ({{app_a}}, {{hq_customer_user}}, 'new', 'probe A', 'probe', '010-0000-0000', 'probe', 'probe', '123-45-67890', 'probe')",
+    "INSERT INTO public.company_credits (company_id, balance, period_start, period_end) VALUES ({{company_x}}, 500, now(), now() + interval '1 month')",
+    "INSERT INTO public.subscriptions (id, user_id, company_id, plan, status) VALUES ({{sub_x}}, NULL, {{company_x}}, 'expert', 'active')",
+    "INSERT INTO public.company_invites (id, company_id, role, token_hash, expires_at) VALUES ({{invite_x}}, {{company_x}}, 'staff', repeat('a', 64), now() + interval '7 days')",
+    "INSERT INTO public.company_settings (company_id, settings) VALUES ({{company_x}}, '{}'::jsonb), (public.hq_company_id(), '{}'::jsonb) ON CONFLICT (company_id) DO NOTHING",
+    "INSERT INTO public.order_events (id, company_id, order_id, kind, from_status, to_status, state, requested_by) VALUES ({{ev_done}}, {{company_x}}, {{order_x}}, 'status', 'confirmed', 'in_production', 'done', {{x_owner_user}})",
+    "INSERT INTO public.order_events (id, company_id, order_id, kind, from_status, to_status, reason, state, requested_by) VALUES ({{ev_pending}}, {{company_x}}, {{order_x}}, 'revert', 'completed', 'delivered', 'probe', 'pending', {{x_staff_user}})",
+    "INSERT INTO public.order_events (id, company_id, design_id, kind, reason, state) VALUES ({{ev_early}}, public.hq_company_id(), {{design_hq}}, 'early_work_order', 'probe', 'done')",
+    "INSERT INTO public.counterparties (id, kind, name, company_id) VALUES ({{cp_x}}, 'supplier', 'probe', {{company_x}})",
+    "INSERT INTO public.counterparties (id, kind, name) VALUES ({{cp_hq}}, 'supplier', 'probe-hq')",
+    "INSERT INTO public.work_reports (id, owner_id, kind, title, company_id) VALUES ({{wr_x}}, {{x_owner_user}}, 'outsource_order', 'probe', {{company_x}})",
+    "INSERT INTO public.work_reports (id, owner_id, kind, title) VALUES ({{wr_hq}}, {{hq_member_user}}, 'outsource_order', 'probe')",
+    "INSERT INTO public.push_subscriptions (id, user_id, company_id, endpoint, p256dh, auth) VALUES ({{ps_staff}}, {{x_staff_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_staff}}::text, 'k', 'a'), ({{ps_owner}}, {{x_owner_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_owner}}::text, 'k', 'a')",
+    "INSERT INTO public.notification_outbox (id, user_id, company_id, kind, title, body, url) VALUES ({{nb_staff}}, {{x_staff_user}}, {{company_x}}, 'order_request_decided', 'probe', 'probe', '/segan/me.html'), ({{nb_owner}}, {{x_owner_user}}, {{company_x}}, 'company_suspended', 'probe', 'probe', '/segan/me.html')",
+    "INSERT INTO public.consultations (id, name, email, title) VALUES ({{cons_pf}}, 'probe', 'probe@example.invalid', 'probe')",
+    "INSERT INTO public.company_service_settings (company_id, regions, items, monthly_limit) VALUES ({{company_x}}, '[{\"sido\":\"probe\",\"gugun\":\"probe\"}]'::jsonb, '{\"sink\":\"do\"}'::jsonb, 10)",
+    "INSERT INTO public.company_evaluations (company_id, grade, equipment) VALUES ({{company_x}}, 'B', '{\"panel_saw\":\"have\"}'::jsonb)",
+    "INSERT INTO public.consultations (id, name, email, title, company_id, origin_consultation_id, status) VALUES ({{cons_xc}}, 'probe', 'probe@example.invalid', 'probe', {{company_x}}, {{cons_pf}}, 'pending')",
+    "INSERT INTO public.consult_assignments (id, consultation_id, company_id, copy_consultation_id, rank, total, score) VALUES ({{asg_x}}, {{cons_pf}}, {{company_x}}, {{cons_xc}}, 1, 80, '{\"eval\":30}'::jsonb)",
+    "INSERT INTO public.assistant_settings (company_id, enabled, monthly_limit_micros, extract_floor_micros) VALUES ({{company_y}}, true, 1000, 300), ({{company_x}}, true, 1000, 0)",
+    "INSERT INTO public.assistant_settings (company_id, enabled, trial) VALUES (public.hq_company_id(), true, true) ON CONFLICT (company_id) DO UPDATE SET enabled = true, trial = true",
+    "INSERT INTO public.assistant_usage (company_id, purpose, reservation_key, period, reserved_micros) VALUES ({{company_y}}, 'chat', 'probe-0026-' || {{company_y}}::text, (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul'))::date, 500)"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "hq_customer": { "role": "authenticated", "user": "hq_customer_user" },
+    "x_customer": { "role": "authenticated", "user": "x_customer_user" },
+    "x_owner": { "role": "authenticated", "user": "x_owner_user" },
+    "x_staff": { "role": "authenticated", "user": "x_staff_user" },
+    "y_staff": { "role": "authenticated", "user": "y_staff_user" },
+    "hq_member": { "role": "authenticated", "user": "hq_member_user" },
+    "hq_admin": { "role": "authenticated", "user": "hq_admin_user" },
+    "removed_staff": { "role": "authenticated", "user": "x_removed_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "읽기 companies X",
+      "sql": "select count(*) from public.companies where id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 companies 본사",
+      "sql": "select count(*) from public.companies where kind = 'hq'",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 members X (3행: owner·staff·removed)",
+      "sql": "select count(*) from public.company_members where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 3, "x_staff": 3, "removed_staff": 1, "hq_admin": 3, "service_role": 3, "*": 0 }
+    },
+    {
+      "name": "읽기 members Y",
+      "sql": "select count(*) from public.company_members where company_id = {{company_y}}",
+      "expect": { "anon": "deny", "y_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 customers X (3행)",
+      "sql": "select count(*) from public.customers where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 3, "x_staff": 3, "x_customer": 1, "service_role": 3, "*": 0 }
+    },
+    {
+      "name": "읽기 customers 본사 가짜 행",
+      "sql": "select count(*) from public.customers where id = {{cust_hq}}",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_customer": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 projects X (2행)",
+      "sql": "select count(*) from public.projects where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 2, "x_staff": 2, "x_customer": 1, "service_role": 2, "*": 0 }
+    },
+    {
+      "name": "읽기 projects Y",
+      "sql": "select count(*) from public.projects where id = {{proj_y}}",
+      "expect": { "anon": "deny", "y_staff": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 projects 본사 가짜 행",
+      "sql": "select count(*) from public.projects where id = {{proj_hq}}",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_customer": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 events X",
+      "sql": "select count(*) from public.company_events where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "넣기 companies",
+      "sql": "insert into public.companies (id, kind, name, plan) values ({{new_company}}, 'partner', 'probe new', 'expert')",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "고치기 companies X",
+      "sql": "update public.companies set name = 'probe X2' where id = {{company_x}}",
+      "expect": { "anon": "deny", "hq_admin": "rows:1", "service_role": "rows:1", "*": "rows:0" }
+    },
+    {
+      "name": "넣기 members X",
+      "sql": "insert into public.company_members (company_id, user_id, role) values ({{company_x}}, {{hq_customer_user}}, 'staff')",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "넣기 customers X",
+      "sql": "insert into public.customers (id, company_id, name) values ({{new_customer}}, {{company_x}}, 'probe')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "고치기 customers X",
+      "sql": "update public.customers set name = 'probe2' where id = {{cust_x_plain}}",
+      "expect": { "anon": "deny", "service_role": "rows:1", "*": "rows:0" }
+    },
+    {
+      "name": "지우기 customers X (프로젝트 없는 행)",
+      "sql": "delete from public.customers where id = {{cust_x_spare}}",
+      "expect": { "anon": "deny", "service_role": "rows:1", "*": "rows:0" }
+    },
+    {
+      "name": "넣기 projects X",
+      "sql": "insert into public.projects (id, company_id, customer_id) values ({{new_project}}, {{company_x}}, {{cust_x_plain}})",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "넣기 events X",
+      "sql": "insert into public.company_events (company_id, actor_kind, type) values ({{company_x}}, 'admin', 'probe')",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "고치기 events X (추가만)",
+      "sql": "update public.company_events set type = 'changed' where id = {{event_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "지우기 events X (추가만)",
+      "sql": "delete from public.company_events where id = {{event_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "함수 hq_company_id() 있음",
+      "sql": "select public.hq_company_id() is not null",
+      "expect": { "*": "true" }
+    },
+    {
+      "name": "함수 my_company_ids() 개수",
+      "sql": "select count(*) from public.my_company_ids()",
+      "expect": { "x_owner": 1, "x_staff": 1, "y_staff": 1, "hq_member": 1, "*": 0 }
+    },
+    {
+      "name": "함수 my_company_ids(owner·manager)",
+      "sql": "select count(*) from public.my_company_ids(array['owner', 'manager'])",
+      "expect": { "x_owner": 1, "*": 0 }
+    },
+    {
+      "name": "함수 is_company_member(X)",
+      "sql": "select public.is_company_member({{company_x}})",
+      "expect": { "x_owner": "true", "x_staff": "true", "*": "false" }
+    },
+    {
+      "name": "함수 my_customer_ids() 개수 (계정마다 본사 고객 행 하나 + X 고객 행 · 0017 공장 고객 행)",
+      "sql": "select count(*) from public.my_customer_ids()",
+      "expect": { "anon": 0, "x_customer": 2, "hq_customer": 2, "service_role": 0, "*": 1 }
+    },
+    {
+      "name": "0005 · 0017: 가짜 계정마다 본사(다담 본사) 고객 행 (본인 것만 보임, 공장 직원은 못 봄)",
+      "sql": "select count(*) from public.customers where company_id = public.platform_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}})",
+      "expect": { "anon": "deny", "hq_admin": 8, "service_role": 8, "*": 1 }
+    },
+    {
+      "name": "0005 · 0017: 본사 고객 행에 이름 · 연락처를 베끼지 않는다",
+      "sql": "select count(*) from public.customers where company_id = public.platform_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}}) and (name is not null or phone is not null)",
+      "roles": ["service_role"],
+      "expect": { "service_role": 0 }
+    },
+    {
+      "name": "0005 · 0017: add_platform_customer() 는 직접 부를 수 없다",
+      "sql": "select public.add_platform_customer()",
+      "expect": { "*": "deny" }
+    },
+    {"name":"0006: 상담 넣기는 그대로 (비로그인 포함)","sql":"insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe')","expect":{"*":"ok"}},
+    {"name":"0006 · 0017: 상담 기본값 — 다담 본사, 고객 · 프로젝트 비움","sql":"with i as (insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe') returning company_id, customer_id, project_id) select company_id = public.platform_company_id() and customer_id is null and project_id is null from i","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0006: 상담 고객은 같은 회사 것만 (복합 FK)","sql":"insert into public.consultations (name, email, title, customer_id) values ('probe', 'probe@example.invalid', 'probe', {{cust_x_plain}})","roles":["service_role"],"expect":{"service_role":"err:23503"}},
+    {"name":"0006: 내 설계 넣기 — 기본 본사, 프로젝트 비움","sql":"with i as (insert into public.designs (user_id, name) values (auth.uid(), 'probe') returning company_id, project_id) select company_id = public.hq_company_id() and project_id is null from i","expect":{"anon":"deny","*":"true"}},
+    {"name":"0006: 설계는 다른 회사 프로젝트에 못 잇는다 (복합 FK)","sql":"insert into public.designs (name, project_id) values ('probe', {{proj_x_linked}})","roles":["service_role"],"expect":{"service_role":"err:23503"}},
+    {"name":"0006: 설계는 같은 회사 프로젝트에 잇는다","sql":"insert into public.designs (name, company_id, project_id) values ('probe', {{company_x}}, {{proj_x_linked}})","roles":["service_role"],"expect":{"service_role":"ok"}},
+    {"name":"0006: 연출컷 기본값 — 본사, customer, 프로젝트 비움","sql":"with i as (insert into public.generations (user_id, category) values ({{hq_customer_user}}, 'probe') returning company_id, origin, project_id) select company_id = public.hq_company_id() and origin = 'customer' and project_id is null from i","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0006: 연출컷 origin 은 customer | company","sql":"insert into public.generations (user_id, category, origin) values ({{hq_customer_user}}, 'probe', 'other')","roles":["service_role"],"expect":{"service_role":"err:23514"}},
+    {"name":"0006: 연출컷 새 칸 읽기 권한 (로그인만)","sql":"select count(*) from (select company_id, project_id, origin from public.generations where false) s","expect":{"anon":"deny","*":0}},
+    {"name":"0007: 읽기 designs X (owner 가 만듦)","sql":"select count(*) from public.designs where id = {{design_x}}","expect":{"x_owner":1,"x_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 designs Y","sql":"select count(*) from public.designs where id = {{design_y}}","expect":{"y_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 designs 본사 (고객이 만듦)","sql":"select count(*) from public.designs where id = {{design_hq}}","expect":{"hq_customer":1,"hq_member":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 design_snapshots X","sql":"select count(*) from public.design_snapshots where id = {{snap_x}}","expect":{"anon":"deny","x_owner":1,"x_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 design_documents X","sql":"select count(*) from public.design_documents where id = {{doc_x}}","expect":{"anon":"deny","x_owner":1,"x_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 orders X","sql":"select count(*) from public.orders where id = {{order_x}}","expect":{"anon":"deny","x_owner":1,"x_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 order_costs X (owner · manager 만)","sql":"select count(*) from public.order_costs where order_id = {{order_x}}","expect":{"anon":"deny","x_owner":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 order_payments X (owner · manager · 관리자)","sql":"select count(*) from public.order_payments where order_id = {{order_x}}","expect":{"anon":"deny","x_owner":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 consultations X (관리자는 본사 상담만 — 0017)","sql":"select count(*) from public.consultations where id = {{cons_x}}","expect":{"x_owner":1,"x_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 consultations 공장 (관리자는 본사 상담만 — 0017)","sql":"select count(*) from public.consultations where id = {{cons_hq}}","expect":{"hq_member":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 generations X (회사가 만듦)","sql":"select count(*) from public.generations where id = {{gen_x}}","expect":{"anon":"deny","x_owner":1,"x_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 generations 본사 — 고객 혼자 만든 것","sql":"select count(*) from public.generations where id = {{gen_hq_private}}","expect":{"anon":"deny","hq_customer":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 generations 본사 — 프로젝트에 이은 것","sql":"select count(*) from public.generations where id = {{gen_hq_linked}}","expect":{"anon":"deny","hq_customer":1,"hq_member":1,"service_role":1,"*":0}},
+    {"name":"0007: 넣기 내 설계 — 다른 회사로","sql":"insert into public.designs (user_id, name, company_id) values (auth.uid(), 'probe', {{company_x}})","expect":{"service_role":"ok","*":"deny"}},
+    {"name":"0007: 넣기 내 설계 — 프로젝트를 이어서","sql":"insert into public.designs (user_id, name, project_id) values (auth.uid(), 'probe', {{proj_hq}})","expect":{"service_role":"ok","*":"deny"}},
+    {"name":"0007: 고치기 내 설계 이름 (트리거를 지나도 됨)","sql":"update public.designs set name = 'probe2' where id = {{design_hq}}","expect":{"hq_customer":"rows:1","service_role":"rows:1","*":"rows:0"}},
+    {"name":"0007: 고치기 설계 프로젝트 칸 — 서버만","sql":"update public.designs set project_id = {{proj_hq}} where id = {{design_hq}}","expect":{"hq_customer":"deny","service_role":"rows:1","*":"rows:0"}},
+    {"name":"0007: 고치기 설계 회사 칸 — 아무도 못 함","sql":"update public.designs set company_id = {{company_x}} where id = {{design_hq}}","expect":{"hq_customer":"deny","service_role":"deny","*":"rows:0"}},
+    {"name":"0007: 넣기 상담 — 다른 회사로","sql":"insert into public.consultations (name, email, title, company_id) values ('probe', 'probe@example.invalid', 'probe', {{company_x}})","expect":{"service_role":"ok","*":"deny"}},
+    {"name":"0007: 넣기 상담 — 고객을 이어서 (공장 상담)","sql":"insert into public.consultations (name, email, title, company_id, customer_id) values ('probe', 'probe@example.invalid', 'probe', public.hq_company_id(), {{cust_hq}})","expect":{"service_role":"ok","*":"deny"}},
+    {"name":"0007: 고치기 상담 고객 칸 — 서버만 (관리자도 못 함, 본사 상담)","sql":"update public.consultations set customer_id = (select id from public.customers where company_id = public.platform_company_id() and user_id = {{hq_customer_user}}) where id = {{cons_pf}}","expect":{"anon":"deny","hq_admin":"deny","service_role":"rows:1","*":"rows:0"}},
+    {"name":"0007: keep_owner_links() 는 직접 부를 수 없다","sql":"select public.keep_owner_links()","expect":{"*":"deny"}},
+    {
+      "name": "시드: 회사는 다담 본사 · 다담 공장 둘 (가짜 X·Y 빼고) — 0017",
+      "sql": "select count(*) from public.companies where id not in ({{company_x}}, {{company_y}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": 2 }
+    },
+    {
+      "name": "시드: 본사 owner 는 super_admin 한 명",
+      "sql": "select count(*) || '/' || count(*) filter (where exists (select 1 from public.admin_roles a where a.user_id = m.user_id and a.role = 'super_admin')) from public.company_members m where m.company_id = public.hq_company_id() and m.role = 'owner' and m.status = 'active'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "1/1" }
+    },
+    {
+      "name": "제약: active 회사는 한 곳만",
+      "sql": "insert into public.company_members (company_id, user_id, role) values ({{company_y}}, {{x_staff_user}}, 'staff')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "제약: removed 는 다른 회사에 들어갈 수 있다",
+      "sql": "insert into public.company_members (company_id, user_id, role) values ({{company_y}}, {{x_removed_user}}, 'staff')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "제약: 고객은 같은 회사 것만 (복합 FK)",
+      "sql": "insert into public.projects (company_id, customer_id) values ({{company_y}}, {{cust_x_plain}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23503" }
+    },
+    {
+      "name": "제약: 본사는 하나",
+      "sql": "insert into public.companies (kind, name) values ('hq', 'probe hq2')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "제약: 본사에는 plan 없음",
+      "sql": "insert into public.companies (kind, name, plan) values ('hq', 'probe hq3', 'expert')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 넘기기는 한 번 (origin_project_id)",
+      "sql": "insert into public.projects (company_id, customer_id, origin_project_id) values ({{company_y}}, {{cust_y}}, {{proj_x_plain}}); insert into public.projects (company_id, customer_id, origin_project_id) values ({{company_y}}, {{cust_y}}, {{proj_x_plain}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "0011: 등급 맞추기 — 협력업체 active 구성원은 업체 등급 (X 대표 · X 직원 · Y 직원 · 내보낸 직원 · 본사 구성원)",
+      "sql": "select (select tier || '/' || tier_source from public.profiles where id = {{x_owner_user}}) || ',' || (select tier || '/' || tier_source from public.profiles where id = {{x_staff_user}}) || ',' || (select tier || '/' || tier_source from public.profiles where id = {{y_staff_user}}) || ',' || (select tier || '/' || tier_source from public.profiles where id = {{x_removed_user}}) || ',' || (select tier || '/' || tier_source from public.profiles where id = {{hq_member_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "expert/company,expert/company,agent/company,standard/manual,standard/manual" }
+    },
+    {
+      "name": "0011: 등급 맞추기 — 내보내면 standard (관리자 · 서버)",
+      "sql": "update public.company_members set status = 'removed' where company_id = {{company_x}} and user_id = {{x_staff_user}}; select (select tier || '/' || tier_source from public.profiles where id = {{x_staff_user}})",
+      "roles": ["hq_admin", "service_role"],
+      "expect": { "hq_admin": "standard/manual", "service_role": "standard/manual" }
+    },
+    {
+      "name": "0011: 등급 맞추기 — 업체가 정지되면 standard",
+      "sql": "update public.companies set status = 'suspended' where id = {{company_y}}; select (select tier || '/' || tier_source from public.profiles where id = {{y_staff_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "standard/manual" }
+    },
+    {
+      "name": "0011: 등급 맞추기 — 다시 active 면 돌아온다",
+      "sql": "update public.companies set status = 'suspended' where id = {{company_y}}; update public.companies set status = 'active' where id = {{company_y}}; select (select tier || '/' || tier_source from public.profiles where id = {{y_staff_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "agent/company" }
+    },
+    {
+      "name": "0011: 등급 맞추기 — 업체 plan 을 따라간다",
+      "sql": "update public.companies set plan = 'agent' where id = {{company_x}}; select (select tier || '/' || tier_source from public.profiles where id = {{x_owner_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "agent/company" }
+    },
+    {
+      "name": "0011: 회원은 자기 등급을 바꾸지 못한다",
+      "sql": "update public.profiles set tier = 'agent' where id = auth.uid()",
+      "roles": ["hq_customer", "x_owner"],
+      "expect": { "hq_customer": "err:P0001", "x_owner": "err:P0001" }
+    },
+    {
+      "name": "0011: 읽기 partner_applications (신청자 본인 · 관리자)",
+      "sql": "select count(*) from public.partner_applications where id = {{app_a}}",
+      "expect": { "anon": "deny", "hq_customer": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0011: 넣기 partner_applications 는 서버만",
+      "sql": "insert into public.partner_applications (user_id, kind, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) values ({{x_customer_user}}, 'new', 'probe B', 'probe', '010-0000-0000', 'probe', 'probe', '1234567890', 'probe')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0011: 고치기 partner_applications 는 서버만",
+      "sql": "update public.partner_applications set status = 'approved' where id = {{app_a}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "제약: 열린 신청은 한 사람에 하나",
+      "sql": "insert into public.partner_applications (user_id, kind, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) values ({{hq_customer_user}}, 'new', 'probe C', 'probe', '010-0000-0000', 'probe', 'probe', '123-45-67890', 'probe')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "제약: 신청 사업자번호 형식",
+      "sql": "insert into public.partner_applications (user_id, kind, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) values ({{x_customer_user}}, 'new', 'probe D', 'probe', '010-0000-0000', 'probe', 'probe', '12-34', 'probe')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: upgrade 신청은 업체가 있어야",
+      "sql": "insert into public.partner_applications (user_id, kind, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) values ({{x_customer_user}}, 'upgrade', 'probe E', 'probe', '010-0000-0000', 'probe', 'probe', '123-45-67890', 'probe')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0011: 읽기 company_credits X (구성원 · 관리자)",
+      "sql": "select count(*) from public.company_credits where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0011: 고치기 company_credits 는 서버 · 함수만",
+      "sql": "update public.company_credits set balance = 9999 where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0011: consume_credit — 협력업체 구성원은 업체 통장, 그 밖은 자기 통장",
+      "sql": "select balance from public.consume_credit('generate')",
+      "roles": ["x_owner", "x_staff", "y_staff", "removed_staff", "hq_customer", "hq_member"],
+      "expect": { "x_owner": 480, "x_staff": 480, "y_staff": 2980, "removed_staff": 80, "hq_customer": 80, "hq_member": 80 }
+    },
+    {
+      "name": "0011: consume_credit — 업체 통장 줄에 company_id 와 쓴 사람",
+      "sql": "select public.consume_credit('generate'); select count(*) from public.credit_ledger where company_id = {{company_x}} and user_id = auth.uid() and delta < 0",
+      "roles": ["x_owner", "x_staff"],
+      "expect": { "x_owner": 1, "x_staff": 1 }
+    },
+    {
+      "name": "0011: consume_credit — 정지된 업체 구성원은 company_inactive",
+      "sql": "update public.companies set status = 'suspended' where id = {{company_y}}; select set_config('request.jwt.claim.sub', {{y_staff_user}}::text, true); select public.consume_credit('generate')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:P0001" }
+    },
+    {
+      "name": "0011: refund_credit — 업체 통장으로 돌려준다",
+      "sql": "select set_config('request.jwt.claim.sub', {{x_staff_user}}::text, true); select public.refund_credit((select c.ref from public.consume_credit('generate') c))",
+      "roles": ["service_role"],
+      "expect": { "service_role": 500 }
+    },
+    {
+      "name": "0011: refund_credit_svc — 업체 통장으로 돌려준다",
+      "sql": "select set_config('request.jwt.claim.sub', {{x_owner_user}}::text, true); select public.refund_credit_svc((select c.ref from public.consume_credit('generate') c))",
+      "roles": ["service_role"],
+      "expect": { "service_role": 500 }
+    },
+    {
+      "name": "0011: my_credit_wallet — 지금 쓰는 통장",
+      "sql": "select scope || '/' || balance || '/' || monthly || '/' || usable from public.my_credit_wallet()",
+      "expect": { "anon": "deny", "x_owner": "company/500/1000/true", "x_staff": "company/500/1000/true", "y_staff": "company/3000/3000/true", "service_role": "(없음)", "*": "personal/100/100/true" }
+    },
+    {
+      "name": "0011: 읽기 subscriptions X (업체 대표 · 관리자)",
+      "sql": "select count(*) from public.subscriptions where id = {{sub_x}}",
+      "expect": { "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "제약: 살아 있는 구독은 업체에 하나",
+      "sql": "insert into public.subscriptions (company_id, plan, status) values ({{company_x}}, 'expert', 'past_due')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "0011: 읽기 company_invites X (대표 · 관리자)",
+      "sql": "select count(*) from public.company_invites where id = {{invite_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0011: company_invites 토큰 해시는 서버만 읽는다",
+      "sql": "select length(token_hash) from public.company_invites where id = {{invite_x}}",
+      "expect": { "service_role": 64, "*": "deny" }
+    },
+    {
+      "name": "0011: 넣기 company_invites 는 서버만",
+      "sql": "insert into public.company_invites (company_id, role, token_hash, expires_at) values ({{company_x}}, 'staff', repeat('b', 64), now() + interval '1 day')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "제약: 협력업체는 plan 이 있어야",
+      "sql": "insert into public.companies (kind, name) values ('partner', 'probe no plan')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: next_plan 은 지금 plan 과 달라야",
+      "sql": "update public.companies set next_plan = 'expert' where id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0011: next_plan 넣기 (서버)",
+      "sql": "update public.companies set next_plan = 'agent' where id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "rows:1" }
+    },
+    {
+      "name": "0011: claim_partner_application_notices 는 서버만, 건수 · 종류만",
+      "sql": "select string_agg(k, ',' order by k) from jsonb_object_keys((public.claim_partner_application_notices(now() - interval '1 hour')->'rows')->0) k",
+      "expect": { "service_role": "created_at,kind", "*": "deny" }
+    },
+    {
+      "name": "0012: 읽기 company_settings X (대표 · 실장만)",
+      "sql": "select count(*) from public.company_settings where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0012: 읽기 company_settings 본사 (관리자 · 본사 대표 · 실장)",
+      "sql": "select count(*) from public.company_settings where company_id = public.hq_company_id()",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0012: 고치기 company_settings 는 서버만",
+      "sql": "update public.company_settings set settings = '{\"quote\":{}}'::jsonb where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0012: 넣기 company_settings 는 서버만",
+      "sql": "insert into public.company_settings (company_id, settings) values ({{company_y}}, '{}'::jsonb)",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "제약: company_settings 는 객체만",
+      "sql": "insert into public.company_settings (company_id, settings) values ({{company_y}}, '[]'::jsonb)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0013: 읽기 order_events X (업체 구성원)",
+      "sql": "select count(*) from public.order_events where id = {{ev_done}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0013: 읽기 order_events 본사 (본사 구성원 · 관리자)",
+      "sql": "select count(*) from public.order_events where id = {{ev_early}}",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0013: 넣기 order_events 는 서버만",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'status', 'in_production', 'delivered', null, 'done')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0013: 기다리는 요청 승인 (서버)",
+      "sql": "update public.order_events set state = 'approved', decided_by = {{x_owner_user}}, decided_at = now() where id = {{ev_pending}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0013: 끝난 기록은 못 고침",
+      "sql": "update public.order_events set state = 'approved', decided_at = now() where id = {{ev_done}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:P0001" }
+    },
+    {
+      "name": "0013: 결정하면서 내용은 못 바꿈",
+      "sql": "update public.order_events set state = 'rejected', decided_at = now(), reason = 'changed' where id = {{ev_pending}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:P0001" }
+    },
+    {
+      "name": "0013: 지우기는 아무도 못 함",
+      "sql": "delete from public.order_events where id = {{ev_done}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "제약: 되살리기는 취소에서만",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'revive', 'confirmed', 'in_production', 'probe', 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 되돌리기는 사유가 있어야",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'revert', 'completed', 'delivered', '  ', 'pending')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 승인 전 작업지시서는 수주가 아니라 설계에",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'early_work_order', null, null, 'probe', 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 상태가 그대로면 기록 안 됨",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'status', 'confirmed', 'confirmed', null, 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 다른 업체 수주는 못 가리킴",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_y}}, {{order_x}}, 'status', 'confirmed', 'in_production', null, 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23503" }
+    },
+    {
+      "name": "0014: 같은 수주에 두 번째 기다리는 요청은 안 됨",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state, requested_by) values ({{company_x}}, {{order_x}}, 'revive', 'cancelled', 'confirmed', 'probe', 'pending', {{x_staff_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "0014: 기다리던 요청을 결정하면 새 요청이 됨",
+      "sql": "with d as (update public.order_events set state = 'rejected', decided_at = now() where id = {{ev_pending}} returning company_id, order_id) insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state, requested_by) select company_id, order_id, 'revive', 'cancelled', 'confirmed', 'probe', 'pending', {{x_staff_user}} from d",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0014: 바로 처리된 줄은 몇 개든 됨",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state, requested_by) values ({{company_x}}, {{order_x}}, 'status', 'confirmed', 'in_production', null, 'done', {{x_owner_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0015: 수주 금액 칸(계약 금액)은 서버만",
+      "sql": "select count(contract_amount) from public.orders where id = {{order_x}}",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0015: 수주 금액 칸(받은 돈)은 서버만",
+      "sql": "select count(received_amount) from public.orders where id = {{order_x}}",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0015: 수주 나머지 칸은 그 업체 구성원이 읽음",
+      "sql": "select count(order_no) from public.orders where id = {{order_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0015: 수주 select * 는 서버만",
+      "sql": "select count(*) from (select * from public.orders where id = {{order_x}}) q",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0015: 견적(quote_payload)은 서버만",
+      "sql": "select count(*) from (select quote_payload from public.design_snapshots where id = {{snap_x}}) q",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0015: 스냅샷 나머지 칸은 그 업체 구성원이 읽음",
+      "sql": "select count(bom_payload) from public.design_snapshots where id = {{snap_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0015: 업체 공급처는 그 업체 대표 · 실장만",
+      "sql": "select count(*) from public.counterparties where id = {{cp_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0015: 본사 공급처는 관리자",
+      "sql": "select count(*) from public.counterparties where id = {{cp_hq}}",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0015: 공급처 이름 겹침은 업체 안에서만 (다른 업체는 같은 이름 됨)",
+      "sql": "insert into public.counterparties (kind, name, company_id) values ('supplier', 'probe', {{company_y}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0015: 같은 업체 안 같은 이름은 안 됨",
+      "sql": "insert into public.counterparties (kind, name, company_id) values ('supplier', 'PROBE', {{company_x}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "0015: 공급처 업체 기본값은 본사",
+      "sql": "with i as (insert into public.counterparties (kind, name) values ('supplier', 'probe') returning company_id) select company_id = public.hq_company_id() from i",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0015: 업체 외주 보고는 쓴 사람만 (관리자 못 봄)",
+      "sql": "select count(*) from public.work_reports where id = {{wr_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0015: 본사 외주 보고는 쓴 사람 · 관리자",
+      "sql": "select count(*) from public.work_reports where id = {{wr_hq}}",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0015: 작업 기록 업체 기본값은 본사",
+      "sql": "with i as (insert into public.production_worklogs (user_id, work_date, role, units, minutes) values ({{hq_member_user}}, current_date, 'cutter', 1, 1) returning company_id) select company_id = public.hq_company_id() from i",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0015: 업체 수금은 관리자가 못 봄",
+      "sql": "select count(*) from public.order_payments where order_id = {{order_x}}",
+      "roles": ["hq_admin"],
+      "expect": { "hq_admin": 0 }
+    },
+    {
+      "name": "0016: 기기 등록은 서버만 읽음",
+      "sql": "select count(*) from public.push_subscriptions where id = {{ps_staff}}",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0016: 보낼 알림은 서버만 읽음",
+      "sql": "select count(*) from public.notification_outbox where id = {{nb_staff}}",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0016: 기기 등록 넣기는 서버만",
+      "sql": "insert into public.push_subscriptions (user_id, company_id, endpoint, p256dh, auth) values ({{x_staff_user}}, {{company_x}}, 'https://push.invalid/probe-new', 'k', 'a')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "제약: 알림이 열 곳은 앱 안(/segan/)만",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{x_staff_user}}, {{company_x}}, 'order_request', 'probe', 'probe', 'https://example.invalid/')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 업체 없는 알림은 신청 진행만",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{x_staff_user}}, null, 'order_request', 'probe', 'probe', '/segan/me.html')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 업체 없는 신청 진행 알림은 됨",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{hq_customer_user}}, null, 'partner_application', 'probe', 'probe', '/segan/me.html')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0023: 작업자 알림 넷은 업체 없이 넣을 수 있다",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{hq_customer_user}}, null, 'work_invited', 'probe', 'probe', '/segan/work.html'), ({{hq_customer_user}}, null, 'work_registration', 'probe', 'probe', '/segan/work.html'), ({{hq_customer_user}}, null, 'work_assigned', 'probe', 'probe', '/segan/work.html'), ({{hq_customer_user}}, null, 'work_schedule', 'probe', 'probe', '/segan/work.html')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0023: 모르는 알림 종류는 막는다",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{hq_customer_user}}, null, 'work_unknown', 'probe', 'probe', '/segan/work.html')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0023: 작업자 알림을 넣는 것도 서버만",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{hq_customer_user}}, null, 'work_registration', 'probe', 'probe', '/segan/work.html')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0024: 작업자 종류에 재단 · 엣지",
+      "sql": "insert into public.workers (user_id, display_name, kinds, status, consent_version) values ({{hq_customer_user}}, 'probe', array['install', 'assembly', 'cutting', 'edge']::text[], 'approved', 'probe')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0024: 모르는 작업자 종류는 막는다",
+      "sql": "insert into public.workers (user_id, display_name, kinds, status, consent_version) values ({{hq_customer_user}}, 'probe', array['welding']::text[], 'approved', 'probe')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0024: 초대에 정해 두는 종류도 재단 · 엣지",
+      "sql": "insert into public.worker_invites (token_hash, kinds_preset, expires_at) values ('probe-0024', array['cutting', 'edge']::text[], now() + interval '1 day')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0024: 공장 배정 넣기는 서버만",
+      "sql": "with w as (insert into public.workers (user_id, display_name, kinds, status, consent_version) values ({{hq_customer_user}}, 'probe', array['cutting']::text[], 'approved', 'probe') returning id) insert into public.factory_workers (worker_id, plan_user_id, assigned_by) select id, {{hq_admin_user}}, {{hq_admin_user}} from w",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0024: 공장 배정 읽기도 서버만",
+      "sql": "select count(*) from public.factory_workers",
+      "expect": { "service_role": 0, "*": "deny" }
+    },
+    {
+      "name": "0024: 작업자 하나에 열린 공장 배정은 하나",
+      "sql": "with w as (insert into public.workers (user_id, display_name, kinds, status, consent_version) values ({{hq_customer_user}}, 'probe', array['cutting']::text[], 'approved', 'probe') returning id) insert into public.factory_workers (worker_id, plan_user_id) select id, {{hq_admin_user}} from w union all select id, {{hq_member_user}} from w",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "0024: 끝난 배정 뒤에 새 배정은 된다",
+      "sql": "with w as (insert into public.workers (user_id, display_name, kinds, status, consent_version) values ({{hq_customer_user}}, 'probe', array['cutting']::text[], 'approved', 'probe') returning id), a as (insert into public.factory_workers (worker_id, plan_user_id, ended_at) select id, {{hq_admin_user}}, now() + interval '1 minute' from w returning worker_id) insert into public.factory_workers (worker_id, plan_user_id) select worker_id, {{hq_member_user}} from a",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0024: 기록에 작업자 칸",
+      "sql": "with w as (insert into public.workers (user_id, display_name, kinds, status, consent_version) values ({{hq_customer_user}}, 'probe', array['cutting']::text[], 'approved', 'probe') returning id) insert into public.production_worklogs (user_id, worker_id, worker_label, work_date, role, units, minutes) select {{hq_admin_user}}, id, 'probe', current_date, 'cutter', 1, 1 from w",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0025: 수금 줄 받은 방법에 간편결제 · 가상계좌",
+      "sql": "update public.order_payments set method = 'virtual_account' where order_id = {{order_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "rows:1" }
+    },
+    {
+      "name": "0025: 수금 줄 모르는 받은 방법은 막는다",
+      "sql": "update public.order_payments set method = 'crypto' where order_id = {{order_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0025: 결제 기록 넣기는 서버만",
+      "sql": "with p as (select id from public.order_payments where order_id = {{order_x}} limit 1) insert into public.payment_transactions (payment_id, order_id, company_id, provider, provider_ref, status, amount_requested) select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-a', 'ready', 1 from p",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0025: 결제 기록 읽기도 서버만",
+      "sql": "select count(*) from public.payment_transactions",
+      "expect": { "service_role": 0, "*": "deny" }
+    },
+    {
+      "name": "0025: 수금 줄에 열린 결제는 하나",
+      "sql": "with p as (select id from public.order_payments where order_id = {{order_x}} limit 1) insert into public.payment_transactions (payment_id, order_id, company_id, provider, provider_ref, status, amount_requested) select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-b', 'ready', 1 from p union all select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-c', 'waiting_deposit', 1 from p",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "0025: 끝난 결제 뒤 새 결제는 된다",
+      "sql": "with p as (select id from public.order_payments where order_id = {{order_x}} limit 1) insert into public.payment_transactions (payment_id, order_id, company_id, provider, provider_ref, status, amount_requested) select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-d', 'canceled', 1 from p union all select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-e', 'expired', 1 from p union all select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-f', 'ready', 1 from p",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0025: 모르는 결제사는 막는다",
+      "sql": "with p as (select id from public.order_payments where order_id = {{order_x}} limit 1) insert into public.payment_transactions (payment_id, order_id, company_id, provider, provider_ref, status, amount_requested) select p.id, {{order_x}}, {{company_x}}, 'paypal', 'probe-0025-g', 'ready', 1 from p",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0025: 모르는 결제 상태는 막는다",
+      "sql": "with p as (select id from public.order_payments where order_id = {{order_x}} limit 1) insert into public.payment_transactions (payment_id, order_id, company_id, provider, provider_ref, status, amount_requested) select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-h', 'held', 1 from p",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 기기 주소는 https 만",
+      "sql": "insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values ({{x_staff_user}}, 'http://push.invalid/x', 'k', 'a')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0016: 보낼 알림 잡기는 서버만",
+      "sql": "select count(*) from public.claim_notifications(10) where id in ({{nb_staff}}, {{nb_owner}})",
+      "expect": { "service_role": 2, "*": "deny" }
+    },
+    {
+      "name": "0016: 구성원에서 빠지면 그 기기 · 안 보낸 알림 지움",
+      "sql": "update public.company_members set status = 'removed' where company_id = {{company_x}} and user_id = {{x_staff_user}}; select (select count(*) from public.push_subscriptions where id = {{ps_staff}}) = 0 and (select count(*) from public.notification_outbox where id = {{nb_staff}}) = 0 and (select count(*) from public.push_subscriptions where id = {{ps_owner}}) = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0016: 업체 정지면 대표 것만 남김",
+      "sql": "update public.companies set status = 'suspended' where id = {{company_x}}; select (select count(*) from public.push_subscriptions where id = {{ps_staff}}) = 0 and (select count(*) from public.notification_outbox where id = {{nb_staff}}) = 0 and (select count(*) from public.push_subscriptions where id = {{ps_owner}}) = 1 and (select count(*) from public.notification_outbox where id = {{nb_owner}}) = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0016: 업체 닫으면 모두 지움",
+      "sql": "update public.companies set status = 'closed' where id = {{company_x}}; select (select count(*) from public.push_subscriptions where id = {{ps_staff}}) = 0 and (select count(*) from public.push_subscriptions where id = {{ps_owner}}) = 0 and (select count(*) from public.notification_outbox where id = {{nb_owner}}) = 0",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0016 · 0017: 본사 Slack 새 상담은 다담 본사 상담만 잡음",
+      "sql": "select public.claim_consultation_notices(now() - interval '1 day', 50); select (select notified_at is null from public.consultations where id = {{cons_x}}) and (select notified_at is null from public.consultations where id = {{cons_hq}}) and (select notified_at is not null from public.consultations where id = {{cons_pf}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 다담 본사 하나 · 공장과 다름",
+      "sql": "select count(*) = 1 and public.platform_company_id() is not null and public.platform_company_id() <> public.hq_company_id() from public.companies where kind = 'platform'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 공장 이름은 「다담 공장」",
+      "sql": "select name = '다담 공장' from public.companies where id = public.hq_company_id()",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 상담 기본값은 본사",
+      "sql": "with i as (insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe') returning company_id) select company_id = public.platform_company_id() from i",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 누구나 본사로 상담을 넣는다",
+      "sql": "insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe')",
+      "expect": { "removed_staff": "ok", "*": "ok" }
+    },
+    {
+      "name": "0017: 공장으로 바로 상담을 넣지 못한다",
+      "sql": "insert into public.consultations (name, email, title, company_id) values ('probe', 'probe@example.invalid', 'probe', public.hq_company_id())",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0017: 본사 상담은 관리자만 (공장 · 업체 직원은 못 봄)",
+      "sql": "select count(*) from public.consultations where id = {{cons_pf}}",
+      "expect": { "anon": 0, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0017: 공장 상담은 공장 구성원 (관리자 규칙으로는 못 봄)",
+      "sql": "select count(*) from public.consultations where id = {{cons_hq}}",
+      "expect": { "anon": 0, "hq_member": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0017: 관리자는 본사 상담만 고친다",
+      "sql": "update public.consultations set admin_memo = 'probe' where id in ({{cons_pf}}, {{cons_hq}})",
+      "expect": { "hq_admin": "rows:1", "service_role": "rows:2", "*": "rows:0" }
+    },
+    {
+      "name": "0017: 공장에 남은 가입 고객 줄 없음 (이름 · 연락처 없는 줄은 본사로)",
+      "sql": "select count(*) from public.customers cu where cu.company_id = public.hq_company_id() and cu.name is null and cu.phone is null and cu.id <> {{cust_hq}} and not exists (select 1 from public.projects p where p.customer_id = cu.id) and not exists (select 1 from public.consultations s where s.customer_id = cu.id)",
+      "roles": ["service_role"],
+      "expect": { "service_role": 0 }
+    },
+    {
+      "name": "0018: 업체 상담 설정은 그 업체 대표 · 실장과 관리자가 읽음",
+      "sql": "select count(*) from public.company_service_settings where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0018: 업체 상담 설정 쓰기는 서버만",
+      "sql": "update public.company_service_settings set monthly_limit = 11 where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0018: 본사 평가표는 관리자만 (업체는 못 봄)",
+      "sql": "select count(*) from public.company_evaluations where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0018: 본사 평가표 쓰기는 서버만",
+      "sql": "update public.company_evaluations set grade = 'A' where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0018: 평가표가 바뀌면 이력이 한 줄씩 쌓임",
+      "sql": "update public.company_evaluations set grade = 'A' where company_id = {{company_x}}; select count(*) from public.company_evaluation_history where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": 2 }
+    },
+    {
+      "name": "0018: 평가 이력은 관리자만 읽음",
+      "sql": "select count(*) from public.company_evaluation_history where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0018: 평가 이력은 고치거나 지우지 못함 (서버도)",
+      "sql": "update public.company_evaluation_history set evaluated_at = now() where company_id = {{company_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "제약: 평가 등급은 S · A · B · C",
+      "sql": "update public.company_evaluations set grade = 'D' where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0019: 업체 사본 상담은 그 업체 구성원이 읽음 (관리자는 본사 상담만)",
+      "sql": "select count(*) from public.consultations where id = {{cons_xc}}",
+      "expect": { "anon": 0, "x_owner": 1, "x_staff": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0019: 화면에서 사본 상담(origin)을 넣지 못함",
+      "sql": "insert into public.consultations (name, email, title, origin_consultation_id) values ('probe', 'probe@example.invalid', 'probe', {{cons_pf}})",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0019: 상담 칸 — 도어 마감 · 철거 · 가격대 · 동의를 넣을 수 있음",
+      "sql": "insert into public.consultations (name, email, title, door_finish, demolition_needed, wanted_price_tier, third_party_agreed_at, consent_version) values ('probe', 'probe@example.invalid', 'probe', 'highgloss', true, 'mid', now(), 'v1')",
+      "expect": { "removed_staff": "ok", "*": "ok" }
+    },
+    {
+      "name": "제약: 도어 마감 값",
+      "sql": "insert into public.consultations (name, email, title, door_finish) values ('probe', 'probe@example.invalid', 'probe', 'gold')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 상담 상태 값",
+      "sql": "update public.consultations set status = 'lost' where id = {{cons_pf}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0019: 배정 기록은 관리자 · 그 업체 대표 · 실장이 읽음",
+      "sql": "select count(id) from public.consult_assignments where id = {{asg_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0019: 순위 · 점수 내역은 서버만 읽음",
+      "sql": "select count(*) from (select score, total, rank from public.consult_assignments where id = {{asg_x}}) q",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0019: 배정 쓰기는 서버만 · 지우기는 아무도",
+      "sql": "update public.consult_assignments set state = 'accepted', responded_at = now() where id = {{asg_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0019: 배정 지우기는 아무도 못 함",
+      "sql": "delete from public.consult_assignments where id = {{asg_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "제약: 본사 상담 하나에 기다리는 배정은 하나",
+      "sql": "insert into public.consult_assignments (consultation_id, company_id) values ({{cons_pf}}, {{company_y}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "제약: 응답하면 응답 시각이 있어야",
+      "sql": "update public.consult_assignments set state = 'declined' where id = {{asg_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0020 · 0021: 고객 확정 ~ 시공 완료 기간은 서버만 고침",
+      "sql": "update public.company_service_settings set lead_days = 3 where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0020 · 0021: 고객 확정 ~ 시공 완료 기간은 설정을 읽는 사람이 같이 읽음",
+      "sql": "select count(lead_days) + count(*) from public.company_service_settings where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~14 — 0 안 됨 (0021)",
+      "sql": "update public.company_service_settings set lead_days = 0 where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0020: 옛 다음 가능 날짜 칸은 없음",
+      "sql": "select next_available_date from public.company_service_settings limit 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:42703" }
+    },
+    {
+      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~14 — 15 안 됨 (0021)",
+      "sql": "update public.company_service_settings set lead_days = 15 where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0021: 고객 확정 ~ 시공 완료 기간 14일은 됨",
+      "sql": "update public.company_service_settings set lead_days = 14 where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "rows:1" }
+    },
+    {
+      "name": "0021: 상담 칸 — 시공 완료 희망 날짜를 넣을 수 있음",
+      "sql": "insert into public.consultations (name, email, title, wanted_done_date) values ('probe', 'probe@example.invalid', 'probe', current_date + 60)",
+      "expect": { "*": "ok" }
+    },
+    {
+      "name": "0022: 본사 소통 쓰기는 서버만",
+      "sql": "update public.company_evaluations set hq_comm = '{\"score\":12}'::jsonb where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0022: 본사 소통은 평가표를 읽는 관리자만 같이 읽음",
+      "sql": "select count(hq_comm) from public.company_evaluations where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "제약: 본사 소통은 객체 (0022)",
+      "sql": "update public.company_evaluations set hq_comm = '[]'::jsonb where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {"name":"0026: 비서 설정 읽기는 서버만","sql":"select count(*) from public.assistant_settings where company_id in ({{company_x}}, {{company_y}})","expect":{"service_role":2,"*":"deny"}},
+    {"name":"0026: 대화 · 기록 읽기도 서버만","sql":"select (select count(*) from public.assistant_conversations where company_id = {{company_y}}) + (select count(*) from public.assistant_audit where company_id = {{company_y}})","expect":{"service_role":0,"*":"deny"}},
+    {"name":"0026: 사용량은 서버도 직접 못 넣는다 (잡기 함수로만)","sql":"insert into public.assistant_usage (company_id, purpose, reservation_key, period, reserved_micros) values ({{company_y}}, 'chat', 'probe-0026-direct-' || {{company_y}}::text, (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul'))::date, 1)","expect":{"*":"deny"}},
+    {"name":"0026: 메시지는 고치지 않는다","sql":"update public.assistant_messages set role = 'user' where conversation_id = {{company_y}}","expect":{"*":"deny"}},
+    {"name":"0026: 기록은 지우지 않는다","sql":"delete from public.assistant_audit where company_id = {{company_y}}","expect":{"*":"deny"}},
+    {"name":"0026: 전체 스위치 줄은 더 넣지 못한다","sql":"insert into public.assistant_global (id) values (false)","expect":{"*":"deny"}},
+    {"name":"0026: 메시지는 내용 블록 배열","sql":"with c as (insert into public.assistant_conversations (company_id, user_id) values ({{company_y}}, {{y_staff_user}}) returning id) insert into public.assistant_messages (conversation_id, seq, role, content) select id, 1, 'user', '[{\"type\":\"text\",\"text\":\"probe\"}]'::jsonb from c","roles":["service_role"],"expect":{"service_role":"ok"}},
+    {"name":"0026: 배열이 아닌 메시지는 막는다","sql":"with c as (insert into public.assistant_conversations (company_id, user_id) values ({{company_y}}, {{y_staff_user}}) returning id) insert into public.assistant_messages (conversation_id, seq, role, content) select id, 1, 'user', '{}'::jsonb from c","roles":["service_role"],"expect":{"service_role":"err:23514"}},
+    {"name":"0026: 플레이북은 정한 넷만","sql":"insert into public.assistant_playbooks (key, version, body) values ('other', 1, 'probe')","roles":["service_role"],"expect":{"service_role":"err:23514"}},
+    {"name":"0026: 플레이북 판 넣기","sql":"insert into public.assistant_playbooks (key, version, body, approved_by) values ('consult', 999999, 'probe', {{hq_admin_user}})","roles":["service_role"],"expect":{"service_role":"ok"}},
+    {"name":"0026: 자격 — Agent 업체 비서 켬 → full","sql":"select public.company_entitled({{company_y}}, 'assistant')","expect":{"service_role":"full","*":"deny"}},
+    {"name":"0026 · 0028: 자격 — 장부를 쓴 적 없는 Expert 업체는 비서 none · 장부 none","sql":"select public.company_entitled({{company_x}}, 'assistant') || '/' || public.company_entitled({{company_x}}, 'ledger')","roles":["service_role"],"expect":{"service_role":"none/none"}},
+    {"name":"0028: 자격 — 장부 사진이 있는 Expert 업체(등급이 내려감)는 장부 read","sql":"insert into public.ledger_documents (company_id, uploaded_by, storage_path, mime, size_bytes, sha256) values ({{company_x}}, {{x_owner_user}}, 'probe-0028/' || {{company_x}} || '.jpg', 'image/jpeg', 10, repeat('a', 64)); select public.company_entitled({{company_x}}, 'ledger')","roles":["service_role"],"expect":{"service_role":"read"}},
+    {"name":"0028: 자격 — 장부 줄이 있는 Expert 업체도 read, 구성원이 아니면 none","sql":"insert into public.ledger_entries (company_id, entry_date, direction, account, amount, evidence_type, source, created_by) values ({{company_x}}, current_date, 'expense', 'admin.rent', 1000, 'none', 'manual', {{x_owner_user}}); select public.company_entitled({{company_x}}, 'ledger') || '/' || public.company_entitled({{company_x}}, 'ledger', {{y_staff_user}})","roles":["service_role"],"expect":{"service_role":"read/none"}},
+    {"name":"0026: 자격 — 그 업체 active 구성원만","sql":"select public.company_entitled({{company_y}}, 'ledger', {{x_owner_user}}) || '/' || public.company_entitled({{company_y}}, 'ledger', {{y_staff_user}})","roles":["service_role"],"expect":{"service_role":"none/full"}},
+    {"name":"0026: 자격 — 시험 예외는 다담 공장도 연다","sql":"select public.company_entitled(public.hq_company_id(), 'assistant')","roles":["service_role"],"expect":{"service_role":"full"}},
+    {"name":"0026: 자격 — 전체 스위치를 끄면 비서 none","sql":"update public.assistant_global set assistant_on = false where id; select public.company_entitled({{company_y}}, 'assistant')","roles":["service_role"],"expect":{"service_role":"none"}},
+    {"name":"0026: 예산 잡기 — 한도 안이면 잡힌다","sql":"select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-a-' || {{company_y}}::text, 100)->>'ok'","expect":{"service_role":"true","*":"deny"}},
+    {"name":"0026: 예산 잡기 — 대화는 사진 읽기 몫을 남긴다","sql":"select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-b-' || {{company_y}}::text, 300)->>'reason'","roles":["service_role"],"expect":{"service_role":"over_limit"}},
+    {"name":"0026: 예산 잡기 — 사진 읽기는 그 몫까지 쓴다","sql":"select public.assistant_budget_reserve({{company_y}}, 'extract', 'probe-0026-c-' || {{company_y}}::text, 400)->>'ok'","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0026: 예산 잡기 — 같은 키는 한 줄 (두 번 깎지 않음)","sql":"select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-' || {{company_y}}::text, 100)->>'repeat'","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0026: 예산 잡기 — Expert 업체는 not_entitled","sql":"select public.assistant_budget_reserve({{company_x}}, 'chat', 'probe-0026-d-' || {{company_y}}::text, 1)->>'reason'","roles":["service_role"],"expect":{"service_role":"not_entitled"}},
+    {"name":"0026: 예산 잡기 — 한도를 비우면 no_limit","sql":"update public.assistant_settings set monthly_limit_micros = null where company_id = {{company_y}}; select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-e-' || {{company_y}}::text, 1)->>'reason'","roles":["service_role"],"expect":{"service_role":"no_limit"}},
+    {"name":"0026: 예산 잡기 — 사진 읽기 스위치를 끄면 off","sql":"update public.assistant_global set extract_on = false where id; select public.assistant_budget_reserve({{company_y}}, 'extract', 'probe-0026-f-' || {{company_y}}::text, 1)->>'reason'","roles":["service_role"],"expect":{"service_role":"off"}},
+    {"name":"0026: 정산은 한 번만","sql":"select public.assistant_budget_settle((select id from public.assistant_usage where reservation_key = 'probe-0026-' || {{company_y}}::text), 450, '{\"input_tokens\":10,\"output_tokens\":5}'::jsonb); select public.assistant_budget_settle((select id from public.assistant_usage where reservation_key = 'probe-0026-' || {{company_y}}::text), 450, '{\"input_tokens\":10,\"output_tokens\":5}'::jsonb)->>'repeat'","expect":{"service_role":"true","*":"deny"}},
+    {"name":"0030: 장부 · 비서 알림 셋은 업체와 함께 넣는다 (서버만)","sql":"insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{x_owner_user}}, {{company_x}}, 'ledger_pending', 'probe', 'probe', '/segan/ledger'), ({{x_staff_user}}, {{company_x}}, 'ledger_returned', 'probe', 'probe', '/segan/ledger'), ({{x_owner_user}}, {{company_x}}, 'assistant_brief', 'probe', 'probe', '/segan/assistant')","expect":{"service_role":"ok","*":"deny"}},
+    {"name":"0030: 장부 · 비서 알림은 업체 없이 못 넣는다","sql":"insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{x_owner_user}}, null, 'ledger_pending', 'probe', 'probe', '/segan/ledger')","roles":["service_role"],"expect":{"service_role":"err:23514"}}
+  ]
+}

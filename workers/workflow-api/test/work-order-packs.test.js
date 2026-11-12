@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { partClassOf, isDoorClass, pieceBaseId, gatherWorkOrderPayload } from '../src/work-order-data.js';
+import { partClassOf, isDoorClass, isOutsourcedTopRow, pieceBaseId, gatherWorkOrderPayload, workOrderTotals } from '../src/work-order-data.js';
 import {
   renderWorkOrder,
   normalizePack,
@@ -42,6 +42,16 @@ const DOOR_IDS = ['0-l1-door#0-0', '0-u1-door#0-0'];
 test('partClassOf — 재단 배치(nesting-engine)와 같은 규칙으로 사내/도어재를 가른다', () => {
   const names = ['도어', '서랍도어', '측판', '지판', '천판', '뒷판', '서랍밑판', '몰딩', '걸레받이', '목찬넬', '마감재', '멍판 마감', '밴드', '선반', '', undefined];
   for (const n of names) assert.equal(partClassOf(n), NestingEngine.partClassOf(n), String(n));
+  // 두께 — 5T 이상 뒷판은 몸통 원장 (2026-11-05)
+  for (const [n, t] of [['뒷판', 3], ['뒷판', 2.7], ['뒷판', 18], ['서랍밑판', 3], ['서랍밑판', 15], ['뒷판', undefined], ['측판', 18]]) {
+    assert.equal(partClassOf(n, t), NestingEngine.partClassOf(n, t), `${n} ${t}`);
+  }
+  assert.equal(partClassOf('뒷판', 18), '본체');
+  assert.equal(partClassOf('뒷판', 3), '뒷판');
+  // 석재 상판 — 엔진과 같은 판정
+  for (const r of [{ slot: 'top', part: '상판', material: '인조대리석' }, { part: '상판', material: '세라믹' }, { slot: 'top', part: '상판', material: '엔지니어드 스톤' }, { slot: 'top', part: '상판', material: 'MDF' }, { part: '측판', material: '인조대리석' }]) {
+    assert.equal(isOutsourcedTopRow(r), NestingEngine.isOutsourcedTop(r), JSON.stringify(r));
+  }
   assert.equal(isDoorClass({ part: '걸레받이' }), true);
   assert.equal(isDoorClass({ part: '측판' }), false);
 });
@@ -80,6 +90,25 @@ test('부재 보존 — 사내 + 도어재 = 전체, 겹침 0 (행·라벨·꾸�
     assert.ok(doorHtml.includes(id), `door 에 ${id}`);
     assert.ok(!cut.includes(`>${id}`), `cut 에 ${id} 없음`);
   }
+});
+
+test('석재 상판 — 사내 재단 · 라벨에서 빠지고 부재 보존은 상판 묶음으로 센다 (2026-11-05)', () => {
+  const top = { partId: 'line|0-ep-top-0', slot: 'top', itemLabel: '싱크대', module: '줄 부재', part: '상판', material: '인조대리석', thickness: 12, w: 2050, h: 650, qty: 1, edge: '-', note: '' };
+  const mats = fx.materials().concat([top]);
+  const g = labelGroups(mats);
+  assert.deepEqual(g.top.map((u) => u.id), ['line|0-ep-top-0#0']);
+  assert.ok(!g.inHouse.some((u) => u.id.startsWith('line|0-ep-top')), '사내 재단 라벨 아님');
+  assert.deepEqual([...g.inHouse, ...g.outsourced, ...g.door, ...g.top].map((u) => u.id).sort(), labelUnits(mats).map((u) => u.id).sort());
+  assert.ok(!labelNumbers(mats).has('line|0-ep-top-0#0'), '라벨 번호 없음');
+  const snap = fx.snapshot({ bom_payload: { materials: mats } });
+  assert.equal(workOrderTotals(snap, null).label_count, fx.materials().reduce((s, m) => s + m.qty, 0));
+  // 배치가 없을 때 사내 자재 목록에도 없다 · 배치에 없는 부재로도 잡히지 않는다
+  const doc = docWithLabor();
+  const noPlan = renderWorkOrder({ ...doc, render_payload: { ...doc.render_payload, cut_plan: null } }, { ...snap, cut_plan_payload: null }, { toolbar: false, pack: 'cut' });
+  assert.ok(!noPlan.includes('data-pid="line|0-ep-top-0"'));
+  assert.ok(!uncoveredInHouse(mats, fx.cutPlan()).some((m) => m.row === top) , '배치 누락으로 세지 않음');
+  // MDF 상판은 사내 재단 그대로
+  assert.ok(!isOutsourcedTopRow({ ...top, material: 'MDF' }));
 });
 
 test('엣지 — 길이(edgeLen 우선, 없으면 변에서)·변 글자·두께×코드 합계', () => {
@@ -140,7 +169,9 @@ test('cut — 배치에 없는 사내 부재는 빠뜨리지 않고 따로 싣�
   assert.deepEqual(miss.map((m) => [partIdOfRow(m), m.missing]), [['0-l1-back-0', [0]]]);
   const html = render('cut');
   assert.ok(html.includes('배치에 없는 부재'));
-  assert.ok(html.includes('<span class="mono">0-l1-back-0</span>'));
+  // 표에는 라벨 번호 (부재 ID 는 data-pid 에만 — 2026-11-05 긴 부재 ID 칸을 뺐다)
+  assert.ok(html.includes('<span data-pid="0-l1-back-0">4</span>'));
+  assert.ok(!html.includes('<span class="mono">0-l1-back-0</span>'));
 
   const plan = fx.cutPlan();
   plan.sheets.push({ no: 3, material: 'MDF', thickness: 2.7, partClass: '뒷판', size: { w: 1220, h: 2440 }, trim: 10, parts: [{ partId: '0-l1-back-0#0', part: '뒷판', w: 970, h: 705, x: 10, y: 10, rot: false }], yield: 0.2 });
@@ -214,10 +245,11 @@ test('door — 도어재 발주서: 고객 이름·설계 제목·금액 없음,
   assert.ok(orphan.includes('없는장'));
 });
 
-test('assembly — 조립 지시서: 키팅·철물·조립 체크·차이, 재단표·라벨 없음, 조립 시간', () => {
+test('assembly — 조립 지시서: 철물·조립 체크·차이, 키팅 · 재단표·라벨 없음, 조립 시간', () => {
   const html = render('assembly');
   assert.ok(html.includes('<h1>조립 지시서</h1>'));
-  for (const s of ['모듈 명세', '② 모듈별 키팅', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이']) assert.ok(html.includes(s), s);
+  for (const s of ['모듈 명세', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이']) assert.ok(html.includes(s), s);
+  assert.ok(!html.includes('② 모듈별 키팅'), '키팅은 종이에 싣지 않는다 (2026-11-05 — 검증만)');
   for (const s of ['③ 재단·엣지 지시서', '⑩ 도어재 발주서', '⑧ 부재 라벨']) assert.ok(!html.includes(s), `assembly 에 ${s} 없음`);
   assert.ok(html.includes('2통 · 서랍 0 · 도어 4짝'));
   // 2통×12 + 서랍 0 + 도어 4×1 + 2통×5 = 38분
@@ -228,7 +260,7 @@ test('labels — 라벨만, 사내 먼저 · 재단표와 같은 번호', () => 
   const html = render('labels');
   assert.ok(html.includes('<h1>부재 라벨</h1>'));
   assert.ok(html.includes('라벨</dt><dd>사내 4 · 도어재 4 (A4 2쪽)'));
-  assert.equal(html.split('<div class="label">').length - 1, 8);
+  assert.equal(html.split('<div class="label" data-pid=').length - 1, 8);
   assert.ok(!html.includes('③ 재단·엣지 지시서'));
 
   const nums = labelNumbers(fx.materials());
@@ -236,12 +268,12 @@ test('labels — 라벨만, 사내 먼저 · 재단표와 같은 번호', () => 
   assert.equal(nums.get('0-l1-back-0#0'), 4);
   assert.equal(nums.get('0-l1-door#0-0#0'), 5);
   const cut = render('cut');
-  assert.ok(cut.includes('<td class="num">1</td><td><span class="mono">0-l1-body:side-0#0</span>'), '재단표의 라벨 칸');
+  assert.ok(cut.includes('<td class="num"><span data-pid="0-l1-body:side-0#0">1</span></td><td>측판</td>'), '재단표의 라벨 칸 — 번호만 보이고 조각 id 는 data-pid');
 });
 
 test('all — 전체 문서는 표지 + 모든 섹션, 표지에 사내/도어재 시트와 예상 시간', () => {
   const html = render('all');
-  for (const s of ['<h1>작 업 지 시 서</h1>', '② 모듈별 키팅', '③ 재단·엣지 지시서', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
+  for (const s of ['<h1>작 업 지 시 서</h1>', '③ 재단·엣지 지시서', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
     assert.ok(html.includes(s), s);
   }
   assert.ok(html.includes('(사내 1 · 도어재 1)'));

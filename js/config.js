@@ -32,6 +32,9 @@ window.DADAM_CONFIG = {
     // 학습 데이터셋 수집(10분마다) · 내보내기(야간). admin/dataset.html 의 버튼만 부른다.
     url: 'https://dadam-dataset-api.dadamfurniture.workers.dev',
   },
+  // 카카오맵 JavaScript 키 (공개 키 — 카카오 개발자 콘솔에 등록한 사이트 도메인에서만 쓰인다).
+  // REST API · Admin 키는 여기 넣지 않는다. 쓰는 곳: 앱의 설치 · A/S 현장 지도.
+  kakaoJsKey: '6cf43da3fb805b62cbc850597bb20998',
   app: {
     name: '다담가구',
     version: '1.0.0',

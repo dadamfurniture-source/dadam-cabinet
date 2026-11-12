@@ -32,6 +32,7 @@
  *   hinge-gap          warning  경첩 컵 사이가 문턱보다 가까움
  *   door-edge          warning  도어·서랍도어 엣지가 4면이 아님
  *   small-part         info     한 변 ≤ 소부품 문턱 — 원판 배치에서 빠지고 잔재에서 따로 재단
+ *   outsourced-top     info     석재 상판 — 상판 업체 발주라 재단 배치에서 뺀다 (cutPlan.skipped, 2026-11-05)
  *   unkeyed            info     moduleKey 가 없는 옛 행 — 도어·경첩 대조를 건너뜀
  *   (추출기 알림)      error    opts.notices = MaterialExtractor.extract().notices — 2026-10-24 D9 finish-none(도면 마감재 없음 → 발주 안 함) ·
  *                                finish-unknown(도면 마감재 쪽·치수 모름). 발행 전 확인창에 띄우려고 오류로 올린다
@@ -212,6 +213,15 @@
         } else {
           push('error', 'oversize', `${what} — 원판에 놓을 수 없습니다`, extra);
         }
+      });
+      (cutPlan.skipped || []).forEach((s) => {
+        if (s.reason !== 'outsourced-top') return;
+        push(
+          'info',
+          'outsourced-top',
+          `${s.part} ${s.w}×${s.h} (${s.material} ${s.thickness}T) — 상판 업체 발주라 재단 배치에서 뺍니다 (상판 발주 요청서)`,
+          { partId: s.partId }
+        );
       });
       (cutPlan.smallParts || []).forEach((s) => {
         push(

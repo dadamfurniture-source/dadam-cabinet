@@ -385,14 +385,14 @@ test('mode 가 없으면 options·inputs 는 옛 모양 그대로 — renders �
   const res = await post({
     room_image: PNG,
     category: 'wardrobe',
-    door_color: 'oak',
+    door_color: 'oak woodgrain',
     renders: [{ role: 'elevation', base64: PNG }],
     aspect: '4:3',
   });
   assert.equal(res.status, 202);
   assert.deepEqual(calls.inserted.options, {
     design_style: 'modern-minimal',
-    door_color: 'oak',
+    door_color: 'oak woodgrain',
     door_finish: 'matte',
     wall_width_override: null,
     // 급수·배기는 주방 품목에서만 싣는다 — 붙박이장이라 null 이다
@@ -676,4 +676,119 @@ test('재생성은 원본의 place_guide:false 를 잇고, 원본에 없으면 �
   install({ parent: base });
   await post({ parent_id: base.id, place_guide: false });
   assert.equal(calls.inserted.options.place_guide, false, '새로 보낸 값');
+});
+
+// 2026-10-27: 간편 플래너 Blender 시안 — 선택 렌더 composite (JPEG 도), 있으면 options.place_render
+test('Blender 시안(composite)은 render-composite.{ext} 로 저장, 렌더 끝에 · options.place_render — 없으면 키 없음', async () => {
+  install();
+  const res = await post(plannerBody({ renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] }));
+  assert.equal(res.status, 202);
+  assert.deepEqual(calls.jobStart.inputs.renders.map((r) => r.role), ['elevation', 'massing', 'composite']);
+  assert.ok(calls.uploads.some((x) => x.url.endsWith(`${ROW_ID}/render-composite.jpg`)));
+  assert.equal(calls.inserted.options.place_render, true);
+  install();
+  await post(plannerBody());
+  assert.equal('place_render' in calls.inserted.options, false);
+});
+
+// 2026-11-01: 다듬기 (사장님 「C로 작업 실행」) — planner_polish:true 이고 시안(composite)이 갈 때만 options.polish
+test('다듬기 — planner_polish:true + 시안이면 options.polish, 시안이 없거나 요청이 없으면 키 없음 · 재생성은 원본을 잇고 false 면 끈다', async () => {
+  const withComposite = () => plannerBody({ planner_polish: true, renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] });
+  install();
+  assert.equal((await post(withComposite())).status, 202);
+  assert.equal(calls.inserted.options.polish, true);
+  assert.equal(calls.inserted.options.place_render, true);
+  install();
+  await post(plannerBody({ planner_polish: true }));
+  assert.equal('polish' in calls.inserted.options, false, '시안 없이는 다듬기가 아니다');
+  install();
+  await post(plannerBody({ renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] }));
+  assert.equal('polish' in calls.inserted.options, false, '요청이 없으면 예전 방식');
+  install();
+  await post(plannerBody({ planner_polish: 'yes', renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] }));
+  assert.equal('polish' in calls.inserted.options, false, '참(true)만 받는다');
+  const base = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: {
+      room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' },
+      refs: [],
+      renders: [
+        { role: 'elevation', path: 'p/render-elevation.png', url: 'u2', mime: 'image/png' },
+        { role: 'composite', path: 'p/render-composite.jpg', url: 'u3', mime: 'image/jpeg' },
+      ],
+    },
+    options: { design_spec: { version: 1, category: 'sink', wallRunMm: 2200 }, mode: 'planner', aspect: '4:3', variants: false, place_render: true, polish: true },
+  };
+  install({ parent: base });
+  await post({ parent_id: base.id });
+  assert.equal(calls.inserted.options.polish, true, '재생성은 원본 다듬기를 잇는다');
+  install({ parent: base });
+  await post({ parent_id: base.id, planner_polish: false });
+  assert.equal('polish' in calls.inserted.options, false, '요청이 false 면 끈다');
+});
+
+// 2026-11-01: 방 비우기 (사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」) — planner_clear:true 면 입면 없이 options.clear
+test('방 비우기 — planner_clear:true 면 입면 없이 받고 options.clear (다듬기와 같이 오면 비우기), 비운 방 다듬기는 cleared · 재생성은 원본을 잇는다', async () => {
+  install();
+  assert.equal((await post(plannerBody({ planner_clear: true, renders: [] }))).status, 202, '입면 없이도 받는다');
+  assert.equal(calls.inserted.options.clear, true);
+  assert.equal('polish' in calls.inserted.options, false);
+  install();
+  assert.equal((await post(plannerBody({ renders: [] }))).status, 400, '비우기가 아니면 입면은 여전히 필수');
+  const comp = { role: 'composite', base64: PNG, mime: 'image/jpeg' };
+  install();
+  await post(plannerBody({ planner_clear: true, planner_polish: true, renders: [...plannerBody().renders, comp] }));
+  assert.equal(calls.inserted.options.clear, true);
+  assert.equal('polish' in calls.inserted.options, false, '비우기가 이긴다');
+  install();
+  await post(plannerBody({ planner_polish: true, planner_cleared: true, renders: [...plannerBody().renders, comp] }));
+  assert.equal(calls.inserted.options.polish, true);
+  assert.equal(calls.inserted.options.cleared, true);
+  install();
+  await post(plannerBody({ planner_cleared: true, renders: [...plannerBody().renders, comp] }));
+  assert.equal('cleared' in calls.inserted.options, false, '다듬기가 아니면 cleared 키 없음');
+  install();
+  await post(plannerBody({ planner_clear: 'yes', renders: [...plannerBody().renders] }));
+  assert.equal('clear' in calls.inserted.options, false, '참(true)만 받는다');
+  const base = {
+    id: '44444444-4444-4444-8444-444444444444',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [], renders: [] },
+    options: { design_spec: { version: 1, category: 'sink', wallRunMm: 2200 }, mode: 'planner', aspect: '4:3', variants: false, clear: true },
+  };
+  install({ parent: base });
+  assert.equal((await post({ parent_id: base.id })).status, 202);
+  assert.equal(calls.inserted.options.clear, true, '재생성은 원본 비우기를 잇는다');
+});
+
+// 2026-11-02: 냉장고장(리폼) (사장님 「리폼 연출 이어 진행」) — planner_reform 은 비우기 · 다듬기일 때만 options.reform (정리한 값)
+test('리폼 — planner_reform 은 비우기 · 다듬기일 때만 options.reform, 깨진 값은 키 없음, 재생성은 원본을 잇는다', async () => {
+  const reform = { segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'remove', extra: 'x' }, { kind: 'wall', widthMm: 100 }], boardMm: 1980, moldingMm: 60 };
+  const want = { segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'remove' }, { kind: 'wall', widthMm: 100 }], boardMm: 1980, moldingMm: 60 };
+  const comp = { role: 'composite', base64: PNG, mime: 'image/jpeg' };
+  install();
+  assert.equal((await post(plannerBody({ planner_clear: true, planner_reform: reform, renders: [] }))).status, 202);
+  assert.deepEqual(calls.inserted.options.reform, want, '비우기');
+  install();
+  await post(plannerBody({ planner_polish: true, planner_reform: reform, renders: [...plannerBody().renders, comp] }));
+  assert.deepEqual(calls.inserted.options.reform, want, '다듬기');
+  install();
+  await post(plannerBody({ planner_reform: reform }));
+  assert.equal('reform' in calls.inserted.options, false, '비우기 · 다듬기가 아니면 키 없음');
+  install();
+  await post(plannerBody({ planner_clear: true, planner_reform: { segs: [{ kind: 'wall', widthMm: 100 }] }, renders: [] }));
+  assert.equal('reform' in calls.inserted.options, false, '냉장고 공간이 없는 값은 버린다');
+  const base = {
+    id: '55555555-5555-4555-8555-555555555555',
+    user_id: USER_ID,
+    category: 'fridge',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [], renders: [] },
+    options: { design_spec: { version: 1, category: 'fridge', wallRunMm: 2360 }, mode: 'planner', aspect: '4:3', variants: false, clear: true, reform: want },
+  };
+  install({ parent: base });
+  assert.equal((await post({ parent_id: base.id })).status, 202);
+  assert.deepEqual(calls.inserted.options.reform, want, '재생성은 원본 리폼을 잇는다');
 });

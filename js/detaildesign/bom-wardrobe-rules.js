@@ -98,6 +98,10 @@
   const WARDROBE_RULES = Object.freeze({
     PANEL_T: 15,                  // 천판·지판·선반·칸막이 두께 (§5 PANEL_THICKNESS)
     ROD_OFFSET: 75,               // 옷봉 — 칸 상단에서 아래로 (§5)
+    // 2026-10-30 사장님: "선반이나 서랍을 추가 했을때, 옷봉의 유무는 높이가 옷봉 설치에서 바닥 닿는데 까지 최소1000 이하라면 자동 제거"
+    //   — 사람이 바꾼 칸(칸마다 선반 · 서랍)에서 봉 중심 ~ 그 아래 판(아래 선반 윗면 · 칸 바닥) 이 이 값보다 짧으면 옷봉을 뺀다 (layoutWardrobeModule)
+    //   같은 날 "옷 걸 공간 최소 950으로 잡아줘" — 1000 → 950, 최소라 950 까지는 건다
+    ROD_MIN_HANG: 950,
     LONG_FIRST_SHELF: 315,        // 긴옷 첫 선반 — 칸 상단에서 아래로 (§5)
     DRAWER_MOD_H: 350,            // 외부 서랍 한 단 (§7)
     MAX_DRAWER_COUNT: 5,          // §7 서랍 0~5
@@ -109,6 +113,11 @@
     //   그때까지 §11 은 60 미만을 "무몰딩" 으로만 보아 부재가 하나도 나오지 않았다.
     MOLDING_FINISH_W: 60,
     MOLDING_FINISH_T: 18,
+    // 상몰딩 마감 종류 (specs.wardrobeMoldingType) — 2026-10-30 사장님 "상몰딩, 인몰딩, 무몰딩" · 2026-10-31
+    //   "인몰딩은 상몰딩 위치가 몸통앞선 + 도어가 몰딩을 덮는 형식, 상몰딩은 도어 앞선에 설치되는 형태":
+    //   top 상몰딩 = 도어 앞선 (도어 위) · in 인몰딩 = 몸통 앞선, 도어가 덮는다 · none 무몰딩 = 부재 없음 (틈)
+    MOLDING_TYPES: Object.freeze(['top', 'in', 'none']),
+    IN_MOLDING_TOP_GAP: 20,       // 인몰딩 도어 위 끝 = 천장 − 20 (2026-10-31 사장님 「천장 아래 20 남김」 — 무몰딩 틈과 같다)
     EP_LENGTH: 2440,              // 몰딩 EP 세로 고정 (§11) — 가로가 이보다 길면 2장
     DEFAULT_D: 620,               // 2026-09-16: 600 → 620 (data-constants CATEGORIES.wardrobe.defaultD)
     DEFAULT_H: 2310,
@@ -122,7 +131,7 @@
     ROD_SOCKET_NAME: '원형소켓',
     // 내부 서랍 — 2026-09-19 사장님 확정. 전면·몰딩은 15PB 몸통 재질.
     INNER_DRAWER: Object.freeze({
-      SIDE_MOLDING_W: 60,   // 좌우 각 60 — 문이 경첩에 걸리지 않게 모듈을 안으로 넣는다
+      SIDE_MOLDING_W: 60,   // 각 60 — 문이 경첩에 걸리지 않게 모듈을 안으로 넣는다. 경첩이 있는 쪽만 (innerMoldingSidesOf — 2026-11-01)
       FRONT_SETBACK: 70,    // 붙박이장 앞선에서 안쪽으로 (경첩 자리)
       // 2026-09-23 사장님 확정: 경첩 자리 70 을 뺀 자리(기본 520) 중 실제로 쓰는 깊이는 480.
       //   남는 40 은 여유다 (서랍장 도어 15 + 여유 5 를 포함한 총 여유).
@@ -303,15 +312,77 @@
     return SAMPLE_PRESETS[Math.min(i, SAMPLE_PRESETS.length - 1)];
   }
 
+  /**
+   * 칸마다 선반 수 (2026-10-30 사장님 간편 플래너 붙박이장 「칸마다 바꾸기」) — 칸 차례(layoutWardrobeModule cells — 몸통 아래 → 위,
+   *   몸통 안 아래 → 위 · 왼 → 오른)마다 장수, null 은 기본형 그대로. 몸통 구조(기본형 stack)는 그대로 두고 칸의 shelves 만 바꾼다
+   *   (사용자 칸 cells 는 몸통을 하나로 합치므로 쓰지 않는다). 자리는 칸 규칙 shelfPositions 그대로.
+   * @returns {Array<number|null>|null} 바꾼 칸이 없으면 null
+   */
+  function cleanCellShelves(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((n) => (n == null || n === '' || !Number.isFinite(Number(n)) ? null : int0(n, 12)));
+    return out.some((n) => n != null) ? out : null;
+  }
+
+  /**
+   * 칸마다 세로칸막이 (2026-10-30 사장님 간편 플래너 「붙박이장 세로칸막이」) — **기본형** 칸 차례(나누기 전, cellShelves 와 같은 차례)마다
+   *   세로칸막이 장수, null · 0 은 나누지 않는다. 그 칸을 좌우로 고르게 나눈다 (반 분할 칸막이와 같은 판 — dividersOf).
+   * @returns {Array<number|null>|null} 나눈 칸이 없으면 null
+   */
+  function cleanCellSplits(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((n) => (n == null || n === '' || !Number.isFinite(Number(n)) ? null : int0(n, 12) || null));
+    return out.some((n) => n != null) ? out : null;
+  }
+
+  /**
+   * 칸마다 선반 자리 (2026-10-31 사장님 간편 플래너 "선반은 선반을 따로 클릭하면 높이를 설정 … 아랫면에서 얼마, 윗면에서 얼마") —
+   *   칸 차례(cellShelves 와 같은 차례 — 세로칸막이로 나눈 뒤)마다 선반 **밑면** y 목록 (칸 바닥에서, 작은 것부터), null 은 칸 규칙 자리 (shelfPositions).
+   *   사람이 정한 자리라 칸 규칙(긴옷 첫 선반 315 · 균등)을 쓰지 않는다. 장수 = 목록 길이 (cellShelves 보다 먼저).
+   *   칸에 들어가지 않으면 (판이 겹치거나 칸 밖) layoutWardrobeModule 이 경고하고 칸 규칙 자리로 둔다.
+   * @returns {Array<number[]|null>|null} 정한 칸이 없으면 null
+   */
+  function cleanCellShelfYs(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((ys) => {
+      if (!Array.isArray(ys)) return null;
+      const list = ys.slice(0, 12).map(Number);
+      if (list.some((y) => !Number.isFinite(y))) return null;
+      return list.map((y) => Math.round(y)).sort((a, b) => a - b);
+    });
+    return out.some((x) => x != null) ? out : null;
+  }
+
+  /**
+   * 칸마다 옷봉 빼기 · 걸기 (2026-10-31 사장님 "옷봉을 클릭하면 제거 버튼이 생성되고 제거 버튼 클릭하면 제거" ·
+   *   "붙박이장에는 내부구성 버튼에 옷봉버튼 만들어서 추가 할 수 있게 해줘") — 칸 차례(cellShelves 와 같은 차례)마다
+   *   0 = 사람이 뺐다, 1 = 사람이 걸었다 (칸 규칙으로 옷봉이 없는 칸 — 선반 칸 · 걸 공간이 모자라 뺀 칸 — 에도 건다, rodGapPositions),
+   *   null = 칸 규칙 그대로 (옷봉 칸이면 걸고, 걸 공간이 ROD_MIN_HANG 보다 짧으면 엔진이 뺀다). 사람이 빼거나 건 칸도 선반 자리는 그대로 둔다.
+   * @returns {Array<0|1|null>|null} 정한 칸이 없으면 null
+   */
+  function cleanCellRods(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((n) => (n === 0 || n === '0' ? 0 : n === 1 || n === '1' ? 1 : null));
+    return out.some((n) => n != null) ? out : null;
+  }
+
   /** 모듈에 붙는 붙박이장 구조 블록을 다듬는다. 모르는 값은 버린다 (브리지·저장이 이 모양으로 주고받는다). */
   function normalizeBlock(raw) {
     const b = raw && typeof raw === 'object' ? raw : {};
     const preset = PRESET_KEYS.includes(b.preset) ? b.preset : null;
     const cells = Array.isArray(b.cells) ? b.cells.map(cleanCell).filter(Boolean) : [];
     const drawers = int0(b.drawers, R.MAX_DRAWER_COUNT);
+    const cellShelves = cleanCellShelves(b.cellShelves);
+    const cellSplits = cleanCellSplits(b.cellSplits);
+    const cellShelfYs = cleanCellShelfYs(b.cellShelfYs);
+    const cellRods = cleanCellRods(b.cellRods);
     return {
       preset,
       cells: cells.length ? cells : null,
+      ...(cellShelves ? { cellShelves } : {}),
+      ...(cellSplits ? { cellSplits } : {}),
+      ...(cellShelfYs ? { cellShelfYs } : {}),
+      ...(cellRods ? { cellRods } : {}),
       // null·undefined 는 **미지정**이다 — 0 으로 접으면 프리셋 기본 서랍 단수를 덮어쓴다
       // (Number(null) 이 0 이고 Number.isFinite(0) 이 true 라 그렇게 새던 자리다).
       drawers: b.drawers == null || b.drawers === '' ? null : drawers,
@@ -433,6 +504,29 @@
   }
 
   /**
+   * 사람이 선반 자리를 정한 칸의 옷봉 자리 (칸 바닥에서 봉 중심) — 2026-10-31 사장님 "선반 2개 있다가, 1개 제거하고 1개는 이동했는데,
+   * 옷봉이 설치되는 공간 1175가 충분히 나오는데 옷봉이 자동으로 생성 안되네?".
+   *
+   * 판 사이 빈 칸(칸 바닥 · 선반 윗면 ~ 위 선반 밑면 · 칸 천장)을 **위에서부터** 보고, 옷봉(위 판 밑면 − ROD_OFFSET 75)부터
+   * 아래 판까지가 ROD_MIN_HANG(950) 이상인 첫 칸에 건다. 없으면 [] (옷봉을 뺀다).
+   * 선반이 위에 붙은 자리(긴옷 첫 선반 = 칸 상단 − 315)는 맨 위 칸이 모자라 rodPositions 와 같다 — 맨 위 선반 아래.
+   * 옷봉 칸(rods > 0)만 — 선반 칸에 새로 걸지는 않는다.
+   * @param {number[]} shelfYs 그 칸 선반 밑면 y (칸 바닥에서)
+   */
+  function rodGapPositions(cell, shelfYs, o) {
+    if (int0(cell.rods, 1) <= 0) return [];
+    const T = thicknessOf(o);
+    const ys = (Array.isArray(shelfYs) ? shelfYs : []).slice().sort((a, b) => a - b);
+    for (let i = 0; i <= ys.length; i++) {
+      const upper = i === 0 ? cell.h : ys[ys.length - i];          // 위 판 밑면 (칸 천장 · 위 선반)
+      const floor = i < ys.length ? ys[ys.length - 1 - i] + T : 0;  // 아래 판 윗면 (아래 선반 · 칸 바닥)
+      const y = upper - R.ROD_OFFSET;
+      if (y - floor >= R.ROD_MIN_HANG) return [Math.round(y)];
+    }
+    return [];
+  }
+
+  /**
    * 상몰딩 부재 한 줄. 없으면 null.
    *
    *   moldingH >= 60      → 몰딩 폭 그대로 EP (§11 기존 규칙)
@@ -446,17 +540,40 @@
     const opt = o || {};
     const moldingH = Number(opt.moldingH) || 0;
     const totalW = Number(opt.totalW) || 0;
+    // 종류 (MOLDING_TYPES) — 무몰딩은 부재가 없고, 상몰딩 · 인몰딩을 고르면 마감재 스위치가 켜진 것과 같다 (60 미만도 막는다).
+    //   종류가 없으면 예전 그대로 (높이 · 스위치). 인몰딩은 같은 판을 몸통 앞선에 세운다 — 이름만 다르다.
+    const type = moldingTypeOf({ wardrobeMoldingType: opt.type });
+    if (type === 'none') return null;
+    const part = type === 'in' ? '인몰딩' : '상몰딩';
+    const where = type === 'in' ? '몸통 앞선 — 도어가 덮는다' : '';
     if (moldingH <= 0 || totalW <= 0) return null;
     const qty = totalW > R.EP_LENGTH ? 2 : 1;
     if (moldingH >= R.MOLDING_FINISH_W) {
-      return { part: '상몰딩', material: 'MDF', t: 18, w: moldingH, h: R.EP_LENGTH, qty, edge: '2면(장)', note: '' };
+      return { part, material: 'MDF', t: 18, w: moldingH, h: R.EP_LENGTH, qty, edge: '2면(장)', note: where };
     }
-    if (!opt.finish) return null;
+    if (!opt.finish && !type) return null;
     return {
-      part: '상몰딩', material: 'MDF', t: R.MOLDING_FINISH_T, w: R.MOLDING_FINISH_W, h: R.EP_LENGTH, qty,
+      part, material: 'MDF', t: R.MOLDING_FINISH_T, w: R.MOLDING_FINISH_W, h: R.EP_LENGTH, qty,
       edge: '2면(장)',
-      note: `상몰딩 ${moldingH} — ${R.MOLDING_FINISH_W}×${R.MOLDING_FINISH_T}T MDF 마감재로 설치`,
+      note: `${part} ${moldingH} — ${R.MOLDING_FINISH_W}×${R.MOLDING_FINISH_T}T MDF 마감재로 설치${where ? ` (${where})` : ''}`,
     };
+  }
+
+  /** 상몰딩 마감 종류 — specs.wardrobeMoldingType ('top' · 'in' · 'none'). 없거나 모르는 값이면 null (예전 그대로 — 높이 · 스위치로 정한다). */
+  function moldingTypeOf(specs) {
+    const t = specs && specs.wardrobeMoldingType;
+    return R.MOLDING_TYPES.indexOf(t) >= 0 ? t : null;
+  }
+
+  /**
+   * 인몰딩이면 도어가 몰딩을 덮어 몸통 윗선 위로 늘어나는 길이 — 도어 위 끝 = 천장 − IN_MOLDING_TOP_GAP
+   *   (= 몸통 윗선 + 상몰딩 높이 − 20, 2026-10-31 사장님 「천장 아래 20 남김」). 그 밖(상몰딩 · 무몰딩 · 종류 없음)은 0.
+   *   상몰딩 높이는 specs.wardrobeMoldingH (없으면 MOLDING_H — 다른 높이 셈과 같은 `||` 기본).
+   */
+  function doorTopExtraOf(specs) {
+    if (moldingTypeOf(specs) !== 'in') return 0;
+    const moldingH = parseFloat(specs.wardrobeMoldingH) || R.MOLDING_H;
+    return Math.max(0, moldingH - R.IN_MOLDING_TOP_GAP);
   }
 
   /** specs.wardrobeMoldingFinish 를 켜짐/꺼짐으로 — '1'·true·'ep60' 은 켜짐, 'none'·0·빈값은 꺼짐. */
@@ -485,17 +602,31 @@
   }
 
   /**
+   * 속서랍 몰딩 자리 — 경첩이 있는 쪽만 (2026-11-01 사장님 "경첩방향에 속서랍 좌우 몰딩만 설치 되도록 해줘. 예: 좌경첩 도어라면
+   *   속서랍 좌측에만 몰딩처리, 양문형 이라면 좌우 둘다 속서랍 몰딩처리, 우경첩 도어면 우측에만 속서랍 몰딩처리 따라서 속서랍 너비 규칙에
+   *   따라 변경됨"). 몰딩은 문이 경첩에 걸리지 않게 하는 판이다 (SIDE_MOLDING_W).
+   *   외짝(doorCount 1) + 경첩 left · right → 그 쪽만. 양문(2 이상)과 경첩을 모르는 모듈(옛 설계)은 예전대로 좌우 둘 다.
+   * @param {{doorCount?:number, hingeSide?:string}} o 모듈 (플래너 브리지 doorCount · hingeSide)
+   * @returns {string[]} ['left'] · ['right'] · ['left', 'right']
+   */
+  function innerMoldingSidesOf(o) {
+    const n = Number(o && o.doorCount);
+    const h = o && o.hingeSide;
+    return n === 1 && (h === 'left' || h === 'right') ? [h] : ['left', 'right'];
+  }
+
+  /**
    * 내부 서랍 구역의 배치 — 좌우 몰딩 · 모듈 · 전면.
    *
    * 전면 수는 서랍 단수와 같고, **빈 공간(30) 수는 최소**다 (`innerSlotPlan`: ceil(n/2)).
    * 하나가 위·아래 두 전면을 열기 때문에 전면과 1:1 이 아니다.
    *
-   *   모듈 내경 폭   = 통 내경 − 2 × 60
+   *   모듈 외경 폭   = 통 내경 − 60 × 몰딩 수 (몰딩은 경첩 쪽만 — innerMoldingSidesOf, 2026-11-01)
    *   모듈 내경 높이 = 구역 높이 − 2 × T        (모듈 상판·지판)
-   *   전면 가로       = 모듈 내경 폭 − 4
+   *   전면 가로       = 모듈 외경 폭 − 4
    *   전면 높이 합    = (모듈 내경 높이 − 4) − 30 × 빈 공간 수
    *
-   * @param o { Wi, zoneH, drawers, T, D, rail }
+   * @param o { Wi, zoneH, drawers, T, D, rail, moldingSides } — moldingSides = 몰딩 자리 ['left'] · ['right'] · ['left', 'right'] (없으면 좌우 둘 다)
    * @returns null 이면 그릴 것이 없다 (서랍 0 또는 자리가 안 나온다)
    */
   function innerDrawerLayout(o) {
@@ -512,15 +643,19 @@
     //   2026-09-22: 몸통은 하부장과 같다 — 천판이 없고 밴드가 상단에 선다. 그 **위에 상판**이
     //   얹힌다. 350 은 **모듈 전체 높이**이므로 상판은 그 위에 더해진다 (사장님 확정) —
     //   모듈이 차지하는 높이는 350×단수 + 상판 15 다.
-    const moduleW = Wi - 2 * I.SIDE_MOLDING_W;
+    // 몰딩 — 경첩 쪽만 (2026-11-01 사장님). 몰딩이 없는 쪽은 모듈이 통 측판에 붙는다 → 모듈 가운데가 그만큼 비킨다 (moduleX, 통 가운데 0 기준)
+    const pickedSides = Array.isArray(opt.moldingSides) ? ['left', 'right'].filter((s) => opt.moldingSides.indexOf(s) >= 0) : [];
+    const moldingSides = pickedSides.length ? pickedSides : ['left', 'right'];
+    const moduleW = Wi - moldingSides.length * I.SIDE_MOLDING_W;
+    const moduleX = ((moldingSides.indexOf('left') >= 0 ? I.SIDE_MOLDING_W : 0) - (moldingSides.indexOf('right') >= 0 ? I.SIDE_MOLDING_W : 0)) / 2;
     const topT = T;                                        // 상판도 15PB 몸통 재질
     const moduleH = zoneH;                                 // 몸통 외경 높이 = 350 × 단수 (도어 세로의 기준)
     const totalH = moduleH + topT;                         // 모듈 + 상판이 차지하는 높이
     const moduleHi = Math.max(0, moduleH - T);             // 참고용 (지판만 빠진다 — 천판이 없다)
     const moduleD = Math.max(0, depthOf(opt) - I.FRONT_SETBACK - I.MODULE_BACK_GAP);
     const base = {
-      drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
-      setback: I.FRONT_SETBACK, moduleW, moduleH, moduleHi, moduleD, zoneH, topT, totalH,
+      drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH, moldingSides, moldingQty: moldingSides.length,
+      setback: I.FRONT_SETBACK, moduleW, moduleX, moduleH, moduleHi, moduleD, zoneH, topT, totalH,
       bodyD: depthOf(opt),
       // 지판 깊이 — 측판에 사쿠리가 없으므로 모듈 깊이를 그대로 쓴다 (2026-09-23 사장님 확정).
       panelD: moduleD,
@@ -644,8 +779,8 @@
       });
     });
     rows.push({
-      part: '내부서랍 좌우몰딩', material: 'PB', t: L.moldingT, w: L.moldingH, h: L.moldingW, qty: 2,
-      edge: '2면(장)', note: `앞선에서 ${L.setback} 안쪽 — 경첩 자리`,
+      part: '내부서랍 좌우몰딩', material: 'PB', t: L.moldingT, w: L.moldingH, h: L.moldingW, qty: (L.moldingSides || ['left', 'right']).length,
+      edge: '2면(장)', note: `앞선에서 ${L.setback} 안쪽 — 경첩 자리${(L.moldingSides || []).length === 1 ? ` (${L.moldingSides[0] === 'left' ? '좌' : '우'}경첩 쪽만)` : ''}`,
     });
     return rows;
   }
@@ -715,6 +850,11 @@
    *   preset          프리셋 키. 'custom' 이거나 cells 를 주면 그 칸을 쓴다
    *   cells           직접 편집한 칸 목록
    *   drawers         외부 서랍 단수 (없으면 프리셋 기본값)
+   *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30). 세로칸막이로 나눈 칸은 나눈 뒤 칸 차례
+   *   cellSplits      칸마다 세로칸막이 장수 (normalizeBlock cellSplits — 기본형 칸 차례, 2026-10-30) — 칸을 좌우 고르게 나눈다
+   *   cellShelfYs     칸마다 선반 밑면 자리 (normalizeBlock cellShelfYs — cellShelves 차례, 2026-10-31) — 장수 · 자리를 사람이 정한다
+   *   cellRods        칸마다 옷봉 빼기 0 · 걸기 1 (normalizeBlock cellRods — cellShelves 차례, 2026-10-31)
+   *   doorCount · hingeSide  통 도어 수 · 외짝 경첩 (플래너 브리지 모듈 값) — 내부 서랍 몰딩은 경첩 쪽만 (innerMoldingSidesOf, 2026-11-01)
    * @returns {{preset, cells, dividers, rods, shelves, drawerModH, bodyH, Wi, Hi, warnings}}
    */
   function layoutWardrobeModule(o) {
@@ -780,6 +920,14 @@
     const dividers = [];
     const shelves = [];
     const rods = [];
+    const cellShelves = cleanCellShelves(opt.cellShelves);
+    const cellSplits = cleanCellSplits(opt.cellSplits);
+    const cellShelfYs = cleanCellShelfYs(opt.cellShelfYs);
+    const cellRods = cleanCellRods(opt.cellRods);
+    let baseIdx = 0;   // 기본형 칸 차례 (cellSplits)
+    // 서랍을 바꿨나 (기본형과 다른 단수 · 종류) — 바뀐 서랍이 닿는 칸에서 옷봉 걸 공간을 본다 (ROD_MIN_HANG):
+    //   외부 서랍이면 캐비닛 높이가 줄어 모든 칸, 내부 서랍이면 맨 아래 캐비닛 칸
+    const drawersChanged = drawers !== int0(preset.drawers, R.MAX_DRAWER_COUNT) || external !== (preset.external !== false);
 
     const firstCabinet = carcasses.findIndex((c) => c.kind === 'cabinet');
     carcasses.forEach((car, carIdx) => {
@@ -788,7 +936,8 @@
       const zoneH = (!external && drawers > 0 && carIdx === firstCabinet) ? drawerModH : 0;
       if (zoneH > 0) {
         // 내부 서랍 — 전면·몰딩 배치까지 같이 낸다 (플래너·BOM 이 같은 숫자를 쓴다).
-        const inner = innerDrawerLayout({ Wi, zoneH, drawers, T, D: depthOf(opt), rail: opt.rail });
+        const inner = innerDrawerLayout({ Wi, zoneH, drawers, T, D: depthOf(opt), rail: opt.rail,
+          moldingSides: innerMoldingSidesOf({ doorCount: opt.doorCount, hingeSide: opt.hingeSide }) });   // 몰딩은 경첩 쪽만 (2026-11-01)
         car.drawerZone = Object.assign({ y0: car.y0 + T, h: zoneH, drawers }, inner || {});
         if (inner && inner.warnings.length) warnings.push(...inner.warnings);
       }
@@ -813,6 +962,27 @@
         own = [...rows.values()];
       }
       own.sort((x, z) => (x.y0 - z.y0) || (x.x0 - z.x0));
+      // 세로칸막이 (2026-10-30 사장님 「붙박이장 세로칸막이」 — "900장에 석가 들어가면 (내경(900-30)-석가두께(15))/2 해서 짧은 옷봉 2개") —
+      //   기본형 칸을 세로칸막이 n 장으로 좌우 고르게 나눈다 (사장님 「칸 균등」). 판은 반 분할 칸막이와 같다 (dividersOf 가 낸다).
+      //   나뉜 칸은 원래 칸의 종류 · 선반 · 옷봉을 받는다 (옷봉 칸이면 칸마다 짧은 옷봉). 폭 나머지(1~2)는 맨 오른쪽 칸 — 옆 칸과 칸막이 자리를 지킨다.
+      //   나뉜 칸이 MIN_CELL_W 보다 좁으면 나누지 않고 경고한다 (만들 수 없는 판을 BOM 으로 내지 않는다).
+      if (cellSplits) {
+        own = own.flatMap((c) => {
+          const n = cellSplits[baseIdx++] || 0;
+          if (!n) return [c];
+          const w = Math.floor((c.w - n * T) / (n + 1));
+          if (w < R.MIN_CELL_W) {
+            warnings.push(`${car.label} ${c.label || '칸'} 세로칸막이 ${n}장이면 칸 폭 ${w} 가 최소 ${R.MIN_CELL_W} 미만 — 나누지 않는다`);
+            return [c];
+          }
+          return Array.from({ length: n + 1 }, (_, i) => Object.assign({}, c, {
+            x0: c.x0 + i * (w + T),
+            w: i === n ? c.w - n * (w + T) : w,
+            label: `${c.label || '칸'} ${i + 1}`,
+            sub: i, subOf: n + 1,
+          }));
+        });
+      }
 
       // 몸통 안 좌표 → 통 좌표. 그 몸통 지판 윗면이 y0 + T 이고, 내부 서랍이 있으면 그 위부터다.
       const base = car.y0 + T + zoneH;
@@ -824,19 +994,57 @@
       car.dividers = ownDividers;
       dividers.push(...ownDividers);
 
-      own.forEach((c) => {
+      own.forEach((c0) => {
+        // 칸마다 선반 수 — 사람이 바꾼 칸만 (몸통 · 칸 · 옷봉은 기본형 그대로)
+        const ov = cellShelves && cellShelves[cells.length];
+        let c = ov == null ? c0 : Object.assign({}, c0, { shelves: ov });
+        let shelfYs = shelfPositions(c, opt);
+        // 사람이 정한 선반 자리 (2026-10-31 cellShelfYs) — 판이 겹치지 않고 칸 안이면 그 자리 · 그 장수, 아니면 경고하고 칸 규칙 자리
+        const want = cellShelfYs && cellShelfYs[cells.length];
+        const fixed = !!want && !want.some((y, k) => y < 0 || (k > 0 && y < want[k - 1] + T)) && !(want.length && want[want.length - 1] + T > c.h);
+        if (want && !fixed) warnings.push(`${car.label} ${c.label || '칸'} 선반 자리 ${want.join('·')} 가 칸(높이 ${c.h}, 판 ${T})에 들어가지 않는다 — 칸 규칙 자리로 둔다`);
+        if (fixed) { c = Object.assign({}, c, { shelves: want.length }); shelfYs = want.slice(); }
+        // 사람이 뺀 옷봉 (2026-10-31 cellRods) — 옷봉만 뺀다. 선반 자리는 그린 그대로 (다시 셈하지 않는다)
+        if (cellRods && cellRods[cells.length] === 0 && c.rods > 0) c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
+        // 옷봉 걸 공간 (2026-10-30 사장님) — 사람이 바꾼 칸에서 봉 중심 ~ 아래 판이 ROD_MIN_HANG 보다 짧으면 옷봉을 뺀다.
+        //   빼면 그 칸은 선반 칸이다 — 선반 자리는 일반 규칙 (판 두께를 뺀 나머지 균등, §6). 사람이 정한 자리면 그 자리 그대로.
+        //   선반 자리를 정한 칸도 본다 — 옷봉은 최상단 선반 바로 아래라 선반을 옮기면 걸 공간이 바뀐다 (사장님 "이 기능을 사용해도 옷봉의 생성여부는 자동으로 조건에 따라")
+        //   사람이 선반 자리를 정한 칸은 맨 위 선반 아래가 아니라 걸 수 있는 가장 위 빈 칸에 건다 (rodGapPositions — 2026-10-31 사장님
+        //   "선반 … 1개는 이동했는데, 옷봉이 설치되는 공간 1175가 충분히 나오는데 옷봉이 자동으로 생성 안되네"). 걸 칸이 없으면 뺀다.
+        let rodYs = null;
+        const changed = ov != null || fixed || (drawersChanged && (external || carIdx === firstCabinet));
+        if (fixed && c.rods > 0) {
+          rodYs = rodGapPositions(c, shelfYs, opt);
+          if (!rodYs.length) c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
+        }
+        const rod0 = changed && !rodYs ? rodPositions(c, shelfYs) : [];
+        if (rod0.length) {
+          const below = shelfYs.filter((y) => y < rod0[0]).map((y) => y + T);
+          const floor = below.length ? Math.max(...below) : 0;
+          if (rod0[0] - floor < R.ROD_MIN_HANG) {
+            c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
+            if (!fixed) shelfYs = shelfPositions(c, opt);
+          }
+        }
+        // 사람이 건 옷봉 (2026-10-31 cellRods 1 — 사장님 "붙박이장에는 내부구성 버튼에 옷봉버튼 만들어서 추가 할 수 있게 해줘") —
+        //   칸 규칙으로 옷봉이 없는 칸(선반 칸 · 빈 칸 · 걸 공간이 모자라 뺀 칸)에 건다. 칸마다 옷봉 1개 (cleanCell rods 최대 1).
+        //   자리는 걸 수 있는 가장 위 빈 칸 (rodGapPositions — 위 판 밑면 − 75 ~ 아래 판 ROD_MIN_HANG 이상), 선반 자리는 그대로 둔다.
+        //   걸 칸이 없으면 걸지 않는다 — 선반을 빼거나 옮겨 칸이 생기면 걸린다 (규칙 옷봉과 같다).
+        if (cellRods && cellRods[cells.length] === 1 && c.rods <= 0) {
+          const add = rodGapPositions(Object.assign({}, c, { rods: 1 }), shelfYs, opt);
+          if (add.length) { c = Object.assign({}, c, { rods: 1, kind: 'rod' }); rodYs = add; }
+        }
         const cell = Object.assign({}, c, { carcass: carIdx, y0: c.y0 + base });
         const idx = cells.length;
         cells.push(cell);
         car.cells.push(cell);
-        const shelfYs = shelfPositions(c, opt);
         shelfYs.forEach((sy) => {
           const row = { cell: idx, carcass: carIdx, x0: c.x0, y: sy + cell.y0,
             w: c.w, cutW: c.w, cutH: shelfDepthOf(opt), t: T, part: '선반' };
           shelves.push(row); car.shelves.push(row);
         });
-        // 옷봉은 최상단 선반 **아래**에 걸린다 — 선반 위치를 넘겨야 그 자리가 잡힌다.
-        rodPositions(c, shelfYs).forEach((ry) => {
+        // 옷봉은 최상단 선반 **아래**에 걸린다 — 선반 위치를 넘겨야 그 자리가 잡힌다. 사람이 선반 자리를 정한 칸은 위에서 고른 빈 칸 (rodYs)
+        (rodYs || rodPositions(c, shelfYs)).forEach((ry) => {
           // clearW = 칸 내경 폭(그림에서 칸이 차지하는 폭), length = 실제 파이프 재단 길이
           const row = { cell: idx, carcass: carIdx, x0: c.x0, y: ry + cell.y0,
             clearW: c.w, length: rodLengthFor(c.w), sockets: R.ROD_SOCKETS_PER_ROD, part: '옷봉' };
@@ -906,10 +1114,10 @@
 
   return {
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
-    layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
+    layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, cleanCellShelfYs, cleanCellRods, dividersOf, shelfPositions, rodPositions, rodGapPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
-    cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
-    innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
+    cabinetsOf, splitStack, moldingPartFor, moldingFinishOn, moldingTypeOf, doorTopExtraOf,
+    innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan, innerMoldingSidesOf,
     innerRailLengthFor: (moduleD) => innerRailLengthFor(drawerRules(), moduleD),
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };

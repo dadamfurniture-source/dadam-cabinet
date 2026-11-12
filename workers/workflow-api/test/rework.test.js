@@ -7,6 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { HQ, companyRoute } from './fixtures/company.js';
 import { validateRework, addRework, listReworks, deleteRework, REWORK_CAUSES, REWORK_CAUSE_LABEL } from '../src/rework.js';
 import { qualityOf, buildManagementSummary } from '../src/management/summary.js';
 
@@ -37,7 +38,8 @@ async function withFetch(route, fn) {
 }
 const owned = (u, method) => {
   if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1' }]);
-  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1' }]);
+  if (companyRoute(u)) return companyRoute(u);
+  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   return null;
 };
 

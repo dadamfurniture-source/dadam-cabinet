@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="맞춤 가구 시공사례와 AI 연출컷을 사진으로 봅니다." />
+    <link rel="canonical" href="https://dadamfurniture.com/segan/collection" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SEGAN" />
+    <meta property="og:title" content="시공사례 · SEGAN" />
+    <meta property="og:description" content="맞춤 가구 시공사례와 AI 연출컷을 사진으로 봅니다." />
+    <meta property="og:url" content="https://dadamfurniture.com/segan/collection" />
+    <meta property="og:image" content="https://dadamfurniture.com/segan/icons/icon-512.png" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>시공사례 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026111214" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111214" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111214" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111214" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026111214" />
+    <!-- 시공사례 — 기존 사이트와 같은 설정 · 라이브러리 (collection_posts 공개 칸은 로그인 없이 읽는다, 좋아요는 로그인한 사람만) -->
+    <script src="../js/config.js?v=2026111214"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
+    <script src="../js/admin-access.js?v=2026111214"></script>
+    <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
+    <script src="../js/mypage-work.js?v=2026111214"></script>
+    <script src="shell.js?v=2026111214" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026111214" defer></script>
+    <script src="collection-view.js?v=2026111214" defer></script>
+    <script src="collection.js?v=2026111214" defer></script>
+  </head>
+  <body class="sg-app" data-tab="collection">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main" id="main">
+      <h1 class="sg-h1">시공사례</h1>
+      <!-- 사진을 정사각 칸으로 — 폰 3칸 · PC 4칸 (segan/collection.js). 누르면 사진 보기 시트 (segan/collection-view.js) -->
+      <section id="clCases" aria-label="시공사례 사진">
+        <div class="cl-grid" id="clTiles"></div>
+        <p class="cl-state" id="clState" role="status"></p>
+        <button type="button" class="sg-btn cl-more" id="clMore" hidden>더 보기</button>
+        <div id="clSentinel" class="cl-sentinel"></div>
+      </section>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>
