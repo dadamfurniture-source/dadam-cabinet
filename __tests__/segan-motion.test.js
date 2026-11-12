@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, beforeEach, afterEach, __dirname, document, window, jest */
+/* global require, describe, test, expect, beforeEach, afterEach, __dirname, document, window, jest, DOMParser */
 /**
  * SEGAN 움직임 한 벌 (segan/motion.js — CLAUDE.md 「SEGAN 모션 규칙」)
  *
@@ -288,5 +288,165 @@ describe('규칙 · 싣기', () => {
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\) \{\s*\.sg-btn:active,\s*\.mk-btn:active:not\(:disabled\) \{\s*transform: none;/
     );
+  });
+});
+
+describe('화면 바꾸기 — 문서 사이 (방향은 두 화면의 자리로)', () => {
+  const B = 'https://dadamfurniture.com/segan/';
+
+  test.each([
+    // 탭 → 탭 — 폰 아래 탭 차례(홈 · 연출컷 · 시공사례 · 매거진 · 마이)대로
+    ['', 'make.html', 'sg-forward'],
+    ['make', 'collection', 'sg-forward'],
+    ['blog.html', 'me.html', 'sg-forward'],
+    ['index.html', 'me', 'sg-forward'],
+    ['me.html', '', 'sg-back'],
+    ['collection', 'make?ref=kitchen-n1-1', 'sg-back'],
+    // 탭 → 하위 화면은 오른쪽에서, 돌아갈 때는 왼쪽에서 (뒤로 가기도 같은 셈)
+    ['me.html', 'settings.html', 'sg-forward'],
+    ['settings.html', 'me.html', 'sg-back'],
+    ['', 'about.html', 'sg-forward'],
+    ['plans', '', 'sg-back'],
+    ['make.html?g=1#result', 'consult.html', 'sg-forward'],
+    ['blog-materials', 'blog', 'sg-back'],
+    // 그 밖은 흐려지기
+    ['about.html', 'plans.html', ''],
+    ['me.html', 'me.html#p-orders', ''],
+    ['index.html', '', ''],
+  ])('%j → %j : %j', (from, to, type) => {
+    const { M } = boot();
+    expect(M.navType(B + from, B + to)).toBe(type);
+  });
+
+  test('앱 밖에서 왔거나 어디서 왔는지 모르면 방향을 정하지 않는다', () => {
+    const { M } = boot();
+    const to = B + 'make.html';
+    const outside = [
+      '',
+      null,
+      'https://dadamfurniture.com/login.html',
+      'https://dadamfurniture.com/segan/planner/',
+      'https://evil.example/segan/me.html',
+    ];
+    for (const from of outside) expect([from, M.navType(from, to)]).toEqual([from, '']);
+    expect(M.navType(B + 'me.html', 'https://dadamfurniture.com/login.html')).toBe('');
+  });
+
+  /** 새 화면의 첫 그림 직전(pagereveal)을 흉내 낸다 → 붙은 방향 이름들 */
+  function reveal({ at, from, reduce = false, wide = false, api = true, back = false } = {}) {
+    const handlers = [];
+    jest.spyOn(window, 'addEventListener').mockImplementation((type, fn) => {
+      if (type === 'pagereveal') handlers.push(fn);
+    });
+    boot({ reduce });
+    const media = window.matchMedia;
+    window.matchMedia = (q) => (/min-width: 1024px/.test(q) ? { matches: wide } : media(q));
+    window.history.replaceState(null, '', at);
+    const origin = window.location.origin;
+    if (api) window.navigation = { activation: { from: from ? { url: origin + from } : null } };
+    else {
+      Object.defineProperty(document, 'referrer', {
+        value: from ? origin + from : '',
+        configurable: true,
+      });
+      window.performance.getEntriesByType = () => [{ type: back ? 'back_forward' : 'navigate' }];
+    }
+    const types = new Set();
+    expect(handlers).toHaveLength(1);
+    handlers[0]({ viewTransition: { types } });
+    handlers[0]({ viewTransition: null }); // 화면 바꾸기가 없는 이동 — 아무 일도 없다
+    handlers[0]({ viewTransition: {} }); // 방향 이름을 모르는 브라우저
+    delete window.navigation;
+    delete document.referrer;
+    delete window.performance.getEntriesByType;
+    window.history.replaceState(null, '', '/');
+    return [...types];
+  }
+
+  test('첫 그림 직전에 방향을 붙인다 — 떠나온 화면은 Navigation API 가 알려 준다', () => {
+    expect(reveal({ at: '/me.html', from: '/blog.html' })).toEqual(['sg-forward']);
+    expect(reveal({ at: '/me.html', from: '/settings.html' })).toEqual(['sg-back']);
+    expect(reveal({ at: '/about.html', from: '/plans.html' })).toEqual([]);
+    expect(reveal({ at: '/me.html', from: '' })).toEqual([]); // 다른 사이트에서 왔다
+  });
+
+  test('PC 폭 · 동작 줄이기에서는 붙이지 않는다 (0.2초 흐려지기)', () => {
+    expect(reveal({ at: '/me.html', from: '/blog.html', wide: true })).toEqual([]);
+    expect(reveal({ at: '/me.html', from: '/blog.html', reduce: true })).toEqual([]);
+  });
+
+  test('Navigation API 가 없으면 온 곳(referrer) — 뒤로 가기는 어디서 왔는지 몰라 붙이지 않는다', () => {
+    expect(reveal({ at: '/me.html', from: '/blog.html', api: false })).toEqual(['sg-forward']);
+    expect(reveal({ at: '/me.html', from: '/blog.html', api: false, back: true })).toEqual([]);
+    expect(reveal({ at: '/me.html', from: '', api: false })).toEqual([]);
+  });
+
+  test('shell.css — 문서 사이 화면 바꾸기를 켜고, 막대는 제자리 · 본문만 민다 (transform 만)', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'segan/shell.css'), 'utf8').replace(/\r\n/g, '\n');
+    expect(css).toMatch(/@view-transition \{\s*navigation: auto;\s*\}/);
+    expect(css).toMatch(/\.sg-header \{\s*view-transition-name: sg-header;\s*\}/);
+    expect(css).toMatch(/\.sg-tabbar \{\s*view-transition-name: sg-tabbar;\s*\}/);
+    // 기본 — 0.2초 흐려지기
+    expect(css).toMatch(
+      /::view-transition-old\(root\),\s*::view-transition-new\(root\) \{\s*animation-duration: 200ms;/
+    );
+    for (const [type, side, frames] of [
+      ['sg-forward', 'old', 'sg-nav-out-left'],
+      ['sg-forward', 'new', 'sg-nav-in-right'],
+      ['sg-back', 'old', 'sg-nav-out-right'],
+      ['sg-back', 'new', 'sg-nav-in-left'],
+    ]) {
+      const rule = css
+        .split(`html:active-view-transition-type(${type})::view-transition-${side}(root) {`)[1]
+        .split('}')[0];
+      expect([
+        type,
+        side,
+        rule.includes(`animation: ${frames} var(--sg-spring-ms) var(--sg-spring) both;`),
+      ]).toEqual([type, side, true]);
+    }
+    const keys = [...css.matchAll(/@keyframes (sg-nav-[a-z-]+) \{([^@]*?)\n\}/g)];
+    expect(keys.map((m) => m[1]).sort()).toEqual([
+      'sg-nav-in-left',
+      'sg-nav-in-right',
+      'sg-nav-out-left',
+      'sg-nav-out-right',
+    ]);
+    for (const m of keys)
+      expect([
+        m[1],
+        /transform: translateX\(-?\d+%\);/.test(m[2]),
+        /opacity|left:|width/.test(m[2]),
+      ]).toEqual([m[1], true, false]);
+    const md = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8');
+    expect(md).toMatch(/화면 바꾸기: 들어온 쪽으로 나간다.*PC 는 0\.2초 흐려지기/);
+  });
+
+  test('셸을 쓰는 앱 화면은 모두 — motion.js 를 머리에서 바로(defer 없이), shell.js 는 첫 그림을 기다리게', () => {
+    const dir = path.join(ROOT, 'segan');
+    const pages = fs.readdirSync(dir).filter((n) => n.endsWith('.html'));
+    let withShell = 0;
+    for (const page of pages) {
+      const doc = new DOMParser().parseFromString(
+        fs.readFileSync(path.join(dir, page), 'utf8'),
+        'text/html'
+      );
+      const shell = doc.querySelector('head script[src^="shell.js?v="]');
+      if (!shell) continue;
+      withShell++;
+      const motion = [...doc.querySelectorAll('head script[src^="motion.js?v="]')];
+      expect([page, motion.length]).toEqual([page, 1]);
+      expect([page, motion[0].hasAttribute('defer') || motion[0].hasAttribute('async')]).toEqual([
+        page,
+        false,
+      ]);
+      expect([page, motion[0].compareDocumentPosition(shell) & 4]).toEqual([page, 4]); // 셸보다 먼저
+      expect([page, shell.hasAttribute('defer'), shell.getAttribute('blocking')]).toEqual([
+        page,
+        true,
+        'render',
+      ]);
+    }
+    expect(withShell).toBeGreaterThanOrEqual(25);
   });
 });

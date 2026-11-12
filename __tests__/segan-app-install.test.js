@@ -294,7 +294,7 @@ describe('segan 페이지 — 숨김 · 설치 정보', () => {
   test('index.html 이 공용 셸(shell.css · shell.js)을 싣는다', () => {
     const html = read('segan/index.html');
     expect(html).toMatch(/<link rel="stylesheet" href="shell\.css\?v=\d+" \/>/);
-    expect(html).toMatch(/<script src="shell\.js\?v=\d+" defer><\/script>/);
+    expect(html).toMatch(/<script src="shell\.js\?v=\d+" defer blocking="render"><\/script>/);
   });
 });
 

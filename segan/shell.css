@@ -5665,6 +5665,82 @@ body.sg-locked {
   }
 }
 
+/* ── 화면 바꾸기 — 문서 사이 (CLAUDE.md 「SEGAN 앱 모션 규칙」) ──
+   기본은 0.2초 흐려지기 (PC · 동작 줄이기 · 방향을 모르는 이동).
+   폰 · 태블릿에서 segan/motion.js 가 방향을 붙이면(sg-forward · sg-back) 본문이 그쪽에서 들어온다.
+   위 막대 · 아래 탭은 제자리에 둔다 (따로 이름을 주어 본문과 같이 밀리지 않게). */
+@view-transition {
+  navigation: auto;
+}
+
+.sg-header {
+  view-transition-name: sg-header;
+}
+
+.sg-tabbar {
+  view-transition-name: sg-tabbar;
+}
+
+/* 막대의 유리 — 바꾸는 동안에도 뒤가 흐리게 */
+::view-transition-group(sg-header),
+::view-transition-group(sg-tabbar) {
+  -webkit-backdrop-filter: var(--v5-blur);
+  backdrop-filter: var(--v5-blur);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: ease;
+}
+
+/* 오른쪽에서 들어온다 — 앞 화면은 조금만 물러난다 */
+html:active-view-transition-type(sg-forward)::view-transition-old(root) {
+  animation: sg-nav-out-left var(--sg-spring-ms) var(--sg-spring) both;
+  mix-blend-mode: normal;
+}
+
+html:active-view-transition-type(sg-forward)::view-transition-new(root) {
+  animation: sg-nav-in-right var(--sg-spring-ms) var(--sg-spring) both;
+  mix-blend-mode: normal;
+}
+
+/* 왼쪽에서 돌아온다 — 떠나는 화면이 위에서 오른쪽으로 나간다 */
+html:active-view-transition-type(sg-back)::view-transition-old(root) {
+  z-index: 1;
+  animation: sg-nav-out-right var(--sg-spring-ms) var(--sg-spring) both;
+  mix-blend-mode: normal;
+}
+
+html:active-view-transition-type(sg-back)::view-transition-new(root) {
+  animation: sg-nav-in-left var(--sg-spring-ms) var(--sg-spring) both;
+  mix-blend-mode: normal;
+}
+
+@keyframes sg-nav-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes sg-nav-out-left {
+  to {
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes sg-nav-in-left {
+  from {
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes sg-nav-out-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 /* 인쇄 — 비서 버튼 · 입력 줄은 종이에 넣지 않는다 (회계 보고서 등) */
 @media print {
   .sg-ai-btn,

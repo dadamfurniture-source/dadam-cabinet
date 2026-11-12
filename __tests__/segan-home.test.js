@@ -112,7 +112,7 @@ describe('홈 화면 (segan/index.html)', () => {
     const local = $$('script[src]')
       .map((s) => s.getAttribute('src').replace(/\?v=\d+$/, ''))
       .filter((s) => !/^https:/.test(s));
-    expect(local).toEqual(['forward.js', '../js/config.js', 'shell.js', 'guide.js']);
+    expect(local).toEqual(['forward.js', '../js/config.js', 'motion.js', 'shell.js', 'guide.js']);
     expect(HTML).toMatch(/<link rel="stylesheet" href="home\.css\?v=\d+" \/>/);
   });
 
