@@ -24,86 +24,86 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       [hidden] { display: none !important; }
-      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; color: #333; }
-      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; overflow-y: auto; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f6f3ee; color: #2d2a26; }
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #2d2a26; color: rgba(246, 243, 238, 0.92); padding: 20px 0; overflow-y: auto; }
       .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
       .sidebar-logo h1 { font-size: 20px; font-weight: 700; }
-      .sidebar-logo span { font-size: 12px; color: #888; }
+      .sidebar-logo span { font-size: 12px; color: rgba(246, 243, 238, 0.42); }
       .nav-menu { list-style: none; }
-      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
-      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
-      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: rgba(246, 243, 238, 0.6); text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: rgba(246, 243, 238, 0.92); }
+      .nav-menu li a.active { border-left: 3px solid #8a7457; }
       .nav-icon { font-size: 18px; width: 24px; text-align: center; }
       .sidebar-footer { position: absolute; bottom: 20px; left: 20px; right: 20px; }
-      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 8px; font-size: 13px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: rgba(246, 243, 238, 0.6); text-decoration: none; font-size: 13px; }
       .main-content { margin-left: 250px; padding: 20px 30px; min-height: 100vh; min-width: 0; }
-      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #ddd; gap: 12px; flex-wrap: wrap; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(45, 42, 38, 0.18); gap: 12px; flex-wrap: wrap; }
       .header h2 { font-size: 24px; font-weight: 700; }
       .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-      .admin-info { font-size: 13px; color: #666; }
-      .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; }
-      .btn-primary { background: #007bff; color: #fff; }
-      .btn-primary:hover { background: #0056b3; }
-      .btn-secondary { background: #6c757d; color: #fff; }
-      .btn-light { background: #fff; color: #333; border: 1px solid #ddd; }
-      .btn-danger { background: #fff; color: #c62828; border: 1px solid #f1b0b0; }
+      .admin-info { font-size: 13px; color: rgba(45, 42, 38, 0.62); }
+      .btn { padding: 8px 14px; border: none; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .btn-primary { background: #0b2545; color: #fff; }
+      .btn-primary:hover { background: #2d2a26; }
+      .btn-secondary { background: #5f5a53; color: #fff; }
+      .btn-light { background: #fff; color: #2d2a26; border: 1px solid rgba(45, 42, 38, 0.18); }
+      .btn-danger { background: #fff; color: #93301f; border: 1px solid #f1b0b0; }
       .btn-sm { padding: 5px 10px; font-size: 12px; }
       .btn-xs { padding: 3px 8px; font-size: 11px; }
       .btn:disabled { opacity: 0.5; cursor: default; }
       .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-      .tab { padding: 6px 12px; border-radius: 99px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; }
-      .tab.active { background: #007bff; border-color: #007bff; color: #fff; }
-      .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; background: #fff; border-radius: 10px; padding: 12px 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 12px; }
-      .filter-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #666; }
-      .filter-group select { padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
-      .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #444; cursor: pointer; }
-      .notice { background: #fff3e0; color: #8a4b00; border: 1px solid #ffd8a8; border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
-      .notice-info { background: #eef4ff; color: #24527a; border-color: #c9dbf5; }
-      .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-      .muted { color: #888; font-size: 12px; }
+      .tab { padding: 6px 12px; border: 1px solid rgba(45, 42, 38, 0.18); background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .tab.active { background: #0b2545; border-color: #0b2545; color: #fff; }
+      .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; background: #fff; padding: 12px 16px; margin-bottom: 12px; }
+      .filter-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: rgba(45, 42, 38, 0.62); }
+      .filter-group select { padding: 7px 9px; border: 1px solid rgba(45, 42, 38, 0.18); font-family: inherit; font-size: 13px; }
+      .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #2d2a26; cursor: pointer; }
+      .notice { background: #fbefd4; color: #6f4c0c; border: 1px solid #c9952b; padding: 10px 14px; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+      .notice-info { background: #eceef2; color: #0b2545; border-color: rgba(11, 37, 69, 0.3); }
+      .card { background: #fff; }
+      .muted { color: rgba(45, 42, 38, 0.55); font-size: 12px; }
       .pre { white-space: pre-wrap; word-break: break-word; font-size: 13px; margin-top: 4px; }
-      .status-line { font-size: 13px; color: #666; min-height: 18px; margin-bottom: 6px; }
-      .empty-mini { color: #999; font-size: 13px; padding: 10px 2px; }
+      .status-line { font-size: 13px; color: rgba(45, 42, 38, 0.62); min-height: 18px; margin-bottom: 6px; }
+      .empty-mini { color: rgba(45, 42, 38, 0.45); font-size: 13px; padding: 10px 2px; }
       .access-denied { display: none; text-align: center; padding: 100px 20px; }
       .access-denied h2 { margin-bottom: 10px; }
-      .access-denied a { color: #007bff; }
+      .access-denied a { color: #0b2545; }
 
       /* 보드 */
       .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; align-items: start; }
-      .col { background: #eceff3; border-radius: 10px; padding: 10px; min-width: 0; }
+      .col { background: #eceff3; padding: 10px; min-width: 0; }
       .col h3 { font-size: 14px; font-weight: 700; margin: 2px 4px 8px; display: flex; justify-content: space-between; }
-      .col h3 .count { color: #888; font-weight: 500; }
+      .col h3 .count { color: rgba(45, 42, 38, 0.55); font-weight: 500; }
       .col-body { display: grid; gap: 8px; }
-      .job-card { display: grid; gap: 4px; width: 100%; text-align: left; background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 10px 12px; cursor: pointer; font-family: inherit; color: inherit; }
-      .job-card:hover { border-color: #007bff; }
+      .job-card { display: grid; gap: 4px; width: 100%; text-align: left; background: #fff; border: 1px solid rgba(45, 42, 38, 0.12); padding: 10px 12px; cursor: pointer; font-family: inherit; color: inherit; }
+      .job-card:hover { border-color: #0b2545; }
       .jc-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
       .jc-title { font-weight: 500; font-size: 14px; word-break: break-word; }
-      .jc-meta { font-size: 12px; color: #777; }
-      .dday { font-size: 11px; font-weight: 700; color: #c62828; }
+      .jc-meta { font-size: 12px; color: rgba(45, 42, 38, 0.55); }
+      .dday { font-size: 11px; font-weight: 700; color: #93301f; }
       /* 지원 종료일 꼬리표 — D-n 은 조용히, 오늘 종료 · 지원 종료는 눈에 띄게 */
       .dl-tag { font-weight: 700; }
-      .dl-days { color: #555; }
-      .dl-today { color: #fff; background: #e65100; border-radius: 99px; padding: 0 7px; }
-      .dl-over { color: #c62828; }
-      .field-help { font-size: 12px; color: #888; }
-      .field-warn { font-size: 12px; color: #8a4b00; background: #fff3e0; border: 1px solid #ffd8a8; border-radius: 6px; padding: 6px 8px; }
-      .wk-suspended { font-size: 12px; color: #8a4b00; background: #fff8e1; border-radius: 6px; padding: 4px 8px; margin-top: 4px; }
-      .kind-chip { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11px; background: #e3f2fd; color: #1565c0; }
+      .dl-days { color: rgba(45, 42, 38, 0.62); }
+      .dl-today { color: #fff; background: #6f4c0c; padding: 0 7px; }
+      .dl-over { color: #93301f; }
+      .field-help { font-size: 12px; color: rgba(45, 42, 38, 0.55); }
+      .field-warn { font-size: 12px; color: #6f4c0c; background: #fbefd4; border: 1px solid #c9952b; padding: 6px 8px; }
+      .wk-suspended { font-size: 12px; color: #6f4c0c; background: #fbefd4; padding: 4px 8px; margin-top: 4px; }
+      .kind-chip { display: inline-block; padding: 1px 8px; font-size: 11px; background: #eceef2; color: #0b2545; }
       .kind-as { background: #fce4ec; color: #ad1457; }
-      .kind-assembly { background: #e8f5e9; color: #2e7d32; }
-      .kind-cutting { background: #fff3e0; color: #a14a00; }
+      .kind-assembly { background: #eaf2ed; color: #2f6b4f; }
+      .kind-cutting { background: #fbefd4; color: #a14a00; }
       .kind-edge { background: #e0f2f1; color: #00695c; }
-      .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; white-space: nowrap; background: #eef1f5; color: #555; }
-      .st-open, .st-applied, .st-offered, .st-pending { background: #fff3e0; color: #e65100; }
-      .st-filled, .st-confirmed, .st-started, .st-in_progress, .st-approved { background: #e3f2fd; color: #1565c0; }
+      .badge { display: inline-block; padding: 2px 9px; font-size: 12px; white-space: nowrap; background: #f1ece4; color: rgba(45, 42, 38, 0.62); }
+      .st-open, .st-applied, .st-offered, .st-pending { background: #fbefd4; color: #6f4c0c; }
+      .st-filled, .st-confirmed, .st-started, .st-in_progress, .st-approved { background: #eceef2; color: #0b2545; }
       .st-submitted, .st-review { background: #f3e5f5; color: #6a1b9a; }
-      .st-revision, .st-expired, .st-no-show { background: #fff8e1; color: #8d6e00; }
-      .st-accepted, .st-done, .st-closed { background: #e8f5e9; color: #2e7d32; }
-      .st-cancelled, .st-rejected, .st-removed, .st-declined, .st-released, .st-withdrawn, .st-suspended { background: #ffebee; color: #c62828; }
-      .st-hidden { background: #f1f1f1; color: #666; }
+      .st-revision, .st-expired, .st-no-show { background: #fbefd4; color: #8d6e00; }
+      .st-accepted, .st-done, .st-closed { background: #eaf2ed; color: #2f6b4f; }
+      .st-cancelled, .st-rejected, .st-removed, .st-declined, .st-released, .st-withdrawn, .st-suspended { background: #f8ece9; color: #93301f; }
+      .st-hidden { background: #f1ece4; color: rgba(45, 42, 38, 0.62); }
 
       /* 줄 (신청자 · 배정 · 작업자) */
-      .row { display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border-bottom: 1px solid #eee; flex-wrap: wrap; }
+      .row { display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border-bottom: 1px solid rgba(45, 42, 38, 0.1); flex-wrap: wrap; }
       .row:last-child { border-bottom: 0; }
       .row-main { flex: 1 1 260px; min-width: 0; word-break: break-word; }
       .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -115,9 +115,9 @@
       .invite-card h3 { font-size: 16px; }
       .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
       .field { display: grid; gap: 4px; font-size: 13px; min-width: 0; }
-      .field > label, fieldset legend { font-size: 12px; color: #666; }
+      .field > label, fieldset legend { font-size: 12px; color: rgba(45, 42, 38, 0.62); }
       fieldset { border: 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-      .field input, .field select, .field textarea, .copy-line input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      .field input, .field select, .field textarea, .copy-line input { width: 100%; padding: 8px 10px; border: 1px solid rgba(45, 42, 38, 0.18); font-family: inherit; font-size: 13px; }
       .field textarea { min-height: 80px; resize: vertical; }
       .copy-line { display: flex; gap: 6px; flex-wrap: wrap; }
       .copy-line input { flex: 1 1 220px; }
@@ -126,35 +126,35 @@
       .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; padding: 30px 16px; overflow-y: auto; }
       .modal.active { display: block; }
       .modal-top { z-index: 120; }
-      .modal-content { background: #fff; border-radius: 12px; max-width: 900px; margin: 0 auto; }
-      .modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 18px 22px; border-bottom: 1px solid #eee; }
+      .modal-content { background: #fff; max-width: 900px; margin: 0 auto; }
+      .modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 18px 22px; border-bottom: 1px solid rgba(45, 42, 38, 0.1); }
       .modal-header h3 { font-size: 18px; word-break: break-word; }
       .modal-body { padding: 18px 22px; display: grid; gap: 16px; }
-      .modal-footer { padding: 12px 22px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
-      .close-btn { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; }
-      .kind { font-size: 12px; color: #555; }
+      .modal-footer { padding: 12px 22px; border-top: 1px solid rgba(45, 42, 38, 0.1); display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+      .close-btn { background: none; border: none; font-size: 22px; cursor: pointer; color: rgba(45, 42, 38, 0.45); }
+      .kind { font-size: 12px; color: rgba(45, 42, 38, 0.62); }
       .sec h4 { font-size: 14px; margin-bottom: 6px; }
-      .sec > .list { border: 1px solid #eee; border-radius: 8px; }
+      .sec > .list { border: 1px solid rgba(45, 42, 38, 0.1); }
       .action-bar { display: flex; gap: 6px; flex-wrap: wrap; }
       .info { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 13px; }
-      .info dt { color: #888; }
+      .info dt { color: rgba(45, 42, 38, 0.55); }
       .info dd { word-break: break-word; }
       .scroll-x { overflow-x: auto; }
       table.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-      table.tbl th, table.tbl td { border-bottom: 1px solid #eee; padding: 5px 8px; text-align: left; vertical-align: top; }
-      table.tbl th { color: #888; font-weight: 500; }
+      table.tbl th, table.tbl td { border-bottom: 1px solid rgba(45, 42, 38, 0.1); padding: 5px 8px; text-align: left; vertical-align: top; }
+      table.tbl th { color: rgba(45, 42, 38, 0.55); font-weight: 500; }
       .timeline { list-style: none; display: grid; gap: 8px; }
-      .tl { border-radius: 8px; padding: 8px 12px; border-left: 4px solid #90caf9; background: #f5f9ff; }
+      .tl { padding: 8px 12px; border-left: 4px solid rgba(11, 37, 69, 0.3); background: #eceef2; }
       .tl-company { border-left-color: #ffb74d; background: #fffaf2; }
       .tl-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; }
       .tl-who { font-weight: 700; }
-      .tl-kind { color: #555; }
-      .tl-amends { font-size: 12px; color: #8a4b00; margin-top: 4px; }
+      .tl-kind { color: rgba(45, 42, 38, 0.62); }
+      .tl-amends { font-size: 12px; color: #6f4c0c; margin-top: 4px; }
       .chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-      .chip { font-size: 11px; background: #eee; border-radius: 99px; padding: 1px 8px; }
-      .amends-line { font-size: 12px; color: #8a4b00; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .chip { font-size: 11px; background: #f1ece4; padding: 1px 8px; }
+      .amends-line { font-size: 12px; color: #6f4c0c; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       .notes { list-style: none; display: grid; gap: 8px; max-height: 320px; overflow-y: auto; }
-      .notes li { border-bottom: 1px solid #eee; padding-bottom: 6px; }
+      .notes li { border-bottom: 1px solid rgba(45, 42, 38, 0.1); padding-bottom: 6px; }
       .drawer { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 110; }
       .drawer.active { display: block; }
       .drawer-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 100%; max-width: 540px; background: #fff; display: flex; flex-direction: column; }
@@ -286,7 +286,7 @@
             <div class="list" id="jobAssignments"></div>
             <div class="copy-line" id="inviteBox" style="margin-top: 8px" hidden>
               <label class="muted" for="inviteWorker" style="align-self: center">승인 작업자 직접 초대</label>
-              <select id="inviteWorker" style="flex: 1 1 200px; padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit"></select>
+              <select id="inviteWorker" style="flex: 1 1 200px; padding: 7px 9px; border: 1px solid rgba(45, 42, 38, 0.18); font-family: inherit"></select>
               <button type="button" class="btn btn-light btn-sm" id="btnInviteWorker">초대</button>
             </div>
           </div>
