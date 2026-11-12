@@ -3499,6 +3499,58 @@ button.sm-num[aria-pressed='true'] {
   color: var(--v5-ink-60);
 }
 
+/* 업체 › 발주 (#stockOrders — segan/stock-orders.js) — 줄 · 상세는 재고(.st-*), 적는 칸의 품목 줄만 따로 */
+.po-lines {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.po-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.po-item {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.po-qty {
+  flex: 0 1 120px;
+}
+
+.po-linebar {
+  margin-top: 8px;
+}
+
+.po-table th small {
+  display: block;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.po-table th[scope='row'] {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.po-got {
+  width: 84px;
+  padding: 6px 8px;
+  border: 1px solid var(--v5-line-18);
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 라벨 인쇄 칸 — 화면에서는 감추고, 인쇄할 때는 이것만 보인다 */
 .so-print {
   display: none;
@@ -3550,6 +3602,67 @@ button.sm-num[aria-pressed='true'] {
   .so-label-text b {
     font-size: 13pt;
     font-weight: 500;
+  }
+
+  /* 발주서 — 한 장짜리 문서 */
+  body.so-printing .so-print.po-doc {
+    display: block;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  .po-doc h1 {
+    margin: 0 0 8mm;
+    font-size: 20pt;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-align: center;
+  }
+
+  .po-doc-facts {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1mm 8mm;
+    margin: 0 0 6mm;
+  }
+
+  .po-doc-facts div {
+    display: flex;
+    gap: 4mm;
+    padding: 1.5mm 0;
+    border-bottom: 0.2mm solid #000;
+  }
+
+  .po-doc-facts dt {
+    flex: none;
+    width: 18mm;
+  }
+
+  .po-doc-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .po-doc table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .po-doc th,
+  .po-doc td {
+    padding: 2mm;
+    border: 0.2mm solid #000;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .po-doc .po-doc-num {
+    text-align: right;
+  }
+
+  .po-doc-note {
+    margin: 6mm 0 0;
+    white-space: pre-wrap;
   }
 }
 

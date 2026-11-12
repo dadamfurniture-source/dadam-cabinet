@@ -273,7 +273,7 @@ describe('자리 · 이름', () => {
     for (const el of [moves, shifts, nums]) expect(el.hasAttribute('hidden')).toBe(true);
     expect(moves.previousElementSibling.id).toBe('stockOffcuts');
     expect(moves.nextElementSibling).toBe(shifts);
-    expect(shifts.nextElementSibling.id).toBe('orders');
+    expect(shifts.nextElementSibling.id).toBe('stockOrders'); // 발주 다음이 수주 (segan/stock-orders.js)
     expect(nums.closest('section').id).toBe('meDash');
     expect(nums.previousElementSibling.id).toBe('meCalendar');
     expect(

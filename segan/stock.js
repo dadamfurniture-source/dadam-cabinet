@@ -1120,6 +1120,16 @@
     }
   }
 
+  /** 다른 화면(발주 입고 등)이 재고를 바꿨다 — 조용히 다시 읽어 그린다 */
+  async function refresh() {
+    if (!J.ready || J.busy) return;
+    try {
+      if (await reloadList()) renderAll();
+    } catch {
+      /* 다음에 다시 읽는다 */
+    }
+  }
+
   window.SeganStock = {
     KINDS: KINDS,
     BOX: BOX,
@@ -1140,5 +1150,6 @@
     itemBody: itemBody,
     state: J,
     load: load,
+    refresh: refresh,
   };
 })();

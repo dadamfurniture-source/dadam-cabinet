@@ -408,6 +408,7 @@
     J.base = conf && conf.url ? String(conf.url).replace(/\/+$/, '') : '';
     J.sb = sb || null;
     J.session = session || null;
+    J.me = me || null;
     J.moves = null;
     J.sum = null;
     J.filter = 'all';
@@ -430,6 +431,11 @@
     }
   }
 
+  /** 다른 화면(발주 입고 등)이 재고를 바꿨다 — 다시 읽는다 */
+  function refresh() {
+    return load(J.sb, J.session, J.me);
+  }
+
   window.SeganStockMoves = {
     KIND_NAME: KIND_NAME,
     TEXT: TEXT,
@@ -442,5 +448,6 @@
     whenText: whenText,
     state: J,
     load: load,
+    refresh: refresh,
   };
 })();
