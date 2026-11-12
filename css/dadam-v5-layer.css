@@ -1,0 +1,62 @@
+/* ============================================================
+   css/dadam-v5-layer.css — 앱 밖 v5 화면의 공통 층 (앱과 같은 유리 · 누름 · 화면 바꾸기)
+
+   css/dadam-v5.css 뒤에 싣는다. 값은 그 파일의 토큰을 쓴다 (--v5-blur · --v5-paper …).
+   싣는 화면: 결제 완료 · 공유 · 비밀번호 재설정 · 이용약관 · 개인정보처리방침.
+   상세설계 · 플래너는 싣지 않는다 (그 화면의 머리 · 움직임은 그대로 둔다).
+
+   규칙은 저장소 CLAUDE.md 「SEGAN 앱 모션 규칙」과 같다 — transform · opacity 만 움직이고,
+   유리를 못 쓰는 곳은 불투명, 동작 줄이기면 줄지 않는다.
+   ============================================================ */
+
+/* 유리 머리 — 흰 종이 바탕 위라 흰 유리 (세기는 앱의 「옅게」와 같다: 바탕 0.78 · 흐림 토큰) */
+.v5-header {
+  background: rgba(255, 255, 255, 0.78);
+  -webkit-backdrop-filter: var(--v5-blur);
+  backdrop-filter: var(--v5-blur);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .v5-header {
+    background: var(--v5-paper);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .v5-header {
+    background: var(--v5-paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* 누름 — 누르는 순간 0.97배 · 0.1초, 떼면 돌아온다 */
+.v5-btn {
+  transition:
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.v5-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v5-btn:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* 화면 바꾸기 — 0.2초 흐려지기 (앱의 PC 폭과 같다) */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: ease;
+}
