@@ -37,6 +37,7 @@
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
  *   GET|POST /stock/items · PATCH /stock/items/:id · POST /stock/items/:id/moves · GET /stock/moves — 재고 품목 · 입출고 (src/stock.js, DB 0059)
+ *   GET|POST /stock/offcuts · PATCH /stock/offcuts/:id · GET /stock/offcuts/:id/events · POST /stock/offcuts/labels · GET /stock/summary — 자투리 · 재고 숫자 (src/stock-offcuts.js, DB 0059)
  *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
  *   GET  /company/sites?kind=install|as · PUT /company/sites/geo · PUT /company/as-requests/:id/visit —
  *                                 설치 · A/S 지도 + 표: 현장 좌표 · A/S 방문 일정 (src/company-sites.js, DB 0058)
@@ -242,6 +243,7 @@ import { listCompanyQuotes } from './company-quotes.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
 import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
+import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
 import { listCompanySchedules } from './company-schedules.js';
 import { listCompanySites, saveSiteGeo, setAsVisit } from './company-sites.js';
 import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
@@ -1486,6 +1488,13 @@ const router = createRouter([
   { method: 'PATCH', path: '/stock/items/:id',                    auth: 'jwt', handler: workRoute((env, a) => updateStockItem(env, a)) },
   { method: 'POST', path: '/stock/items/:id/moves',               auth: 'jwt', handler: workRoute((env, a) => addStockMove(env, a), 201) },
   { method: 'GET',  path: '/stock/moves',                         auth: 'jwt', handler: workRoute((env, a) => listStockMoves(env, a)) },
+  // 재고 — 자투리 자재 · 라벨 QR · 구매 · 재고 숫자 (src/stock-offcuts.js, DB 0059). labels 는 :id 보다 먼저
+  { method: 'GET',  path: '/stock/offcuts',                       auth: 'jwt', handler: workRoute((env, a) => listOffcuts(env, a)) },
+  { method: 'POST', path: '/stock/offcuts',                       auth: 'jwt', handler: workRoute((env, a) => createOffcut(env, a), 201) },
+  { method: 'POST', path: '/stock/offcuts/labels',                auth: 'jwt', handler: workRoute((env, a) => makeOffcutLabels(env, a)) },
+  { method: 'PATCH', path: '/stock/offcuts/:id',                  auth: 'jwt', handler: workRoute((env, a) => updateOffcut(env, a)) },
+  { method: 'GET',  path: '/stock/offcuts/:id/events',            auth: 'jwt', handler: workRoute((env, a) => listOffcutEvents(env, a)) },
+  { method: 'GET',  path: '/stock/summary',                       auth: 'jwt', handler: workRoute((env, a) => getStockSummary(env, a)) },
   { method: 'GET',  path: '/company/schedules',                   auth: 'jwt', handler: workRoute((env, a) => listCompanySchedules(env, a)) },
   // 설치 · A/S 지도 + 표 (src/company-sites.js, DB 0058)
   { method: 'GET',  path: '/company/sites',                       auth: 'jwt', handler: workRoute((env, a) => listCompanySites(env, a)) },
