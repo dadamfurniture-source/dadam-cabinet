@@ -279,14 +279,23 @@ describe('규칙 · 싣기', () => {
 
   test('누름 — 누르는 순간 0.97배 · 0.1초, 목록 줄은 바탕만, 동작 줄이기면 줄지 않는다', () => {
     const css = fs.readFileSync(path.join(ROOT, 'segan/shell.css'), 'utf8');
+    // 단추 모양 클래스 모두 — 셸 · 만들기 · 소개/구독 · 달력 · 근무 일정
+    const PRESS =
+      String.raw`\.sg-btn:active,\s*\.mk-btn:active:not\(:disabled\),\s*\.in-btn:active,\s*` +
+      String.raw`\.cal-btn:active:not\(:disabled\),\s*\.ws-btn:active:not\(:disabled\) \{\s*`;
     expect(css).toMatch(
-      /\.sg-btn:active,\s*\.mk-btn:active:not\(:disabled\) \{\s*transform: scale\(0\.97\);\s*transition-duration: 100ms;/
+      new RegExp(PRESS + String.raw`transform: scale\(0\.97\);\s*transition-duration: 100ms;`)
+    );
+    expect(css).toMatch(
+      /\.sg-btn,\s*\.mk-btn,\s*\.in-btn,\s*\.cal-btn,\s*\.ws-btn \{\s*transition: transform var\(--sg-spring-ms\) var\(--sg-spring\);/
     );
     expect(css).toMatch(
       /a\.sg-row:active,\s*button\.sg-row:active \{\s*background: var\(--v5-well\);/
     );
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\) \{\s*\.sg-btn:active,\s*\.mk-btn:active:not\(:disabled\) \{\s*transform: none;/
+      new RegExp(
+        String.raw`@media \(prefers-reduced-motion: reduce\) \{\s*` + PRESS + 'transform: none;'
+      )
     );
   });
 });

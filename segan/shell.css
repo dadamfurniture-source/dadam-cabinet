@@ -150,12 +150,18 @@ button {
 /* 누름 — 누르는 순간 0.97배 · 0.1초, 떼면 스프링으로 돌아온다 (CLAUDE.md 「SEGAN 모션 규칙」).
    목록 줄은 줄이지 않고 바탕만 바로 바꾼다 */
 .sg-btn,
-.mk-btn {
+.mk-btn,
+.in-btn,
+.cal-btn,
+.ws-btn {
   transition: transform var(--sg-spring-ms) var(--sg-spring);
 }
 
 .sg-btn:active,
-.mk-btn:active:not(:disabled) {
+.mk-btn:active:not(:disabled),
+.in-btn:active,
+.cal-btn:active:not(:disabled),
+.ws-btn:active:not(:disabled) {
   transform: scale(0.97);
   transition-duration: 100ms;
   transition-timing-function: ease-out;
@@ -168,7 +174,10 @@ button.sg-row:active {
 
 @media (prefers-reduced-motion: reduce) {
   .sg-btn:active,
-  .mk-btn:active:not(:disabled) {
+  .mk-btn:active:not(:disabled),
+  .in-btn:active,
+  .cal-btn:active:not(:disabled),
+  .ws-btn:active:not(:disabled) {
     transform: none;
   }
 }
