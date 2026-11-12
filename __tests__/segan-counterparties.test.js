@@ -279,7 +279,7 @@ describe('자리 · 이름', () => {
     expect(el.classList.contains('od')).toBe(true);
     expect(el.classList.contains('cp')).toBe(true);
     expect(el.previousElementSibling.id).toBe('productionWorkers');
-    expect(el.nextElementSibling.id).toBe('orders');
+    expect(el.nextElementSibling.id).toBe('stockBoard'); // 재고 두 칸 다음이 수주 (segan/stock.js)
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
     );

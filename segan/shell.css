@@ -3065,6 +3065,157 @@ button.sm-num[aria-pressed='true'] {
   overflow-wrap: anywhere;
 }
 
+/* 업체 › 재고 (#stockBoard · #stockHardware — segan/stock.js) — 품목 줄 · 그 자리 상세(적기 · 고치기 · 기록).
+   탭 · 줄 · 칸은 외주 발주(.oo-filter · .oo-list) · 거래처(.cp-form · .cp-grid)와 같은 것을 쓴다 */
+.st-top {
+  margin-top: 14px;
+}
+
+.st-supplier {
+  margin-top: 12px;
+  max-width: 280px;
+}
+
+.st-item .ad-pick {
+  align-items: center;
+}
+
+.st-item .me-c-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.st .st-list {
+  margin-top: 14px;
+}
+
+/* 품목 이름은 자르지 않고 줄을 바꾼다 */
+.st-item .me-c-main b,
+.st-item .me-c-main small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.st-qty {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 13px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.st-qty b {
+  margin-right: 2px;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.st-qty small {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.st-status {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 76px;
+}
+
+.st-status .od-badge {
+  margin-left: 0;
+}
+
+/* 부족 — 색만으로 알리지 않는다 (글 「부족」 + 굵은 선) */
+.st-warn {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+  font-weight: 400;
+}
+
+.st-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.st-detail .st-form {
+  margin-top: 0;
+}
+
+.st-move .ps-grid {
+  margin-top: 12px;
+}
+
+.st-move .mk-error,
+.st-detail > .mk-error {
+  margin: 12px 0 0;
+}
+
+.st-hist .od-h {
+  margin-top: 0;
+}
+
+.st-history {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.st-history li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--v5-line-12);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+.st-history time {
+  flex: none;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.st-history span {
+  flex: 1 1 200px;
+  overflow-wrap: anywhere;
+}
+
+.st-history small {
+  flex: none;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+@media (max-width: 560px) {
+  .st-item .ad-pick {
+    flex-wrap: wrap;
+  }
+
+  .st-item .me-c-main {
+    flex: 1 1 100%;
+  }
+
+  .st-status {
+    flex-direction: row;
+    margin-left: auto;
+  }
+
+  .st-qty {
+    align-items: flex-start;
+  }
+}
+
 /* 플랫폼 › 팩토리 평가 (#partnerEval — segan/partner-eval.js) — 팩토리 줄 · 평가표 · 평가 이력.
    줄 · 돌아가기는 등록 업체(.me-hc-*), 묶음 제목 · 저장 줄은 수주 · 생산 설정(.od-h · .ps-bar)과 같은 것을 쓴다 */
 .pe-count {

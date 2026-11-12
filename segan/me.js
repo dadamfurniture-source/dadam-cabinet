@@ -33,7 +33,8 @@
                         + 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js) + 프로젝트 목록.
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
        관리
-         구매 · 재고   팩토리 — 기본 자재 · 자투리 자재 · 철물 (준비 중 — 안내 한 줄),
+         구매 · 재고   팩토리 — 기본 자재 · 철물 (#stock-board · #stock-hardware — segan/stock.js, 다담 공장 · Expert · Agent 구성원.
+                        못 읽으면 — DB 적용 전 등 — 「준비 중」 안내) · 자투리 자재 (준비 중 — 안내 한 줄),
                         거래처 · 공급처 (#counterparties — segan/counterparties.js, 다담 공장 · Expert · Agent 의 대표 · 실장.
                         그 화면을 못 쓰는 관리자에게는 PC 화면 줄)
          회계          segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 (+ 업체는 설정),
@@ -567,10 +568,13 @@
     'p-collect': { title: '수금', pick: collectScreen },
     // 영업 › 고객 (업체) — 고객 목록 · 이름 · 전화 고치기 (segan/customers.js)
     'p-customers': { title: '고객', pick: customersScreen },
-    // 구매 · 재고 (Expert 이상 · 공장) — 준비 중
+    // 구매 · 재고 (Expert 이상 · 공장) — 기본 자재 · 철물은 segan/stock.js 가 읽었을 때 그 화면, 아니면 준비 중
     'stock-board': {
       title: '기본 자재',
-      soon: '재고 관리는 준비 중입니다. 보드 · 판재 재고를 여기서 관리하게 됩니다.',
+      pick: function () {
+        return stockScreen('stock-board', 'stockBoard', 'stockBoardTitle');
+      },
+      soon0: '재고 관리는 준비 중입니다. 보드 · 판재 재고를 여기서 관리하게 됩니다.',
     },
     'stock-scrap': {
       title: '자투리 자재',
@@ -578,7 +582,10 @@
     },
     'stock-hardware': {
       title: '철물',
-      soon: '재고 관리는 준비 중입니다. 경첩 · 서랍 레일 · 리프트업 철물 수량을 관리하게 됩니다.',
+      pick: function () {
+        return stockScreen('stock-hardware', 'stockHardware', 'stockHardwareTitle');
+      },
+      soon0: '재고 관리는 준비 중입니다. 경첩 · 서랍 레일 · 리프트업 철물 수량을 관리하게 됩니다.',
     },
     // 구매 · 재고 › 거래처 · 공급처 — 넣기 · 고치기 · 숨기기 (segan/counterparties.js)
     counterparties: {
@@ -726,6 +733,8 @@
     'productionSettings',
     'productionWorkers',
     'counterparties',
+    'stockBoard',
+    'stockHardware',
     'siteInstall',
     'orders',
     'quotes',
@@ -738,6 +747,7 @@
     'meBooks',
   ];
   var GROUPS = ['meGroupWork', 'meGroupManage', 'meGroupMine'];
+  var STOCK_PARTS = { 'stock-board': 'stockBoard', 'stock-hardware': 'stockHardware' }; // 재고 줄 → 그 화면의 칸 (segan/stock.js)
   var FACTORY_PLANS = ['expert', 'agent']; // 상담 배정 · 받은 제작 의뢰 · A/S함 · 구매 · 재고 (+ 다담 공장)
   var PEOPLE_PLANS = ['agent']; // 인사 (+ 다담 공장) — account-api STAFF_TOOL_PLANS
   var MONEY_ROLES = ['owner', 'manager']; // 대표 · 실장
@@ -896,6 +906,13 @@
     };
     if (viewer().member) s.empty = TEXT.noCustomers;
     return s;
+  }
+
+  /** 구매 · 재고 › 기본 자재 · 철물 — segan/stock.js 가 그 칸을 열었으면 그 화면, 아니면(읽는 중 · DB 적용 전 · 못 읽음) 「준비 중」 */
+  function stockScreen(key, part, label) {
+    var base = SCREENS[key];
+    if (!shown(part)) return { title: base.title, soon: base.soon0 };
+    return { title: base.title, section: 'partner', parts: [part], label: label };
   }
 
   /** 프로젝트 관리 대시보드 — 아래에 모든 단계 프로젝트 (고객은 내 프로젝트, 업체는 업체 프로젝트) */
@@ -1548,6 +1565,11 @@
       var need = li.getAttribute('data-need');
       var key = li.getAttribute('data-me-item');
       li.hidden = !(need ? needOn(need, roles) : rowOn(key, v, roles, ledger));
+      // 재고 줄 — 화면이 열렸으면 「준비 중」 흐림을 뗀다 (segan/stock.js)
+      if (own(STOCK_PARTS, key)) {
+        var link = li.querySelector('a.sg-row');
+        if (link) link.classList.toggle('me-row-soon', !shown(STOCK_PARTS[key]));
+      }
     });
     // 프로젝트 관리 — 고객에게는 「상담 · 계약」 · 「제작」 (data-customer), 업체 · 본사는 「영업」 · 「생산」
     document.querySelectorAll('#meHub a[data-customer]').forEach(function (a) {
@@ -1725,6 +1747,7 @@
     var Settings = window.SeganProductionSettings;
     var Outsource = window.SeganOutsourceOrders;
     var Vendors = window.SeganCounterparties;
+    var Stock = window.SeganStock;
     var Quotes = window.SeganQuotes;
     var Customers = window.SeganCustomers;
     var Numbers = window.SeganCompanySummary;
@@ -1760,6 +1783,8 @@
           synced(Outsource && Outsource.load ? Outsource.load(auth.sb, auth.session, me) : null),
           // 거래처 · 공급처 = 다담 공장 · Expert · Agent 업체의 대표 · 실장 (segan/counterparties.js — 구매 · 재고 › 거래처 · 공급처 화면)
           synced(Vendors && Vendors.load ? Vendors.load(auth.sb, auth.session, me) : null),
+          // 재고(기본 자재 · 철물) = 다담 공장 · Expert · Agent 업체 구성원 (segan/stock.js — 구매 · 재고 › 기본 자재 · 철물 화면)
+          synced(Stock && Stock.load ? Stock.load(auth.sb, auth.session, me) : null),
           // 생산 설정 = 다담 공장 · 협력업체의 대표 · 실장 (segan/production-settings.js — 생산 › 생산 설정 화면)
           synced(Settings && Settings.load ? Settings.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)
