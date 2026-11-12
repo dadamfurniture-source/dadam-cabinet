@@ -3076,6 +3076,11 @@ button.sm-num[aria-pressed='true'] {
   max-width: 280px;
 }
 
+/* 고른 탭(짙은 바탕)에서도 수가 보이게 */
+.st .mk-btn--solid .cp-count {
+  color: inherit;
+}
+
 .st-item .ad-pick {
   align-items: center;
 }
@@ -3213,6 +3218,113 @@ button.sm-num[aria-pressed='true'] {
 
   .st-qty {
     align-items: flex-start;
+  }
+}
+
+/* 업체 › 자투리 자재 (#stockOffcuts — segan/stock-offcuts.js) — 줄 앞에 라벨 고르기 칸, 그 밖은 재고 줄(.st-*)과 같다 */
+.so-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.so-row .ad-pick {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.so-pick {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.so-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+
+.so-filters .st-supplier {
+  flex: 1 1 160px;
+}
+
+.so-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.so-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.so-ask {
+  margin: 0;
+  color: var(--v5-ink);
+}
+
+.so-acts {
+  flex-wrap: wrap;
+}
+
+/* 라벨 인쇄 칸 — 화면에서는 감추고, 인쇄할 때는 이것만 보인다 */
+.so-print {
+  display: none;
+}
+
+/* only — 셸의 인쇄 규칙(파일 끝)과 섞이지 않게 따로 둔다 */
+@media only print {
+  body.so-printing > *:not(.so-print) {
+    display: none !important;
+  }
+
+  body.so-printing {
+    background: #fff;
+  }
+
+  body.so-printing .so-print {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6mm 4mm;
+    padding: 0;
+    background: #fff;
+    color: #000;
+  }
+
+  .so-label {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+    padding: 3mm;
+    border: 0.3mm solid #000;
+    break-inside: avoid;
+  }
+
+  .so-label .so-qr {
+    flex: none;
+    width: 24mm;
+    height: 24mm;
+  }
+
+  .so-label-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 9pt;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .so-label-text b {
+    font-size: 13pt;
+    font-weight: 500;
   }
 }
 

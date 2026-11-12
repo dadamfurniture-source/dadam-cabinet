@@ -360,7 +360,7 @@ describe('자리 · 이름', () => {
     }
     expect(b.previousElementSibling.id).toBe('counterparties');
     expect(b.nextElementSibling).toBe(h);
-    expect(h.nextElementSibling.id).toBe('orders');
+    expect(h.nextElementSibling.id).toBe('stockOffcuts'); // 자투리 다음이 수주 (segan/stock-offcuts.js)
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
     );
