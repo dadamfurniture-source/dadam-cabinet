@@ -689,9 +689,9 @@ describe('소스 · 메뉴 · 상담 관리 안내', () => {
     );
     expect(hrefs).toContain('partner-eval.html');
     const active = links.find((a) => a.classList.contains('active'));
-    expect(active.textContent).toBe('🔀상담 분배');
+    expect(active.textContent).toBe('상담 분배');
     expect(links.find((a) => a.getAttribute('href') === 'partner-eval.html').textContent).toBe(
-      '🏅팩토리 평가'
+      '팩토리 평가'
     );
   });
 

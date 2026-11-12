@@ -9,100 +9,100 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111311"></script>
+    <script src="../js/admin-access.js?v=2026111312"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; min-height: 100vh; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f6f3ee; min-height: 100vh; }
 
       /* Sidebar (admin/index.html 과 동일 패턴) */
-      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000; }
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #2d2a26; color: rgba(246, 243, 238, 0.92); padding: 20px 0; z-index: 1000; }
       .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,.1); margin-bottom: 20px; }
       .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
-      .sidebar-logo span { font-size: .8rem; color: #888; }
+      .sidebar-logo span { font-size: .8rem; color: rgba(246, 243, 238, 0.42); }
       .nav-menu { list-style: none; }
-      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all .3s; }
-      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,.1); color: white; }
-      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: rgba(246, 243, 238, 0.6); text-decoration: none; transition: all .3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,.1); color: rgba(246, 243, 238, 0.92); }
+      .nav-menu li a.active { border-left: 3px solid #8a7457; }
       .nav-icon { width: 20px; text-align: center; }
       .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
-      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,.1); color: #aaa; text-decoration: none; border-radius: 5px; font-size: .9rem; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,.1); color: rgba(246, 243, 238, 0.6); text-decoration: none; font-size: .9rem; }
 
       /* Main */
       .main-content { margin-left: 250px; padding: 20px 30px; }
       .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-      .header h1 { font-size: 1.6rem; color: #333; }
+      .header h1 { font-size: 1.6rem; color: #2d2a26; }
 
       /* Tabs */
-      .tabs { display: flex; gap: 6px; background: white; padding: 6px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; width: fit-content; }
-      .tabs button { padding: 8px 16px; border: none; background: transparent; color: #555; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 500; }
-      .tabs button.active { background: #007bff; color: white; }
-      .tabs button:hover:not(.active) { background: #f0f0f0; }
+      .tabs { display: flex; gap: 6px; background: white; padding: 6px; margin-bottom: 16px; width: fit-content; }
+      .tabs button { padding: 8px 16px; border: none; background: transparent; color: rgba(45, 42, 38, 0.62); cursor: pointer; font-size: 14px; font-weight: 500; }
+      .tabs button.active { background: #0b2545; color: white; }
+      .tabs button:hover:not(.active) { background: #f1ece4; }
 
       /* Toolbar */
       .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
-      .toolbar input[type="text"] { flex: 1; max-width: 400px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; }
-      .toolbar input[type="text"]:focus { outline: none; border-color: #007bff; }
-      .toolbar .btn-primary { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
-      .toolbar .btn-primary:hover { background: #0056b3; }
+      .toolbar input[type="text"] { flex: 1; max-width: 400px; padding: 8px 12px; border: 1px solid rgba(45, 42, 38, 0.18); font-size: 13px; }
+      .toolbar input[type="text"]:focus { outline: none; border-color: #0b2545; }
+      .toolbar .btn-primary { padding: 8px 16px; background: #0b2545; color: white; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+      .toolbar .btn-primary:hover { background: #2d2a26; }
 
       /* Table */
-      .data-card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow: hidden; }
+      .data-card { background: white; overflow: hidden; }
       table { width: 100%; border-collapse: collapse; }
-      th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 13px; }
-      th { background: #fafafa; color: #555; font-weight: 600; }
-      tr:hover { background: #f8f9fa; }
+      th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid rgba(45, 42, 38, 0.1); font-size: 13px; }
+      th { background: #f7f4ef; color: rgba(45, 42, 38, 0.62); font-weight: 600; }
+      tr:hover { background: #f7f4ef; }
       td.right { text-align: right; }
       td.center { text-align: center; }
       td.gap { white-space: nowrap; }
-      td.gap small { display: block; color: #888; font-size: 11px; }
-      td small.sub { display: block; color: #888; font-size: 11px; }
-      .row-count { font-size: 12px; color: #888; align-self: center; }
-      td.gap .none { color: #bbb; }
-      .field .hint { font-size: 11px; color: #888; margin-top: 3px; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-      .badge.verified { background: #e3f5e1; color: #2c6a26; }
-      .badge.unverified { background: #fef3d6; color: #8a6620; }
-      .row-actions button { padding: 4px 8px; border: 1px solid #ddd; background: white; color: #555; border-radius: 4px; font-size: 11px; cursor: pointer; margin-left: 4px; }
-      .row-actions button.edit { color: #007bff; border-color: #007bff; }
-      .row-actions button.delete { color: #c62828; border-color: #c62828; }
-      .row-actions button:hover { background: #f0f0f0; }
+      td.gap small { display: block; color: rgba(45, 42, 38, 0.55); font-size: 11px; }
+      td small.sub { display: block; color: rgba(45, 42, 38, 0.55); font-size: 11px; }
+      .row-count { font-size: 12px; color: rgba(45, 42, 38, 0.55); align-self: center; }
+      td.gap .none { color: rgba(45, 42, 38, 0.32); }
+      .field .hint { font-size: 11px; color: rgba(45, 42, 38, 0.55); margin-top: 3px; }
+      .badge { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+      .badge.verified { background: #eaf2ed; color: #2f6b4f; }
+      .badge.unverified { background: #fbefd4; color: #6f4c0c; }
+      .row-actions button { padding: 4px 8px; border: 1px solid rgba(45, 42, 38, 0.18); background: white; color: rgba(45, 42, 38, 0.62); font-size: 11px; cursor: pointer; margin-left: 4px; }
+      .row-actions button.edit { color: #0b2545; border-color: #0b2545; }
+      .row-actions button.delete { color: #93301f; border-color: #93301f; }
+      .row-actions button:hover { background: #f1ece4; }
       /* 미검증 모델 — 「사진 가져오기」 대신 안내 (2026-10-20) */
-      .row-actions .photo-hint { display: inline-block; max-width: 180px; font-size: 11px; line-height: 1.3; color: #8a6620; text-align: left; vertical-align: middle; margin-left: 4px; }
-      .empty { padding: 40px; text-align: center; color: #888; }
+      .row-actions .photo-hint { display: inline-block; max-width: 180px; font-size: 11px; line-height: 1.3; color: #6f4c0c; text-align: left; vertical-align: middle; margin-left: 4px; }
+      .empty { padding: 40px; text-align: center; color: rgba(45, 42, 38, 0.55); }
 
       /* Modal */
       .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
       .modal-overlay.open { display: flex; }
-      .modal { background: white; border-radius: 10px; width: min(520px, 90vw); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
-      .modal-header { padding: 14px 18px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+      .modal { background: white; width: min(520px, 90vw); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+      .modal-header { padding: 14px 18px; border-bottom: 1px solid rgba(45, 42, 38, 0.1); display: flex; justify-content: space-between; align-items: center; }
       .modal-header h3 { font-size: 1.05rem; }
-      .modal-header button.close { border: none; background: transparent; font-size: 24px; cursor: pointer; color: #888; }
+      .modal-header button.close { border: none; background: transparent; font-size: 24px; cursor: pointer; color: rgba(45, 42, 38, 0.55); }
       .modal-body { padding: 18px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
       .modal-body .field { display: flex; flex-direction: column; gap: 4px; }
       .modal-body .field.full { grid-column: 1/-1; }
       .modal-body .gas-field label { display: flex; align-items: center; gap: 6px; font-weight: normal; }
-      .modal-body .gas-field .label-like { font-size: 12px; color: #666; font-weight: 500; }
-      .modal-body label { font-size: 12px; color: #666; font-weight: 500; }
-      .modal-body input, .modal-body select, .modal-body textarea { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit; }
-      .modal-body input:focus, .modal-body select:focus, .modal-body textarea:focus { outline: none; border-color: #007bff; }
+      .modal-body .gas-field .label-like { font-size: 12px; color: rgba(45, 42, 38, 0.62); font-weight: 500; }
+      .modal-body label { font-size: 12px; color: rgba(45, 42, 38, 0.62); font-weight: 500; }
+      .modal-body input, .modal-body select, .modal-body textarea { padding: 6px 8px; border: 1px solid rgba(45, 42, 38, 0.18); font-size: 13px; font-family: inherit; }
+      .modal-body input:focus, .modal-body select:focus, .modal-body textarea:focus { outline: none; border-color: #0b2545; }
       .modal-body textarea { resize: vertical; min-height: 60px; }
-      .modal-footer { padding: 12px 18px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 8px; }
-      .modal-footer button { padding: 8px 16px; border-radius: 5px; font-size: 13px; cursor: pointer; font-weight: 600; }
-      .modal-footer button.cancel { background: #eee; color: #555; border: 1px solid #ddd; }
-      .modal-footer button.save { background: #007bff; color: white; border: 1px solid #007bff; }
+      .modal-footer { padding: 12px 18px; border-top: 1px solid rgba(45, 42, 38, 0.1); display: flex; justify-content: flex-end; gap: 8px; }
+      .modal-footer button { padding: 8px 16px; font-size: 13px; cursor: pointer; font-weight: 600; }
+      .modal-footer button.cancel { background: #f1ece4; color: rgba(45, 42, 38, 0.62); border: 1px solid rgba(45, 42, 38, 0.18); }
+      .modal-footer button.save { background: #0b2545; color: white; border: 1px solid #0b2545; }
 
       /* 제품 사진 (2026-10-20, database/appliance-models-images.sql) */
       td.photo { width: 76px; }
-      td.photo img { width: 56px; height: 56px; object-fit: contain; background: #fafafa; border: 1px solid #eee; border-radius: 4px; display: block; }
+      td.photo img { width: 56px; height: 56px; object-fit: contain; background: #f7f4ef; border: 1px solid rgba(45, 42, 38, 0.1); display: block; }
       td.photo img.src { border-style: dashed; opacity: .75; }
-      td.photo small { display: block; color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; }
-      td.photo .none { color: #bbb; font-size: 11px; }
-      .row-actions button.photo-copy { color: #2c6a26; border-color: #2c6a26; }
-      .toolbar .btn-secondary { padding: 8px 12px; background: white; color: #2c6a26; border: 1px solid #2c6a26; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
+      td.photo small { display: block; color: rgba(45, 42, 38, 0.55); font-size: 10px; margin-top: 2px; white-space: nowrap; }
+      td.photo .none { color: rgba(45, 42, 38, 0.32); font-size: 11px; }
+      .row-actions button.photo-copy { color: #2f6b4f; border-color: #2f6b4f; }
+      .toolbar .btn-secondary { padding: 8px 12px; background: white; color: #2f6b4f; border: 1px solid #2f6b4f; cursor: pointer; font-size: 13px; font-weight: 600; }
       .toolbar .btn-secondary:disabled { opacity: .5; cursor: default; }
 
       .access-denied { display: none; text-align: center; padding: 100px 20px; }
-      .access-denied h2 { color: #c62828; margin-bottom: 15px; }
+      .access-denied h2 { color: #93301f; margin-bottom: 15px; }
     </style>
   </head>
   <body>
@@ -113,7 +113,7 @@
         <span>Admin Panel</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111311"></script>
+      <script src="../js/admin-shell.js?v=2026111312"></script>
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
       </div>
@@ -123,7 +123,7 @@
     <div class="main-content" id="mainContent">
       <div class="header">
         <h1>가전 모델 관리</h1>
-        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop · oven · microwave · rice_cooker · range · faucet · robot_vacuum · food_disposer · water_purifier · wine_cellar</div>
+        <div style="font-size: 13px; color: rgba(45, 42, 38, 0.62)">refrigerator · hood · dishwasher · sink · cooktop · oven · microwave · rice_cooker · range · faucet · robot_vacuum · food_disposer · water_purifier · wine_cellar</div>
       </div>
 
       <div class="tabs">
@@ -149,13 +149,13 @@
 
       <div class="toolbar">
         <input id="searchInput" type="text" placeholder="브랜드/모델명/코드 검색..." />
-        <select id="subtypeFilter" aria-label="세부 구분" style="display: none; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px"></select>
+        <select id="subtypeFilter" aria-label="세부 구분" style="display: none; padding: 8px; border: 1px solid rgba(45, 42, 38, 0.18); font-size: 13px"></select>
         <span class="row-count" id="rowCount"></span>
         <!-- 2026-10-20: 보이는 행 중 원본 주소만 있고 아직 안 가져온 것을 차례로 가져온다 -->
         <button type="button" class="btn-secondary" id="photoBulkBtn" style="display: none" title="제조사 사진을 우리 Storage 로 복사 — 연출컷 생성 때 이 냉장고의 참고 사진이 된다">사진 일괄 가져오기</button>
         <button class="btn-primary" id="addBtn">+ 새 모델</button>
       </div>
-      <div id="readOnlyNote" style="display: none; margin-bottom: 12px; padding: 10px 12px; background: #fff3e0; color: #8a4b00; border-radius: 6px; font-size: 13px">
+      <div id="readOnlyNote" style="display: none; margin-bottom: 12px; padding: 10px 12px; background: #fbefd4; color: #6f4c0c; font-size: 13px">
       </div>
 
       <div class="data-card">

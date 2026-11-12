@@ -35,7 +35,7 @@ describe('메뉴 정본 — js/admin-shell.js', () => {
   test('「작업 배정」 메뉴 — 🧰 아이콘 · 이름', () => {
     const a = boot('/admin/work-jobs.html?job=x').find((x) => x.classList.contains('active'));
     expect(a.getAttribute('href')).toBe('work-jobs.html');
-    expect(a.textContent).toBe('🧰작업 배정');
+    expect(a.textContent).toBe('작업 배정');
   });
 
   test('지금 페이지에 active · aria-current, 나머지는 없음', () => {
@@ -43,8 +43,7 @@ describe('메뉴 정본 — js/admin-shell.js', () => {
     const active = links.filter((a) => a.classList.contains('active'));
     expect(active.map((a) => a.getAttribute('href'))).toEqual(['work-reports.html']);
     expect(active[0].getAttribute('aria-current')).toBe('page');
-    expect(active[0].querySelector('.nav-icon').textContent).toBe('📑');
-    expect(active[0].textContent).toBe('📑작업 지시 보고');
+    expect(active[0].textContent).toBe('작업 지시 보고');
   });
 
   test("'/admin/' 처럼 파일 이름이 없으면 대시보드", () => {
@@ -100,5 +99,39 @@ describe('메인 사이트로 버튼이 메뉴를 덮지 않는다', () => {
     (0, eval)(SHELL);
     const f = document.querySelector('.sidebar-footer');
     expect(f.style.position).toBe('static');
+  });
+});
+
+describe('관리자 화면 꾸밈 — 앱과 같은 색 · 각진 모서리 · 그림자 없음', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '..', 'admin');
+  // 작업 배정(work-jobs.html)은 작업자 포털 쪽에서 따로 맞춘다
+  const pages = fs.readdirSync(dir).filter((n) => n.endsWith('.html') && n !== 'work-jobs.html');
+  const styles = (page) =>
+    [...fs.readFileSync(path.join(dir, page), 'utf8').matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+      .map((m) => m[1])
+      .join('\n');
+
+  test.each(pages)('%s — 옆 메뉴는 잉크색 · 지금 화면 표시는 tan, 옛 파랑 · 남보라가 없다', (page) => {
+    const css = styles(page);
+    expect(css).toMatch(/\.sidebar \{[^}]*background: #2d2a26;/);
+    expect(css).toMatch(/\.nav-menu li a\.active \{\s*border-left: 3px solid #8a7457;/);
+    expect(css).toMatch(/body \{[^}]*background(-color)?: #f6f3ee;/);
+    expect(css).not.toMatch(/#007bff|#0056b3|#1a1a2e|#dc3545|#28a745/i);
+  });
+
+  test.each(pages)('%s — 그림자가 없고 둥근 모서리는 원(50%%)뿐', (page) => {
+    const css = styles(page);
+    expect(css).not.toMatch(/box-shadow/);
+    const radii = [...css.matchAll(/border-radius:\s*([^;]+);/g)].map((m) => m[1].trim());
+    expect(radii.filter((r) => r !== '50%' && r !== '0')).toEqual([]);
+  });
+
+  test('메뉴는 글만 — 그림 글자 아이콘을 쓰지 않는다', () => {
+    const links = boot('/admin/index.html');
+    expect(links.every((a) => !a.querySelector('.nav-icon'))).toBe(true);
+    expect(links.map((a) => a.textContent).join('')).not.toMatch(/\p{Extended_Pictographic}/u);
+    expect(window.AdminShell.ADMIN_NAV.every((item) => !('icon' in item))).toBe(true);
   });
 });

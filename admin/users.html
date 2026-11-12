@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111311"></script>
+    <script src="../js/admin-access.js?v=2026111312"></script>
     <style>
       * {
         margin: 0;
@@ -22,7 +22,7 @@
 
       body {
         font-family: 'Noto Sans KR', sans-serif;
-        background-color: #f5f5f5;
+        background-color: #f6f3ee;
         min-height: 100vh;
       }
 
@@ -33,8 +33,8 @@
         top: 0;
         width: 250px;
         height: 100vh;
-        background: #1a1a2e;
-        color: white;
+        background: #2d2a26;
+        color: rgba(246, 243, 238, 0.92);
         padding: 20px 0;
         z-index: 1000;
       }
@@ -52,7 +52,7 @@
 
       .sidebar-logo span {
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(246, 243, 238, 0.42);
       }
 
       .nav-menu {
@@ -64,7 +64,7 @@
         align-items: center;
         gap: 12px;
         padding: 12px 20px;
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
         transition: all 0.3s;
       }
@@ -72,11 +72,11 @@
       .nav-menu li a:hover,
       .nav-menu li a.active {
         background: rgba(255, 255, 255, 0.1);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
 
       .nav-menu li a.active {
-        border-left: 3px solid #007bff;
+        border-left: 3px solid #8a7457;
       }
 
       .nav-icon {
@@ -97,15 +97,14 @@
         padding: 10px;
         text-align: center;
         background: rgba(255, 255, 255, 0.1);
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
-        border-radius: 5px;
         font-size: 0.9rem;
       }
 
       .sidebar-footer a:hover {
         background: rgba(255, 255, 255, 0.2);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
 
       /* Main Content */
@@ -121,12 +120,12 @@
         align-items: center;
         margin-bottom: 30px;
         padding-bottom: 20px;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.18);
       }
 
       .header h2 {
         font-size: 1.5rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       /* Filters */
@@ -145,14 +144,13 @@
 
       .filter-group label {
         font-size: 0.9rem;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
 
       .filter-group select,
       .filter-group input {
         padding: 8px 12px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         font-size: 0.9rem;
         font-family: inherit;
       }
@@ -164,7 +162,6 @@
       .btn {
         padding: 8px 16px;
         border: none;
-        border-radius: 5px;
         font-size: 0.9rem;
         cursor: pointer;
         font-family: inherit;
@@ -172,26 +169,26 @@
       }
 
       .btn-primary {
-        background: #007bff;
+        background: #0b2545;
         color: white;
       }
 
       .btn-primary:hover {
-        background: #0056b3;
+        background: #2d2a26;
       }
 
       .btn-secondary {
-        background: #6c757d;
+        background: #5f5a53;
         color: white;
       }
 
       .btn-success {
-        background: #28a745;
+        background: #2f6b4f;
         color: white;
       }
 
       .btn-danger {
-        background: #dc3545;
+        background: #93301f;
         color: white;
       }
 
@@ -203,8 +200,6 @@
       /* Card */
       .card {
         background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       }
 
       .card-header {
@@ -212,12 +207,12 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       .card-header h3 {
         font-size: 1.1rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       .card-body {
@@ -234,23 +229,23 @@
       .users-table td {
         padding: 15px;
         text-align: left;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       .users-table th {
         font-weight: 500;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
         font-size: 0.85rem;
-        background: #fafafa;
+        background: #f7f4ef;
       }
 
       .users-table td {
         font-size: 0.9rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       .users-table tr:hover {
-        background: #f9f9f9;
+        background: #f7f4ef;
       }
 
       .user-info {
@@ -263,12 +258,12 @@
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: #e0e0e0;
+        background: #f1ece4;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 700;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
 
       .user-details h4 {
@@ -279,20 +274,19 @@
 
       .user-details span {
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       .badge {
         display: inline-block;
         padding: 4px 10px;
-        border-radius: 20px;
         font-size: 0.75rem;
         font-weight: 500;
       }
 
       .cell-sub {
         font-size: 11px;
-        color: #8b8680;
+        color: rgba(45, 42, 38, 0.55);
         margin-top: 3px;
       }
       .cell-muted {
@@ -305,18 +299,17 @@
       .badge.sub-cancelled,
       .badge.sub-expired {
         background: #f0eeea;
-        color: #8b8680;
+        color: rgba(45, 42, 38, 0.55);
       }
       .badge.sub-past_due {
         background: #f7e7e4;
-        color: #a54034;
+        color: #93301f;
       }
 
       /* 회원 상세 — 구독 · 결제 (환불) */
       .pay-box {
-        border: 1px solid #eee;
-        border-radius: 6px;
-        background: #fafafa;
+        border: 1px solid rgba(45, 42, 38, 0.1);
+        background: #f7f4ef;
         padding: 8px 12px;
         font-size: 0.85rem;
       }
@@ -326,58 +319,58 @@
         justify-content: space-between;
         gap: 10px;
         padding: 7px 0;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
       .pay-row:last-child {
         border-bottom: 0;
       }
       .pay-row .pay-tag {
         font-size: 11px;
-        color: #8b8680;
+        color: rgba(45, 42, 38, 0.55);
         margin-left: 6px;
       }
       .pay-row .pay-tag.bad {
-        color: #a54034;
+        color: #93301f;
       }
       .pay-note {
         font-size: 11px;
-        color: #8b8680;
+        color: rgba(45, 42, 38, 0.55);
         margin-top: 6px;
         line-height: 1.6;
       }
 
       .badge.standard {
-        background: #e0e0e0;
-        color: #616161;
+        background: #f1ece4;
+        color: rgba(45, 42, 38, 0.62);
       }
       .badge.manager {
-        background: #e3f2fd;
-        color: #1565c0;
+        background: #eceef2;
+        color: #0b2545;
       }
       .badge.expert {
-        background: #fff3e0;
-        color: #f57c00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .badge.agent {
         background: #ede7f6;
         color: #5e35b1;
       }
       .badge.business {
-        background: #e8f5e9;
-        color: #388e3c;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
 
       /* 상세설계 승인 상태 뱃지 */
       .badge.dd-approved {
-        background: #e8f5e9;
-        color: #1b5e20;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
       .badge.dd-pending {
-        background: #fff3e0;
-        color: #e65100;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .badge.dd-none {
-        background: #f5f5f5;
+        background: #f6f3ee;
         color: #757575;
       }
 
@@ -386,21 +379,20 @@
         align-items: center;
         gap: 4px;
         padding: 3px 8px;
-        border-radius: 4px;
         font-size: 0.7rem;
       }
 
       .provider-badge.google {
         background: #fce8e8;
-        color: #c62828;
+        color: #93301f;
       }
       .provider-badge.kakao {
         background: #fff9c4;
         color: #f57f17;
       }
       .provider-badge.email {
-        background: #e3f2fd;
-        color: #1565c0;
+        background: #eceef2;
+        color: #0b2545;
       }
 
       .actions {
@@ -419,15 +411,14 @@
 
       .pagination button {
         padding: 8px 15px;
-        border: 1px solid #ddd;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         background: white;
-        border-radius: 5px;
         cursor: pointer;
         font-family: inherit;
       }
 
       .pagination button:hover:not(:disabled) {
-        background: #f5f5f5;
+        background: #f6f3ee;
       }
 
       .pagination button:disabled {
@@ -437,7 +428,7 @@
 
       .pagination span {
         font-size: 0.9rem;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
 
       /* Modal */
@@ -460,7 +451,6 @@
 
       .modal-content {
         background: white;
-        border-radius: 10px;
         width: 90%;
         max-width: 500px;
         max-height: 90vh;
@@ -472,7 +462,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       .modal-header h3 {
@@ -484,7 +474,7 @@
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       .modal-body {
@@ -499,7 +489,7 @@
         display: block;
         margin-bottom: 8px;
         font-size: 0.9rem;
-        color: #333;
+        color: #2d2a26;
         font-weight: 500;
       }
 
@@ -508,16 +498,15 @@
       .form-group textarea {
         width: 100%;
         padding: 10px 12px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         font-size: 0.95rem;
         font-family: inherit;
       }
 
       .form-group input:disabled,
       .form-group select:disabled {
-        background: #f5f5f5;
-        color: #888;
+        background: #f6f3ee;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       .modal-footer {
@@ -525,7 +514,7 @@
         justify-content: flex-end;
         gap: 10px;
         padding: 20px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       /* Access Denied */
@@ -537,36 +526,36 @@
 
       .access-denied h2 {
         font-size: 1.5rem;
-        color: #c62828;
+        color: #93301f;
         margin-bottom: 15px;
       }
 
       .access-denied p {
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
         margin-bottom: 20px;
       }
 
       .access-denied a {
-        color: #007bff;
+        color: #0b2545;
       }
 
       /* Loading */
       .loading {
         text-align: center;
         padding: 60px 20px;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       /* Empty State */
       .empty-state {
         text-align: center;
         padding: 60px 20px;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       .empty-state h4 {
         margin-bottom: 10px;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
 
       /* Responsive */
@@ -605,7 +594,7 @@
       </div>
 
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111311"></script>
+      <script src="../js/admin-shell.js?v=2026111312"></script>
 
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
@@ -728,13 +717,13 @@
           </div>
           <div
             class="form-group"
-            style="background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 12px"
+            style="background: #f7f4ef; border: 1px solid rgba(45, 42, 38, 0.1); padding: 12px"
           >
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600">
               <input type="checkbox" id="modalDetailDesignApproved" style="width: auto" />
               <span>상세설계(CAD/BOM) 사용 승인</span>
             </label>
-            <div id="modalDDStatus" style="font-size: 0.8rem; color: #666; margin-top: 6px"></div>
+            <div id="modalDDStatus" style="font-size: 0.8rem; color: rgba(45, 42, 38, 0.62); margin-top: 6px"></div>
           </div>
           <div class="form-group">
             <label>지역</label>
@@ -918,11 +907,11 @@
           if (error.message.includes('profiles') || error.code === '42P01') {
             tbody.innerHTML = `
                         <tr>
-                            <td colspan="9" style="text-align: center; padding: 40px; background: #fffde7;">
+                            <td colspan="9" style="text-align: center; padding: 40px; background: #fbefd4;">
                                 <strong>profiles 테이블이 없습니다.</strong><br><br>
                                 database/profiles-schema.sql 파일을<br>
                                 Supabase SQL Editor에서 실행하세요.<br><br>
-                                <a href="https://supabase.com/dashboard" target="_blank" style="color: #007bff;">
+                                <a href="https://supabase.com/dashboard" target="_blank" style="color: #0b2545;">
                                     Supabase Dashboard 열기 →
                                 </a>
                             </td>
