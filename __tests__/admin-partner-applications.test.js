@@ -683,6 +683,6 @@ describe('관리자 메뉴 — 「팩토리 신청」', () => {
     (0, eval)(read('js/admin-shell.js'));
     const a = document.querySelector('#adminNav a.active');
     expect(a.getAttribute('href')).toBe('expert-requests.html');
-    expect(a.textContent).toBe('⭐팩토리 신청');
+    expect(a.textContent).toBe('팩토리 신청');
   });
 });

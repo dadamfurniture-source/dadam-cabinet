@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111311"></script>
+    <script src="../js/admin-access.js?v=2026111312"></script>
     <style>
       * {
         margin: 0;
@@ -22,7 +22,7 @@
 
       body {
         font-family: 'Noto Sans KR', sans-serif;
-        background-color: #f5f5f5;
+        background-color: #f6f3ee;
         min-height: 100vh;
       }
 
@@ -33,8 +33,8 @@
         top: 0;
         width: 250px;
         height: 100vh;
-        background: #1a1a2e;
-        color: white;
+        background: #2d2a26;
+        color: rgba(246, 243, 238, 0.92);
         padding: 20px 0;
         z-index: 1000;
       }
@@ -52,7 +52,7 @@
 
       .sidebar-logo span {
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(246, 243, 238, 0.42);
       }
 
       .nav-menu {
@@ -64,7 +64,7 @@
         align-items: center;
         gap: 12px;
         padding: 12px 20px;
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
         transition: all 0.3s;
       }
@@ -72,11 +72,11 @@
       .nav-menu li a:hover,
       .nav-menu li a.active {
         background: rgba(255, 255, 255, 0.1);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
 
       .nav-menu li a.active {
-        border-left: 3px solid #007bff;
+        border-left: 3px solid #8a7457;
       }
 
       .nav-icon {
@@ -97,15 +97,14 @@
         padding: 10px;
         text-align: center;
         background: rgba(255, 255, 255, 0.1);
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
-        border-radius: 5px;
         font-size: 0.9rem;
       }
 
       .sidebar-footer a:hover {
         background: rgba(255, 255, 255, 0.2);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
 
       /* Main Content */
@@ -121,12 +120,12 @@
         align-items: center;
         margin-bottom: 30px;
         padding-bottom: 20px;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.18);
       }
 
       .header h2 {
         font-size: 1.5rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       .admin-info {
@@ -138,7 +137,7 @@
       .admin-avatar {
         width: 40px;
         height: 40px;
-        background: #007bff;
+        background: #0b2545;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -149,12 +148,12 @@
 
       .admin-name {
         font-size: 0.9rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       .admin-role {
         font-size: 0.75rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       /* Stats Cards */
@@ -168,14 +167,11 @@
       .stat-card {
         background: white;
         padding: 25px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       }
 
       .stat-card .stat-icon {
         width: 50px;
         height: 50px;
-        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -184,18 +180,18 @@
       }
 
       .stat-card.users .stat-icon {
-        background: #e3f2fd;
-        color: #1976d2;
+        background: #eceef2;
+        color: #0b2545;
       }
 
       .stat-card.expert .stat-icon {
-        background: #fff3e0;
-        color: #f57c00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
 
       .stat-card.consultations .stat-icon {
-        background: #e8f5e9;
-        color: #388e3c;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
 
       .stat-card.pending .stat-icon {
@@ -206,13 +202,13 @@
       .stat-value {
         font-size: 2rem;
         font-weight: 700;
-        color: #333;
+        color: #2d2a26;
         margin-bottom: 5px;
       }
 
       .stat-label {
         font-size: 0.9rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       .stat-change {
@@ -221,7 +217,7 @@
       }
 
       .stat-change.positive {
-        color: #388e3c;
+        color: #2f6b4f;
       }
 
       .stat-change.negative {
@@ -244,8 +240,6 @@
       /* Card */
       .card {
         background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       }
 
       .card-header {
@@ -253,17 +247,17 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       .card-header h3 {
         font-size: 1.1rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       .card-header a {
         font-size: 0.85rem;
-        color: #007bff;
+        color: #0b2545;
         text-decoration: none;
       }
 
@@ -281,59 +275,58 @@
       .recent-table td {
         padding: 12px;
         text-align: left;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       .recent-table th {
         font-weight: 500;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
         font-size: 0.85rem;
       }
 
       .recent-table td {
         font-size: 0.9rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       .badge {
         display: inline-block;
         padding: 4px 10px;
-        border-radius: 20px;
         font-size: 0.75rem;
         font-weight: 500;
       }
 
       .badge.standard {
-        background: #e0e0e0;
-        color: #616161;
+        background: #f1ece4;
+        color: rgba(45, 42, 38, 0.62);
       }
       .badge.manager {
-        background: #e3f2fd;
-        color: #1565c0;
+        background: #eceef2;
+        color: #0b2545;
       }
       .badge.expert {
-        background: #fff3e0;
-        color: #f57c00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .badge.agent {
         background: #ede7f6;
         color: #5e35b1;
       }
       .badge.business {
-        background: #e8f5e9;
-        color: #388e3c;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
       .badge.pending {
-        background: #fff3e0;
-        color: #f57c00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .badge.approved {
-        background: #e8f5e9;
-        color: #388e3c;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
       .badge.rejected {
-        background: #ffebee;
-        color: #c62828;
+        background: #f8ece9;
+        color: #93301f;
       }
 
       /* Quick Actions */
@@ -348,22 +341,20 @@
         align-items: center;
         gap: 12px;
         padding: 15px;
-        border: 1px solid #eee;
-        border-radius: 8px;
+        border: 1px solid rgba(45, 42, 38, 0.1);
         text-decoration: none;
-        color: #333;
+        color: #2d2a26;
         transition: all 0.3s;
       }
 
       .quick-action-btn:hover {
-        background: #f5f5f5;
-        border-color: #ddd;
+        background: #f6f3ee;
+        border-color: rgba(45, 42, 38, 0.18);
       }
 
       .quick-action-btn .action-icon {
         width: 40px;
         height: 40px;
-        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -377,7 +368,7 @@
 
       .quick-action-btn .action-text p {
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       /* Activity Feed */
@@ -385,7 +376,7 @@
         display: flex;
         gap: 15px;
         padding: 15px 0;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
       }
 
       .activity-item:last-child {
@@ -404,34 +395,34 @@
       }
 
       .activity-icon.user {
-        background: #e3f2fd;
-        color: #1976d2;
+        background: #eceef2;
+        color: #0b2545;
       }
       .activity-icon.tier {
-        background: #fff3e0;
-        color: #f57c00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .activity-icon.consultation {
-        background: #e8f5e9;
-        color: #388e3c;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
 
       .activity-content p {
         font-size: 0.9rem;
-        color: #333;
+        color: #2d2a26;
         margin-bottom: 3px;
       }
 
       .activity-content span {
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       /* Loading */
       .loading {
         text-align: center;
         padding: 40px;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
 
       /* Access Denied */
@@ -443,17 +434,17 @@
 
       .access-denied h2 {
         font-size: 1.5rem;
-        color: #c62828;
+        color: #93301f;
         margin-bottom: 15px;
       }
 
       .access-denied p {
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
         margin-bottom: 20px;
       }
 
       .access-denied a {
-        color: #007bff;
+        color: #0b2545;
       }
 
       /* Responsive */
@@ -486,7 +477,7 @@
       </div>
 
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111311"></script>
+      <script src="../js/admin-shell.js?v=2026111312"></script>
 
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
@@ -583,21 +574,21 @@
               </div>
               <div class="card-body quick-actions">
                 <a href="expert-requests.html" class="quick-action-btn">
-                  <div class="action-icon" style="background: #fff3e0; color: #f57c00">⭐</div>
+                  <div class="action-icon" style="background: #fbefd4; color: #6f4c0c">⭐</div>
                   <div class="action-text">
                     <h4>팩토리 신청 검토</h4>
                     <p id="pendingExpertCount">대기 중 0건</p>
                   </div>
                 </a>
                 <a href="consult-distribution.html" class="quick-action-btn">
-                  <div class="action-icon" style="background: #e8f5e9; color: #388e3c">💬</div>
+                  <div class="action-icon" style="background: #eaf2ed; color: #2f6b4f">💬</div>
                   <div class="action-text">
                     <h4>상담 요청 확인</h4>
                     <p id="pendingConsultCount">대기 중 0건</p>
                   </div>
                 </a>
                 <a href="users.html?filter=new" class="quick-action-btn">
-                  <div class="action-icon" style="background: #e3f2fd; color: #1976d2">👤</div>
+                  <div class="action-icon" style="background: #eceef2; color: #0b2545">👤</div>
                   <div class="action-text">
                     <h4>신규 회원 확인</h4>
                     <p id="newMemberCount">오늘 0명</p>
@@ -609,7 +600,7 @@
             <!-- 작업 지시 보고 (work-reports-archive.plan.md §5.3) -->
             <div class="card">
               <div class="card-header">
-                <h3>최근 작업 지시 보고 <span id="wrPending" style="font-size: 12px; color: #f57c00"></span></h3>
+                <h3>최근 작업 지시 보고 <span id="wrPending" style="font-size: 12px; color: #6f4c0c"></span></h3>
                 <a href="work-reports.html">보관함 →</a>
               </div>
               <div class="card-body" id="recentWorkReports">
@@ -707,10 +698,10 @@
           document.getElementById('wrPending').textContent = sum.pendingProposals ? `결정 안 한 제안 ${sum.pendingProposals}` : '';
           const items = (list.items || []).slice(0, 5);
           box.innerHTML = items.length
-            ? items.map((x) => `<div style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px"><span style="color: #888">${esc(KIND[x.kind] || x.kind)}</span> · ${esc(x.title)}</div>`).join('')
-            : '<div style="color: #888; font-size: 13px">아직 보고가 없습니다.</div>';
+            ? items.map((x) => `<div style="padding: 8px 0; border-bottom: 1px solid rgba(45, 42, 38, 0.1); font-size: 13px"><span style="color: rgba(45, 42, 38, 0.55)">${esc(KIND[x.kind] || x.kind)}</span> · ${esc(x.title)}</div>`).join('')
+            : '<div style="color: rgba(45, 42, 38, 0.55); font-size: 13px">아직 보고가 없습니다.</div>';
         } catch (e) {
-          box.innerHTML = `<div style="color: #888; font-size: 13px">${esc(e.message)}</div>`;
+          box.innerHTML = `<div style="color: rgba(45, 42, 38, 0.55); font-size: 13px">${esc(e.message)}</div>`;
         }
       }
 
@@ -837,7 +828,7 @@
           if (!users || users.length === 0) {
             tbody.innerHTML = `
                         <tr>
-                            <td colspan="4" style="text-align: center; color: #888; padding: 30px;">
+                            <td colspan="4" style="text-align: center; color: rgba(45, 42, 38, 0.55); padding: 30px;">
                                 아직 가입한 회원이 없습니다.
                             </td>
                         </tr>
@@ -862,7 +853,7 @@
           console.log('profiles 테이블 조회 실패:', e.message);
           tbody.innerHTML = `
                     <tr>
-                        <td colspan="4" style="text-align: center; color: #888; padding: 30px;">
+                        <td colspan="4" style="text-align: center; color: rgba(45, 42, 38, 0.55); padding: 30px;">
                             profiles 테이블이 없습니다.<br>
                             <small>database/profiles-schema.sql을 실행하세요.</small>
                         </td>
@@ -885,7 +876,7 @@
 
           if (!logs || logs.length === 0) {
             container.innerHTML = `
-                        <div style="text-align: center; color: #888; padding: 20px;">
+                        <div style="text-align: center; color: rgba(45, 42, 38, 0.55); padding: 20px;">
                             아직 활동 기록이 없습니다.
                         </div>
                     `;
@@ -909,7 +900,7 @@
             .join('');
         } catch (e) {
           container.innerHTML = `
-                    <div style="text-align: center; color: #888; padding: 20px;">
+                    <div style="text-align: center; color: rgba(45, 42, 38, 0.55); padding: 20px;">
                         활동 로그 테이블이 아직 생성되지 않았습니다.<br>
                         <small>admin-schema.sql을 Supabase에서 실행하세요.</small>
                     </div>

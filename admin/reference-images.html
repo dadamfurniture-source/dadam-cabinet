@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111311"></script>
+    <script src="../js/admin-access.js?v=2026111312"></script>
     <script src="../js/reference-images.js"></script>
     <!--
       2026-10-08: 연출컷(ai-design.html) 「테마」 탭의 참고 이미지를 관리한다.
@@ -21,89 +21,89 @@
     -->
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; min-height: 100vh; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f6f3ee; min-height: 100vh; }
 
-      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000; }
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #2d2a26; color: rgba(246, 243, 238, 0.92); padding: 20px 0; z-index: 1000; }
       .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
       .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
-      .sidebar-logo span { font-size: 0.8rem; color: #888; }
+      .sidebar-logo span { font-size: 0.8rem; color: rgba(246, 243, 238, 0.42); }
       .nav-menu { list-style: none; }
-      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
-      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
-      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: rgba(246, 243, 238, 0.6); text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: rgba(246, 243, 238, 0.92); }
+      .nav-menu li a.active { border-left: 3px solid #8a7457; }
       .nav-icon { width: 20px; text-align: center; }
       .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
-      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 5px; font-size: 0.9rem; }
-      .sidebar-footer a:hover { background: rgba(255,255,255,0.2); color: white; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: rgba(246, 243, 238, 0.6); text-decoration: none; font-size: 0.9rem; }
+      .sidebar-footer a:hover { background: rgba(255,255,255,0.2); color: rgba(246, 243, 238, 0.92); }
 
       .main-content { margin-left: 250px; padding: 20px 30px; }
-      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid #ddd; }
-      .header h2 { font-size: 1.5rem; color: #333; }
-      .header p { font-size: 13px; color: #888; margin-top: 4px; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(45, 42, 38, 0.18); }
+      .header h2 { font-size: 1.5rem; color: #2d2a26; }
+      .header p { font-size: 13px; color: rgba(45, 42, 38, 0.55); margin-top: 4px; }
       .access-denied { display: none; text-align: center; padding: 60px 20px; }
-      .access-denied h2 { color: #dc3545; margin-bottom: 10px; }
+      .access-denied h2 { color: #93301f; margin-bottom: 10px; }
 
       .tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 2px solid #e5e5e5; }
-      .tab { background: none; border: none; padding: 10px 16px; font-size: 14px; font-family: inherit; color: #777; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
-      .tab[aria-selected="true"] { color: #007bff; border-bottom-color: #007bff; font-weight: 700; }
-      .tab .n { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px; border-radius: 10px; background: #eee; color: #555; font-size: 12px; }
-      .tab[aria-selected="true"] .n { background: #007bff; color: #fff; }
+      .tab { background: none; border: none; padding: 10px 16px; font-size: 14px; font-family: inherit; color: rgba(45, 42, 38, 0.55); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+      .tab[aria-selected="true"] { color: #0b2545; border-bottom-color: #0b2545; font-weight: 700; }
+      .tab .n { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px; background: #f1ece4; color: rgba(45, 42, 38, 0.62); font-size: 12px; }
+      .tab[aria-selected="true"] .n { background: #0b2545; color: #fff; }
       .tab.pending .n.has { background: #f59e0b; color: #fff; }
 
       .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-      .toolbar select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; min-width: 140px; }
-      .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; transition: opacity 0.2s; }
+      .toolbar select { padding: 8px 12px; border: 1px solid rgba(45, 42, 38, 0.18); font-size: 14px; font-family: inherit; min-width: 140px; }
+      .btn { padding: 8px 16px; border: none; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; transition: opacity 0.2s; }
       .btn:hover { opacity: 0.85; }
       .btn:disabled { opacity: 0.45; cursor: default; }
-      .btn-primary { background: #007bff; color: white; }
+      .btn-primary { background: #0b2545; color: white; }
       .btn-success { background: #16a34a; color: white; }
-      .btn-danger { background: #dc3545; color: white; }
-      .btn-light { background: #fff; color: #333; border: 1px solid #ddd; }
+      .btn-danger { background: #93301f; color: white; }
+      .btn-light { background: #fff; color: #2d2a26; border: 1px solid rgba(45, 42, 38, 0.18); }
 
-      .bulk-bar { display: none; background: #1f2937; color: white; padding: 10px 16px; border-radius: 8px; margin-bottom: 14px; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .bulk-bar { display: none; background: #1f2937; color: white; padding: 10px 16px; margin-bottom: 14px; align-items: center; gap: 10px; flex-wrap: wrap; }
       .bulk-bar.active { display: flex; }
       .bulk-bar .count { font-weight: 700; }
 
       .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-      .card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: relative; }
-      .card.selected { outline: 3px solid #007bff; }
+      .card { background: white; overflow: hidden; position: relative; }
+      .card.selected { outline: 3px solid #0b2545; }
       .card.inactive img { opacity: 0.35; }
-      .card img { width: 100%; height: 170px; object-fit: cover; display: block; background: #eee; cursor: pointer; }
-      .card .check { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; accent-color: #007bff; z-index: 2; cursor: pointer; }
-      .card .info { padding: 10px 12px 12px; font-size: 12px; color: #555; }
-      .card .theme { font-weight: 700; color: #007bff; font-size: 12px; }
-      .card .title { font-size: 13px; color: #222; margin: 3px 0; word-break: break-all; }
-      .card .note { color: #666; line-height: 1.5; margin-top: 4px; max-height: 54px; overflow: auto; }
-      .card .meta { color: #999; margin-top: 6px; font-size: 11px; }
-      .card .meta a { color: #999; }
+      .card img { width: 100%; height: 170px; object-fit: cover; display: block; background: #f1ece4; cursor: pointer; }
+      .card .check { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; accent-color: #0b2545; z-index: 2; cursor: pointer; }
+      .card .info { padding: 10px 12px 12px; font-size: 12px; color: rgba(45, 42, 38, 0.62); }
+      .card .theme { font-weight: 700; color: #0b2545; font-size: 12px; }
+      .card .title { font-size: 13px; color: #2d2a26; margin: 3px 0; word-break: break-all; }
+      .card .note { color: rgba(45, 42, 38, 0.62); line-height: 1.5; margin-top: 4px; max-height: 54px; overflow: auto; }
+      .card .meta { color: rgba(45, 42, 38, 0.45); margin-top: 6px; font-size: 11px; }
+      .card .meta a { color: rgba(45, 42, 38, 0.45); }
       .card .badges { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; }
-      .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: rgba(255,255,255,0.92); color: #333; }
-      .badge.warn { background: #fef3c7; color: #92400e; }
+      .badge { font-size: 10px; padding: 2px 6px; font-weight: 700; background: rgba(255,255,255,0.92); color: #2d2a26; }
+      .badge.warn { background: #fef3c7; color: #6f4c0c; }
       .badge.off { background: #374151; color: #fff; }
       .card .row { display: flex; gap: 6px; margin-top: 8px; }
       .card .row .btn { padding: 5px 10px; font-size: 12px; flex: 1; }
       .card .err { color: #dc2626; margin-top: 6px; }
 
-      .empty-state { text-align: center; padding: 60px; color: #888; line-height: 1.7; }
-      .loading { text-align: center; padding: 40px; color: #888; }
+      .empty-state { text-align: center; padding: 60px; color: rgba(45, 42, 38, 0.55); line-height: 1.7; }
+      .loading { text-align: center; padding: 40px; color: rgba(45, 42, 38, 0.55); }
 
       .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
       .modal-overlay.active { display: flex; }
-      .modal { background: white; border-radius: 12px; width: 100%; max-width: 560px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
-      .modal-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-      .modal-header h3 { font-size: 16px; color: #333; }
-      .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #888; }
-      .modal-body { padding: 20px; overflow-y: auto; font-size: 14px; color: #444; line-height: 1.6; }
-      .modal-footer { padding: 12px 20px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; background: #fafafa; }
+      .modal { background: white; width: 100%; max-width: 560px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+      .modal-header { padding: 16px 20px; border-bottom: 1px solid rgba(45, 42, 38, 0.1); display: flex; justify-content: space-between; align-items: center; }
+      .modal-header h3 { font-size: 16px; color: #2d2a26; }
+      .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: rgba(45, 42, 38, 0.55); }
+      .modal-body { padding: 20px; overflow-y: auto; font-size: 14px; color: #2d2a26; line-height: 1.6; }
+      .modal-footer { padding: 12px 20px; border-top: 1px solid rgba(45, 42, 38, 0.1); display: flex; gap: 8px; justify-content: flex-end; background: #f7f4ef; }
       .form-field { margin-bottom: 14px; }
-      .form-field label { display: block; font-size: 13px; font-weight: 500; color: #444; margin-bottom: 6px; }
-      .form-field textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; }
-      .form-field input[type="text"], .form-field select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+      .form-field label { display: block; font-size: 13px; font-weight: 500; color: #2d2a26; margin-bottom: 6px; }
+      .form-field textarea { width: 100%; padding: 8px 10px; border: 1px solid rgba(45, 42, 38, 0.18); font-size: 14px; font-family: inherit; resize: vertical; }
+      .form-field input[type="text"], .form-field select { width: 100%; padding: 8px 10px; border: 1px solid rgba(45, 42, 38, 0.18); font-size: 14px; font-family: inherit; }
       .form-field input[type="file"] { width: 100%; padding: 6px; }
-      .hint { font-size: 12px; color: #888; margin-top: 4px; }
-      .progress { margin-top: 10px; font-size: 13px; color: #007bff; white-space: pre-line; }
-      .progress .err, .err { color: #dc3545; }
-      .skip-list { margin-top: 8px; font-size: 12px; color: #92400e; max-height: 140px; overflow: auto; background: #fffbeb; border-radius: 6px; padding: 8px 10px; }
+      .hint { font-size: 12px; color: rgba(45, 42, 38, 0.55); margin-top: 4px; }
+      .progress { margin-top: 10px; font-size: 13px; color: #0b2545; white-space: pre-line; }
+      .progress .err, .err { color: #93301f; }
+      .skip-list { margin-top: 8px; font-size: 12px; color: #6f4c0c; max-height: 140px; overflow: auto; background: #fffbeb; padding: 8px 10px; }
 
       @media (max-width: 768px) {
         .sidebar { display: none; }
@@ -117,7 +117,7 @@
     <nav class="sidebar">
       <div class="sidebar-logo"><h1>다담가구</h1><span>관리자 패널</span></div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111311"></script>
+      <script src="../js/admin-shell.js?v=2026111312"></script>
       <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
     </nav>
 
@@ -134,7 +134,7 @@
             <h2>참고 이미지 관리</h2>
             <p>연출컷 「테마」 탭에 보이는 색감 참고 사진입니다. 「사용 중」인 사진만 손님 화면에 나옵니다.</p>
           </div>
-          <div id="adminInfo" style="font-size:13px;color:#888;"></div>
+          <div id="adminInfo" style="font-size:13px;color:rgba(45, 42, 38, 0.55);"></div>
         </div>
 
         <div class="tabs" role="tablist">
@@ -201,7 +201,7 @@
       <div class="modal">
         <div class="modal-header"><h3>참고 이미지 수정</h3><button class="modal-close" data-close="editModal">×</button></div>
         <div class="modal-body">
-          <img id="edImg" alt="" style="width:100%;max-height:220px;object-fit:contain;background:#f3f3f3;border-radius:8px;margin-bottom:14px;">
+          <img id="edImg" alt="" style="width:100%;max-height:220px;object-fit:contain;background:#f3f3f3;margin-bottom:14px;">
           <div class="form-field">
             <label>테마</label>
             <select id="edTheme"></select>
@@ -309,7 +309,7 @@
           .range(0, 4999);
         if (error) {
           $('gridHost').innerHTML = '<div class="empty-state err">불러오지 못했습니다: ' + esc(error.message)
-            + '<br><span style="color:#888">표가 아직 없다면 database/reference-images.sql 을 Supabase SQL Editor 에서 실행해 주세요.</span></div>';
+            + '<br><span style="color:rgba(45, 42, 38, 0.55)">표가 아직 없다면 database/reference-images.sql 을 Supabase SQL Editor 에서 실행해 주세요.</span></div>';
           return;
         }
         S.rows = data || [];

@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111311"></script>
+    <script src="../js/admin-access.js?v=2026111312"></script>
     <style>
       * {
         margin: 0;
@@ -21,7 +21,7 @@
       }
       body {
         font-family: 'Noto Sans KR', sans-serif;
-        background-color: #f5f5f5;
+        background-color: #f6f3ee;
         min-height: 100vh;
       }
 
@@ -32,8 +32,8 @@
         top: 0;
         width: 250px;
         height: 100vh;
-        background: #1a1a2e;
-        color: white;
+        background: #2d2a26;
+        color: rgba(246, 243, 238, 0.92);
         padding: 20px 0;
         z-index: 1000;
       }
@@ -48,7 +48,7 @@
       }
       .sidebar-logo span {
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(246, 243, 238, 0.42);
       }
       .nav-menu {
         list-style: none;
@@ -58,17 +58,17 @@
         align-items: center;
         gap: 12px;
         padding: 12px 20px;
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
         transition: all 0.3s;
       }
       .nav-menu li a:hover,
       .nav-menu li a.active {
         background: rgba(255, 255, 255, 0.1);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
       .nav-menu li a.active {
-        border-left: 3px solid #007bff;
+        border-left: 3px solid #8a7457;
       }
       .nav-icon {
         width: 20px;
@@ -86,14 +86,13 @@
         padding: 10px;
         text-align: center;
         background: rgba(255, 255, 255, 0.1);
-        color: #aaa;
+        color: rgba(246, 243, 238, 0.6);
         text-decoration: none;
-        border-radius: 5px;
         font-size: 0.9rem;
       }
       .sidebar-footer a:hover {
         background: rgba(255, 255, 255, 0.2);
-        color: white;
+        color: rgba(246, 243, 238, 0.92);
       }
 
       /* Main Content */
@@ -109,11 +108,11 @@
         align-items: center;
         margin-bottom: 30px;
         padding-bottom: 20px;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.18);
       }
       .header h2 {
         font-size: 1.5rem;
-        color: #333;
+        color: #2d2a26;
       }
 
       /* Filters */
@@ -124,8 +123,6 @@
         flex-wrap: wrap;
         background: white;
         padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       }
       .filter-group {
         display: flex;
@@ -134,43 +131,39 @@
       }
       .filter-group label {
         font-size: 0.9rem;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
         white-space: nowrap;
       }
       .filter-group input,
       .filter-group select {
         padding: 8px 12px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         font-size: 0.9rem;
         font-family: inherit;
       }
       .btn {
         padding: 8px 16px;
         border: none;
-        border-radius: 5px;
         font-size: 0.9rem;
         cursor: pointer;
         font-family: inherit;
         transition: all 0.3s;
       }
       .btn-primary {
-        background: #007bff;
+        background: #0b2545;
         color: white;
       }
       .btn-primary:hover {
-        background: #0056b3;
+        background: #2d2a26;
       }
       .btn-secondary {
-        background: #6c757d;
+        background: #5f5a53;
         color: white;
       }
 
       /* Card */
       .card {
         background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       }
       .card-body {
         padding: 0;
@@ -184,11 +177,11 @@
         display: flex;
         gap: 16px;
         padding: 20px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(45, 42, 38, 0.1);
         transition: background 0.2s;
       }
       .log-item:hover {
-        background: #fafafa;
+        background: #f7f4ef;
       }
       .log-item:last-child {
         border-bottom: none;
@@ -197,7 +190,6 @@
       .log-icon {
         width: 44px;
         height: 44px;
-        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -205,16 +197,16 @@
         flex-shrink: 0;
       }
       .log-icon.user {
-        background: #e3f2fd;
-        color: #1976d2;
+        background: #eceef2;
+        color: #0b2545;
       }
       .log-icon.tier {
-        background: #fff3e0;
-        color: #f57c00;
+        background: #fbefd4;
+        color: #6f4c0c;
       }
       .log-icon.consultation {
-        background: #e8f5e9;
-        color: #388e3c;
+        background: #eaf2ed;
+        color: #2f6b4f;
       }
       .log-icon.system {
         background: #f3e5f5;
@@ -236,18 +228,17 @@
       }
       .log-action {
         font-weight: 500;
-        color: #333;
+        color: #2d2a26;
       }
       .log-badge {
         padding: 2px 8px;
-        border-radius: 4px;
         font-size: 0.7rem;
-        background: #e0e0e0;
-        color: #616161;
+        background: #f1ece4;
+        color: rgba(45, 42, 38, 0.62);
       }
       .log-description {
         font-size: 0.9rem;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
         margin-bottom: 8px;
         line-height: 1.5;
       }
@@ -255,7 +246,7 @@
         display: flex;
         gap: 16px;
         font-size: 0.8rem;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
       .log-meta span {
         display: flex;
@@ -266,17 +257,16 @@
       .log-changes {
         margin-top: 10px;
         padding: 12px;
-        background: #f5f5f5;
-        border-radius: 6px;
+        background: #f6f3ee;
         font-size: 0.85rem;
         font-family: monospace;
       }
       .log-changes .old {
-        color: #c62828;
+        color: #93301f;
         text-decoration: line-through;
       }
       .log-changes .new {
-        color: #2e7d32;
+        color: #2f6b4f;
       }
 
       /* Pagination */
@@ -286,18 +276,17 @@
         align-items: center;
         gap: 10px;
         padding: 20px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid rgba(45, 42, 38, 0.1);
       }
       .pagination button {
         padding: 8px 15px;
-        border: 1px solid #ddd;
+        border: 1px solid rgba(45, 42, 38, 0.18);
         background: white;
-        border-radius: 5px;
         cursor: pointer;
         font-family: inherit;
       }
       .pagination button:hover:not(:disabled) {
-        background: #f5f5f5;
+        background: #f6f3ee;
       }
       .pagination button:disabled {
         opacity: 0.5;
@@ -305,18 +294,18 @@
       }
       .pagination span {
         font-size: 0.9rem;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
 
       /* Empty State */
       .empty-state {
         text-align: center;
         padding: 60px 20px;
-        color: #888;
+        color: rgba(45, 42, 38, 0.55);
       }
       .empty-state h4 {
         margin-bottom: 10px;
-        color: #666;
+        color: rgba(45, 42, 38, 0.62);
       }
 
       /* Access Denied */
@@ -327,7 +316,7 @@
       }
       .access-denied h2 {
         font-size: 1.5rem;
-        color: #c62828;
+        color: #93301f;
         margin-bottom: 15px;
       }
 
@@ -362,7 +351,7 @@
         <span>관리자 패널</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111311"></script>
+      <script src="../js/admin-shell.js?v=2026111312"></script>
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
       </div>
@@ -546,7 +535,7 @@
                     <div class="empty-state">
                         <h4>로그를 불러올 수 없습니다</h4>
                         <p>${esc(e.message)}</p>
-                        <p style="font-size:0.85rem;color:#888;margin-top:10px;">
+                        <p style="font-size:0.85rem;color:rgba(45, 42, 38, 0.55);margin-top:10px;">
                             admin_logs 테이블이 생성되어 있는지 확인하세요.<br>
                             database/admin-schema.sql을 Supabase에서 실행하세요.
                         </p>

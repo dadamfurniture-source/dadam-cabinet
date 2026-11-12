@@ -13,24 +13,24 @@
   'use strict';
 
   const ADMIN_NAV = [
-    { href: 'index.html', icon: '📊', label: '대시보드' },
-    { href: 'management.html', icon: '📈', label: '경영 대시보드' },
-    { href: 'counterparties.html', icon: '🤝', label: '거래처 · 공급처' },
-    { href: 'users.html', icon: '👥', label: '회원 관리' },
-    { href: 'gallery.html', icon: '🖼️', label: '시공사례 관리' },
-    { href: 'reference-images.html', icon: '🎨', label: '참고 이미지' },
-    { href: 'dataset.html', icon: '🧠', label: '학습 데이터셋' },
-    { href: 'expert-requests.html', icon: '⭐', label: '팩토리 신청' },
-    { href: 'partner-eval.html', icon: '🏅', label: '팩토리 평가' },
-    { href: 'consult-distribution.html', icon: '🔀', label: '상담 분배' },
-    { href: 'consultations.html', icon: '💬', label: '상담 관리' },
-    { href: 'order-reports.html', icon: '📸', label: '완료 보고' },
-    { href: 'as-requests.html', icon: '🛠️', label: 'A/S 접수' },
-    { href: 'appliances.html', icon: '🧊', label: '가전 모델 관리' },
-    { href: 'work-reports.html', icon: '📑', label: '작업 지시 보고' },
-    { href: 'work-jobs.html', icon: '🧰', label: '작업 배정' },
-    { href: 'logs.html', icon: '📋', label: '활동 로그' },
-    { href: 'settings.html', icon: '⚙️', label: '설정' },
+    { href: 'index.html', label: '대시보드' },
+    { href: 'management.html', label: '경영 대시보드' },
+    { href: 'counterparties.html', label: '거래처 · 공급처' },
+    { href: 'users.html', label: '회원 관리' },
+    { href: 'gallery.html', label: '시공사례 관리' },
+    { href: 'reference-images.html', label: '참고 이미지' },
+    { href: 'dataset.html', label: '학습 데이터셋' },
+    { href: 'expert-requests.html', label: '팩토리 신청' },
+    { href: 'partner-eval.html', label: '팩토리 평가' },
+    { href: 'consult-distribution.html', label: '상담 분배' },
+    { href: 'consultations.html', label: '상담 관리' },
+    { href: 'order-reports.html', label: '완료 보고' },
+    { href: 'as-requests.html', label: 'A/S 접수' },
+    { href: 'appliances.html', label: '가전 모델 관리' },
+    { href: 'work-reports.html', label: '작업 지시 보고' },
+    { href: 'work-jobs.html', label: '작업 배정' },
+    { href: 'logs.html', label: '활동 로그' },
+    { href: 'settings.html', label: '설정' },
   ];
 
   /**
@@ -55,10 +55,7 @@
         a.className = 'active';
         a.setAttribute('aria-current', 'page');
       }
-      const icon = document.createElement('span');
-      icon.className = 'nav-icon';
-      icon.textContent = item.icon;
-      a.appendChild(icon);
+      // 글만 — 앱 메뉴와 같다 (그림 글자 아이콘을 쓰지 않는다)
       a.appendChild(document.createTextNode(item.label));
       li.appendChild(a);
       ul.appendChild(li);
