@@ -410,6 +410,26 @@ describe('segan/shell.css — v5 토큰과 같은 값', () => {
       expect({ name, value }).toEqual({ name, value: v5[name] });
   });
 
+  test('유리는 토큰으로만 — 위 막대 · 아래 탭, 못 쓰는 곳은 불투명', () => {
+    const css = read('segan/shell.css').replace(/\r\n/g, '\n');
+    const rule = (sel) => css.split(`\n${sel} {`)[1].split('\n}')[0];
+    for (const sel of ['.sg-header', '.sg-tabbar']) {
+      const body = rule(sel);
+      expect([sel, /background:\s*var\(--v5-glass\);/.test(body)]).toEqual([sel, true]);
+      expect([sel, /\n\s*backdrop-filter:\s*var\(--v5-blur\);/.test(body)]).toEqual([sel, true]);
+      expect([sel, /-webkit-backdrop-filter:\s*var\(--v5-blur\);/.test(body)]).toEqual([sel, true]);
+    }
+    // 흐림 값은 토큰 한 곳에만 적는다
+    expect(css.match(/blur\(\d+px\)/g)).toEqual(['blur(20px)', 'blur(1px)', 'blur(1px)']);
+    const solid = (block) =>
+      /\.sg-header,\s*\.sg-tabbar\s*\{[^}]*background:\s*var\(--v5-glass-solid\);/.test(block);
+    const after = (mark) => css.split(mark)[1].split('\n}\n')[0];
+    expect(solid(after('@supports not ((backdrop-filter: blur(1px))'))).toBe(true);
+    const calm = after('@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)');
+    expect(solid(calm)).toBe(true);
+    expect(calm).toMatch(/\n\s*backdrop-filter:\s*none;/);
+  });
+
   test('라운드 · 섀도 없음', () => {
     const css = read('segan/shell.css');
     expect(css).not.toMatch(/box-shadow\s*:/);

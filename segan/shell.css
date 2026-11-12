@@ -34,6 +34,10 @@
   --v5-on-dark-12: rgba(246, 243, 238, 0.12);
   --v5-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --v5-display: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
+  /* 유리 — 떠 있는 층(위 막대 · 아래 탭)에만. 세기 「옅게」 (2026-11-12 정함) */
+  --v5-glass: rgba(246, 243, 238, 0.78);
+  --v5-glass-solid: #f6f3ee; /* 유리를 못 쓰는 곳의 불투명 바탕 */
+  --v5-blur: blur(20px) saturate(1.6);
 
   /* 앱 셸 치수 (v5 에 없는 것만 sg- 로) */
   --sg-px: 20px; /* 좌우 여백 — 폰 */
@@ -194,9 +198,9 @@ button.sg-row:active {
   min-height: calc(var(--sg-bar) + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) max(var(--sg-px), env(safe-area-inset-right)) 0
     max(var(--sg-px), env(safe-area-inset-left));
-  background: rgba(246, 243, 238, 0.94);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: var(--v5-glass);
+  -webkit-backdrop-filter: var(--v5-blur);
+  backdrop-filter: var(--v5-blur);
   border-bottom: 1px solid var(--v5-line);
 }
 
@@ -247,9 +251,9 @@ button.sg-row:active {
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  background: rgba(246, 243, 238, 0.97);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: var(--v5-glass);
+  -webkit-backdrop-filter: var(--v5-blur);
+  backdrop-filter: var(--v5-blur);
   border-top: 1px solid var(--v5-line-12);
 }
 
@@ -5640,6 +5644,24 @@ body.sg-locked {
 
   .sg-ai-input {
     font-size: 14px;
+  }
+}
+
+/* ── 유리를 못 쓰는 곳 — 불투명 바탕으로 (CLAUDE.md 「SEGAN 앱 모션 규칙」) ──
+   흐림을 모르는 브라우저 · 「투명도 줄이기」 · 「대비 높임」 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sg-header,
+  .sg-tabbar {
+    background: var(--v5-glass-solid);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .sg-header,
+  .sg-tabbar {
+    background: var(--v5-glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 

@@ -59,6 +59,11 @@
   --v5-on-dark-42: rgba(246, 243, 238, 0.42);
   --v5-on-dark-12: rgba(246, 243, 238, 0.12);
 
+  /* ── 유리 — 떠 있는 층에만. 세기 「옅게」 (앱 셸과 같은 값) ── */
+  --v5-glass: rgba(246, 243, 238, 0.78);
+  --v5-glass-solid: #f6f3ee; /* 유리를 못 쓰는 곳의 불투명 바탕 */
+  --v5-blur: blur(20px) saturate(1.6);
+
   /* ── 타이포 ── */
   --v5-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --v5-display: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
