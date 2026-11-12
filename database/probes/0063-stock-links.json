@@ -1,0 +1,200 @@
+{
+  "title": "0063 작업지시 자재 ↔ 재고 — 짝표 · 수주 자재 출고. 두 표 모두 서버만, 같은 수주는 한 번만 출고, 모자라면 아무것도 안 바뀐다 (scripts/rls-probe.mjs --migration database/migrations/0063_stock_links.sql — 0059 적용 뒤). 출고는 준비 단계에서 하고 칸에서는 결과를 읽는다",
+  "ids": [
+    "company_x",
+    "company_y",
+    "design_a",
+    "snap_a",
+    "doc_a",
+    "order_a",
+    "design_b",
+    "snap_b",
+    "doc_b",
+    "order_b",
+    "item_a",
+    "item_b",
+    "item_y",
+    "link_a"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_a}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_a}}, {{design_a}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_a}}, {{design_a}}, {{snap_a}}, 'work_order', 1, 'probe-' || {{doc_a}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_a}}, 'probe-' || {{order_a}}::text, {{design_a}}, {{doc_a}}, {{snap_a}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_b}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_b}}, {{design_b}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_b}}, {{design_b}}, {{snap_b}}, 'work_order', 1, 'probe-' || {{doc_b}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_b}}, 'probe-' || {{order_b}}::text, {{design_b}}, {{doc_b}}, {{snap_b}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.stock_items (id, company_id, kind, name, unit, qty) VALUES ({{item_a}}, {{company_x}}, 'board', 'probe PB 15T', '장', 40), ({{item_b}}, {{company_x}}, 'hardware', 'probe 경첩', '개', 5), ({{item_y}}, {{company_y}}, 'board', 'probe 남의 PB', '장', 9)",
+    "INSERT INTO public.stock_links (id, company_id, kind, match_key, label, item_id) VALUES ({{link_a}}, {{company_x}}, 'board', 'B|PB|15', 'PB 15T', {{item_a}})",
+    "INSERT INTO public.stock_links (company_id, kind, match_key, label, ignored) VALUES ({{company_x}}, 'hardware', 'H|기타|실리콘', '기타 · 실리콘', true)",
+    "SELECT public.stock_issue({{company_x}}, {{order_a}}, 'probe-order', jsonb_build_array(jsonb_build_object('item_id', {{item_a}}, 'qty', 10), jsonb_build_object('item_id', {{item_b}}, 'qty', 5)), {{x_owner_user}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "짝표 읽기 — 서버만 (대표도 브라우저로는 못 읽는다)",
+      "sql": "select count(*) from public.stock_links where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "출고 기록 읽기 — 서버만",
+      "sql": "select count(*) from public.stock_issues where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "같은 자재 키는 업체 안에서 한 번만",
+      "sql": "insert into public.stock_links (company_id, kind, match_key, label, item_id) values ({{company_x}}, 'board', 'B|PB|15', 'PB 15T', {{item_a}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "품목도 있고 다루지 않음도 켠 줄은 거절",
+      "sql": "insert into public.stock_links (company_id, kind, match_key, label, item_id, ignored) values ({{company_x}}, 'board', 'B|MDF|18', 'MDF 18T', {{item_a}}, true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "품목도 없고 다루지 않음도 아닌 줄은 거절",
+      "sql": "insert into public.stock_links (company_id, kind, match_key, label) values ({{company_x}}, 'board', 'B|MDF|18', 'MDF 18T')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "남의 업체 품목과는 못 짝짓는다",
+      "sql": "insert into public.stock_links (company_id, kind, match_key, label, item_id) values ({{company_x}}, 'board', 'B|MDF|18', 'MDF 18T', {{item_y}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "짝 풀기 — 서버는 줄을 지운다",
+      "sql": "delete from public.stock_links where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "출고(준비 단계: 판재 10 · 철물 5) — 재고가 그만큼 준다",
+      "sql": "select (select qty from public.stock_items where id = {{item_a}}) || '/' || (select qty from public.stock_items where id = {{item_b}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "30.00/0.00"
+      }
+    },
+    {
+      "name": "출고 기록에 수주 글이 남는다 (줄 수 / 기록 수)",
+      "sql": "select (select line_count from public.stock_issues where order_id = {{order_a}}) || '/' || (select count(*) from public.stock_moves where company_id = {{company_x}} and kind = 'out' and ref_label = 'probe-order')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2/2"
+      }
+    },
+    {
+      "name": "같은 수주는 두 번 출고 못 한다",
+      "sql": "select public.stock_issue({{company_x}}, {{order_a}}, 'again', jsonb_build_array(jsonb_build_object('item_id', {{item_a}}, 'qty', 1)), NULL)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "재고가 모자라면 거절",
+      "sql": "select public.stock_issue({{company_x}}, {{order_b}}, 'probe-b', jsonb_build_array(jsonb_build_object('item_id', {{item_a}}, 'qty', 1), jsonb_build_object('item_id', {{item_b}}, 'qty', 1)), NULL)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "모자라서 거절된 출고는 기록도 남지 않는다 (수주 b 는 아직 출고 전)",
+      "sql": "select count(*) from public.stock_issues where order_id = {{order_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "남의 업체 id 로는 그 수주를 출고 못 한다",
+      "sql": "select public.stock_issue({{company_y}}, {{order_b}}, 'x', jsonb_build_array(jsonb_build_object('item_id', {{item_y}}, 'qty', 1)), NULL)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "출고 함수 — 구성원은 못 부른다",
+      "sql": "select public.stock_issue({{company_x}}, {{order_b}}, 'x', jsonb_build_array(jsonb_build_object('item_id', {{item_a}}, 'qty', 1)), NULL)",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "출고 기록은 서버도 지우지 못한다",
+      "sql": "delete from public.stock_issues where company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    }
+  ]
+}
