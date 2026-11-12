@@ -47,6 +47,8 @@ const SUP_B = rid(22);
 const PARTNER_A = rid(23);
 
 const NOW = Date.parse('2026-11-12T03:00:00.000Z');
+// 서버는 지금 시각을 Date.now() 로 읽는다 — 시험이 실제 날짜에 흔들리지 않게 고정한다 (파일마다 따로 도는 프로세스)
+Date.now = () => NOW;
 const at = (d) => `2026-11-${String(d).padStart(2, '0')}T09:00:00.000Z`;
 
 function tables() {
