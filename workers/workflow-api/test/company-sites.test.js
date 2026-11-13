@@ -53,6 +53,9 @@ function tables() {
       { user_id: FREE_OWNER, company_id: FREE, role: 'owner', status: 'active' },
     ],
     admin_roles: [],
+    // 일정에 배정된 작업자 (src/work/schedule-link.js — 이 파일의 시험에서는 비어 있다. 배정은 company-schedule-workers.test.js)
+    work_jobs: [],
+    work_assignments: [],
     consultations: [],
     order_payments: [],
     projects: [
@@ -218,6 +221,7 @@ test('설치 목록 — 납품 · 설치만, 날짜 차례, 취소 · 기간 밖
     at: iso('2026-11-12T09:00:00'),
     status: 'scheduled',
     assignee_name: '설치 1팀',
+    workers: [],
     design: { id: D(1), name: '예시 설계 1' },
     project_id: P(1),
     project_title: '예시 프로젝트 1',
@@ -313,6 +317,7 @@ test('A/S 목록 — 새 것부터, 거둔 것 · 다른 업체는 없다, 방�
     at: iso('2026-11-14T15:00:00'),
     assignee_name: '박기사',
     status: 'confirmed',
+    workers: [],
   });
   // 긴 증상 글은 줄인다
   assert.equal(visiting.body.length, 201);
@@ -400,7 +405,7 @@ test('A/S 방문 일정 — 처음이면 일정 표에 as_visit 한 줄을 만�
   assert.ok(made);
   assert.deepEqual(r.json.data, {
     id: AS(1),
-    visit: { schedule_id: made.id, day: '2026-11-16', time: '10:30', at: VISIT_AT, assignee_name: '박기사', status: 'scheduled' },
+    visit: { schedule_id: made.id, day: '2026-11-16', time: '10:30', at: VISIT_AT, assignee_name: '박기사', status: 'scheduled', workers: [] },
   });
   assert.equal(made.design_id, D(1));
   assert.equal(made.title, 'A/S 방문');
@@ -422,7 +427,7 @@ test('A/S 방문 일정 — 이미 있으면 그 줄을 고친다 (취소했던 
   const before = fake.db.design_schedules.length;
   const r = await put(fake, 't_owner', `/company/as-requests/${AS(2)}/visit`, { visit_at: VISIT_AT });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.json.data.visit, { schedule_id: S(20), day: '2026-11-16', time: '10:30', at: VISIT_AT, assignee_name: null, status: 'confirmed' });
+  assert.deepEqual(r.json.data.visit, { schedule_id: S(20), day: '2026-11-16', time: '10:30', at: VISIT_AT, assignee_name: null, status: 'confirmed', workers: [] });
   assert.equal(fake.db.design_schedules.length, before);
 
   fake.db.design_schedules.find((s) => s.id === S(20)).status = 'cancelled';
