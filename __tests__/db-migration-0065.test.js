@@ -104,5 +104,12 @@ describe('0065 — 작업 종류 넓히기 · 프로젝트의 작업', () => {
     expect(probe.checks.length).toBeGreaterThanOrEqual(18);
     // 확인표는 함수 호출과 읽기를 한 문장에 섞지 않는다 — 이 확인표에는 우리 함수 호출이 아예 없다
     for (const c of probe.checks) expect(c.sql).not.toMatch(/public\.\w+\(/);
+    // 「남의 업체 프로젝트」 칸은 외래 키(23503)를 본다 — 그 프로젝트에 살아 있는 작업이 있는 종류로 넣으면
+    // 유니크(23505)가 먼저 난다 (2026-11-13 실DB 미리 보기에서 어긋났다). 준비 단계에 없는 종류로 넣는다
+    const other = probe.checks.find((c) => c.name.startsWith('남의 업체 프로젝트에는 작업을 잇지 못한다'));
+    expect(other.expect.service_role).toBe('err:23503');
+    const kind = other.sql.match(/values \('(\w+)'/)[1];
+    expect(other.sql).toContain('{{company_y}}, {{project_x}}');
+    for (const s of probe.setup) expect(s).not.toContain(`'${kind}'`);
   });
 });
