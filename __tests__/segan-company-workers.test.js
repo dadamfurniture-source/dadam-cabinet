@@ -259,6 +259,12 @@ async function load(options = {}) {
       store.invites = store.invites.filter((v) => v.id !== revoke[1]);
       return reply(ok({ id: revoke[1], revoked: true }));
     }
+    const noteAt = /\/company\/workers\/([^/]+)\/notes$/.exec(url);
+    if (noteAt && method === 'POST')
+      return reply(opts.note ? opts.note(body, noteAt[1]) : fail(404, 'not_found', 'x'));
+    const one = /\/company\/workers\/([^/]+)$/.exec(url);
+    if (one && method === 'GET' && one[1] !== 'invites')
+      return reply(opts.one ? opts.one(one[1]) : fail(404, 'not_found', '연결을 찾을 수 없습니다'));
     const patch = /\/company\/workers\/([^/]+)$/.exec(url);
     if (patch && method === 'PATCH') {
       if (opts.patch) {
@@ -394,6 +400,7 @@ describe('자리 · 이름', () => {
       reason: '',
       active: 2,
       phone: '',
+      endedBy: '',
     });
     expect(W.inviteOf({ id: 'bad id' })).toBeNull();
     expect(W.STATUS).toEqual({
@@ -438,7 +445,10 @@ describe('작업자 — 대표 · 실장', () => {
     expect(closed.tagName).toBe('DETAILS');
     expect(closed.open).toBe(false);
     expect(text(closed.querySelector('summary'))).toBe('반려 · 끝난 연결 1');
-    expect(closed.querySelectorAll('[data-act]').length).toBe(0);
+    // 접어 둔 줄에는 이름 단추(이력 보기)만 있다
+    expect(
+      [...closed.querySelectorAll('[data-act]')].map((b) => b.getAttribute('data-act'))
+    ).toEqual(['open']);
     expect(box().textContent).not.toContain('모르는 상태');
   });
 
@@ -627,7 +637,10 @@ describe('누가 무엇을', () => {
     expect(seen('companyWorkers')).toBe(true);
     expect(menu('workers').hidden).toBe(false);
     expect(box().querySelector('.cw-tabs')).toBeNull();
-    expect(box().querySelectorAll('[data-act]').length).toBe(0);
+    // 직원에게는 이름 단추(이력 보기)만 있다
+    expect([
+      ...new Set([...box().querySelectorAll('[data-act]')].map((b) => b.getAttribute('data-act'))),
+    ]).toEqual(['open']);
     expect([...group('approved').querySelectorAll('th')].map(text)).toEqual([
       '작업자',
       '종류',
@@ -711,8 +724,8 @@ describe('누가 무엇을', () => {
 });
 
 // ── 2026-11-13 둘째 묶음 — 작업 종류 여섯 · 작업자 화면으로 가는 줄 ──
-describe('작업 종류 여섯 · 작업자 화면', () => {
-  test('초대의 종류는 일하는 차례로 여섯 (철거 · 재단 · 엣지 · 조립 · 설치 · A/S) · 작업자 화면으로 가는 줄', async () => {
+describe('작업 종류 일곱 · 작업자 화면', () => {
+  test('초대의 종류는 일하는 차례로 일곱 (철거 · 재단 · 엣지 · 조립 · 납품 · 설치 · A/S) · 작업자 화면으로 가는 줄', async () => {
     const calls = await load();
     const note = box().querySelector('[data-cw="worker-screen"]');
     expect(text(note)).toContain('작업자는 앱 「작업」 화면에서 초대를 받고 수락 · 보고합니다.');
@@ -726,6 +739,7 @@ describe('작업 종류 여섯 · 작업자 화면', () => {
       '재단',
       '엣지',
       '조립',
+      '납품',
       '설치',
       'A/S',
     ]);
@@ -798,10 +812,317 @@ describe('확인 안 한 완료 보고', () => {
           null,
         ],
       })
-    ).toEqual({ total: 2, items: [{ kind: 'install', at: '2026-11-19T00:00:00Z', where: 'install' }] });
+    ).toEqual({
+      total: 2,
+      items: [{ kind: 'install', at: '2026-11-19T00:00:00Z', where: 'install' }],
+    });
     expect(M.waitOf(null)).toEqual({ total: 0, items: [] });
     expect(M.waitOf({ total: -1, items: 'x' })).toEqual({ total: 0, items: [] });
     // 건수가 줄 수보다 작게 오면 줄 수로
     expect(M.waitOf({ total: 0, items: [{ kind: 'as', at: null, where: 'as' }] }).total).toBe(1);
+  });
+});
+
+// ── 2026-11-14 작업자가 끊은 연결 · 작업자 한 명의 이력 · 메모 ─────────────────
+describe('이력 · 메모', () => {
+  const DETAIL = (extra = {}) => ({
+    link_id: 'l-3',
+    name: '예시 <b>이설치</b>',
+    kinds: ['install', 'delivery'],
+    region: '대구 수성구',
+    status: 'approved',
+    account_status: 'approved',
+    via: 'invite',
+    since: '2026-11-01T02:00:00Z',
+    decided_at: '2026-11-02T02:00:00Z',
+    reason: null,
+    can_manage: true,
+    phone: '010-0000-0003',
+    counts: { done: 2, working: 1, offered: 0, declined: 1, released: 0, removed: 1, no_show: 1 },
+    jobs: [
+      {
+        kind: 'install',
+        label: '설치',
+        at: '2026-11-20T00:00:00Z',
+        status: 'confirmed',
+        status_label: '확정',
+        where: 'install',
+        project: null,
+        no_show: false,
+      },
+      {
+        kind: 'cutting',
+        label: '재단',
+        at: null,
+        status: 'accepted',
+        status_label: '확인함',
+        where: 'project',
+        project: '예시 <i>주방</i>',
+        no_show: false,
+      },
+      {
+        kind: 'delivery',
+        label: '납품',
+        at: '2026-11-05T05:00:00Z',
+        status: 'removed',
+        status_label: '뺌',
+        where: 'delivery',
+        project: null,
+        no_show: true,
+      },
+      { kind: 'paint', at: null, status: 'accepted', where: 'project' }, // 모르는 종류 — 뺀다
+    ],
+    events: [
+      {
+        type: 'link_left',
+        from: 'approved',
+        to: 'ended',
+        by: 'worker',
+        at: '2026-11-10T02:00:00Z',
+      },
+      {
+        type: 'link_status_changed',
+        from: 'pending',
+        to: 'approved',
+        by: 'member',
+        at: '2026-11-02T02:00:00Z',
+      },
+      {
+        type: 'link_requested',
+        from: null,
+        to: 'pending',
+        by: 'worker',
+        at: '2026-11-01T02:00:00Z',
+      },
+      { type: 'weird', by: 'member', at: '2026-11-01T02:00:00Z' },
+    ],
+    notes: [
+      {
+        id: 'n-1',
+        body: '주말에도 가능 <u>확인</u>',
+        by: '예시대표',
+        mine: false,
+        at: '2026-11-12T01:00:00Z',
+      },
+    ],
+    notes_pending: false,
+    ...extra,
+  });
+  const detail = () => box().querySelector('[data-cw="detail"]');
+  const openBtn = (id) => box().querySelector(`[data-act="open"][data-id="${id}"]`);
+
+  test('순수 — detailOf: 모르는 종류 · 이력은 버린다. 메모 · 전화는 대표 · 실장 답에서만 읽는다', () => {
+    const W = mod();
+    expect(W.detailOf(null)).toBeNull();
+    expect(W.detailOf({ link_id: 'l-1', status: 'weird' })).toBeNull();
+    const d = W.detailOf(DETAIL());
+    expect(d.counts).toEqual({
+      done: 2,
+      working: 1,
+      offered: 0,
+      declined: 1,
+      released: 0,
+      removed: 1,
+    });
+    expect(d.noShow).toBe(1);
+    expect(d.jobs.map((j) => [j.kind, j.status, j.where, j.project, j.noShow])).toEqual([
+      ['install', 'confirmed', 'install', '', false],
+      ['cutting', 'accepted', 'project', '예시 <i>주방</i>', false],
+      ['delivery', 'removed', 'delivery', '', true],
+    ]);
+    expect(d.events.map((e) => [e.text, e.who])).toEqual([
+      ['연결을 끊음', '작업자'],
+      ['승인', '팩토리'],
+      ['연결 신청', '작업자'],
+    ]);
+    expect(d.notes).toEqual([
+      {
+        id: 'n-1',
+        body: '주말에도 가능 <u>확인</u>',
+        by: '예시대표',
+        mine: false,
+        at: '2026-11-12T01:00:00Z',
+      },
+    ]);
+    const staff = W.detailOf(DETAIL({ can_manage: false }));
+    expect([staff.manage, staff.notes, staff.notesPending]).toEqual([false, null, false]);
+    expect(W.detailOf(DETAIL({ notes: null, notes_pending: true })).notesPending).toBe(true);
+    expect(W.stampKst('2026-11-20T00:00:00Z')).toBe('11/20(금) 09:00');
+    expect(W.workerOf({ link_id: 'l-1', status: 'ended', ended_by: 'worker' }).endedBy).toBe(
+      'worker'
+    );
+    expect(W.workerOf({ link_id: 'l-1', status: 'approved', ended_by: 'worker' }).endedBy).toBe('');
+    expect(W.KIND.delivery).toBe('납품');
+  });
+
+  test('작업자가 스스로 끊은 연결은 「연결 끝 (작업자가 끊음)」', async () => {
+    await load({
+      workers: () =>
+        ok({
+          company: { name: '다담 협력 주방' },
+          can_manage: true,
+          can_invite: true,
+          workers: [
+            {
+              ...WORKERS()[0],
+              link_id: 'l-7',
+              status: 'ended',
+              ended_by: 'worker',
+              decided_at: '2026-11-12T02:00:00Z',
+            },
+            {
+              ...WORKERS()[0],
+              link_id: 'l-8',
+              status: 'ended',
+              ended_by: 'company',
+              decided_at: '2026-11-11T02:00:00Z',
+            },
+          ],
+          invites: [],
+        }),
+    });
+    const cells = [...group('closed').querySelectorAll('tbody tr')].map((tr) =>
+      text(tr.children[2])
+    );
+    expect(cells).toEqual(['연결 끝 (작업자가 끊음)', '연결 끝']);
+  });
+
+  test('이름을 누르면 표 아래에 이력 — 우리 팩토리에서 한 일 · 연결 이력 · 메모. 다시 누르면 접는다', async () => {
+    const calls = await load({ one: () => ok(DETAIL()) });
+    expect(text(box().querySelector('[data-cw="open-hint"]'))).toBe(
+      '이름을 누르면 그 작업자의 이력을 봅니다.'
+    );
+    expect(detail()).toBeNull();
+    await press(openBtn('l-3'));
+    expect(asked(calls).pop()).toBe('GET /company/workers/l-3');
+    expect(openBtn('l-3').getAttribute('aria-expanded')).toBe('true');
+    const d = detail();
+    expect(text(d.querySelector('.od-h'))).toBe('예시 <b>이설치</b> 연결됨');
+    expect(d.querySelector('b, i, u')).toBeNull(); // 이름 · 프로젝트 · 메모는 글자로만
+    const facts = Object.fromEntries(
+      [...d.querySelectorAll('.cw-facts div')].map((x) => [
+        text(x.querySelector('dt')),
+        text(x.querySelector('dd')),
+      ])
+    );
+    expect(facts).toEqual({
+      종류: '설치 · 납품',
+      지역: '대구 수성구',
+      전화: '010-0000-0003',
+      연결: '11/1(일) · 초대 링크',
+      '우리 팩토리에서': '끝낸 작업 2건 · 맡은 작업 1건 · 거절 1건 · 뺌 1건 · 노쇼 1건',
+    });
+    expect(
+      [...d.querySelectorAll('.od-table tbody tr')].map((tr) =>
+        [...tr.children].map(text).join(' | ')
+      )
+    ).toEqual([
+      '11/20(금) 09:00 | 설치 | 설치 일정 | 확정',
+      '날짜 미정 | 재단 | 예시 <i>주방</i> | 확인함',
+      '11/5(목) 14:00 | 납품 | 납품 일정 | 뺌 (노쇼)',
+    ]);
+    expect([...d.querySelectorAll('[data-cw="events"] li')].map(text)).toEqual([
+      '11/10(화) 11:00연결을 끊음 (작업자)',
+      '11/2(월) 11:00승인 (팩토리)',
+      '11/1(일) 11:00연결 신청 (작업자)',
+    ]);
+    expect([...d.querySelectorAll('[data-cw="notes"] li')].map(text)).toEqual([
+      '11/12(목) 10:00 · 예시대표주말에도 가능 <u>확인</u>',
+    ]);
+    expect(text(d)).toContain('다른 팩토리에서 한 일은 보이지 않습니다');
+    expect(text(d)).toContain('작업자 본인에게는 보이지 않습니다');
+    // 다시 누르면 접는다 — 다시 묻지 않는다
+    const n = calls.fetch.length;
+    await press(openBtn('l-3'));
+    expect(detail()).toBeNull();
+    expect(calls.fetch.length).toBe(n);
+    // 닫기 단추
+    await press(openBtn('l-3'));
+    await press(detail().querySelector('[data-act="close-detail"]'));
+    expect(detail()).toBeNull();
+  });
+
+  test('메모 남기기 — 빈 글은 묻고, 남기면 받은 목록으로 바꾼다. 서버가 막으면 그 글 · 적던 글은 남는다', async () => {
+    let n = 0;
+    const calls = await load({
+      one: () => ok(DETAIL({ notes: [] })),
+      note: (body) => {
+        n += 1;
+        if (n === 1)
+          return fail(
+            409,
+            'db_pending',
+            'DB 0066 적용 전입니다 — 작업자 메모는 적용 뒤에 쓸 수 있습니다'
+          );
+        return ok(
+          {
+            notes: [
+              { id: 'n-9', body: body.body, by: null, mine: true, at: '2026-11-13T03:00:00Z' },
+            ],
+          },
+          201
+        );
+      },
+    });
+    await press(openBtn('l-3'));
+    expect(text(detail().querySelector('.me-empty'))).toBe('아직 남긴 메모가 없습니다.');
+    const memo = () => detail().querySelector('[data-cw="memo"]');
+    expect([memo().tagName, memo().maxLength, memo().value]).toEqual(['TEXTAREA', 1000, '']);
+    await press(detail().querySelector('[data-act="note"]'));
+    expect(text(err())).toBe('메모를 적어 주세요.');
+    memo().value = '  상부장 설치가 꼼꼼하다  ';
+    await press(detail().querySelector('[data-act="note"]'));
+    expect(asked(calls).pop()).toBe('POST /company/workers/l-3/notes');
+    expect(calls.fetch[calls.fetch.length - 1].body).toEqual({ body: '상부장 설치가 꼼꼼하다' });
+    expect(text(err())).toBe('DB 0066 적용 전입니다 — 작업자 메모는 적용 뒤에 쓸 수 있습니다');
+    expect(memo().value).toBe('  상부장 설치가 꼼꼼하다  '); // 적던 글은 남는다
+    await press(detail().querySelector('[data-act="note"]'));
+    expect(msg()).toBe('메모를 남겼습니다.');
+    expect([...detail().querySelectorAll('[data-cw="notes"] li')].map(text)).toEqual([
+      '11/13(금) 12:00 · 내가 남김상부장 설치가 꼼꼼하다',
+    ]);
+    expect(memo().value).toBe('');
+    // 목록을 다시 읽지 않는다 (메모는 목록에 없다)
+    expect(asked(calls).filter((c) => c === 'GET /company/workers').length).toBe(1);
+  });
+
+  test('메모 준비 중(DB 0066 전) · 직원에게는 메모 · 전화가 없다 · 못 읽으면 그 글과 닫기', async () => {
+    await load({ one: () => ok(DETAIL({ notes: null, notes_pending: true })) });
+    await press(openBtn('l-3'));
+    expect(text(detail().querySelector('[data-cw="notes-pending"]'))).toBe(
+      '메모는 준비 중입니다 (DB 0066 적용 뒤에 쓸 수 있습니다).'
+    );
+    expect(detail().querySelector('[data-cw="memo"]')).toBeNull();
+    expect(detail().querySelectorAll('.od-table tbody tr').length).toBe(3); // 이력은 그대로 보인다
+
+    const staffView = DETAIL({ can_manage: false });
+    delete staffView.phone;
+    delete staffView.notes;
+    delete staffView.notes_pending;
+    await load({ partner: partnerOf('agent', 'staff'), manage: false, one: () => ok(staffView) });
+    await press(openBtn('l-3'));
+    expect(text(detail())).not.toContain('메모');
+    expect(text(detail())).not.toContain('010-');
+    expect(detail().querySelector('[data-act="note"]')).toBeNull();
+    expect(detail().querySelectorAll('.od-table tbody tr').length).toBe(3);
+
+    await load({ one: () => fail(404, 'not_found', '연결을 찾을 수 없습니다') });
+    await press(openBtn('l-3'));
+    expect(text(detail().querySelector('.mk-error'))).toBe('연결을 찾을 수 없습니다');
+    expect(detail().querySelector('[data-act="close-detail"]')).not.toBeNull();
+  });
+
+  test('상태를 바꾸면 펼쳐 둔 이력은 접는다 · 기기에 남기지 않는다', async () => {
+    await load({ one: () => ok(DETAIL()) });
+    await press(openBtn('l-3'));
+    expect(detail()).not.toBeNull();
+    await press(act('suspend', 'l-3'));
+    await press(box().querySelector('[data-act="yes"]'));
+    expect(detail()).toBeNull();
+    const code = read('segan/company-workers.js')
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join('\n');
+    expect(code).not.toMatch(/localStorage|sessionStorage|indexedDB|document\.cookie/);
   });
 });

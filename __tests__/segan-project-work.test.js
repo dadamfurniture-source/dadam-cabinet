@@ -231,8 +231,9 @@ async function load(options = {}) {
     if (url === ACC + '/partner/me') return reply(opts.partner);
     if (
       /\/company\/projects\/[^/]+\/work/.test(url) ||
-      /\/company\/schedules\/[^/]+\/workers$/.test(url) ||
-      url.startsWith(WORK + '/company/work/assignments/')
+      /\/company\/schedules\/[^/]+\/workers(\/recruit)?$/.test(url) ||
+      url.startsWith(WORK + '/company/work/assignments/') ||
+      url.startsWith(WORK + '/company/work/applications/')
     )
       return reply(await opts.work(method, body, url));
     if (url === WORK + '/company/projects') return reply(opts.projects());
@@ -249,6 +250,7 @@ async function load(options = {}) {
   for (const f of [
     'segan/regions.js',
     'segan/partner.js',
+    'segan/work-recruit.js',
     'segan/project-work.js',
     'segan/partner-projects.js',
     'segan/shell.js',
@@ -290,8 +292,9 @@ const workCalls = (calls) =>
   calls.fetch
     .filter(
       (c) =>
-        /\/work(\/|$)|\/workers$|\/assignments\//.test(c.url.slice(WORK.length)) &&
-        c.url.startsWith(WORK + '/company/')
+        /\/work(\/|$)|\/workers(\/recruit)?$|\/assignments\/|\/applications\//.test(
+          c.url.slice(WORK.length)
+        ) && c.url.startsWith(WORK + '/company/')
     )
     .map((c) => [c.method, c.url.slice(WORK.length), c.body]);
 const mod = () => {
@@ -691,5 +694,174 @@ describe('달력에서 열기', () => {
     expect(workCalls(calls)).toEqual([]);
     await load({ partner: partnerOf('expert') });
     expect(PP().openWork(P1)).toBe(false);
+  });
+});
+
+// ── 2026-11-14 납품 줄 · 모집 칸 (segan/work-recruit.js) ─────────────────────
+describe('납품 줄 · 모집', () => {
+  const S2 = '55555555-5555-4555-8555-555555555552';
+  const RECRUIT = (extra = {}) => ({
+    on: true,
+    state: 'open',
+    slots: 1,
+    filled: 0,
+    deadline: null,
+    applications: [
+      {
+        application_id: 'ap-1',
+        name: '시험기사 <b>사</b>',
+        message: '오후 가능',
+        at: '2026-11-13T00:20:00Z',
+      },
+    ],
+    ...extra,
+  });
+  const withRows = (patch) => {
+    const v = WORKVIEW();
+    v.rows = v.rows.map((r) => (patch[r.key] ? { ...r, ...patch[r.key] } : r));
+    return v;
+  };
+
+  test('납품 일정 줄이 표에 보인다 (종류 「납품」) — 배정은 일정으로', async () => {
+    const v = WORKVIEW();
+    v.rows.splice(
+      4,
+      0,
+      row('delivery', '납품', {
+        key: 'schedule:' + S2,
+        source: 'schedule',
+        schedule_id: S2,
+        schedule_status: 'scheduled',
+        at: '2026-11-21T05:00:00Z',
+        candidates: [{ link_id: 'lk-7', name: '시험기사 아', kinds: ['delivery'], region: null }],
+      })
+    );
+    const calls = await load({ work: () => ok(v) });
+    await press(workBtn(P1));
+    expect(tableRows()[4]).toBe('납품 | - | 11/21 (토) 14:00 | - | 고르기');
+    await openRow('schedule:' + S2);
+    await press(act('pw-pick', '[data-id="lk-7"]'));
+    await press(act('pw-assign'));
+    expect(workCalls(calls)[1]).toEqual([
+      'POST',
+      `/company/schedules/${S2}/workers`,
+      { link_ids: ['lk-7'] },
+    ]);
+    expect(mod().KIND.delivery).toBe('납품');
+  });
+
+  test('모집 올리기 — 프로젝트 줄은 종류로(적어 둔 날짜도 같이), 일정 줄은 일정으로. 인원을 안 적으면 묻는다', async () => {
+    const calls = await load();
+    await press(workBtn(P1));
+    await openRow('kind:demolition');
+    // 올리는 칸 — 인원은 비어 있다
+    expect(panel().querySelector('[name="pw-people"]').value).toBe('');
+    await press(act('pw-recruit'));
+    expect(err()).toBe('모집 인원을 적어 주세요 (1 ~ 10명).');
+    expect(workCalls(calls)).toHaveLength(1);
+    panel().querySelector('[name="pw-people"]').value = '2';
+    panel().querySelector('[name="pw-until-date"]').value = '2026-11-17';
+    await press(act('pw-recruit'));
+    expect(err()).toBe('지원 종료일의 시각을 골라 주세요.');
+    // 다시 그려도 적던 값이 남는다
+    expect(panel().querySelector('[name="pw-people"]').value).toBe('2');
+    panel().querySelector('[name="pw-until-time"]').value = '18:00';
+    panel().querySelector('[name="pw-date"]').value = '2026-11-18';
+    panel().querySelector('[name="pw-time"]').value = '09:00';
+    await press(act('pw-recruit'));
+    expect(workCalls(calls)[1]).toEqual([
+      'POST',
+      `/company/projects/${P1}/work/recruit`,
+      {
+        people: 2,
+        apply_deadline: '2026-11-17T18:00:00+09:00',
+        kind: 'demolition',
+        at: '2026-11-18T09:00:00+09:00',
+      },
+    ]);
+    expect(msg()).toBe('모집을 올렸습니다. 연결된 작업자에게 알림이 갑니다.');
+    // 일정 줄(설치)
+    await openRow('schedule:' + S1);
+    panel().querySelector('[name="pw-people"]').value = '1';
+    await press(act('pw-recruit'));
+    expect(
+      workCalls(calls)
+        .filter((c) => c[0] === 'POST')
+        .pop()
+    ).toEqual(['POST', `/company/schedules/${S1}/workers/recruit`, { people: 1 }]);
+  });
+
+  test('모집 중인 줄 — 표에 「모집 중 · 신청 n」, 신청한 작업자 「뽑기」 「반려」, 「모집 내리기」는 되묻는다', async () => {
+    const calls = await load({
+      work: () =>
+        ok(
+          withRows({
+            'kind:cutting': { recruit: RECRUIT() },
+            ['schedule:' + S1]: { recruit: RECRUIT({ applications: [] }) },
+          })
+        ),
+    });
+    await press(workBtn(P1));
+    expect(tableRows()[1]).toBe(
+      '재단 | 시험기사 다 | 11/19 (목) 09:00 | 수락 대기 · 모집 중 · 신청 1 | 고르기'
+    );
+    expect(tableRows()[4]).toContain('완료 보고 · 모집 중');
+    await openRow('kind:cutting');
+    expect(text(panel().querySelector('[data-wr="status"]'))).toBe(
+      '모집 중입니다 — 정원 1명 가운데 0명 확정'
+    );
+    expect([...panel().querySelectorAll('.wr-apps .sm-wk-row')].map(text)).toEqual([
+      '시험기사 <b>사</b>신청 11/13 (금) 09:20뽑기반려',
+    ]);
+    expect(panel().querySelector('.wr-apps b')).toBeNull();
+    expect(panel().querySelector('[name="pw-people"]')).toBeNull(); // 이미 모집 중
+    await press(act('pw-app-approve', '[data-id="ap-1"]'));
+    expect(workCalls(calls)[1]).toEqual(['POST', '/company/work/applications/ap-1/approve', {}]);
+    expect(workCalls(calls)[2]).toEqual(['GET', `/company/projects/${P1}/work`, undefined]);
+    expect(msg()).toBe('작업자를 뽑았습니다. 배정이 확정됐습니다.');
+    await press(act('pw-app-reject', '[data-id="ap-1"]'));
+    expect(workCalls(calls)[3]).toEqual(['POST', '/company/work/applications/ap-1/reject', {}]);
+    // 내리기 — 되묻는다 (신청이 있으면 반려로 끝난다고 알린다)
+    await press(act('pw-recruit-stop'));
+    expect(text(panel().querySelector('[data-wr="ask"] p'))).toBe(
+      '모집을 내릴까요? 답을 기다리는 신청은 반려로 끝납니다.'
+    );
+    await press(act('pw-recruit-stop-no'));
+    expect(panel().querySelector('[data-wr="ask"]')).toBeNull();
+    await press(act('pw-recruit-stop'));
+    await press(act('pw-recruit-stop-yes'));
+    expect(
+      workCalls(calls)
+        .filter((c) => c[0] === 'POST')
+        .pop()
+    ).toEqual(['POST', `/company/projects/${P1}/work/recruit`, { kind: 'cutting', stop: true }]);
+    expect(msg()).toBe('모집을 내렸습니다.');
+    // 일정 줄의 내리기는 일정으로
+    await openRow('schedule:' + S1);
+    await press(act('pw-recruit-stop'));
+    await press(act('pw-recruit-stop-yes'));
+    expect(
+      workCalls(calls)
+        .filter((c) => c[0] === 'POST')
+        .pop()
+    ).toEqual(['POST', `/company/schedules/${S1}/workers/recruit`, { stop: true }]);
+  });
+
+  test('직원 — 모집 중인 줄의 신청한 작업자를 보기만 한다. 모집이 아닌 줄에는 모집 칸이 없다', async () => {
+    const v = withRows({ 'kind:cutting': { recruit: RECRUIT() } });
+    v.can_manage = false;
+    v.can_assign = false;
+    v.rows.forEach((r) => (r.can_assign = false));
+    await load({
+      partner: partnerOf('agent', 'staff'),
+      projects: () => PROJECTS(false),
+      work: () => ok(v),
+    });
+    await press(workBtn(P1));
+    await openRow('kind:cutting');
+    expect(panel().querySelectorAll('.wr-apps .sm-wk-row').length).toBe(1);
+    expect(panel().querySelectorAll('[data-wr="box"] [data-act]').length).toBe(0);
+    await openRow('kind:demolition');
+    expect(panel().querySelector('[data-wr="box"]')).toBeNull();
   });
 });
