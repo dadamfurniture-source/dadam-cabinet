@@ -5,6 +5,12 @@
  *   confirmed → started → submitted → accepted (install · as 는 편집자 승인, assembly 는 완료 보고 즉시 — updates.js)
  *   submitted → revision → submitted · confirmed/started → released(작업자 포기) · 편집자 → removed(no_show 표시 가능)
  * 포기 · 노쇼는 사실만 기록한다 — 마감 시각 · 수수료 · 제재 규칙은 정하지 않았다 (결정 14).
+ *
+ * 2026-11-13 「작업자 한 길」 — 편집자가 하던 일(초대 · 확인 · 보완요청 · 제외)을 팩토리 대표 · 실장도 한다
+ * (work/schedule-link.js — 일정 줄에서 배정). 그래서 권한 검사는 밖에 두고 하는 일만 …Core 로 뺐다:
+ *   관리자 경로 = requireAdminEditor → Core(actorKind 'admin'),  팩토리 경로 = 내 팩토리 작업인지 확인 → Core(actorKind 'member')
+ * 일정에서 생긴 작업(job.schedule_id)이면 작업자의 답(수락 · 거절 · 포기)을 그 팩토리 대표 · 실장에게 알리고,
+ * 일정의 담당 글(assignee_name)을 배정된 작업자 이름으로 맞춘다.
  */
 
 import { ConflictError, NotFoundError, insertOne, selectOne } from '../supabase.js';
@@ -14,10 +20,11 @@ import {
   countFilled, declineOffersIfEnded, loadJob, loadJobAssignments, needsReview, recordAssignmentChange, transitionAssignment,
 } from './jobs.js';
 import { notifyWork } from './notify.js';
-import { later, notifyWorkInvited } from '../push/work-hooks.js';
+import { later, notifyCompanyWork, notifyWorkInvited } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, workerAssignment } from './reveal.js';
 import { assertUuid, optBool, optText, reqText } from './validate.js';
 import { isLinkedTo } from './links.js';
+import { syncAssigneeName } from './schedule-names.js';
 
 const nowIso = () => new Date().toISOString();
 /** 사람을 새로 들일 수 있는 작업 상태 */
@@ -37,7 +44,25 @@ export async function loadMyAssignment(env, user, rawId, { approvedFor = null } 
   return { worker, assignment, job, all };
 }
 
-async function loadAssignmentAdmin(env, rawId) {
+/**
+ * 작업자가 배정에 답했다 (수락 · 거절 · 포기) — 일정에서 생긴 작업이면 그 팩토리 대표 · 실장에게 알리고 담당 글을 맞춘다.
+ * 응답 뒤에 돈다. 실패해도 원래 일을 막지 않는다.
+ */
+function afterWorkerReply(env, ctx, { job, assignment, reply }) {
+  if (!job || !job.schedule_id) return Promise.resolve(null);
+  return later(
+    ctx,
+    Promise.all([
+      notifyCompanyWork(env, {
+        companyId: job.company_id, kind: 'work_reply', refId: assignment.id,
+        params: { reply, jobKind: job.kind, startsAt: job.starts_at }, suffix: reply,
+      }),
+      syncAssigneeName(env, job),
+    ]),
+  );
+}
+
+export async function loadAssignmentAdmin(env, rawId) {
   const id = assertUuid(rawId, '배정 id');
   const assignment = await selectOne(env, 'work_assignments', { id: `eq.${id}`, select: '*' });
   if (!assignment) throw new NotFoundError('배정을 찾을 수 없습니다');
@@ -49,7 +74,7 @@ async function loadAssignmentAdmin(env, rawId) {
 // ── 작업자 ───────────────────────────────────────────────────────
 
 /** POST /work/assignments/:id/confirm — 초대(offered) 수락. 정원이 찼으면 409, 정지된 작업자는 403 */
-export async function confirmAssignment(env, { user, params }) {
+export async function confirmAssignment(env, { user, params, ctx }) {
   const { assignment, job, all } = await loadMyAssignment(env, user, params.id, { approvedFor: 'confirm' });
   if (assignment.status !== 'offered') throw new ConflictError('초대받은 배정만 수락할 수 있습니다');
   if (!STAFFABLE.includes(job.status)) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
@@ -58,6 +83,7 @@ export async function confirmAssignment(env, { user, params }) {
   if (countFilled(all) >= job.slots) throw new ConflictError('정원이 찼습니다');
   const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from: ['offered'], patch: { status: 'confirmed' } });
   await recordAssignmentChange(env, { user, actorKind: 'worker', type: 'assignment_confirmed', before: assignment, after: r.assignment, job, lockedJob: r.job });
+  await afterWorkerReply(env, ctx, { job, assignment: r.assignment, reply: 'confirmed' });
   return workerAssignment(r.assignment);
 }
 
@@ -69,6 +95,7 @@ export async function declineAssignment(env, { user, params, body, ctx }) {
   const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from: ['offered'], patch: { status: 'declined', release_reason: reason } });
   await recordAssignmentChange(env, { user, actorKind: 'worker', type: 'assignment_declined', before: assignment, after: r.assignment, job, lockedJob: r.job, note: reason });
   notifyWork(env, ctx, 'assignment_declined', { job, workerName: worker.display_name });
+  await afterWorkerReply(env, ctx, { job, assignment: r.assignment, reply: 'declined' });
   return workerAssignment(r.assignment);
 }
 
@@ -91,10 +118,44 @@ export async function releaseAssignment(env, { user, params, body, ctx }) {
   const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from: ['confirmed', 'started'], patch: { status: 'released', release_reason: reason } });
   await recordAssignmentChange(env, { user, actorKind: 'worker', type: 'assignment_released', before: assignment, after: r.assignment, job, lockedJob: r.job, note: reason });
   notifyWork(env, ctx, 'assignment_released', { job, workerName: worker.display_name });
+  await afterWorkerReply(env, ctx, { job, assignment: r.assignment, reply: 'released' });
   return workerAssignment(r.assignment);
 }
 
 // ── 관리자 ───────────────────────────────────────────────────────
+
+/**
+ * 작업자 한 명을 작업에 넣는다 (offered) — 권한 · 작업자 자격 검사는 부르는 쪽.
+ * 이미 활성 배정이 있으면 409. 넣은 뒤 작업이 닫혔으면 같은 문구로 끝내고 409.
+ * @param {object} worker { id, display_name }
+ * @param {'admin'|'member'} actorKind  편집자 | 팩토리 대표 · 실장
+ */
+export async function inviteWorkerCore(env, { user, job, worker, actorKind = 'admin', ctx }) {
+  if (!STAFFABLE.includes(job.status)) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
+  const all = await loadJobAssignments(env, job.id);
+  if (all.some((a) => a.worker_id === worker.id && ACTIVE_STATUSES.includes(a.status))) throw new ConflictError('이미 배정된 작업자입니다');
+  let row;
+  try {
+    row = await insertOne(env, 'work_assignments', {
+      job_id: job.id, worker_id: worker.id, via: 'invite', status: 'offered',
+      worker_name_snapshot: worker.display_name, created_by: user.id,
+    });
+  } catch (err) {
+    if (err instanceof ConflictError) throw new ConflictError('이미 배정된 작업자입니다');
+    throw err;
+  }
+  await recordEvent(env, {
+    jobId: job.id, assignmentId: row.id, actorUserId: user.id, actorKind, type: 'assignment_offered', to: 'offered',
+    payload: { worker_id: worker.id, via: 'invite' },
+  });
+  // 상태 확인과 넣기 사이에 작업이 닫히거나 취소됐으면 그쪽의 자동 정리는 이 초대를 보지 못했다 — 같은 문구로 끝내고 409
+  const ended = await declineOffersIfEnded(env, job.id)
+    .catch((e) => { console.warn('[work] 남은 초대 정리 실패:', e && e.message); return null; });
+  if (ended !== null) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
+  // 초대받은 작업자에게 앱 알림 — 응답 뒤에
+  await later(ctx, notifyWorkInvited(env, { job, assignment: row }));
+  return row;
+}
 
 /** POST /work/admin/jobs/:id/invite — 직접 지정 (offered). 승인된 작업자(정지 · 대기는 409) · 종류가 맞아야 */
 export async function inviteWorker(env, { user, params, body, ctx }) {
@@ -107,41 +168,24 @@ export async function inviteWorker(env, { user, params, body, ctx }) {
   if (!worker) throw new NotFoundError('작업자를 찾을 수 없습니다');
   assertAssignable(worker);
   if (!(worker.kinds || []).includes(job.kind)) throw new ConflictError('작업 종류가 맞지 않는 작업자입니다');
-  const all = await loadJobAssignments(env, jobId);
-  if (all.some((a) => a.worker_id === workerId && ACTIVE_STATUSES.includes(a.status))) throw new ConflictError('이미 배정된 작업자입니다');
-  let row;
-  try {
-    row = await insertOne(env, 'work_assignments', {
-      job_id: jobId, worker_id: workerId, via: 'invite', status: 'offered',
-      worker_name_snapshot: worker.display_name, created_by: user.id,
-    });
-  } catch (err) {
-    if (err instanceof ConflictError) throw new ConflictError('이미 배정된 작업자입니다');
-    throw err;
-  }
-  await recordEvent(env, {
-    jobId, assignmentId: row.id, actorUserId: user.id, actorKind: 'admin', type: 'assignment_offered', to: 'offered',
-    payload: { worker_id: workerId, via: 'invite' },
-  });
-  // 상태 확인과 넣기 사이에 작업이 닫히거나 취소됐으면 그쪽의 자동 정리는 이 초대를 보지 못했다 — 같은 문구로 끝내고 409
-  const ended = await declineOffersIfEnded(env, jobId)
-    .catch((e) => { console.warn('[work] 남은 초대 정리 실패:', e && e.message); return null; });
-  if (ended !== null) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
-  // 초대받은 작업자에게 앱 알림 — 응답 뒤에
-  await later(ctx, notifyWorkInvited(env, { job, assignment: row }));
-  return row;
+  return inviteWorkerCore(env, { user, job, worker, actorKind: 'admin', ctx });
+}
+
+/** submitted → accepted (install · as) — 권한 검사는 부르는 쪽 */
+export async function acceptAssignmentCore(env, { user, assignment, job, all, actorKind = 'admin' }) {
+  if (!needsReview(job.kind)) throw new ConflictError('조립 작업은 검수 단계가 없습니다');
+  if (assignment.status !== 'submitted') throw new ConflictError('완료 보고된 배정만 승인할 수 있습니다');
+  if (ENDED_JOB.includes(job.status)) throw new ConflictError('닫히거나 취소된 작업입니다');
+  const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from: ['submitted'], patch: { status: 'accepted', accepted_at: nowIso() } });
+  await recordAssignmentChange(env, { user, actorKind, type: 'assignment_accepted', before: assignment, after: r.assignment, job, lockedJob: r.job });
+  return r.assignment;
 }
 
 /** POST /work/admin/assignments/:id/accept — submitted → accepted (install · as) */
 export async function acceptAssignment(env, { user, params }) {
   await requireAdminEditor(env, user);
   const { assignment, job, all } = await loadAssignmentAdmin(env, params.id);
-  if (!needsReview(job.kind)) throw new ConflictError('조립 작업은 검수 단계가 없습니다');
-  if (assignment.status !== 'submitted') throw new ConflictError('완료 보고된 배정만 승인할 수 있습니다');
-  if (ENDED_JOB.includes(job.status)) throw new ConflictError('닫히거나 취소된 작업입니다');
-  const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from: ['submitted'], patch: { status: 'accepted', accepted_at: nowIso() } });
-  await recordAssignmentChange(env, { user, actorKind: 'admin', type: 'assignment_accepted', before: assignment, after: r.assignment, job, lockedJob: r.job });
-  return r.assignment;
+  return acceptAssignmentCore(env, { user, assignment, job, all, actorKind: 'admin' });
 }
 
 /**
@@ -152,13 +196,18 @@ export async function requestRevision(env, { user, params, body }) {
   await requireAdminEditor(env, user);
   const reason = reqText(body && body.reason, 200, '보완 요청 사유');
   const { assignment, job, all } = await loadAssignmentAdmin(env, params.id);
+  return requestRevisionCore(env, { user, assignment, job, all, reason, actorKind: 'admin' });
+}
+
+/** submitted → revision — 권한 · 사유 검사는 부르는 쪽 */
+export async function requestRevisionCore(env, { user, assignment, job, all, reason, actorKind = 'admin' }) {
   if (assignment.status !== 'submitted') throw new ConflictError('완료 보고된 배정만 보완 요청할 수 있습니다');
   if (ENDED_JOB.includes(job.status)) throw new ConflictError('닫히거나 취소된 작업입니다');
   const r = await transitionAssignment(env, {
     job, assignment, jobAssignments: all, from: ['submitted'],
     patch: { status: 'revision', revision_count: (Number(assignment.revision_count) || 0) + 1 },
   });
-  await recordAssignmentChange(env, { user, actorKind: 'admin', type: 'assignment_revision', before: assignment, after: r.assignment, job, lockedJob: r.job, note: reason });
+  await recordAssignmentChange(env, { user, actorKind, type: 'assignment_revision', before: assignment, after: r.assignment, job, lockedJob: r.job, note: reason });
   await insertOne(env, 'work_updates', {
     job_id: job.id, assignment_id: assignment.id, author_user_id: user.id, author_role: 'company',
     kind: 'note', body: `보완 요청: ${reason}`, visible_to_worker: true,
@@ -172,12 +221,17 @@ export async function removeAssignment(env, { user, params, body }) {
   const reason = reqText(body && body.reason, 200, '제외 사유');
   const noShow = optBool(body && body.no_show, false, 'no_show');
   const { assignment, job, all } = await loadAssignmentAdmin(env, params.id);
+  return removeAssignmentCore(env, { user, assignment, job, all, reason, noShow, actorKind: 'admin' });
+}
+
+/** 진행 중인 배정 → removed — 권한 · 사유 검사는 부르는 쪽 */
+export async function removeAssignmentCore(env, { user, assignment, job, all, reason, noShow = false, actorKind = 'admin' }) {
   const from = ['offered', 'confirmed', 'started', 'submitted', 'revision'];
   if (!from.includes(assignment.status)) throw new ConflictError('진행 중인 배정만 제외할 수 있습니다');
   if (job.status === 'closed') throw new ConflictError('마감된 작업입니다');
   const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from, patch: { status: 'removed', no_show: noShow } });
   await recordAssignmentChange(env, {
-    user, actorKind: 'admin', type: 'assignment_removed', before: assignment, after: r.assignment, job, lockedJob: r.job,
+    user, actorKind, type: 'assignment_removed', before: assignment, after: r.assignment, job, lockedJob: r.job,
     note: reason, payload: { no_show: noShow },
   });
   return r.assignment;

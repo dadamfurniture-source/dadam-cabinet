@@ -345,8 +345,9 @@ describe('자리 · 이름', () => {
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
     );
-    expect(srcs.indexOf('company-workers.js')).toBeGreaterThanOrEqual(0);
-    expect(srcs.indexOf('company-workers.js')).toBeLessThan(srcs.indexOf('me.js'));
+    const at = (name) => srcs.findIndex((x) => x === name);
+    expect(at('company-workers.js')).toBeGreaterThanOrEqual(0);
+    expect(at('company-workers.js')).toBeLessThan(at('me.js'));
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'company-workers.js')");
     expect(
       doc.querySelector('#meSubPeople li[data-me-item="workers"] a').getAttribute('href')

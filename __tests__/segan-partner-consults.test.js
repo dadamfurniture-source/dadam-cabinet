@@ -315,6 +315,7 @@ describe('자리 · 이름', () => {
       'productionPlan', // 생산 계획 (segan/production-plan.js — 프로젝트 관리 › 생산 › 생산 계획)
       'outsourceOrders', // 외주 발주 (segan/outsource-orders.js — 프로젝트 관리 › 생산 › 외주 발주)
       'productionSettings', // 생산 설정 (segan/production-settings.js — 프로젝트 관리 › 생산 › 생산 설정)
+      'companyWorkers', // 작업자 연결 · 초대 (segan/company-workers.js — 인사 › 작업자)
       'productionWorkers', // 작업자 (segan/production-workers.js — 인사 › 작업자, 다담 공장)
       'counterparties', // 거래처 · 공급처 (segan/counterparties.js — 구매 · 재고 › 거래처 · 공급처)
       'stockBoard', // 기본 자재 (segan/stock.js — 구매 · 재고 › 기본 자재)

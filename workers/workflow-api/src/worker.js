@@ -44,6 +44,8 @@
  *   GET|POST /stock/orders · POST /stock/orders/:id/receive · POST /stock/orders/:id/cancel — 재고 구매 발주 (src/stock-orders.js, DB 0062)
  *   GET /stock/needs · PUT /stock/links · POST /stock/needs/:orderId/issue · GET /stock/needs/:orderId/offcuts — 작업지시 자재 ↔ 재고 (src/stock-needs.js, DB 0063)
  *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
+ *   GET|POST /company/schedules/:id/workers — 설치 · A/S 방문 일정 줄의 작업자 배정 (src/work/schedule-link.js)
+ *   POST /company/work/assignments/:id/accept|revision|remove — 팩토리 대표 · 실장의 완료 보고 확인 · 보완요청 · 빼기
  *   GET  /company/sites?kind=install|as · PUT /company/sites/geo · PUT /company/as-requests/:id/visit —
  *                                 설치 · A/S 지도 + 표: 현장 좌표 · A/S 방문 일정 (src/company-sites.js, DB 0058)
  *
@@ -181,6 +183,10 @@ import { runConsultNotices, runPartnerApplicationNotices, isConsultNoticeMinute 
 import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite, peekInvite } from './work/invites.js';
 import { listCompanyWorkers, createCompanyInvite, revokeCompanyInvite, patchCompanyWorker } from './work/company.js';
+import {
+  listScheduleWorkers, assignScheduleWorkers, acceptCompanyAssignment, reviseCompanyAssignment, removeCompanyAssignment,
+  keepAssigneeName, syncJobWithSchedule,
+} from './work/schedule-link.js';
 import {
   listJobsForWorker,
   getJobForWorker,
@@ -1161,6 +1167,15 @@ async function handleListSchedules(request, env, { params, user }) {
 async function handleUpdateSchedule(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
   const row = await updateSchedule(env, { scheduleId: params.scheduleId, user, patch });
+  // 이 일정에 작업자를 배정해 두었으면 (src/work/schedule-link.js) 작업 시각 · 취소를 맞추고, 담당 글은 작업자 이름으로 둔다.
+  // 맞추기가 실패해도 일정 저장은 그대로다 (다음 읽기에서 다시 맞춘다)
+  if (row && (patch.scheduled_at !== undefined || patch.duration_min !== undefined || patch.status !== undefined)) {
+    await syncJobWithSchedule(env, ctx, row);
+  }
+  if (row && patch.assignee_name !== undefined) {
+    const name = await keepAssigneeName(env, row);
+    if (name !== undefined) row.assignee_name = name;
+  }
   // 설치 날짜가 옮겨지거나 취소되면 마감이 바뀐다
   if (row && row.type === 'installation' && (patch.scheduled_at !== undefined || patch.status !== undefined)) {
     replanLater(env, ctx, user, '설치 일정 변경', { designId: row.design_id });
@@ -1523,6 +1538,12 @@ const router = createRouter([
   { method: 'POST', path: '/stock/needs/:orderId/issue',          auth: 'jwt', handler: workRoute((env, a) => issueStockForOrder(env, a), 201) },
   { method: 'GET',  path: '/stock/needs/:orderId/offcuts',        auth: 'jwt', handler: workRoute((env, a) => listOffcutCandidates(env, a)) },
   { method: 'GET',  path: '/company/schedules',                   auth: 'jwt', handler: workRoute((env, a) => listCompanySchedules(env, a)) },
+  // 일정 줄에서 작업자 배정 · 완료 보고 확인 (src/work/schedule-link.js, DB 0064)
+  { method: 'GET',  path: '/company/schedules/:id/workers',       auth: 'jwt', handler: workRoute(listScheduleWorkers) },
+  { method: 'POST', path: '/company/schedules/:id/workers',       auth: 'jwt', handler: workRoute(assignScheduleWorkers) },
+  { method: 'POST', path: '/company/work/assignments/:id/accept',   auth: 'jwt', handler: workRoute(acceptCompanyAssignment) },
+  { method: 'POST', path: '/company/work/assignments/:id/revision', auth: 'jwt', handler: workRoute(reviseCompanyAssignment) },
+  { method: 'POST', path: '/company/work/assignments/:id/remove',   auth: 'jwt', handler: workRoute(removeCompanyAssignment) },
   // 설치 · A/S 지도 + 표 (src/company-sites.js, DB 0058)
   { method: 'GET',  path: '/company/sites',                       auth: 'jwt', handler: workRoute((env, a) => listCompanySites(env, a)) },
   { method: 'PUT',  path: '/company/sites/geo',                   auth: 'jwt', handler: workRoute(saveSiteGeo) },
