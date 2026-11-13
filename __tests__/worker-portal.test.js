@@ -1484,7 +1484,7 @@ describe('현장', () => {
     expect(html).toContain(P.SITE_OPEN_NOTE);
     expect(html).not.toContain('site-note');
     // 현장 카드는 작업 카드 다음 · 「내 상태」 앞
-    expect(html.indexOf('site-card')).toBeLessThan(html.indexOf('<h3>내 상태</h3>'));
+    expect(html.split('<h3>내 상태</h3>')[0]).toContain('site-card');
   });
 
   test('적힌 칸만 그린다 — 엘리베이터를 모르면 줄이 없고, 전화가 숫자가 아니면 걸기 주소를 만들지 않는다', () => {
