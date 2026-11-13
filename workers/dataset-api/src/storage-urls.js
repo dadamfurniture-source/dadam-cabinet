@@ -10,8 +10,8 @@
  * 이 파일은 import 가 없다 — 시험(__tests__/dataset-export-signing.test.js)이 export 를 떼고 평가한다.
  */
 
-/** 서명하는 버킷 — 고객 사진 */
-export const PRIVATE_BUCKETS = ['generations', 'design-images'];
+/** 서명하는 버킷 — 고객 사진 · 간편 플래너 웹판 사진 (planner-photos — 화면 쪽 사본 js/storage-urls.js 에는 없다, 서버만 읽는 버킷) */
+export const PRIVATE_BUCKETS = ['generations', 'design-images', 'planner-photos'];
 /** 내보내기 서명 수명 (초) — 7일. 내보내기는 밤마다 다시 돈다 */
 export const EXPORT_SIGNED_TTL_SEC = 7 * 24 * 3600;
 

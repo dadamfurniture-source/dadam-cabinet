@@ -45,6 +45,14 @@ export async function patch(env, path, values) {
   if (!res.ok) throw new Error(`patch ${path.split('?')[0]} ${res.status}: ${(await res.text()).slice(0, 300)}`);
 }
 
+/** 조건에 맞는 행 수 — 본문 없이 (HEAD · count=exact). 표가 없으면(404) 메시지에 PGRST205 를 싣는다 */
+export async function count(env, path) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, { method: 'HEAD', headers: headers(env, { Prefer: 'count=exact' }) });
+  if (!res.ok) throw new Error(`count ${path.split('?')[0]} ${res.status}${res.status === 404 ? ' PGRST205' : ''}`);
+  const m = /\/(\d+)$/.exec(res.headers.get('content-range') || '');
+  return m ? Number(m[1]) : 0;
+}
+
 export async function remove(env, path) {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
     method: 'DELETE',

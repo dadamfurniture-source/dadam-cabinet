@@ -113,7 +113,7 @@ describe('signImageRefs', () => {
 
   test('수명 7일 · 고객 사진 버킷', () => {
     expect(S.EXPORT_SIGNED_TTL_SEC).toBe(604800);
-    expect(S.PRIVATE_BUCKETS).toEqual(['generations', 'design-images']);
+    expect(S.PRIVATE_BUCKETS).toEqual(['generations', 'design-images', 'planner-photos']);
   });
 });
 
