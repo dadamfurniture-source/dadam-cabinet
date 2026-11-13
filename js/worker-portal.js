@@ -7,7 +7,9 @@
  * 로그인 뒤 돌아올 곳 · 로그인 주소는 #workerApp 의 data-page · data-login (없으면 worker.html · login.html).
  *
  *   - 화면에 넣는 사용자 글(이름 · 제목 · 내용 · 보고 · 사유 · 지역 · 메모)은 전부 esc() 를 거친다
- *   - 현장 주소 · 연락처는 1주차에 어디에도 없다 (★7 공개 기간 미정) — site 가 null 이면 site_note 만 보여 준다
+ *   - 현장 주소 · 층 · 출입 · 현장 연락처는 서버가 site 를 줄 때만 그린다 — 내가 수락한 때부터 작업이 끝나고 7일까지
+ *     (2026-11-13 결정 ⑤, 서버 work/reveal.js siteOpenFor). site 가 null 이면 site_note 만 보여 준다.
+ *     받은 현장 정보는 화면에만 그린다 — 기기 저장 · 주소에 싣지 않는다
  *   - 금액은 서버가 pay_visible 일 때만 `pay` 를 준다. 화면은 받은 것만 보여 주고 지어 넣지 않는다
  *   - 초대 토큰(#invite=)은 sessionStorage 에 두고 로그인 왕복 뒤 POST /work/claim-invite 로 쓴다
  *   - 사진 · 문제 칩 · 평가는 2주차 (결정 8 · 9 미정) — 1주차 보고는 글만
@@ -85,8 +87,10 @@
   const CONSENT_VERSION = 'worker-consent-2026-10-20';
   /** 글자 수 상한 — database/work-jobs.sql 의 CHECK 와 같다 */
   const LIMITS = Object.freeze({ name: 30, phone: 30, region: 40, message: 300, body: 1000, reason: 200 });
-  /** 서버가 site_note 를 안 줄 때 (계약 §3 JobDetail 의 문구) */
-  const SITE_NOTE = '현장 주소·연락처는 공개 기간이 정해지면 열립니다';
+  /** 서버가 site_note 를 안 줄 때 (서버 work/reveal.js SITE_NOTE 와 같은 글) */
+  const SITE_NOTE = '현장 주소·연락처는 배정을 수락한 뒤부터 작업이 끝나고 7일까지 열립니다';
+  /** 열린 현장 상자 아래 한 줄 */
+  const SITE_OPEN_NOTE = '현장 정보는 작업이 끝나고 7일 뒤에 닫힙니다. 이 작업을 위해서만 써 주세요.';
   /** sessionStorage 키 — 초대 토큰을 로그인 왕복 동안 보관 */
   const INVITE_KEY = 'dadamWorkerInvite';
   /** 정지된 작업자 맨 위 안내 (1주차 후속 D) — worker.html #suspendedNote 와 같은 글 */
@@ -584,6 +588,42 @@
     return `${esc(fmtDateTime(iso))}${tag ? ` · ${deadlineTagHtml(tag)}` : ''}`;
   }
 
+  /** 전화 글 → tel: 주소에 넣을 숫자 (+ 와 숫자만). 숫자가 없으면 '' */
+  function telOf(phone) {
+    const s = String(phone == null ? '' : phone).replace(/[^0-9+]/g, '');
+    return /[0-9]/.test(s) ? s : '';
+  }
+
+  /**
+   * 현장 — 서버가 site 를 줄 때만(내가 수락한 때부터 작업이 끝나고 7일까지) 주소 · 층 · 출입 · 현장 연락처를 그린다.
+   * site 가 없으면 안내 글(site_note)만. site_note 가 null 이면(현장이 없는 종류 — 공장 조립) 아무것도 그리지 않는다.
+   * @returns {{ note: string, card: string }} note = 작업 카드 안의 안내 한 줄, card = 따로 그리는 현장 카드
+   */
+  function siteHtml(d) {
+    const s = d && d.site && typeof d.site === 'object' && !Array.isArray(d.site) ? d.site : null;
+    if (!s) return { note: d && d.site_note === null ? '' : `<p class="site-note">${esc((d && d.site_note) || SITE_NOTE)}</p>`, card: '' };
+    const text = (v) => (typeof v === 'string' ? v.trim() : '');
+    const rows = [];
+    const address = [text(s.address), text(s.address_detail)].filter(Boolean).join(' ');
+    if (address) rows.push(['주소', esc(address)]);
+    if (text(s.floor)) rows.push(['층', esc(text(s.floor))]);
+    if (s.has_elevator === true || s.has_elevator === false)
+      rows.push(['엘리베이터', esc((s.has_elevator ? '있음' : '없음') + (text(s.elevator_note) ? ` — ${text(s.elevator_note)}` : ''))]);
+    else if (text(s.elevator_note)) rows.push(['엘리베이터', esc(text(s.elevator_note))]);
+    if (text(s.access_note)) rows.push(['출입', esc(text(s.access_note))]);
+    const tel = telOf(s.contact_phone);
+    const phone = text(s.contact_phone) ? (tel ? `<a href="tel:${esc(tel)}">${esc(text(s.contact_phone))}</a>` : esc(text(s.contact_phone))) : '';
+    const contact = [esc(text(s.contact_name)), phone].filter(Boolean).join(' ');
+    if (contact) rows.push(['현장 연락처', contact]);
+    if (!rows.length) return { note: `<p class="site-note">${esc((d && d.site_note) || SITE_NOTE)}</p>`, card: '' };
+    return {
+      note: '',
+      card: '<div class="card site-card"><h3>현장</h3>' +
+        `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>` +
+        `<p class="muted">${esc(SITE_OPEN_NOTE)}</p></div>`,
+    };
+  }
+
   /** 작업 상세 (#job=<id>). opts: { suspended } — 정지된 작업자는 신청 · 수락 버튼이 없다 */
   function jobDetailHtml(d, nowMs, backTab, opts) {
     if (!d) return '';
@@ -604,15 +644,16 @@
     if (d.order_no) facts.push(['주문번호', esc(d.order_no)]);
     if (d.customer_masked) facts.push(['고객', esc(d.customer_masked)]);
     const back = tabsFor(o.suspended).some((t) => t.key === backTab) ? backTab : defaultTab(null, null, o.suspended);
-    // site 는 1주차에 늘 null — 주소 · 연락처를 그리지 않는다 (공개 기간 ★7 미정)
-    const site = d.site == null ? `<p class="site-note">${esc(d.site_note || SITE_NOTE)}</p>` : '';
+    // 현장 — 서버가 연 것만 그린다 (수락한 때부터 작업이 끝나고 7일까지). 닫혀 있으면 안내 한 줄
+    const site = siteHtml(d);
     const showTimeline = !!(d.my && d.my.assignment_id) || (Array.isArray(d.timeline) && d.timeline.length);
     return `<a class="back" href="#tab=${back}">← 목록으로</a>` +
       '<div class="card">' +
       `<div class="chips">${kindChip(d.kind)}${chip(label(JOB_STATUS_LABEL, eff), TONE[eff])}${st.key !== eff ? chip(st.text, st.tone) : ''}</div>` +
       `<h2 class="jt">${esc(d.title)}</h2>` +
       `<dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>` +
-      `${d.detail ? `<div class="detail-text">${esc(d.detail)}</div>` : ''}${site}</div>` +
+      `${d.detail ? `<div class="detail-text">${esc(d.detail)}</div>` : ''}${site.note}</div>` +
+      site.card +
       `<div class="card"><h3>내 상태</h3>${actionsHtml(d, o)}</div>` +
       (showTimeline ? `<div class="card"><h3>작업 기록</h3><p class="muted">내 보고와 회사 정정 · 메모가 고쳐지지 않고 차례로 쌓입니다.</p>${timelineHtml(d.timeline)}</div>` : '');
   }
@@ -1663,6 +1704,9 @@
     workerInfoHtml,
     pendingInfoHtml,
     LINK_STATUS_LABEL,
+    siteHtml,
+    telOf,
+    SITE_OPEN_NOTE,
     linksHtml,
     linkAskText,
     factoryDay,
