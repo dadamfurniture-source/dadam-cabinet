@@ -40,8 +40,9 @@
          회계          segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 (+ 업체는 설정),
                         사진만 올리면 영수증 올리기 (업체만). 본사 대표 · 실장은 본사 장부 — 공장 장부는 플랫폼 › 등록 업체 › 다담 공장 › 회계
          인사          Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
-                        작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 근무 일정(준비 중) · 작업자(준비 중 —
-                        다담 공장은 #workers-hq = 공장 배정 · 작업자 링크 · 실측 보정, segan/production-workers.js),
+                        작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 근무 일정(#schedule — segan/work-shifts.js) ·
+                        작업자(#workers — 팩토리의 작업자 연결 · 초대, segan/company-workers.js. 못 읽으면 — DB 적용 전 등 — 「준비 중」.
+                        다담 공장은 #workers-hq = 그 칸 + 공장 배정 · 작업자 링크 · 실측 보정, segan/production-workers.js),
                         관리자 — 작업자 · 작업 배정 · 작업 지시 보고
          기준정보      관리자 — 학습 데이터셋 (PC 관리자 화면),
                         참고 이미지(#ref-images — 사이트 관리자, segan/theme-images-view.js — 보기 · 찾기만, 확정 · 수정은 PC 화면),
@@ -642,16 +643,26 @@
       },
       soon0: '근무 일정은 준비 중입니다. 직원 · 작업자의 근무와 쉬는 날을 한 표로 보게 됩니다.',
     },
+    // 인사 › 작업자 — segan/company-workers.js 가 읽었으면 그 화면(작업자 연결 · 초대), 아니면 준비 중
     workers: {
       title: '작업자',
-      soon: '작업자는 준비 중입니다. 설치 · A/S 외부 작업자를 모으고 배정하게 됩니다.',
+      pick: function () {
+        return stockScreen('workers', 'companyWorkers', 'companyWorkersTitle');
+      },
+      soon0: '작업자는 준비 중입니다. 설치 · A/S 외부 작업자를 모으고 배정하게 됩니다.',
     },
-    // 인사 › 작업자 (다담 공장) — 공장 배정 · 작업자 링크 · 실측 보정 (segan/production-workers.js)
+    // 인사 › 작업자 (다담 공장) — 작업자 연결 · 초대 (segan/company-workers.js) +
+    //   공장 배정 · 작업자 링크 · 실측 보정 (segan/production-workers.js). 읽힌 칸만 보인다
     'workers-hq': {
       title: '작업자',
-      section: 'partner',
-      parts: ['productionWorkers'],
-      label: 'productionWorkersTitle',
+      pick: function () {
+        return {
+          title: '작업자',
+          section: 'partner',
+          parts: ['companyWorkers', 'productionWorkers'],
+          label: shown('companyWorkers') ? 'companyWorkersTitle' : 'productionWorkersTitle',
+        };
+      },
     },
     // 플랫폼 — 등록 업체 (segan/hq-companies.js)
     companies: { title: '등록 업체', section: 'hqCompanies' },
@@ -759,6 +770,7 @@
     'productionPlan',
     'outsourceOrders',
     'productionSettings',
+    'companyWorkers',
     'productionWorkers',
     'counterparties',
     'stockBoard',
@@ -785,7 +797,8 @@
     'stock-hardware': 'stockHardware',
     'stock-scrap': 'stockOffcuts',
     schedule: 'workShifts',
-  }; // 재고 줄 → 그 화면의 칸 (segan/stock.js)
+    workers: 'companyWorkers',
+  }; // 재고 · 근무 일정 · 작업자 줄 → 그 화면의 칸 (읽히면 「준비 중」 흐림을 뗀다)
   var FACTORY_PLANS = ['expert', 'agent']; // 상담 배정 · 받은 제작 의뢰 · A/S함 · 구매 · 재고 (+ 다담 공장)
   var PEOPLE_PLANS = ['agent']; // 인사 (+ 다담 공장) — account-api STAFF_TOOL_PLANS
   var MONEY_ROLES = ['owner', 'manager']; // 대표 · 실장
@@ -1542,9 +1555,10 @@
       // 근무 일정 — 대표 · 실장 · 공장에게는 늘(못 읽으면 준비 중), 그 밖의 구성원에게는 읽혔을 때 (segan/work-shifts.js)
       case 'schedule':
         return v.people || shown('workShifts');
+      // 작업자 — 대표 · 실장에게는 늘(못 읽으면 준비 중), 그 밖의 구성원에게는 읽혔을 때 (segan/company-workers.js)
       case 'workers':
-        return v.people && !v.hq;
-      // 다담 공장 작업자 — 공장 배정을 읽은 때만 (대표 · 실장 · 관리자, segan/production-workers.js)
+        return !v.hq && (v.people || shown('companyWorkers'));
+      // 다담 공장 작업자 — 작업자 연결(구성원) 이나 공장 배정(대표 · 실장 · 관리자, segan/production-workers.js)을 읽은 때만
       case 'workers-hq':
         return v.people && v.hq && available(key);
       // 플랫폼 › 등록 업체 — 본사 대표 · 실장 (칸을 연 때만)
@@ -1790,6 +1804,7 @@
     var Orders = window.SeganOrders;
     var Plan = window.SeganProductionPlan;
     var Workers = window.SeganProductionWorkers;
+    var CoWorkers = window.SeganCompanyWorkers;
     var Settings = window.SeganProductionSettings;
     var Outsource = window.SeganOutsourceOrders;
     var Vendors = window.SeganCounterparties;
@@ -1830,6 +1845,8 @@
           synced(Plan && Plan.load ? Plan.load(auth.sb, auth.session, me) : null),
           // 작업자 = 다담 공장 대표 · 실장 · 관리자 (segan/production-workers.js — 인사 › 작업자 화면)
           synced(Workers && Workers.load ? Workers.load(auth.sb, auth.session, me) : null),
+          // 작업자 연결 · 초대 = 다담 공장 · Agent 업체 구성원, 바꾸기는 대표 · 실장 (segan/company-workers.js — 인사 › 작업자)
+          synced(CoWorkers && CoWorkers.load ? CoWorkers.load(auth.sb, auth.session, me) : null),
           // 외주 발주 = 다담 공장 · Expert · Agent 업체 구성원 (segan/outsource-orders.js — 생산 › 외주 발주 화면)
           synced(Outsource && Outsource.load ? Outsource.load(auth.sb, auth.session, me) : null),
           // 거래처 · 공급처 = 다담 공장 · Expert · Agent 업체의 대표 · 실장 (segan/counterparties.js — 구매 · 재고 › 거래처 · 공급처 화면)

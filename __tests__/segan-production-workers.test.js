@@ -362,7 +362,7 @@ afterEach(() => {
 });
 
 describe('자리 · 이름', () => {
-  test('me.html — 업체 칸(#partner) 안, 생산 설정 다음 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
+  test('me.html — 업체 칸(#partner) 안, 생산 설정 · 작업자 연결 칸 다음 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const box = doc.getElementById('productionWorkers');
     expect(box).not.toBeNull();
@@ -370,7 +370,9 @@ describe('자리 · 이름', () => {
     expect(box.closest('section').id).toBe('partner');
     expect(box.classList.contains('od')).toBe(true);
     expect(box.classList.contains('pw')).toBe(true);
-    expect(box.previousElementSibling.id).toBe('productionSettings');
+    // 사이에 팩토리의 작업자 연결 · 초대 칸이 있다 (segan/company-workers.js — 다담 공장은 한 화면에 같이 보인다)
+    expect(box.previousElementSibling.id).toBe('companyWorkers');
+    expect(box.previousElementSibling.previousElementSibling.id).toBe('productionSettings');
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
     );
