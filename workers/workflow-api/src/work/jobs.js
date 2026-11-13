@@ -17,7 +17,7 @@ import { isMissingRelation } from '../work-order-data.js';
 import { requireAdminEditor, requireAdminReader, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent, recordJobStatusChange } from './events.js';
 import { later, notifyWorkSchedule } from '../push/work-hooks.js';
-import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment } from './reveal.js';
+import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment, siteOpenFor } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
 import { approvedCompanyIds, companyNames } from './links.js';
 
@@ -147,6 +147,25 @@ async function loadOrderLabel(env, orderId) {
   if (!orderId) return null;
   try {
     return await selectOne(env, 'orders', { id: `eq.${orderId}`, select: 'order_no,customer_name' });
+  } catch (err) {
+    if (isMissingRelation(err)) return null;
+    throw err;
+  }
+}
+
+/**
+ * 그 작업의 현장 정보 줄 — 작업의 설계가 그 작업을 낸 팩토리의 것일 때만 읽는다 (남의 설계 번호가 적힌 작업은 열지 않는다).
+ * 여는지(수락 뒤 ~ 끝나고 7일)는 부르는 쪽이 siteOpenFor 로 먼저 본다. 없으면 null
+ */
+export async function loadWorkerSite(env, job) {
+  if (!job || !job.design_id || !job.company_id) return null;
+  try {
+    const design = await selectOne(env, 'designs', { id: `eq.${job.design_id}`, company_id: `eq.${job.company_id}`, select: 'id' });
+    if (!design) return null;
+    return (await selectOne(env, 'design_site_info', {
+      design_id: `eq.${job.design_id}`,
+      select: 'address,address_detail,floor,has_elevator,elevator_note,access_note,contact_name,contact_phone',
+    })) || null;
   } catch (err) {
     if (isMissingRelation(err)) return null;
     throw err;
@@ -307,7 +326,9 @@ export async function getJobForWorker(env, { user, params }) {
     timeline = rows.filter((u) => (u.assignment_id && ids.has(u.assignment_id)) || (!u.assignment_id && u.author_role === 'company'));
   }
   const names = await companyNames(env, [job.company_id]);
-  return jobDetail(job, { filled: countFilled(all), application: myApps[0] || null, assignment, order, timeline, companyName: names.get(job.company_id) || null });
+  // 현장 주소 · 연락처 — 내가 수락한 때부터 작업이 끝나고 7일까지만 읽는다 (reveal.js siteOpenFor)
+  const site = siteOpenFor(job, assignment) ? await loadWorkerSite(env, job) : null;
+  return jobDetail(job, { filled: countFilled(all), application: myApps[0] || null, assignment, order, timeline, companyName: names.get(job.company_id) || null, site });
 }
 
 // ── 관리자 ───────────────────────────────────────────────────────

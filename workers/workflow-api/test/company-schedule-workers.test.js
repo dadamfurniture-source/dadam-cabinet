@@ -16,6 +16,7 @@ import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { ASSIGNMENT_LABEL, ASSIGN_MAX, SCHEDULE_JOB_KIND, jobTimesOf } from '../src/work/schedule-link.js';
 import { ASSIGNEE_NAME_MAX, assigneeNameOf } from '../src/work/schedule-names.js';
+import { SITE_EMPTY_NOTE, SITE_NOTE, findForbiddenKeys } from '../src/work/reveal.js';
 import { createFake, withFake, SB } from './helpers/push-fake.js';
 
 beforeEach(() => {
@@ -89,7 +90,8 @@ function tables() {
       { id: D(3), company_id: E, user_id: OWNER_E, name: '엑스퍼트 설계', project_id: null },
     ],
     design_site_info: [
-      { design_id: D(1), address: ADDR, address_detail: '1동 1호', contact_name: '김고객', contact_phone: '010-9999-9999', access_notes: '공동현관 0000', sido: '시험시', gugun: '시험구', lat: 37.5, lng: 127, geo_address: ADDR },
+      { design_id: D(1), address: ADDR, address_detail: '1동 1호', floor: '3', has_elevator: true, elevator_note: null, contact_name: '김고객', contact_phone: '010-9999-9999', access_note: '공동현관 0000', install_order: '내부 차례 메모', notes: '내부 특기 메모', sido: '시험시', gugun: '시험구', lat: 37.5, lng: 127, geo_address: ADDR },
+      { design_id: D(9), address: '남의 주소 9', address_detail: null, contact_name: '남의고객', contact_phone: '010-8888-8888' },
     ],
     design_schedules: [
       { id: S(1), design_id: D(1), type: 'installation', title: '설치', status: 'scheduled', scheduled_at: iso('2026-11-20T09:00:00'), duration_min: 120, assignee_name: '설치 1팀' },
@@ -410,6 +412,93 @@ test('문제 보고도 팩토리에 알린다 · 진행 보고는 알리지 않�
   fake.db.work_assignments.push({ id: id('0f', 2), job_id: id('0f', 1), worker_id: W(1), status: 'offered', via: 'invite', worker_name_snapshot: '시험기사1' });
   assert.equal((await post(fake, 't_w1', `/work/assignments/${id('0f', 2)}/confirm`)).status, 200);
   assert.equal(fake.db.notification_outbox.length, before);
+});
+
+// ── 현장 공개 (작업자 화면) ──────────────────────────────────────────
+
+test('현장 공개 — 수락 전에는 닫힘, 수락하면 주소 · 층 · 출입 · 연락처가 열리고, 끝나고 7일 뒤 닫힌다', async () => {
+  const fake = world();
+  await assign(fake, 't_owner', S(1), [L(1), L(6)]);
+  const job = jobOf(fake, S(1));
+  const a1 = asgOf(fake, W(1));
+  const detail = (token) => call(fake, token, `/work/jobs/${job.id}`);
+  const SECRET = [ADDR, '1동 1호', '공동현관 0000', '김고객', '010-9999-9999'];
+  const closed = (r, note = SITE_NOTE) => {
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([r.json.data.site, r.json.data.site_note], [null, note]);
+    for (const v of SECRET) assert.equal(JSON.stringify(r.json).includes(v), false, v);
+  };
+
+  // 초대만 받음 — 닫힘
+  closed(await detail('t_w1'));
+  // 수락 — 열림. 싣는 칸은 여덟 개뿐 (내부 메모 · 좌표 · 시공 순서는 없다)
+  await post(fake, 't_w1', `/work/assignments/${a1.id}/confirm`);
+  const open = await detail('t_w1');
+  assert.deepEqual(open.json.data.site, {
+    address: ADDR, address_detail: '1동 1호', floor: '3', has_elevator: true, elevator_note: null,
+    access_note: '공동현관 0000', contact_name: '김고객', contact_phone: '010-9999-9999',
+  });
+  assert.equal(open.json.data.site_note, null);
+  assert.equal(JSON.stringify(open.json).includes('내부'), false);
+  assert.deepEqual(findForbiddenKeys(open.json, { allowSiteAt: ['$.data.site'] }), []);
+  // 같이 초대받았지만 수락하지 않은 사람 · 거절한 사람은 못 본다
+  closed(await detail('t_w5'));
+  await post(fake, 't_w5', `/work/assignments/${asgOf(fake, W(5)).id}/decline`, {});
+  closed(await detail('t_w5'));
+  // 목록 카드에는 현장이 없다
+  const mine = await call(fake, 't_w1', '/work/jobs?tab=mine');
+  for (const v of SECRET) assert.equal(JSON.stringify(mine.json).includes(v), false, v);
+
+  // 작업 중 · 완료 보고 · 확인 — 계속 열림, 확인한 때부터 7일
+  await post(fake, 't_w1', `/work/assignments/${a1.id}/start`);
+  await post(fake, 't_w1', `/work/assignments/${a1.id}/updates`, { kind: 'result', body: '마쳤습니다' });
+  assert.ok((await detail('t_w1')).json.data.site);
+  await post(fake, 't_owner', `/company/work/assignments/${a1.id}/accept`);
+  const row = asgOf(fake, W(1));
+  row.accepted_at = new Date(AT - 6 * 86400000).toISOString();
+  assert.equal((await detail('t_w1')).json.data.site.address, ADDR);
+  row.accepted_at = new Date(AT - 7 * 86400000 - 1000).toISOString();
+  closed(await detail('t_w1'));
+});
+
+test('현장 공개 — 포기 · 뺌 · 취소된 일정은 닫힌다. 작업의 설계가 그 팩토리 것이 아니면 열지 않는다. 안 적었으면 그 안내', async () => {
+  const fake = world();
+  await assign(fake, 't_owner', S(1), [L(1)]);
+  const job = jobOf(fake, S(1));
+  const a1 = asgOf(fake, W(1));
+  const detail = () => call(fake, 't_w1', `/work/jobs/${job.id}`);
+  await post(fake, 't_w1', `/work/assignments/${a1.id}/confirm`);
+  assert.ok((await detail()).json.data.site);
+
+  // 남의 팩토리 설계 번호가 적힌 작업 — 열지 않는다
+  job.design_id = D(9);
+  const wrong = await detail();
+  assert.deepEqual([wrong.json.data.site, wrong.json.data.site_note], [null, SITE_EMPTY_NOTE]);
+  assert.equal(JSON.stringify(wrong.json).includes('남의'), false);
+  job.design_id = D(1);
+  // 현장 정보를 아직 안 적었다
+  const saved = fake.db.design_site_info.splice(0, 1)[0];
+  assert.deepEqual([(await detail()).json.data.site, (await detail()).json.data.site_note], [null, SITE_EMPTY_NOTE]);
+  fake.db.design_site_info.unshift(saved);
+
+  // 일정을 취소하면 (작업 취소) 확정했던 사람에게도 닫힌다
+  await call(fake, 't_owner', `/schedules/${S(1)}`, { method: 'PATCH', body: { status: 'cancelled' } });
+  const off = await detail();
+  assert.deepEqual([off.json.data.site, off.json.data.site_note], [null, SITE_NOTE]);
+
+  // 포기 · 뺌
+  const two = world();
+  await assign(two, 't_owner', S(1), [L(1), L(6)]);
+  const j2 = jobOf(two, S(1));
+  await post(two, 't_w1', `/work/assignments/${asgOf(two, W(1)).id}/confirm`);
+  await post(two, 't_w5', `/work/assignments/${asgOf(two, W(5)).id}/confirm`);
+  await post(two, 't_w1', `/work/assignments/${asgOf(two, W(1)).id}/release`, { reason: '사정이 생겼습니다' });
+  await post(two, 't_owner', `/company/work/assignments/${asgOf(two, W(5)).id}/remove`, { reason: '시험' });
+  for (const token of ['t_w1', 't_w5']) {
+    const r = await call(two, token, `/work/jobs/${j2.id}`);
+    assert.deepEqual([r.status, r.json.data.site], [200, null], token);
+    assert.equal(JSON.stringify(r.json).includes(ADDR), false);
+  }
 });
 
 // ── 일정 ↔ 작업 ──────────────────────────────────────────────────
