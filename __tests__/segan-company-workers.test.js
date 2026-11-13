@@ -230,6 +230,7 @@ async function load(options = {}) {
             return o;
           }),
           invites: opts.manage ? store.invites : [],
+          ...(opts.unconfirmed ? { unconfirmed: opts.unconfirmed } : {}),
         })
       );
     }
@@ -734,5 +735,73 @@ describe('작업 종류 여섯 · 작업자 화면', () => {
     expect(calls.fetch.find((c) => c.method === 'POST').body.kinds_preset).toEqual(['demolition']);
     expect(mod().KIND.demolition).toBe('철거');
     expect(mod().kindsText(['demolition', 'cutting'])).toBe('철거 · 재단');
+  });
+});
+
+// ── 2026-11-13 빈틈 메우기 — 확인 안 한 완료 보고 ──
+describe('확인 안 한 완료 보고', () => {
+  const wait = () => box().querySelector('[data-cw="wait"]');
+  const UNCONFIRMED = {
+    total: 3,
+    items: [
+      { kind: 'demolition', at: '2026-11-13T23:30:00Z', where: 'project' },
+      { kind: 'install', at: '2026-11-19T00:00:00Z', where: 'install' },
+      { kind: 'as', at: null, where: 'as' },
+    ],
+  };
+
+  test('건수와 자리마다 한 줄 — 그 화면으로 가는 링크 · 종류와 날짜. 「확인」해야 7일 계산이 시작된다는 글', async () => {
+    await load({ unconfirmed: UNCONFIRMED });
+    expect(text(wait().querySelector('.cw-wait-head'))).toBe('확인 안 한 완료 보고 3건');
+    const lines = [...wait().querySelectorAll('li')].map((li) => [
+      li.querySelector('a').getAttribute('href'),
+      text(li),
+    ]);
+    expect(lines).toEqual([
+      ['#p-install', '설치 일정에서 확인 → 11/19(목) 설치'],
+      ['#p-as', 'A/S에서 확인 → A/S'],
+      ['#dash-project', '프로젝트의 「작업 배정」에서 확인 → 11/14(토) 철거'],
+    ]);
+    expect(text(wait())).toContain(
+      '「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 연 현장 주소 · 연락처가 닫힙니다.'
+    );
+    expect(text(wait())).not.toContain('대표 · 실장이 합니다');
+    // 탭(작업자 · 초대)보다 위에 있다
+    const order = [...box().children].map((el) => el.getAttribute('data-cw') || el.className);
+    expect(order.indexOf('wait')).toBeLessThan(order.findIndex((c) => /cw-tabs/.test(c)));
+  });
+
+  test('없으면 칸이 없다 · 직원에게는 「확인은 대표 · 실장이 합니다」 · 줄보다 건수가 많으면 「외 n건」', async () => {
+    await load();
+    expect(wait()).toBeNull();
+    await load({ unconfirmed: { total: 0, items: [] } });
+    expect(wait()).toBeNull();
+    await load({
+      manage: false,
+      partner: partnerOf('agent', 'staff'),
+      unconfirmed: { total: 4, items: UNCONFIRMED.items.slice(1, 2) },
+    });
+    expect(text(wait().querySelector('.cw-wait-head'))).toBe('확인 안 한 완료 보고 4건');
+    expect(text(wait())).toContain('외 3건');
+    expect(text(wait())).toContain('확인은 대표 · 실장이 합니다.');
+  });
+
+  test('순수 — 모르는 종류 · 자리는 빼고, 모양이 틀리면 0건', () => {
+    const M = mod();
+    expect(
+      M.waitOf({
+        total: 2,
+        items: [
+          { kind: 'install', at: '2026-11-19T00:00:00Z', where: 'install' },
+          { kind: 'paint', at: null, where: 'install' },
+          { kind: 'as', at: null, where: 'somewhere' },
+          null,
+        ],
+      })
+    ).toEqual({ total: 2, items: [{ kind: 'install', at: '2026-11-19T00:00:00Z', where: 'install' }] });
+    expect(M.waitOf(null)).toEqual({ total: 0, items: [] });
+    expect(M.waitOf({ total: -1, items: 'x' })).toEqual({ total: 0, items: [] });
+    // 건수가 줄 수보다 작게 오면 줄 수로
+    expect(M.waitOf({ total: 0, items: [{ kind: 'as', at: null, where: 'as' }] }).total).toBe(1);
   });
 });

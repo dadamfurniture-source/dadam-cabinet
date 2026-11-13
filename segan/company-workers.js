@@ -13,7 +13,9 @@
                GET   /company/workers                     { company{ name }, can_manage, can_invite,
                                                             workers[{ link_id, name, kinds[], region, status, account_status,
                                                                       via, since, decided_at, reason, active, phone? }],
-                                                            invites[{ id, kinds_preset[], display_name_preset, expires_at, created_at }] }
+                                                            invites[{ id, kinds_preset[], display_name_preset, expires_at, created_at }],
+                                                            unconfirmed{ total, items[{ kind, at, where }] } }
+                                                          unconfirmed = 확인을 기다리는 완료 보고 (where: install · as · project)
                POST  /company/workers/invites             { kinds_preset[], display_name_preset?, expires_at } → { id, url, expires_at }
                                                           링크는 이 답에서만 보인다 (서버에는 해시만). 한 번만 쓸 수 있다.
                POST  /company/workers/invites/:id/revoke  초대 취소
@@ -21,6 +23,8 @@
    화면      「작업자」 — 승인 대기 · 연결됨 · 정지 표 (줄마다 「승인」 「반려」 「정지」 「다시 승인」 「연결 끊기」), 반려 · 끝난 연결은 접어 둔다.
              「초대」 — 종류(여럿) · 이름(선택) · 만료(3일 · 7일 · 30일 가운데 고른다 — 미리 고른 값 없음) → 「초대 링크 만들기」
                        → 링크 상자 + 「링크 복사」. 남은 초대 줄마다 「초대 취소」.
+             맨 위 — 확인 안 한 완료 보고가 있으면 건수와 어디서 확인하는지(설치 일정 · A/S · 프로젝트의 「작업 배정」) 한 칸.
+                       「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 연 현장 정보가 닫힌다.
    확인      반려 · 정지 · 연결 끊기 · 초대 취소는 창을 띄우지 않는다 — 표 아래에 물음 한 줄과 단추 둘을 그린다.
    못 읽으면  칸째 감춘다 (DB 0064 적용 전 409 db_pending 포함) — 그때 메뉴는 「준비 중」 안내로 남는다 (segan/me.js).
    정보      작업자 이름 · 전화 · 사유는 화면에만 그린다 — 알림 · 주소 · 기기 저장에 싣지 않는다. 전화는 서버가 대표 · 실장에게만 준다.
@@ -50,6 +54,13 @@
   };
   var VIA = { invite: '초대 링크', public: '공개 신청', migrated: '기존 작업자' };
   var DAYS = [3, 7, 30]; // 초대 만료 — 고르는 값 (미리 고르지 않는다)
+  // 확인을 기다리는 완료 보고를 어디서 확인하나 — 서버 unconfirmed.items[].where → [이름, 그 화면]
+  var WAIT_WHERE = {
+    install: ['설치 일정', '#p-install'],
+    as: ['A/S', '#p-as'],
+    project: ['프로젝트의 「작업 배정」', '#dash-project'],
+  };
+  var WAIT_ORDER = ['install', 'as', 'project'];
 
   var TEXT = {
     title: '작업자 연결 · 초대',
@@ -106,6 +117,13 @@
     revokedMsg: '초대를 취소했습니다.',
     workerScreen: '작업자는 앱 「작업」 화면에서 초대를 받고 수락 · 보고합니다. 작업자로 등록하지 않은 계정으로 열면 신청서가 보입니다.',
     workerScreenLink: '작업자 화면 열기',
+    waitHead: '확인 안 한 완료 보고',
+    waitUnit: '건',
+    waitNote:
+      '「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 연 현장 주소 · 연락처가 닫힙니다.',
+    waitNoteRead: '확인은 대표 · 실장이 합니다.',
+    waitGo: '에서 확인',
+    waitMore: '외',
     anyKind: '정하지 않음',
     anyName: '정하지 않음',
   };
@@ -120,6 +138,7 @@
     company: '',
     workers: [],
     invites: [],
+    wait: { total: 0, items: [] }, // 확인을 기다리는 완료 보고 (서버 unconfirmed)
     tab: 'workers', // workers | invite
     form: { kinds: [], name: '', days: 0 },
     made: null, // 방금 만든 초대 { id, url, expires_at } — 화면에만
@@ -217,6 +236,20 @@
   }
 
   // ── 서버 ────────────────────────────────────────────
+  /** 서버 unconfirmed → { total, items[{ kind, at, where }] } (모르는 종류 · 자리는 뺀다, 모양이 틀리면 0건) */
+  function waitOf(v) {
+    var o = obj(v);
+    var items = arr(o.items)
+      .map(function (x) {
+        var i = obj(x);
+        if (!own(KIND, i.kind) || !own(WAIT_WHERE, i.where)) return null;
+        return { kind: i.kind, at: str(i.at), where: i.where };
+      })
+      .filter(Boolean);
+    var total = typeof o.total === 'number' && o.total >= 0 && Math.floor(o.total) === o.total ? o.total : 0;
+    return { total: Math.max(total, items.length), items: items };
+  }
+
   async function token() {
     try {
       var r = J.sb && (await J.sb.auth.getSession());
@@ -266,6 +299,7 @@
     J.company = str(obj(d.company).name);
     J.workers = d.workers.map(workerOf).filter(Boolean);
     J.invites = J.canManage ? arr(d.invites).map(inviteOf).filter(Boolean) : [];
+    J.wait = waitOf(d.unconfirmed);
     return true;
   }
 
@@ -566,6 +600,44 @@
       : '<p class="mk-note">' + esc(TEXT.noteNoInvite) + '</p>';
     return form + madeHtml() + invitesHtml();
   }
+  /** 확인 안 한 완료 보고 — 건수 + 자리마다 한 줄 (그 화면으로 가는 링크 · 종류와 날짜). 없으면 '' */
+  function waitHtml() {
+    var w = J.wait;
+    if (!w || !w.total) return '';
+    var lines = WAIT_ORDER.map(function (where) {
+      var list = w.items.filter(function (i) {
+        return i.where === where;
+      });
+      if (!list.length) return '';
+      var what = list
+        .map(function (i) {
+          var day = dayKst(i.at);
+          return (day === '-' ? '' : day + ' ') + KIND[i.kind];
+        })
+        .join(' · ');
+      return (
+        '<li><a class="od-pc" href="' +
+        WAIT_WHERE[where][1] +
+        '">' +
+        esc(WAIT_WHERE[where][0] + TEXT.waitGo) +
+        ' →</a> <span>' +
+        esc(what) +
+        '</span></li>'
+      );
+    }).join('');
+    var more = w.total - w.items.length;
+    return (
+      '<div class="cw-wait" data-cw="wait" role="status"><p class="cw-wait-head"><b>' +
+      esc(TEXT.waitHead + ' ' + w.total + TEXT.waitUnit) +
+      '</b></p>' +
+      (lines ? '<ul>' + lines + '</ul>' : '') +
+      (more > 0 ? '<p class="mk-note">' + esc(TEXT.waitMore + ' ' + more + TEXT.waitUnit) + '</p>' : '') +
+      '<p class="mk-note">' +
+      esc(TEXT.waitNote + (J.canManage ? '' : ' ' + TEXT.waitNoteRead)) +
+      '</p></div>'
+    );
+  }
+
   function tabsHtml() {
     var pending = J.workers.filter(function (w) {
       return w.status === 'pending';
@@ -615,6 +687,7 @@
       ' <a class="od-pc" href="work.html">' +
       esc(TEXT.workerScreenLink) +
       ' →</a></p>' +
+      waitHtml() +
       (J.canManage ? tabsHtml() : '') +
       '<p class="me-pt-msg" role="status" data-cw="msg">' +
       esc(J.msg) +
@@ -843,6 +916,7 @@
     expiresIn: expiresIn,
     workerOf: workerOf,
     inviteOf: inviteOf,
+    waitOf: waitOf,
     state: J,
     load: load,
   };

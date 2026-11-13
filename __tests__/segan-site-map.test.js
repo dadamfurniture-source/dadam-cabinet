@@ -1631,3 +1631,80 @@ describe('작업자 배정', () => {
     expect(code).not.toMatch(/localStorage|sessionStorage|indexedDB|document\.cookie/);
   });
 });
+
+// ── 2026-11-13 빈틈 메우기 — 확인을 기다리는 완료 보고 ──
+describe('확인할 보고', () => {
+  const AGENT = partnerMe({ plan: 'agent' });
+  const note = (id) => $(id).querySelector('[data-sm="wait"]');
+  // 거르기 단추만 (안내 줄의 「확인할 보고만 보기」 단추는 뺀다)
+  const tabs = (id) =>
+    [...$(id).querySelectorAll('.sm-tabs [data-act="tab"]')].map(
+      (b) => text(b) + (b.getAttribute('aria-pressed') === 'true' ? ' ←' : '')
+    );
+  const waiting = () =>
+    ok(
+      sites('install', {
+        items: WORKED([
+          { name: '시험기사 가', status: 'submitted', label: '완료 보고' },
+          { name: '시험기사 나', status: 'started', label: '작업 중' },
+        ]),
+      })
+    );
+
+  test('순수 — 줄마다 · 전체 건수. 거르기 단추는 인사를 쓰는 팩토리이거나 그런 줄이 있을 때만', () => {
+    const M = lib();
+    const ins = M.dataOf({ success: true, data: waiting().body.data }, 'install').items;
+    expect(ins.map((x) => M.waitingOn('install', x))).toEqual([1, 0, 0]);
+    expect(M.waitingCount('install', ins)).toBe(1);
+    expect(
+      M.filterItems('install', ins, { tab: 'review' }, '2026-11-10', {}).map((x) => x.key)
+    ).toEqual(['schedule:' + S1]);
+    expect(M.tabsOf('install', ins, '2026-11-10').map((t) => t.label + ' ' + t.n).pop()).toBe(
+      '확인할 보고 1'
+    );
+    const plain = M.dataOf({ success: true, data: sites('install') }, 'install').items;
+    expect(M.tabsOf('install', plain, '2026-11-10').map((t) => t.id)).not.toContain('review');
+    expect(
+      M.tabsOf('install', plain, '2026-11-10', true).map((t) => t.label + ' ' + t.n).pop()
+    ).toBe('확인할 보고 0');
+    // A/S — 잡아 둔 방문의 작업자를 센다 (취소된 방문은 세지 않는다)
+    const visit = { ...AS[1].visit, workers: [{ name: '다', status: 'submitted' }] };
+    const as = M.dataOf(
+      { success: true, data: sites('as', { items: [{ ...AS[1], visit }, AS[0]] }) },
+      'as'
+    ).items;
+    expect(as.map((x) => M.waitingOn('as', x))).toEqual([1, 0]);
+    expect(M.waitingOn('as', { ...as[0], visit: { ...as[0].visit, status: 'cancelled' } })).toBe(0);
+    expect(M.waitingCount('as', null)).toBe(0);
+  });
+
+  test('설치 표 — 안내 한 줄과 줄 꼬리표, 「확인할 보고만 보기」로 그 줄만 남긴다', async () => {
+    await load({ partner: AGENT, install: waiting });
+    expect(text(note('siteInstall'))).toBe(
+      '확인 안 한 완료 보고 1건 「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 연 현장 주소 · 연락처가 닫힙니다. 확인할 보고만 보기'
+    );
+    expect(tabs('siteInstall').pop()).toBe('확인할 보고 1');
+    expect($('siteInstall').querySelectorAll('.sm-row').length).toBe(3);
+    const tagged = [...$('siteInstall').querySelectorAll('.sm-row')].filter((tr) =>
+      tr.querySelector('.sm-wait-tag')
+    );
+    expect(tagged.map((tr) => tr.getAttribute('data-key'))).toEqual(['schedule:' + S1]);
+    await click('siteInstall', '[data-sm="wait"] [data-act="tab"]');
+    expect([...$('siteInstall').querySelectorAll('.sm-row')].map((tr) => tr.getAttribute('data-key'))).toEqual([
+      'schedule:' + S1,
+    ]);
+    expect(tabs('siteInstall').pop()).toBe('확인할 보고 1 ←');
+    // 거른 뒤에는 안내 줄에 단추가 없다
+    expect(note('siteInstall').querySelector('button')).toBeNull();
+  });
+
+  test('보고가 없으면 안내가 없다 — 인사를 쓰는 팩토리는 단추만(0), 안 쓰는 등급은 단추도 없다', async () => {
+    await load({ partner: AGENT });
+    expect(note('siteInstall')).toBeNull();
+    expect(tabs('siteInstall').pop()).toBe('확인할 보고 0');
+    expect($('siteInstall').querySelector('.sm-wait-tag')).toBeNull();
+    await load();
+    expect(note('siteInstall')).toBeNull();
+    expect(tabs('siteInstall').join(' / ')).not.toContain('확인할 보고');
+  });
+});
