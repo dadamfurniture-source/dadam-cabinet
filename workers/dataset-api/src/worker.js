@@ -14,16 +14,31 @@
  *   POST /ingest   지금 수집
  *   POST /export   지금 내보내기
  *   POST /planner/state · /planner/photo · /planner/design   간편 플래너 → 창고 (2026-10-28, planner.js — 시공 완료 확인은 planner_completions)
+ *   GET  /planner/funnel   간편 플래너 웹판 설계가 학습 자료까지 가는 길의 수 (planner-web.js, DB 0067)
+ *
+ * 수집에는 웹판 플래너의 학습 묶음(planner_draft_learn → dataset_samples, planner-web.js)도 같이 돈다.
  *
  * 검수 자체는 이 워커를 지나지 않는다. 관리자 페이지가 dataset_reviews 에 직접 쓰고
  * (RLS 가 관리자만 통과시킨다), 트리거가 dataset_samples 에 반영한다.
  */
 import { corsHeaders, handleOptions, jsonResponse } from './cors.js';
-import { select, upsert, patch, remove, putObject, removeObjects, verifyAdmin } from './supabase.js';
+import { select, upsert, patch, remove, count, putObject, removeObjects, verifyAdmin } from './supabase.js';
 import { plannerState, plannerPhoto, plannerDesign } from './planner.js';
+import { ingestPlannerWeb, plannerFunnel } from './planner-web.js';
 import { ingestAll } from './ingest.js';
 import { exportDataset } from './export.js';
 import { TAXONOMY_VERSION } from './adapters.js';
+
+/** 수집 한 번 — 메인 페이지의 표 + 웹판 플래너 묶음. 한쪽이 실패해도 다른 쪽은 돈다 */
+async function ingestEverything(env) {
+  const results = await ingestAll(env);
+  try {
+    results.push(await ingestPlannerWeb(env, { select, upsert, patch, remove }));
+  } catch (e) {
+    results.push({ table: 'planner_drafts', error: String((e && e.message) || e).slice(0, 300) });
+  }
+  return results;
+}
 
 async function stateSummary(env) {
   const [state, total, review, exportable] = await Promise.all([
@@ -70,11 +85,14 @@ export default {
         return jsonResponse(request, env, await stateSummary(env));
       }
       if (url.pathname === '/ingest' && request.method === 'POST') {
-        const results = await ingestAll(env);
+        const results = await ingestEverything(env);
         return jsonResponse(request, env, { ok: !results.some((r) => r.error), results, by: auth.user.email });
       }
       if (url.pathname === '/export' && request.method === 'POST') {
         return jsonResponse(request, env, { ok: true, ...(await exportDataset(env)), by: auth.user.email });
+      }
+      if (url.pathname === '/planner/funnel' && request.method === 'GET') {
+        return jsonResponse(request, env, { ok: true, ...(await plannerFunnel(env, { select, count })) });
       }
       // 2026-10-28: 간편 플래너 → 창고 (planner.js) — 관리자 토큰으로 부른다
       const PLANNER = { '/planner/state': plannerState, '/planner/photo': plannerPhoto, '/planner/design': plannerDesign };
@@ -101,7 +119,7 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          const ingested = await ingestAll(env);
+          const ingested = await ingestEverything(env);
           console.log('[dataset] ingest', JSON.stringify(ingested));
           if (nightly) console.log('[dataset] export', JSON.stringify(await exportDataset(env)));
         } catch (e) {
