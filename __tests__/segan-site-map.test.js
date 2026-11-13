@@ -194,6 +194,65 @@ const sites = (kind, extra = {}) => ({
   items: kind === 'install' ? INSTALL : AS,
   ...extra,
 });
+// 작업자 칸 (GET /company/schedules/:id/workers) — 1 = 완료 보고가 올라온 사람, 2 = 거절한 사람. 이름은 지어낸 것이다
+const PANEL = (extra = {}) => ({
+  schedule: {
+    id: S1,
+    type: 'installation',
+    label: '설치',
+    at: '2026-11-10T01:00:00Z',
+    status: 'scheduled',
+  },
+  kind: 'install',
+  can_manage: true,
+  can_assign: true,
+  job: { id: 'job-1', status: 'review' },
+  workers: [
+    {
+      assignment_id: 'asg-1',
+      name: '시험기사 <b>가</b>',
+      status: 'submitted',
+      label: '완료 보고',
+      reason: null,
+      revision_count: 0,
+      reports: [
+        {
+          kind: 'progress',
+          by: 'worker',
+          body: '도착했습니다',
+          issue_chips: [],
+          at: '2026-11-10T00:30:00Z',
+        },
+        {
+          kind: 'result',
+          by: 'worker',
+          body: '설치를 마쳤습니다',
+          issue_chips: [],
+          at: '2026-11-10T05:05:00Z',
+        },
+      ],
+    },
+    {
+      assignment_id: 'asg-2',
+      name: '시험기사 나',
+      status: 'declined',
+      label: '거절',
+      reason: '그날은 어렵습니다',
+      reports: [],
+    },
+    { assignment_id: 'asg-9', name: '모르는 상태', status: 'weird', reports: [] },
+  ],
+  candidates: [
+    { link_id: 'lk-1', name: '시험기사 다', kinds: ['install'], region: '시험도 시험시' },
+    { link_id: 'lk-2', name: '시험기사 라', kinds: ['install'], region: null },
+  ],
+  ...extra,
+});
+const WORKED = (list) =>
+  INSTALL.map((x, i) =>
+    i === 0 ? { ...x, assignee_name: list.map((w) => w.name).join(' · '), workers: list } : x
+  );
+
 const PROJECTS = {
   company: { id: CO, name: '다담 협력 주방', kind: 'partner', plan: 'expert' },
   can_manage: true,
@@ -270,6 +329,7 @@ async function load(options = {}) {
     geo: (body) => ok({ saved: body.items.length, skipped: 0 }),
     patch: () => ok({ id: S1 }),
     visit: () => ok({ id: A1, visit: { schedule_id: S9 } }),
+    workers: () => ok(PANEL()),
     kakao: null,
     key: '',
     ...options,
@@ -339,6 +399,11 @@ async function load(options = {}) {
       return reply(await (url.includes('kind=as') ? opts.as(url) : opts.install(url)));
     if (url.startsWith(WORK + '/company/as-requests/') && url.endsWith('/visit'))
       return reply(await opts.visit(body, url));
+    if (
+      /\/company\/schedules\/[^/]+\/workers$/.test(url) ||
+      url.startsWith(WORK + '/company/work/assignments/')
+    )
+      return reply(await opts.workers(method, body, url));
     if (url.startsWith(WORK + '/company/schedules'))
       return reply(
         ok({
@@ -1179,5 +1244,390 @@ describe('다른 칸과 잇기', () => {
     expect(before).toBeGreaterThan(0);
     await window.SeganCalendar.reload();
     expect(count()).toBe(before + 1);
+  });
+});
+
+// ── 작업자 배정 (2026-11-13 「작업자 한 길」 — 설치 줄 · A/S 방문 줄에서 연결된 작업자를 배정한다) ──
+describe('작업자 배정', () => {
+  const AGENT = partnerMe({ plan: 'agent' });
+  const wk = (id) => $(id).querySelector('[data-sm="wk"]');
+  const wkRows = (id) => [...$(id).querySelectorAll('.sm-wk-row')].map(text);
+  const wkErr = (id) => {
+    const el = $(id).querySelector('[data-sm="wk-err"]');
+    return el && !el.hidden ? el.textContent : '';
+  };
+  const wkCalls = (calls) =>
+    calls.fetch
+      .filter((f) => /\/workers$|\/company\/work\/assignments\//.test(f.url))
+      .map((f) => [f.method, f.url.slice(WORK.length), f.body]);
+  const pickRow = (id, key) => click(id, '.sm-row[data-key="' + key + '"] td');
+
+  test('순수 — 줄의 작업자 · 배정할 수 있는 일정 · 작업자 칸 읽기 · 누가 배정하나', () => {
+    const M = lib();
+    const item = (extra) =>
+      M.dataOf(
+        { success: true, data: sites('install', { items: [{ ...INSTALL[0], ...extra }] }) },
+        'install'
+      ).items[0];
+    const it = item({
+      workers: [
+        { name: '가', status: 'offered' },
+        { name: '나', status: 'weird' },
+        { name: '', status: 'confirmed' },
+      ],
+    });
+    expect(M.workersOn('install', it)).toEqual([
+      { name: '가', status: 'offered', label: '수락 대기' },
+      { name: '', status: 'confirmed', label: '확정' },
+    ]);
+    expect(M.workersText(it.workers)).toBe('가 (수락 대기) · (이름 없음) (확정)');
+    expect(M.workScheduleOf('install', it)).toBe(S1);
+    expect(M.workScheduleOf('install', item({ type: 'delivery' }))).toBe(''); // 납품 줄에는 없다
+    expect(M.workersOn('install', item({}))).toEqual([]);
+    const as = M.dataOf(
+      {
+        success: true,
+        data: sites('as', {
+          items: [
+            { ...AS[1], visit: { ...AS[1].visit, workers: [{ name: '다', status: 'started' }] } },
+            AS[0],
+          ],
+        }),
+      },
+      'as'
+    ).items;
+    expect(M.workScheduleOf('as', as[0])).toBe(S9);
+    expect(M.workersOn('as', as[0])).toEqual([{ name: '다', status: 'started', label: '작업 중' }]);
+    expect(M.workScheduleOf('as', as[1])).toBe(''); // 방문을 아직 안 잡았다
+    expect(M.workersOn('as', as[1])).toEqual([]);
+
+    const panel = M.panelOf(PANEL());
+    expect(panel.workers.map((w) => [w.id, w.label, w.live, w.reason, w.reports.length])).toEqual([
+      ['asg-1', '완료 보고', true, '', 2],
+      ['asg-2', '거절', false, '그날은 어렵습니다', 0],
+    ]);
+    expect(panel.workers[0].reports[1]).toEqual({
+      label: '완료 보고',
+      by: 'worker',
+      body: '설치를 마쳤습니다',
+      at: '11/10 14:05',
+    });
+    expect(panel.candidates).toEqual([
+      { id: 'lk-1', name: '시험기사 다', region: '시험도 시험시' },
+      { id: 'lk-2', name: '시험기사 라', region: '' },
+    ]);
+    expect([panel.manage, panel.assign, panel.job]).toEqual([true, true, 'review']);
+    expect(M.panelOf(PANEL({ can_manage: false })).assign).toBe(false); // 대표 · 실장이 아니면 배정도 없다
+    expect(M.panelOf({ workers: null })).toBeNull();
+    expect(M.panelOf(null)).toBeNull();
+
+    expect(M.canAssignWorkers({ hq_member: true })).toBe(true);
+    expect(M.canAssignWorkers({ company: { plan: 'agent' } })).toBe(true);
+    expect(M.canAssignWorkers({ company: { plan: 'expert' } })).toBe(false);
+    expect(M.canAssignWorkers({ platform_member: true, hq_member: true })).toBe(false);
+    expect(M.ASSIGN_LABEL.accepted).toBe('확인함');
+  });
+
+  test('Agent 대표 — 설치 줄에서 「작업자 배정」 → 고르고 「배정하기」 → 표 · 업무 달력을 다시 읽는다', async () => {
+    let n = 0;
+    const offered = [{ name: '시험기사 다', status: 'offered', label: '수락 대기' }];
+    const calls = await load({
+      partner: AGENT,
+      install: () => {
+        n += 1;
+        return ok(sites('install', n === 1 ? {} : { items: WORKED(offered) }));
+      },
+      workers: (method) =>
+        method === 'GET'
+          ? ok(PANEL({ job: null, workers: [] }))
+          : ok(
+              PANEL({
+                job: { id: 'job-1', status: 'open' },
+                workers: [
+                  {
+                    assignment_id: 'asg-3',
+                    name: '시험기사 다',
+                    status: 'offered',
+                    label: '수락 대기',
+                    reports: [],
+                  },
+                ],
+                candidates: [PANEL().candidates[1]],
+              })
+            ),
+    });
+    await pickRow('siteInstall', 'schedule:' + S1);
+    expect(detail('siteInstall').작업자).toBeUndefined();
+    const btn = $('siteInstall').querySelector('[data-act="workers"]');
+    expect(text(btn)).toBe('작업자 배정');
+    await click('siteInstall', '[data-act="workers"]');
+    expect(wkCalls(calls)).toEqual([['GET', '/company/schedules/' + S1 + '/workers', undefined]]);
+    expect(text(wk('siteInstall').querySelector('.me-empty'))).toBe(
+      '아직 배정한 작업자가 없습니다.'
+    );
+    expect([...$('siteInstall').querySelectorAll('[data-act="wk-pick"]')].map(text)).toEqual([
+      '시험기사 다 · 시험도 시험시',
+      '시험기사 라',
+    ]);
+    // 고르기 전에는 「배정하기」를 누를 수 없다 (미리 고른 사람 없음)
+    expect($('siteInstall').querySelector('[data-act="wk-assign"]').disabled).toBe(true);
+    expect(
+      $('siteInstall').querySelectorAll('[data-act="wk-pick"][aria-pressed="true"]').length
+    ).toBe(0);
+    await click('siteInstall', '[data-act="wk-pick"][data-id="lk-1"]');
+    expect(
+      $('siteInstall')
+        .querySelector('[data-act="wk-pick"][data-id="lk-1"]')
+        .getAttribute('aria-pressed')
+    ).toBe('true');
+    const calBefore = calls.fetch.filter((f) =>
+      f.url.startsWith(WORK + '/company/schedules?')
+    ).length;
+    await click('siteInstall', '[data-act="wk-assign"]');
+    expect(wkCalls(calls).pop()).toEqual([
+      'POST',
+      '/company/schedules/' + S1 + '/workers',
+      { link_ids: ['lk-1'] },
+    ]);
+    expect(wkRows('siteInstall')).toEqual(['시험기사 다수락 대기빼기']);
+    expect(text(wk('siteInstall').querySelector('.me-pt-msg'))).toBe(
+      '배정했습니다. 작업자가 수락하면 확정됩니다.'
+    );
+    // 표 · 현장 정보의 작업자 · 담당 글이 따라온다
+    expect(siteCalls(calls, 'install')).toHaveLength(2);
+    expect(detail('siteInstall')).toMatchObject({
+      설치팀: '시험기사 다',
+      작업자: '시험기사 다 (수락 대기)',
+    });
+    expect(
+      calls.fetch.filter((f) => f.url.startsWith(WORK + '/company/schedules?')).length
+    ).toBeGreaterThan(calBefore);
+    await click('siteInstall', '[data-act="wk-close"]');
+    expect(wk('siteInstall')).toBeNull();
+  });
+
+  test('완료 보고 — 보고 글을 읽고 「확인」 · 「보완요청」(사유 필수) · 「빼기」(사유 필수). 이름은 글자로만 그린다', async () => {
+    const calls = await load({
+      partner: AGENT,
+      install: () =>
+        ok(
+          sites('install', {
+            items: WORKED([{ name: '시험기사 가', status: 'submitted', label: '완료 보고' }]),
+          })
+        ),
+      workers: (method, body, url) => {
+        if (method === 'GET') return ok(PANEL());
+        const next = url.endsWith('/accept')
+          ? 'accepted'
+          : url.endsWith('/revision')
+            ? 'revision'
+            : 'removed';
+        const p = PANEL();
+        p.workers[0] = { ...p.workers[0], status: next };
+        return ok({ assignment: { id: 'asg-1', status: next }, ...p });
+      },
+    });
+    await pickRow('siteInstall', 'schedule:' + S1);
+    await click('siteInstall', '[data-act="workers"]');
+    expect(wkRows('siteInstall')).toEqual([
+      '시험기사 <b>가</b>완료 보고확인보완요청빼기',
+      '시험기사 나거절',
+    ]);
+    expect(wk('siteInstall').querySelector('.sm-wk-name b')).toBeNull();
+    expect([...wk('siteInstall').querySelectorAll('.sm-wk-reports li')].map(text)).toEqual([
+      '작업자 · 진행 · 11/10 09:30도착했습니다',
+      '작업자 · 완료 보고 · 11/10 14:05설치를 마쳤습니다',
+    ]);
+    expect(text(wk('siteInstall'))).toContain('사유: 그날은 어렵습니다');
+
+    // 보완요청 — 사유가 비면 보내지 않는다
+    await click('siteInstall', '[data-act="wk-revision"]');
+    const ask = () => $('siteInstall').querySelector('[data-sm="wk-ask"]');
+    expect(text(ask().querySelector('p'))).toBe(
+      '시험기사 <b>가</b> — 보완할 내용을 적어 주세요. 작업자에게 그대로 보입니다.'
+    );
+    await click('siteInstall', '[data-act="wk-yes"]');
+    expect(wkErr('siteInstall')).toBe('사유를 적어 주세요.');
+    expect(wkCalls(calls)).toHaveLength(1);
+    await click('siteInstall', '[data-act="wk-no"]');
+    expect(ask()).toBeNull();
+    await click('siteInstall', '[data-act="wk-revision"]');
+    $('siteInstall').querySelector('[name="wk-reason"]').value = ' 걸레받이를 다시 봐 주세요 ';
+    await click('siteInstall', '[data-act="wk-yes"]');
+    expect(wkCalls(calls).pop()).toEqual([
+      'POST',
+      '/company/work/assignments/asg-1/revision',
+      { reason: '걸레받이를 다시 봐 주세요' },
+    ]);
+    expect(wkRows('siteInstall')[0]).toBe('시험기사 <b>가</b>보완 요청빼기');
+    expect(text(wk('siteInstall').querySelector('.me-pt-msg'))).toBe('보완을 요청했습니다.');
+
+    // 빼기
+    await click('siteInstall', '[data-act="wk-remove"]');
+    expect(text(ask().querySelector('p'))).toContain('사유는 우리 팩토리 기록에만 남습니다.');
+    $('siteInstall').querySelector('[name="wk-reason"]').value = '일정이 바뀌었습니다';
+    await click('siteInstall', '[data-act="wk-yes"]');
+    expect(wkCalls(calls).pop()).toEqual([
+      'POST',
+      '/company/work/assignments/asg-1/remove',
+      { reason: '일정이 바뀌었습니다' },
+    ]);
+    expect(wkRows('siteInstall')[0]).toBe('시험기사 <b>가</b>뺌');
+  });
+
+  test('「확인」 — 묻지 않고 바로 보낸다. 서버가 막으면 그 글', async () => {
+    let block = false;
+    const calls = await load({
+      partner: AGENT,
+      workers: (method) => {
+        if (method === 'GET') return ok(PANEL());
+        if (block) return fail(409, 'conflict', '완료 보고된 배정만 승인할 수 있습니다');
+        const p = PANEL();
+        p.workers[0] = { ...p.workers[0], status: 'accepted' };
+        return ok({
+          assignment: { id: 'asg-1', status: 'accepted' },
+          ...p,
+          job: { id: 'job-1', status: 'done' },
+          can_assign: false,
+        });
+      },
+    });
+    await pickRow('siteInstall', 'schedule:' + S1);
+    await click('siteInstall', '[data-act="workers"]');
+    block = true;
+    await click('siteInstall', '[data-act="wk-accept"]');
+    expect(wkErr('siteInstall')).toBe('완료 보고된 배정만 승인할 수 있습니다');
+    block = false;
+    await click('siteInstall', '[data-act="wk-accept"]');
+    expect(wkCalls(calls).pop()).toEqual(['POST', '/company/work/assignments/asg-1/accept', {}]);
+    expect(wkRows('siteInstall')[0]).toBe('시험기사 <b>가</b>확인함');
+    expect(text(wk('siteInstall').querySelector('.me-pt-msg'))).toBe('완료 보고를 확인했습니다.');
+    // 끝난 작업 — 더 고르는 칸이 없다
+    expect($('siteInstall').querySelector('[data-act="wk-pick"]')).toBeNull();
+  });
+
+  test('누가 — 납품 줄 · 인사를 안 쓰는 등급은 단추가 없다. 배정된 사람이 있으면 「작업자 보기」(보기만) · 직원도 보기만', async () => {
+    // Expert 대표 — 배정 단추가 없다
+    await load();
+    await pickRow('siteInstall', 'schedule:' + S1);
+    expect($('siteInstall').querySelector('[data-act="workers"]')).toBeNull();
+
+    // Agent 대표 — 납품 줄에는 없다
+    await load({ partner: AGENT });
+    await pickRow('siteInstall', 'schedule:' + S2);
+    expect($('siteInstall').querySelector('[data-act="workers"]')).toBeNull();
+
+    // Agent 직원 — 배정된 사람이 있는 줄만 「작업자 보기」, 단추 없이 읽기만
+    const view = () => ok(PANEL({ can_manage: false, can_assign: false }));
+    const staffSites = () =>
+      ok(
+        sites('install', {
+          can_manage: false,
+          items: WORKED([{ name: '시험기사 가', status: 'submitted', label: '완료 보고' }]),
+        })
+      );
+    await load({
+      partner: partnerMe({ plan: 'agent', role: 'staff' }),
+      install: staffSites,
+      workers: view,
+    });
+    await pickRow('siteInstall', 'schedule:' + S3);
+    expect($('siteInstall').querySelector('[data-act="workers"]')).toBeNull();
+    await pickRow('siteInstall', 'schedule:' + S1);
+    expect(text($('siteInstall').querySelector('[data-act="workers"]'))).toBe('작업자 보기');
+    await click('siteInstall', '[data-act="workers"]');
+    expect(wkRows('siteInstall')).toEqual(['시험기사 <b>가</b>완료 보고', '시험기사 나거절']);
+    expect(wk('siteInstall').querySelectorAll('[data-act]:not([data-act="wk-close"])').length).toBe(
+      0
+    );
+  });
+
+  test('작업자를 배정한 일정 고치기 — 담당 글 칸이 없고 PATCH 에 담당을 싣지 않는다', async () => {
+    const calls = await load({
+      partner: AGENT,
+      install: () =>
+        ok(
+          sites('install', {
+            items: WORKED([{ name: '시험기사 가', status: 'confirmed', label: '확정' }]),
+          })
+        ),
+    });
+    await pickRow('siteInstall', 'schedule:' + S1);
+    await click('siteInstall', '[data-act="edit"]');
+    const form = $('siteInstall').querySelector('form[data-form="edit"]');
+    expect(form.elements.team).toBeUndefined();
+    expect(text($('siteInstall').querySelector('[data-sm="team-locked"]'))).toBe(
+      '작업자를 배정한 일정입니다 — 담당은 작업자 이름으로 적힙니다.'
+    );
+    setValue('siteInstall', 'date', '2026-11-11');
+    await submit('siteInstall');
+    expect(writes(calls)).toEqual([
+      {
+        url: WORK + '/schedules/' + S1,
+        method: 'PATCH',
+        auth: 'Bearer tok-1',
+        body: { scheduled_at: '2026-11-11T10:00:00+09:00' },
+      },
+    ]);
+  });
+
+  test('못 읽으면(DB 적용 전 409 · 끊김) 그 글과 닫기만 · 다른 줄을 고르면 칸이 닫힌다', async () => {
+    await load({
+      partner: AGENT,
+      workers: () =>
+        fail(409, 'db_pending', 'DB 0064 적용 전입니다 — 작업자 연결은 적용 뒤에 쓸 수 있습니다'),
+    });
+    await pickRow('siteInstall', 'schedule:' + S1);
+    await click('siteInstall', '[data-act="workers"]');
+    expect(wkErr('siteInstall')).toBe(
+      'DB 0064 적용 전입니다 — 작업자 연결은 적용 뒤에 쓸 수 있습니다'
+    );
+    expect(
+      [...wk('siteInstall').querySelectorAll('[data-act]')].map((b) => b.getAttribute('data-act'))
+    ).toEqual(['wk-close']);
+    await pickRow('siteInstall', 'schedule:' + S3);
+    expect(wk('siteInstall')).toBeNull();
+
+    await load({ partner: AGENT, workers: () => new Error('offline') });
+    await pickRow('siteInstall', 'schedule:' + S1);
+    await click('siteInstall', '[data-act="workers"]');
+    expect(wkErr('siteInstall')).toBe('작업자를 불러오지 못했습니다. 잠시 뒤 다시 해 주세요.');
+  });
+
+  test('A/S — 방문을 잡은 줄에서 그 방문 일정으로 배정한다. 방문이 없는 줄에는 단추가 없다', async () => {
+    const calls = await load({
+      partner: AGENT,
+      hash: '#p-as',
+      workers: (method) =>
+        ok(
+          PANEL({
+            kind: 'as',
+            job: null,
+            workers:
+              method === 'GET'
+                ? []
+                : [{ assignment_id: 'asg-5', name: '시험기사 다', status: 'offered', reports: [] }],
+          })
+        ),
+    });
+    await pickRow('siteAs', 'as:' + A1);
+    expect($('siteAs').querySelector('[data-act="workers"]')).toBeNull();
+    await pickRow('siteAs', 'as:' + A2);
+    await click('siteAs', '[data-act="workers"]');
+    await click('siteAs', '[data-act="wk-pick"][data-id="lk-2"]');
+    await click('siteAs', '[data-act="wk-assign"]');
+    expect(wkCalls(calls)).toEqual([
+      ['GET', '/company/schedules/' + S9 + '/workers', undefined],
+      ['POST', '/company/schedules/' + S9 + '/workers', { link_ids: ['lk-2'] }],
+    ]);
+    expect(siteCalls(calls, 'as')).toHaveLength(2);
+  });
+
+  test('기기에 남기지 않는다 — 작업자 이름 · 보고 글은 화면에만', () => {
+    const code = read('segan/site-map.js')
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
+      .join('\n');
+    expect(code).not.toMatch(/localStorage|sessionStorage|indexedDB|document\.cookie/);
   });
 });
