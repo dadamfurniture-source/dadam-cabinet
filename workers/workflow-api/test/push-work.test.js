@@ -17,6 +17,10 @@ import {
   WORK_URL,
   WORK_KIND_LABELS,
   WORK_NOTIFICATION_KINDS,
+  WORK_MANAGER_KINDS,
+  COMPANY_WORKERS_URL,
+  COMPANY_INSTALL_URL,
+  COMPANY_AS_URL,
   workDay,
 } from '../src/push/messages.js';
 import { isEligible } from '../src/push/sender.js';
@@ -26,6 +30,8 @@ import {
   notifyWorkInvited,
   notifyWorkAssigned,
   notifyWorkSchedule,
+  notifyCompanyWork,
+  notifyWorkerLink,
   SCHEDULE_ASSIGNMENT_STATUSES,
 } from '../src/push/work-hooks.js';
 import { WORK_KINDS } from '../src/work/validate.js';
@@ -257,4 +263,81 @@ test('보낼 때 판정 — 신청 결과는 작업자 행이 있으면, 그 밖
     '업체가 붙은 줄'
   );
   assert.equal(isEligible(r(U1, 'partner_application'), [], []), true, '업체 신청은 그대로');
+});
+
+// ── 팩토리 대표 · 실장에게 가는 작업자 알림 (DB 0064 — 2026-11-13 「작업자 한 길」) ──────────────
+
+test('팩토리용 글 — 연결 신청 · 배정 답 · 작업 보고. 이름 · 사유 · 보고 글 없이 종류 · 날짜만, 열 곳은 팩토리 화면', () => {
+  const at = '2026-11-04T23:30:00Z';
+  const cases = [
+    ['work_link_request', {}, '작업자 연결 신청', '작업자가 팩토리 연결을 신청했습니다. 인사 › 작업자에서 확인해 주세요.', COMPANY_WORKERS_URL],
+    ['work_reply', { reply: 'confirmed', jobKind: 'install', startsAt: at }, '작업 배정 답', '작업자가 11/5(목) 설치 작업 배정을 수락했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
+    ['work_reply', { reply: 'declined', jobKind: 'as', startsAt: at }, '작업 배정 답', '작업자가 11/5(목) A/S 작업 배정을 거절했습니다. 일정에서 확인해 주세요.', COMPANY_AS_URL],
+    ['work_reply', { reply: 'released', jobKind: 'install', startsAt: null }, '작업 배정 답', '작업자가 설치 작업 배정을 포기했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
+    ['work_report', { report: 'result', jobKind: 'install', startsAt: at }, '작업 완료 보고', '11/5(목) 설치 작업 완료 보고가 왔습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
+    ['work_report', { report: 'issue', jobKind: 'as', startsAt: at }, '작업 문제 보고', '11/5(목) A/S 작업에 문제 보고가 왔습니다. 일정에서 확인해 주세요.', COMPANY_AS_URL],
+    ['work_registration', { status: 'approved', companyName: '가나 인테리어' }, '팩토리 연결', '가나 인테리어 연결이 승인되었습니다. 작업 탭에서 확인해 주세요.', WORK_URL],
+    ['work_registration', { status: 'rejected', companyName: '가나 인테리어' }, '팩토리 연결', '가나 인테리어 연결이 승인되지 않았습니다. 작업 탭에서 확인해 주세요.', WORK_URL],
+  ];
+  for (const [kind, params, title, body, url] of cases) {
+    const m = buildMessage(kind, params);
+    assert.deepEqual(m, { title, body, url }, `${kind} ${JSON.stringify(params)}`);
+    assert.ok(isValidMessage(m), kind);
+  }
+  assert.equal(buildMessage('work_reply', { reply: 'started', jobKind: 'install' }), null, '모르는 답');
+  assert.equal(buildMessage('work_reply', { reply: 'confirmed', jobKind: 'cleaning' }), null, '모르는 작업 종류');
+  assert.equal(buildMessage('work_report', { report: 'progress', jobKind: 'install' }), null, '진행 보고는 알리지 않는다');
+  assert.ok(isValidMessage(buildMessage('work_registration', { status: 'approved', companyName: '가'.repeat(80) })), '긴 이름은 자른다');
+  assert.deepEqual(WORK_MANAGER_KINDS, ['work_link_request', 'work_reply', 'work_report']);
+  assert.deepEqual([COMPANY_WORKERS_URL, COMPANY_INSTALL_URL, COMPANY_AS_URL], ['/segan/me.html#workers', '/segan/me.html#p-install', '/segan/me.html#p-as']);
+});
+
+test('팩토리용 넣기 — 그 팩토리의 대표 · 실장에게만, 업체 칸과 함께. 연결 결과는 연결마다 한 번', async () => {
+  const CO = 'c0000000-0000-4000-8000-000000000001';
+  const OWNER = 'a0000000-0000-4000-8000-000000000011';
+  const MANAGER = 'a0000000-0000-4000-8000-000000000012';
+  const STAFF = 'a0000000-0000-4000-8000-000000000013';
+  const LINK = 'd0000000-0000-4000-8000-000000000001';
+  const LINK2 = 'd0000000-0000-4000-8000-000000000002';
+  const fake = createFake({
+    tables: {
+      ...tables(),
+      company_members: [
+        { company_id: CO, user_id: OWNER, role: 'owner', status: 'active' },
+        { company_id: CO, user_id: MANAGER, role: 'manager', status: 'active' },
+        { company_id: CO, user_id: STAFF, role: 'staff', status: 'active' },
+      ],
+    },
+  });
+  await withFake(fake, async () => {
+    assert.equal(await notifyCompanyWork(ENV, { companyId: CO, kind: 'work_link_request', refId: LINK }), 2);
+    await notifyCompanyWork(ENV, { companyId: CO, kind: 'work_link_request', refId: LINK });
+    assert.equal(await notifyCompanyWork(ENV, { companyId: CO, kind: 'work_reply', refId: A1, params: { reply: 'confirmed', jobKind: 'install', startsAt: job().starts_at }, suffix: 'confirmed' }), 2);
+    assert.equal(await notifyCompanyWork(ENV, { companyId: null, kind: 'work_link_request', refId: LINK }), 0, '업체를 모르면 안 넣는다');
+    assert.equal(await notifyCompanyWork(ENV, { companyId: CO, kind: 'work_reply', refId: A1, params: { reply: 'nope' } }), 0);
+    // 연결 결과 — 작업자에게, 업체 없이. 같은 연결 · 같은 결과는 한 번, 다른 연결은 따로
+    const w = { id: W1, user_id: U1 };
+    assert.equal(await notifyWorkerLink(ENV, { worker: w, link: { id: LINK }, status: 'approved', companyName: '가나 인테리어' }), 1);
+    await notifyWorkerLink(ENV, { worker: w, link: { id: LINK }, status: 'approved', companyName: '가나 인테리어' });
+    assert.equal(await notifyWorkerLink(ENV, { worker: w, link: { id: LINK2 }, status: 'approved', companyName: '다라 가구' }), 1);
+    assert.equal(await notifyWorkerLink(ENV, { worker: w, link: { id: LINK }, status: 'suspended', companyName: '가나 인테리어' }), 0, '정지는 알리지 않는다');
+  });
+  const rows = fake.db.notification_outbox;
+  assert.deepEqual(rows.filter((n) => n.kind === 'work_link_request').map((n) => [n.user_id, n.company_id]).sort(), [[OWNER, CO], [MANAGER, CO]].sort(), '같은 일은 한 번만 · 직원은 안 받는다');
+  assert.equal(rows.filter((n) => n.kind === 'work_reply').length, 2);
+  assert.deepEqual(rows.filter((n) => n.kind === 'work_registration').map((n) => [n.user_id, n.company_id || null, n.ref_id]), [[U1, null, LINK], [U1, null, LINK2]]);
+  for (const n of rows) for (const v of PII) assert.ok(!n.title.includes(v) && !n.body.includes(v));
+});
+
+test('보낼 때 판정 — 팩토리용 알림은 그 팩토리의 대표 · 실장만 (직원 · 멈춘 팩토리 · 업체 칸 없는 줄은 안 보낸다)', () => {
+  const CO = 'c0000000-0000-4000-8000-000000000001';
+  const m = (user_id, role, status = 'active') => ({ user_id, company_id: CO, role, company: { status } });
+  const mem = [m(U1, 'owner'), m(U2, 'manager'), m(U3, 'staff')];
+  for (const kind of WORK_MANAGER_KINDS) {
+    assert.equal(isEligible({ user_id: U1, kind, company_id: CO }, mem, []), true, kind);
+    assert.equal(isEligible({ user_id: U2, kind, company_id: CO }, mem, []), true, kind);
+    assert.equal(isEligible({ user_id: U3, kind, company_id: CO }, mem, []), false, `${kind} 직원`);
+    assert.equal(isEligible({ user_id: U1, kind, company_id: CO }, [m(U1, 'owner', 'suspended')], []), false, `${kind} 멈춘 팩토리`);
+    assert.equal(isEligible({ user_id: U1, kind, company_id: null }, mem, []), false, `${kind} 업체 칸 없음`);
+  }
 });

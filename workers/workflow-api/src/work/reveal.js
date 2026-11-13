@@ -98,12 +98,13 @@ export function pickAssignment(list) {
   return rows.find((a) => ACTIVE_STATUSES.includes(a.status)) || rows[0] || null;
 }
 
-/** 작업 카드 */
-export function jobCard(job, { filled = 0, application = null, assignment = null, now = Date.now() } = {}) {
+/** 작업 카드. companyName = 그 작업을 낸 팩토리 이름 (작업자는 여러 팩토리와 연결될 수 있다 — 2026-11-13) */
+export function jobCard(job, { filled = 0, application = null, assignment = null, now = Date.now(), companyName = null } = {}) {
   const card = {
     id: job.id,
     kind: job.kind,
     title: job.title,
+    company_name: companyName || null,
     region_label: job.region_label || null,
     starts_at: job.starts_at || null,
     ends_at: job.ends_at || null,
@@ -134,9 +135,9 @@ export function jobCard(job, { filled = 0, application = null, assignment = null
  * 작업 상세. order 는 { order_no, customer_name } (없으면 null) — 내 배정이 활성일 때만 주문번호 · 가린 이름을 싣는다.
  * timeline 은 부르는 쪽이 이미 고른 기록 (visible_to_worker · 내 배정 관련 + 작업 전체 회사 공지).
  */
-export function jobDetail(job, { filled = 0, application = null, assignment = null, order = null, timeline = [], now = Date.now() } = {}) {
+export function jobDetail(job, { filled = 0, application = null, assignment = null, order = null, timeline = [], now = Date.now(), companyName = null } = {}) {
   const out = {
-    ...jobCard(job, { filled, application, assignment, now }),
+    ...jobCard(job, { filled, application, assignment, now, companyName }),
     detail: job.detail || null,
     site: null,
     site_note: SITE_NOTE,

@@ -16,7 +16,8 @@
 /**
  * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘 · 아침 브리핑 assistant_brief 는 0030,
  * 장부 알림 ledger_notice 는 0033, A/S 접수 as_request 는 0045, 제작 의뢰 셋 production_* 은 0050,
- * 제작 의뢰 거둠 production_cancelled 는 0053).
+ * 제작 의뢰 거둠 production_cancelled 는 0053, 팩토리 대표 · 실장에게 가는 작업자 알림 셋 work_link_request ·
+ * work_reply · work_report 는 0064).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -39,10 +40,19 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'production_offered',
   'production_answered',
   'production_cancelled',
+  'work_link_request',
+  'work_reply',
+  'work_report',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
 export const WORK_NOTIFICATION_KINDS = Object.freeze(['work_invited', 'work_registration', 'work_assigned', 'work_schedule']);
+
+/**
+ * 팩토리 대표 · 실장에게 가는 작업자 알림 (0064) — 업체 칸이 있어야 한다. 받는 사람은 그 팩토리의 대표 · 실장 (sender.js).
+ *   work_link_request  작업자가 연결을 신청함      work_reply  배정을 수락 · 거절 · 포기함      work_report  완료 · 문제를 보고함
+ */
+export const WORK_MANAGER_KINDS = Object.freeze(['work_link_request', 'work_reply', 'work_report']);
 
 /** 글자 수 상한 (DB notification_outbox_text_check · url_check 와 같다, 코드 포인트로 센다) */
 export const TITLE_MAX = 60;
@@ -214,8 +224,24 @@ function workInvited(p) {
   return { title: '작업 초대', body: `${j.what}에 초대받았습니다. 수락하거나 거절해 주세요.`, url: j.url };
 }
 
-/** 작업자 신청 결과. { status: approved | rejected } */
-function workRegistration({ status } = {}) {
+/** 알림 글에 싣는 팩토리 이름 — 30자까지, 없으면 null */
+function companyLabel(v) {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s ? [...s].slice(0, 30).join('') : null;
+}
+
+/**
+ * 작업자 신청 결과. { status: approved | rejected }
+ * companyName 이 있으면 그 팩토리와의 연결 결과 (0064 — 팩토리 대표 · 실장이 승인 · 반려).
+ */
+function workRegistration({ status, companyName } = {}) {
+  const co = companyLabel(companyName);
+  if (co && status === 'approved') {
+    return { title: '팩토리 연결', body: `${co} 연결이 승인되었습니다. 작업 탭에서 확인해 주세요.`, url: WORK_URL };
+  }
+  if (co && status === 'rejected') {
+    return { title: '팩토리 연결', body: `${co} 연결이 승인되지 않았습니다. 작업 탭에서 확인해 주세요.`, url: WORK_URL };
+  }
   if (status === 'approved') {
     return { title: '작업자 신청', body: '작업자 신청이 승인되었습니다. 작업 탭에서 작업을 보고 신청할 수 있습니다.', url: WORK_URL };
   }
@@ -240,6 +266,36 @@ function workSchedule(p) {
     ? `${j.label} 작업 일정이 ${j.day}(으)로 바뀌었습니다. 작업 탭에서 확인해 주세요.`
     : `${j.label} 작업 일정이 바뀌었습니다. 작업 탭에서 확인해 주세요.`;
   return { title: '작업 일정 바뀜', body, url: j.url };
+}
+
+/** 팩토리 쪽 화면 — 인사 › 작업자 · 설치 · A/S 일정 */
+export const COMPANY_WORKERS_URL = '/segan/me.html#workers';
+export const COMPANY_INSTALL_URL = '/segan/me.html#p-install';
+export const COMPANY_AS_URL = '/segan/me.html#p-as';
+const companyJobUrl = (jobKind) => (jobKind === 'as' ? COMPANY_AS_URL : COMPANY_INSTALL_URL);
+
+/** 작업자가 연결을 신청함 — 이름 · 전화는 싣지 않는다 (화면에서 본다) */
+function workLinkRequest() {
+  return { title: '작업자 연결 신청', body: '작업자가 팩토리 연결을 신청했습니다. 인사 › 작업자에서 확인해 주세요.', url: COMPANY_WORKERS_URL };
+}
+
+const WORK_REPLY_TEXT = Object.freeze({ confirmed: '수락했습니다', declined: '거절했습니다', released: '포기했습니다' });
+
+/** 작업자가 배정에 답함. { reply: confirmed | declined | released, jobKind, startsAt } — 작업자 이름 · 사유는 싣지 않는다 */
+function workReply({ reply, jobKind, startsAt } = {}) {
+  const said = Object.prototype.hasOwnProperty.call(WORK_REPLY_TEXT, reply) ? WORK_REPLY_TEXT[reply] : null;
+  const j = workJob({ jobKind, startsAt });
+  if (!said || !j) return null;
+  return { title: '작업 배정 답', body: `작업자가 ${j.what} 배정을 ${said}. 일정에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
+}
+
+/** 작업자가 보고함. { report: result | issue, jobKind, startsAt } — 보고 글은 싣지 않는다 */
+function workReport({ report, jobKind, startsAt } = {}) {
+  const j = workJob({ jobKind, startsAt });
+  if (!j) return null;
+  if (report === 'result') return { title: '작업 완료 보고', body: `${j.what} 완료 보고가 왔습니다. 일정에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
+  if (report === 'issue') return { title: '작업 문제 보고', body: `${j.what}에 문제 보고가 왔습니다. 일정에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
+  return null;
 }
 
 /** 장부 화면 (내 정보 › 회계 › 장부 — 대표 · 실장은 「확인할 사진」, 직원은 올린 사진 상태) */
@@ -378,6 +434,9 @@ const BUILDERS = Object.freeze({
   production_offered: productionOffered,
   production_answered: productionAnswered,
   production_cancelled: productionCancelled,
+  work_link_request: workLinkRequest,
+  work_reply: workReply,
+  work_report: workReport,
 });
 
 /**

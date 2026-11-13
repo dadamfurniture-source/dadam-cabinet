@@ -113,6 +113,28 @@ describe('0064 — 작업자 ↔ 팩토리 연결', () => {
     expect(f).not.toContain('notification_outbox_company_check');
   });
 
+  test('서버가 넣는 종류(workflow-api push/messages.js NOTIFICATION_KINDS)는 이 목록과 같다(차례만 다름) — 팩토리용 셋은 WORK_MANAGER_KINDS', () => {
+    const msg = read('workers', 'workflow-api', 'src', 'push', 'messages.js');
+    const listOf = (name) =>
+      [
+        ...new RegExp(`${name} = Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\)`)
+          .exec(msg)[1]
+          .matchAll(/'([a-z_]+)'/g),
+      ].map((x) => x[1]);
+    const after = kindsIn(f.match(/notification_outbox_kind_check CHECK \(([^;]+)\);/)[1]);
+    expect(listOf('NOTIFICATION_KINDS').sort()).toEqual([...after].sort());
+    expect(listOf('NOTIFICATION_KINDS').slice(-3)).toEqual(after.slice(-3));
+    expect(listOf('WORK_MANAGER_KINDS')).toEqual([
+      'work_link_request',
+      'work_reply',
+      'work_report',
+    ]);
+    // 팩토리용 셋은 업체 없이 넣는 종류(작업자에게 가는 것)가 아니다
+    expect(
+      listOf('WORK_NOTIFICATION_KINDS').filter((k) => listOf('WORK_MANAGER_KINDS').includes(k))
+    ).toEqual([]);
+  });
+
   test('이력 — 하는 사람 종류에 member (작업자 이력 · 작업 이력 둘 다)', () => {
     for (const name of ['work_job_events_actor_chk', 'worker_events_actor_chk']) {
       expect(f).toContain(`DROP CONSTRAINT IF EXISTS ${name};`);

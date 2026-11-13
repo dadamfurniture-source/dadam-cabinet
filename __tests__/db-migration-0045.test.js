@@ -61,10 +61,10 @@ describe('0045 — 고객 A/S 접수', () => {
     const kinds = [...m[1].matchAll(/'([a-z_]+)'::text/g)].map((x) => x[1]);
     expect(kinds.slice(-2)).toEqual(['ledger_notice', 'as_request']);
     expect(kinds.length).toBe(16);
-    // 서버가 넣는 종류(workflow-api push/messages.js NOTIFICATION_KINDS)는 이 목록에 있거나, 뒤 번호(0050 제작 의뢰 셋 · 0053 제작 의뢰 거둠)에서 더한 것이다 (db-migration-0050 · 0053 시험이 본다)
+    // 서버가 넣는 종류(workflow-api push/messages.js NOTIFICATION_KINDS)는 이 목록에 있거나, 뒤 번호(0050 제작 의뢰 셋 · 0053 제작 의뢰 거둠 · 0064 팩토리용 작업자 알림 셋)에서 더한 것이다 (db-migration-0050 · 0053 · 0064 시험이 본다)
     const msg = fs.readFileSync(path.join(__dirname, '..', 'workers', 'workflow-api', 'src', 'push', 'messages.js'), 'utf8');
     const names = [.../NOTIFICATION_KINDS = Object\.freeze\(\[([\s\S]*?)\]\)/.exec(msg)[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
-    expect(names.filter((k) => !kinds.includes(k))).toEqual(['production_recommended', 'production_offered', 'production_answered', 'production_cancelled']);
+    expect(names.filter((k) => !kinds.includes(k))).toEqual(['production_recommended', 'production_offered', 'production_answered', 'production_cancelled', 'work_link_request', 'work_reply', 'work_report']);
     expect(names).toContain('as_request');
   });
 
