@@ -241,6 +241,19 @@
   margin: 0;
   font-weight: 600;
 }
+/* 연결된 팩토리 줄의 「연결 끊기」 · 「신청 거두기」 — 글 단추 (2026-11-14) */
+#workerApp .link-leave {
+  margin-left: 10px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
 #workerApp .detail-text {
   white-space: pre-wrap;
   border-top: 1px solid var(--border);

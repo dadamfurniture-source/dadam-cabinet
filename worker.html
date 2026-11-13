@@ -7,7 +7,7 @@
     <meta name="referrer" content="no-referrer" />
     <title>작업자 · 다담가구</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026111404"></script>
+    <script src="js/config.js?v=2026111405"></script>
     <style>
       /* production-worker.html 의 틀 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼 */
       :root {
@@ -66,6 +66,7 @@
       .facts { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 10px; margin: 10px 0; }
       .facts dt { color: var(--muted); }
       .facts dd { margin: 0; font-weight: 600; }
+      .link-leave { margin-left: 10px; padding: 6px 0; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 400; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
       .detail-text { white-space: pre-wrap; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px; }
       .site-note { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #f6f7f9; color: var(--muted); }
 
@@ -158,6 +159,7 @@
               <label class="check"><input type="checkbox" name="kind_install" value="install" data-kind /> 설치</label>
               <label class="check"><input type="checkbox" name="kind_as" value="as" data-kind /> A/S</label>
               <label class="check"><input type="checkbox" name="kind_demolition" value="demolition" data-kind /> 철거</label>
+              <label class="check"><input type="checkbox" name="kind_delivery" value="delivery" data-kind /> 납품</label>
               <label class="check"><input type="checkbox" name="kind_assembly" value="assembly" data-kind /> 조립 추가 인원</label>
               <label class="check"><input type="checkbox" name="kind_cutting" value="cutting" data-kind /> 재단 (공장)</label>
               <label class="check"><input type="checkbox" name="kind_edge" value="edge" data-kind /> 엣지 (공장)</label>
@@ -244,6 +246,6 @@
       </section>
     </div>
 
-    <script src="js/worker-portal.js?v=2026111404"></script>
+    <script src="js/worker-portal.js?v=2026111405"></script>
   </body>
 </html>

@@ -43,11 +43,12 @@
   // ── 이름표 (계약 §1 · §2 의 CHECK 값) ──
   const KINDS = Object.freeze(['install', 'as', 'assembly']);
   /**
-   * 작업자 종류 = 작업 종류 여섯 — 설치 · A/S · 조립 + 재단 · 엣지 · 철거 (서버 WORKER_KINDS · DB 0065, 2026-11-13).
-   * 팩토리가 프로젝트의 종류 줄마다 작업자를 배정한다 (재단 · 엣지 · 철거 작업도 「내 작업」에 초대로 온다).
+   * 작업자 종류 = 작업 종류 일곱 — 설치 · A/S · 조립 + 재단 · 엣지 · 철거 (서버 WORKER_KINDS · DB 0065, 2026-11-13)
+   * + 납품 (DB 0066, 2026-11-14 — 납품 일정 줄에도 작업자를 배정한다).
+   * 팩토리가 프로젝트의 종류 줄마다 작업자를 배정한다 (재단 · 엣지 · 철거 · 납품 작업도 「내 작업」에 초대로 온다).
    */
-  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge', 'demolition']);
-  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지', demolition: '철거' });
+  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge', 'demolition', 'delivery']);
+  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지', demolition: '철거', delivery: '납품' });
   /** 작업자에게 보이는 작업 상태 (effective_status — expired 는 API 가 읽을 때 판정) */
   const JOB_STATUS_LABEL = Object.freeze({
     draft: '준비 중', open: '모집중', expired: '지원 종료', filled: '인원 마감', in_progress: '진행 중',
@@ -65,6 +66,9 @@
   /** 팩토리와의 연결 상태 (GET /work/me 의 links[].status — 서버 work/links.js). 끝난 연결은 서버가 싣지 않는다 */
   const LINK_STATUS_LABEL = Object.freeze({ pending: '승인 대기', approved: '연결됨', suspended: '정지', rejected: '승인되지 않음' });
   const LINKS_NOTE = '팩토리가 보낸 초대 링크를 열면 그 팩토리와 연결을 신청할 수 있습니다. 연결된 팩토리의 작업만 보입니다.';
+  /** 스스로 끊을 수 있는 연결 상태 — 대기(신청 거두기) · 연결됨 · 정지 (서버 work/workers.js LEAVABLE_LINK_STATUSES) */
+  const LEAVABLE_LINKS = Object.freeze(['pending', 'approved', 'suspended']);
+  const LEAVE_NOTE = '연결을 끊으면 그 팩토리의 새 작업을 받지 않습니다. 다시 연결하려면 그 팩토리의 초대 링크가 필요합니다.';
   const PAY_UNIT_LABEL = Object.freeze({ day: '일', hour: '시간', meter: 'm', job: '건' });
   const TABS = Object.freeze([
     { key: 'open', label: '모집중' },
@@ -124,7 +128,7 @@
   const REPORTABLE = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
   const RESULT_FROM = Object.freeze(['started', 'revision']);
   /** 검수를 거치는 종류 — 공장 조립은 완료 보고로 끝난다 (계약 머리말) */
-  const REVIEWED_KINDS = Object.freeze(['install', 'as', 'demolition']);
+  const REVIEWED_KINDS = Object.freeze(['install', 'as', 'demolition', 'delivery']);
   const ENDED_JOB = Object.freeze(['closed', 'cancelled']);
   /** 작업자 탭에 드는 배정 (서버 jobs.js 의 MINE_STATUSES · DONE_STATUSES 와 같다) — 상세의 '← 목록으로' 를 고른다 */
   const MINE_ASSIGN = Object.freeze(['offered', 'confirmed', 'started', 'submitted', 'revision']);
@@ -664,14 +668,35 @@
   /**
    * 연결된 팩토리 카드 (GET /work/me 의 links — 2026-11-13 작업자 한 길). 작업자는 여러 팩토리와 연결될 수 있다.
    * links 가 없으면(옛 서버 · DB 적용 전) 빈 글 — 카드를 그리지 않는다.
+   * 2026-11-14 스스로 끊기 — 서버가 연결 id 를 준 줄에는 「연결 끊기」(대기 중이면 「신청 거두기」) 단추.
    */
   function linksHtml(links) {
     if (!Array.isArray(links)) return '';
     const rows = links.filter((l) => l && Object.prototype.hasOwnProperty.call(LINK_STATUS_LABEL, l.status));
+    const leave = (l) => (isUuid(l.id) && LEAVABLE_LINKS.includes(l.status)
+      ? ` <button type="button" class="link-leave" data-act="leave-link" data-id="${esc(l.id)}">${l.status === 'pending' ? '신청 거두기' : '연결 끊기'}</button>`
+      : '');
     const list = rows.length
-      ? `<dl class="facts">${rows.map((l) => `<dt>${esc(l.company_name || '이름 없는 팩토리')}</dt><dd>${esc(LINK_STATUS_LABEL[l.status])}</dd>`).join('')}</dl>`
+      ? `<dl class="facts">${rows.map((l) => `<dt>${esc(l.company_name || '이름 없는 팩토리')}</dt><dd>${esc(LINK_STATUS_LABEL[l.status])}${leave(l)}</dd>`).join('')}</dl>`
       : '<p class="empty">아직 연결된 팩토리가 없습니다.</p>';
-    return `<div class="card"><h3>연결된 팩토리</h3>${list}<p class="muted">${esc(LINKS_NOTE)}</p></div>`;
+    const canLeave = rows.some((l) => isUuid(l.id) && LEAVABLE_LINKS.includes(l.status));
+    return `<div class="card"><h3>연결된 팩토리</h3>${list}<p class="muted">${esc(LINKS_NOTE)}</p>${canLeave ? `<p class="muted">${esc(LEAVE_NOTE)}</p>` : ''}</div>`;
+  }
+
+  /**
+   * 연결을 끊기 전에 묻는 글 (순수) — 답 안 한 제안은 거절로 끝나고, 수락한 작업은 끝까지 간다고 미리 알린다.
+   * link = GET /work/me 의 links 한 줄 { company_name, status, offered, working }
+   */
+  function leaveAskText(link) {
+    const l = link || {};
+    const name = l.company_name || '이 팩토리';
+    if (l.status === 'pending') return `${name}에 낸 연결 신청을 거둘까요?`;
+    const n = (v) => (Number.isInteger(v) && v > 0 ? v : 0);
+    const parts = [`${name}와(과)의 연결을 끊을까요?`];
+    if (n(l.offered)) parts.push(`답하지 않은 초대 ${n(l.offered)}건은 거절로 끝납니다.`);
+    if (n(l.working)) parts.push(`수락한 작업 ${n(l.working)}건은 끝까지 진행해야 합니다.`);
+    parts.push('다시 연결하려면 그 팩토리의 초대 링크가 필요합니다.');
+    return parts.join(' ');
   }
 
   /** 「이 일로 바로」 초대의 작업 한 줄 — '11/22(일) 설치 작업' (종류를 모르면 '') */
@@ -1584,6 +1609,13 @@
         return;
       }
       if (!isUuid(id)) return;
+      if (what === 'leave-link') {
+        // 스스로 연결 끊기 (대기 중이면 신청 거두기) — 서버가 답 없는 초대를 거절로 끝내고, 수락한 작업은 그대로 둔다
+        const link = ((me && me.links) || []).find((l) => l && l.id === id);
+        if (!link || !window.confirm(leaveAskText(link))) return;
+        act(() => api(`/work/links/${id}/leave`, { method: 'POST', body: {} }), link.status === 'pending' ? '연결 신청을 거뒀습니다.' : '연결을 끊었습니다.');
+        return;
+      }
       if (what === 'as-pack') {
         openPack(`/work/assignments/${id}/pack`);
         return;
@@ -1748,6 +1780,8 @@
     telOf,
     SITE_OPEN_NOTE,
     linksHtml,
+    leaveAskText,
+    LEAVABLE_LINKS,
     linkAskText,
     inviteJobText,
     factoryDay,

@@ -28,9 +28,9 @@
 
   // ── 이름표 (계약 §1 · §2 의 CHECK 값) ──
   const KINDS = Object.freeze(['install', 'as', 'assembly']);
-  /** 작업자 종류 — 여섯 (서버 WORKER_KINDS · DB 0065). 이 PC 화면이 만드는 작업 종류(KINDS)는 그대로 셋 */
-  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge', 'demolition']);
-  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지', demolition: '철거' });
+  /** 작업자 종류 — 일곱 (서버 WORKER_KINDS · DB 0065 · 납품은 DB 0066). 이 PC 화면이 만드는 작업 종류(KINDS)는 그대로 셋 */
+  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge', 'demolition', 'delivery']);
+  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지', demolition: '철거', delivery: '납품' });
   const JOB_STATUS_LABEL = Object.freeze({
     draft: '초안', open: '모집중', expired: '지원 종료', filled: '배정', in_progress: '진행',
     review: '검수대기', done: '완료', closed: '닫힘', cancelled: '취소',
