@@ -3,7 +3,9 @@
  * 업무 모드(지금 비서 — Agent · 시험 업체, src/session.js)와 따로다. 도구 · 업체 자료가 없고, 자격 함수(company_entitled)를 보지 않는다.
  *
  *   GET  /assistant/guide          { on, used, limit, remaining, day, reset_at } — 오늘(한국 시간) 쓴 질문 수 (세지 않는다)
- *   POST /assistant/guide/turns    { text, history? } → 200 NDJSON (한 줄에 사건 하나)
+ *   POST /assistant/guide/turns    { text, history?, surface?, screen? } → 200 NDJSON (한 줄에 사건 하나)
+ *                                  surface 'planner' = 다담 간편 플래너 오른쪽 칸 채팅창 (2026-11-14 대표님 — 시스템 글 src/planner-guide-prompt.js),
+ *                                  screen = 지금 플래너 화면 요약 글 (탭 · 품목 · 공간 · 고른 모듈 · 경고 — 플래너가 만든다, 맥락 블록에 붙인다)
  *                                  start { used, limit, remaining, reset_at } · text { text } … ·
  *                                  끝 — done { stop_reason } · refused · error { code, message, given_back }
  *                                  보내기 전 오류(JSON): 401 · 422 invalid · 429 rate_limited(분 한도) ·
@@ -13,6 +15,9 @@
  *   assistant_guide_take 가 한 문장으로 한도 안에서만 하나 센다 — 동시에 보내도 넘지 않는다. 날짜는 한국 시간, 다음 한국 0시에 풀린다.
  *   글 확인(422)을 먼저 하므로 틀린 요청은 세지 않는다. 서버 쪽 실패(Claude 오류 · 빈 답 · 대화 객체 실패)는 하나 돌려주고,
  *   사람 쪽(끊고 나감 · 거절)은 돌려주지 않는다. 토큰 · 비용은 같은 줄에 더한다 (assistant_guide_settle).
+ *
+ * 플래너 길 — 하루 한도 · 모델 · 대화 객체는 앱 안내와 같이 쓴다. screen 은 그 사람이 보낸 글이라 믿지 않는다:
+ *   도구 · 업체 자료가 없으니 꾸며 보내도 그 사람 자신의 답만 흐려진다. 꺾쇠를 지우고 길이를 묶는다 (GUIDE_SCREEN_MAX). 서버에 두지 않는다.
  *
  * 대화 기록 — 서버에 두지 않는다. 화면이 지난 차례를 history 로 보낸다 (마지막 GUIDE_HISTORY_MAX 줄, 줄마다 GUIDE_HISTORY_TEXT_MAX 자).
  *   왜: 안내 모드 사람은 업체가 없어 업무 대화 표(assistant_conversations — 업체 열 필수)에 넣을 수 없고, 새 표를 만들면
@@ -32,6 +37,7 @@ import { buildRequest, claudeClient, textOf, MODEL_DEFAULT } from './claude.js';
 import { CONTEXT_OPEN, todayText } from './prompt.js';
 import { costMicros } from './meter.js';
 import { guideSystemPrompt } from './guide-prompt.js';
+import { plannerGuideSystemPrompt } from './planner-guide-prompt.js';
 
 /** 질문 글 최대 */
 export const GUIDE_TEXT_MAX = 1000;
@@ -39,6 +45,10 @@ export const GUIDE_TEXT_MAX = 1000;
 export const GUIDE_HISTORY_ACCEPT = 50;
 export const GUIDE_HISTORY_MAX = 6;
 export const GUIDE_HISTORY_TEXT_MAX = 2000;
+/** 안내가 열리는 곳 — 앱(기본) · 플래너 */
+export const GUIDE_SURFACES = Object.freeze(['app', 'planner']);
+/** 플래너 화면 요약 글 최대 */
+export const GUIDE_SCREEN_MAX = 1500;
 const FLUSH_CHARS = 120;
 const FLUSH_MS = 200;
 const NDJSON = 'application/x-ndjson; charset=utf-8';
@@ -111,7 +121,7 @@ export async function settleGuide(env, { userId, day, cost = 0, usage = null, gi
 
 // ── 요청 만들기 (순수) ──────────────────────────────────
 
-/** 본문 → { text, history } — 틀리면 422 */
+/** 본문 → { text, history, surface, screen } — 틀리면 422. surface 기본 'app', screen 은 플래너에서만 (꺾쇠 · 줄바꿈을 지운 한 줄) */
 export function parseGuideBody(body) {
   const text = typeof body.text === 'string' ? body.text.trim() : '';
   if (!text) throw badRequest('물어볼 글을 적어 주세요');
@@ -133,11 +143,22 @@ export function parseGuideBody(body) {
   }
   const history = lines.slice(-GUIDE_HISTORY_MAX);
   while (history.length && history[0].role !== 'user') history.shift(); // 첫 메시지는 사람
-  return { text, history };
+  const surface = body.surface === undefined || body.surface === null ? 'app' : body.surface;
+  if (!GUIDE_SURFACES.includes(surface)) throw badRequest('surface 는 app · planner 중 하나입니다');
+  let screen = '';
+  if (body.screen !== undefined && body.screen !== null) {
+    if (typeof body.screen !== 'string') throw badRequest('screen 은 글입니다');
+    if (surface !== 'planner') throw badRequest('screen 은 플래너 안내에서만 보냅니다');
+    if (body.screen.length > GUIDE_SCREEN_MAX)
+      throw badRequest(`screen 은 ${GUIDE_SCREEN_MAX}자까지 보냅니다`);
+    // 맥락 블록 안에 들어간다 — 꺾쇠를 지워 블록을 닫거나 새 블록을 열지 못하게 하고 한 줄로 만든다
+    screen = body.screen.replace(/[<>]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  return { text, history, surface, screen };
 }
 
-/** 맥락 블록 — 오늘 날짜 · 묻는 사람의 등급 · 크레딧(my_credit_wallet) · 오늘 안내 질문 수 */
-export function guideContext(now, wallet, take) {
+/** 맥락 블록 — 오늘 날짜 · 묻는 사람의 등급 · 크레딧(my_credit_wallet) · 오늘 안내 질문 수 · (플래너) 지금 플래너 화면 요약 */
+export function guideContext(now, wallet, take, screen) {
   const parts = [todayText(now)];
   if (wallet && typeof wallet === 'object') {
     const who = [];
@@ -158,6 +179,7 @@ export function guideContext(now, wallet, take) {
   parts.push(
     `오늘 안내 질문 ${num(take && take.used)}번째 · 하루 ${num(take && take.limit)}개까지.`
   );
+  if (screen) parts.push(`지금 플래너 화면: ${screen}`);
   return { type: 'text', text: `${CONTEXT_OPEN}${parts.join(' ')}</맥락>` };
 }
 
@@ -171,15 +193,16 @@ export function guideMessages({ text, history, context }) {
   return out;
 }
 
-let SYSTEM = null;
-/** 시스템 글 블록 — 모두에게 같아 캐시를 건다 (Haiku 5.5 캐시 최소 512 토큰 — 넘는다) */
-export function guideSystem() {
-  if (!SYSTEM) SYSTEM = guideSystemPrompt();
-  return [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }];
+const SYSTEM = {};
+/** 시스템 글 블록 — 곳(앱 · 플래너)마다 하나, 모두에게 같아 캐시를 건다 (Haiku 5.5 캐시 최소 512 토큰 — 둘 다 넘는다) */
+export function guideSystem(surface) {
+  const k = surface === 'planner' ? 'planner' : 'app';
+  if (!SYSTEM[k]) SYSTEM[k] = k === 'planner' ? plannerGuideSystemPrompt() : guideSystemPrompt();
+  return [{ type: 'text', text: SYSTEM[k], cache_control: { type: 'ephemeral' } }];
 }
 
 /** Claude 요청 — 업무 모드와 같은 buildRequest, 모델 · 생각 정도 · 최대 답만 안내 모드 값. 도구 없음 */
-export function guideRequest(env, messages) {
+export function guideRequest(env, messages, surface) {
   return buildRequest(
     {
       ANTHROPIC_MODEL: env.GUIDE_MODEL || MODEL_DEFAULT,
@@ -187,7 +210,7 @@ export function guideRequest(env, messages) {
       MAX_OUTPUT_TOKENS: env.GUIDE_MAX_OUTPUT_TOKENS || '3000',
       INFERENCE_GEO: env.INFERENCE_GEO,
     },
-    { system: guideSystem(), messages }
+    { system: guideSystem(surface), messages }
   );
 }
 
@@ -217,7 +240,7 @@ function guideStub(env, userId) {
 
 /** 질문 하나 — 분 한도는 worker.js 가 먼저 본다 */
 export async function guideTurn(request, env, user) {
-  const { text, history } = parseGuideBody(await readJson(request));
+  const { text, history, surface, screen } = parseGuideBody(await readJson(request));
   const [take, wallet] = await Promise.all([
     callRpc(env, 'assistant_guide_take', { p_user: user.id }),
     readWallet(env, user.token),
@@ -225,7 +248,8 @@ export async function guideTurn(request, env, user) {
   checkTake(take);
   const params = guideRequest(
     env,
-    guideMessages({ text, history, context: guideContext(Date.now(), wallet, take) })
+    guideMessages({ text, history, context: guideContext(Date.now(), wallet, take, screen) }),
+    surface
   );
   const start = {
     used: num(take.used),
