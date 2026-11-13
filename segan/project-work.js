@@ -4,6 +4,7 @@
    한 길: 작업 종류 → 작업자 → 배정 → 승인(작업자 수락) → 연결
    (2026-11-13 사장님 결정 — 프로젝트 한 화면에서 정한다. 종류는 철거 · 재단 · 엣지 · 조립 · 설치 · A/S.
     승인은 작업자가 「수락」, 처음 보는 작업자만 팩토리가 한 번 승인 — segan/company-workers.js)
+   (2026-11-14 납품 일정 줄도 배정한다 — 종류 「납품」. 줄마다 「모집 올리기」 — segan/work-recruit.js)
 
    누가 보나  인사를 쓰는 팩토리(다담 공장 · Agent)의 구성원 — segan/partner-projects.js 가 프로젝트 줄에 단추를 그리고
              SeganProjectWork.mount(자리, { id, title }) 를 부른다. 배정 · 날짜 · 초대는 서버 답(can_manage · can_assign)을 따른다.
@@ -13,11 +14,15 @@
                POST  /company/projects/:id/work           { kind, link_ids[], at? } — 철거 · 재단 · 엣지 · 조립 줄
                PATCH /company/projects/:id/work/:kind     { at } — 그 줄의 날짜 · 시각
                POST  /company/projects/:id/work/invite    { kind, schedule_id?, expires_at } → { url, expires_at } 「이 일로 바로」 초대
-               POST  /company/schedules/:id/workers       { link_ids[] } — 설치 · A/S 줄 (일정에 붙는다)
+               POST  /company/schedules/:id/workers       { link_ids[] } — 납품 · 설치 · A/S 줄 (일정에 붙는다)
+               POST  /company/projects/:id/work/recruit   { kind, people, apply_deadline?, at? } | { kind, stop: true } — 종류 줄의 모집
+               POST  /company/schedules/:id/workers/recruit { people, apply_deadline? } | { stop: true } — 일정 줄의 모집
+               POST  /company/work/applications/:id/approve | reject — 신청한 작업자 뽑기 · 반려
                POST  /company/work/assignments/:id/accept | revision { reason } | remove { reason }
    화면      표 한 장 — 줄 = 종류 (철거 · 재단 · 엣지 · 조립 + 그 프로젝트의 설치 · A/S 일정). 칸 = 작업자 · 날짜 · 상태 · 「고르기」.
              「고르기」를 누르면 그 줄 아래에: 배정된 작업자(상태 · 보고 글 · 「확인」 「보완요청」 「빼기」) ·
              날짜(철거 · 재단 · 엣지 · 조립 — 설치 · A/S 날짜는 일정에서) · 연결된 작업자 고르기 → 「배정하기」 ·
+             「모집」(인원 · 지원 종료일 → 「모집 올리기」, 신청한 작업자 「뽑기」 「반려」, 「모집 내리기」 — segan/work-recruit.js) ·
              「새 작업자 초대」(이 일로 바로 — 만료는 3일 · 7일 · 30일 가운데 고른다, 미리 고른 값 없음) → 링크 상자 + 「링크 복사」.
              상태: 수락 대기 → 연결됨(작업자가 수락) → 작업 중 → 완료 보고 → 확인함.
    못 읽으면  칸 안에 서버 글과 「닫기」만 (DB 0065 적용 전이면 「DB 0065 적용 전입니다…」).
@@ -43,6 +48,7 @@
     cutting: '재단',
     edge: '엣지',
     assembly: '조립',
+    delivery: '납품',
     install: '설치',
     as: 'A/S',
   };
@@ -162,6 +168,12 @@
     return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   }
 
+  /** 모집 칸 (segan/work-recruit.js) — 못 읽었으면 모집 칸 없이 그린다 */
+  function recruitKit() {
+    var R = window.SeganWorkRecruit;
+    return R && typeof R.blockHtml === 'function' ? R : null;
+  }
+
   /** 인사를 쓰는 팩토리인가 — 다담 공장 · Agent (작업 배정 단추) */
   function canSee(me) {
     var m = obj(me);
@@ -234,6 +246,7 @@
       at: str(r.at),
       job: r.job && typeof r.job === 'object' ? str(r.job.status) : '',
       assign: r.can_assign === true,
+      recruit: recruitKit() ? recruitKit().recruitOf(r.recruit) : null,
       workers: (Array.isArray(r.workers) ? r.workers : []).map(workerOf).filter(Boolean),
       candidates: (Array.isArray(r.candidates) ? r.candidates : [])
         .filter(function (c) {
@@ -264,8 +277,12 @@
       })
       .join(' · ');
   }
-  /** 줄의 상태 칸 — '수락 대기 1 · 연결됨 1' (없으면 '') */
+  /** 줄의 상태 칸 — '수락 대기 1 · 연결됨 1 · 모집 중 · 신청 2' (없으면 '') */
   function stateOf(row) {
+    var R = recruitKit();
+    return [assignStateOf(row), R ? R.summaryOf(row.recruit) : ''].filter(Boolean).join(' · ');
+  }
+  function assignStateOf(row) {
     var order = ['offered', 'confirmed', 'started', 'submitted', 'revision', 'accepted'];
     var shown = row.workers.filter(function (w) {
       return SHOWN.indexOf(w.status) >= 0;
@@ -538,6 +555,18 @@
           .join('') +
         '</ul>'
       : '<p class="me-empty">' + esc(TEXT.none) + '</p>';
+    // 모집 칸 — 모집 중이거나 신청이 있으면 누구에게나(직원은 보기만), 아니면 올릴 수 있는 사람에게만
+    var R = recruitKit();
+    var recruitHtml =
+      R && !asked
+        ? R.blockHtml(row.recruit, {
+            prefix: 'pw',
+            manage: d.manage,
+            assign: d.manage && row.assign,
+            busy: W.busy,
+            asking: !!W.ask && W.ask.kind === 'recruit-stop',
+          })
+        : '';
     var manageHtml = '';
     if (d.manage && row.assign && !asked) {
       manageHtml =
@@ -566,6 +595,7 @@
             esc(TEXT.assign) +
             '</button></div>'
           : '<p class="mk-note">' + esc(TEXT.noCandidates) + '</p>') +
+        recruitHtml +
         '<div class="pjw-invite"><p class="cw-label">' +
         esc(TEXT.invite) +
         '</p><p class="mk-note">' +
@@ -580,7 +610,7 @@
         btn('pw-invite', TEXT.makeInvite) +
         '</div></div>' +
         madeHtml(row);
-    }
+    } else manageHtml = recruitHtml;
     return (
       '<div class="sm-wk pjw-detail" data-pjw="detail"><h5 class="sm-wk-title">' +
       esc(row.label) +
@@ -615,10 +645,12 @@
     // 같은 줄을 다시 그릴 때만 적던 사유 · 날짜를 되살린다 — 다른 줄로 옮기면 그 줄의 값이 보여야 한다
     var keep = {};
     if (row && h.getAttribute('data-pjw-open') === row.key)
-      ['pw-reason', 'pw-date', 'pw-time'].forEach(function (name) {
-        var el = h.querySelector('[name="' + name + '"]');
-        if (el) keep[name] = el.value;
-      });
+      ['pw-reason', 'pw-date', 'pw-time', 'pw-people', 'pw-until-date', 'pw-until-time'].forEach(
+        function (name) {
+          var el = h.querySelector('[name="' + name + '"]');
+          if (el) keep[name] = el.value;
+        }
+      );
     h.innerHTML =
       head +
       '<p class="mk-note">' +
@@ -805,6 +837,72 @@
         '/company/work/assignments/' + encodeURIComponent(W.ask.id) + '/' + W.ask.kind,
         { reason: reason },
         W.ask.kind === 'revision' ? TEXT.revised : TEXT.removed
+      );
+    } else if (act === 'pw-recruit') {
+      var R = recruitKit();
+      var f = R ? R.readForm(W.host, 'pw') : null;
+      if (!f) return;
+      if (f.error) {
+        W.err = f.message;
+        W.msg = '';
+        render();
+        focusOn('[name="pw-' + f.error + '"]');
+        return;
+      }
+      if (row.schedule) {
+        run(
+          'POST',
+          '/company/schedules/' + encodeURIComponent(row.schedule) + '/workers/recruit',
+          f.body,
+          R.TEXT.opened
+        );
+        return;
+      }
+      f.body.kind = row.kind;
+      // 날짜를 적어 두었으면 같이 보낸다 (날만 적고 시각이 비면 묻는다)
+      var rDay = W.host.querySelector('[name="pw-date"]');
+      var rTime = W.host.querySelector('[name="pw-time"]');
+      if (rDay && rDay.value) {
+        var rWhen = atOf(rDay.value, rTime ? rTime.value : '');
+        if (rWhen.error) {
+          W.err = rWhen.message;
+          W.msg = '';
+          render();
+          focusOn('[name="pw-' + rWhen.error + '"]');
+          return;
+        }
+        f.body.at = rWhen.at;
+      }
+      run('POST', workPath() + '/recruit', f.body, R.TEXT.opened);
+    } else if (act === 'pw-recruit-stop') {
+      W.ask = { kind: 'recruit-stop', id: '' };
+      W.err = '';
+      W.msg = '';
+      render();
+      focusOn('[data-act="pw-recruit-stop-yes"]');
+    } else if (act === 'pw-recruit-stop-no') {
+      W.ask = null;
+      render();
+      focusOn('[data-act="pw-recruit-stop"]');
+    } else if (act === 'pw-recruit-stop-yes') {
+      var stopped = recruitKit() ? recruitKit().TEXT.stopped : '';
+      if (row.schedule)
+        run(
+          'POST',
+          '/company/schedules/' + encodeURIComponent(row.schedule) + '/workers/recruit',
+          { stop: true },
+          stopped
+        );
+      else run('POST', workPath() + '/recruit', { kind: row.kind, stop: true }, stopped);
+    } else if ((act === 'pw-app-approve' || act === 'pw-app-reject') && ID_RE.test(id)) {
+      var RT = recruitKit() ? recruitKit().TEXT : {};
+      run(
+        'POST',
+        '/company/work/applications/' +
+          encodeURIComponent(id) +
+          (act === 'pw-app-approve' ? '/approve' : '/reject'),
+        {},
+        act === 'pw-app-approve' ? RT.picked : RT.rejected
       );
     } else if (act === 'pw-days') {
       var n = Number(el.getAttribute('data-days'));

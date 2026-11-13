@@ -22,6 +22,8 @@
                      label, reason, reports[{ kind, by, body, at }] }], candidates[{ link_id, name, kinds, region }] }   (구성원)
                POST  /company/schedules/:id/workers { link_ids[] }                                                  (대표 · 실장)
                POST  /company/work/assignments/:id/accept | revision { reason } | remove { reason }                 (대표 · 실장)
+               POST  /company/schedules/:id/workers/recruit { people, apply_deadline? } | { stop: true } — 모집 올리기 · 내리기 (대표 · 실장)
+               POST  /company/work/applications/:id/approve | reject — 신청한 작업자 뽑기 · 반려                    (대표 · 실장)
                      설치 줄 · A/S 방문에는 workers[{ name, status, label }] 가 실려 온다 (배정된 작업자)
    지도      카카오맵 JavaScript SDK (2026-11-10 대표님 결정). 키는 JavaScript 키 하나 — 사이트 도메인에만 묶인 공개 키다.
              키는 js/config.js 의 DADAM_CONFIG.kakaoJsKey 에 적는다 (아래 KAKAO_JS_KEY 는 비워 둔다).
@@ -40,7 +42,9 @@
              배정하면 작업자에게 알림이 가고, 작업자가 수락해야 확정된다 (수락 대기 → 확정 → 작업 중 → 완료 보고 → 확인함).
              줄마다 「확인」 「보완요청」 「빼기」 (보완요청 · 빼기는 사유를 적고 한 번 더 묻는다). 작업자의 보고 글도 여기서 읽는다.
              배정은 인사를 쓰는 팩토리(다담 공장 · Agent)의 대표 · 실장만 — 그 밖의 사람은 배정된 작업자를 보기만 한다.
-             작업자를 배정한 일정은 담당 글이 작업자 이름으로 적힌다 (손으로 적는 칸을 감춘다). 납품 줄에는 없다.
+             작업자를 배정한 일정은 담당 글이 작업자 이름으로 적힌다 (손으로 적는 칸을 감춘다).
+             (2026-11-14) 납품 줄에도 배정한다 — 종류 「납품」 작업자. 작업자 칸 아래에 「모집」(segan/work-recruit.js):
+             모집을 올리면 연결된 작업자가 신청하고, 「뽑기」를 누르면 바로 확정된다.
              작업자 이름 · 보고 글은 화면에만 그린다 — 기기 저장 · 주소에 싣지 않는다.
    색        핀 · 번호 네모 넷 — 파랑(예정) · 노랑(진행 중 / 방문일 미정) · 빨강(팀 · 담당 미정) · 초록(끝).
              색만으로 가리지 않는다: 표에 상태 글자가 있고 범례에 이름을 적는다.
@@ -475,9 +479,10 @@
       return n + waitingOn(kind, it);
     }, 0);
   }
-  /** 작업자를 배정할 수 있는 일정의 id — 설치 줄(납품 아님) · 잡아 둔 A/S 방문. 없으면 '' */
+  /** 작업자를 배정할 수 있는 일정의 id — 납품 · 설치 줄 · 잡아 둔 A/S 방문. 없으면 '' */
   function workScheduleOf(kind, item) {
-    if (kind === 'install') return item.type === 'installation' ? item.schedule_id : '';
+    if (kind === 'install')
+      return item.type === 'installation' || item.type === 'delivery' ? item.schedule_id : '';
     var v = visitOf(item);
     return v ? v.schedule_id : '';
   }
@@ -498,13 +503,16 @@
   }
   /**
    * GET|POST /company/schedules/:id/workers · 배정 바꾸기 응답의 data → 작업자 칸 값 (모양이 틀리면 null)
-   * { manage, assign, job, workers[{ id, name, status, label, reason, live, reports[{ label, by, body, at }] }], candidates[{ id, name, region }] }
+   * { manage, assign, job, workers[{ id, name, status, label, reason, live, reports[{ label, by, body, at }] }], candidates[{ id, name, region }],
+   *   recruit (모집 — segan/work-recruit.js recruitOf) }
    */
   function panelOf(d) {
     if (!d || typeof d !== 'object' || Array.isArray(d) || !Array.isArray(d.workers)) return null;
+    var R = recruitKit();
     return {
       manage: d.can_manage === true,
       assign: d.can_manage === true && d.can_assign === true,
+      recruit: R ? R.recruitOf(d.recruit) : null,
       job: d.job && typeof d.job === 'object' ? str(d.job.status) : '',
       workers: d.workers
         .filter(function (w) {
@@ -545,6 +553,11 @@
           return { id: str(c.link_id), name: str(c.name), region: str(c.region) };
         }),
     };
+  }
+  /** 모집 칸 (segan/work-recruit.js) — 못 읽었으면 모집 칸 없이 그린다 */
+  function recruitKit() {
+    var R = window.SeganWorkRecruit;
+    return R && typeof R.blockHtml === 'function' ? R : null;
   }
   /** 인사를 쓰는 팩토리인가 — 다담 공장 · Agent (작업자 배정 단추) */
   function canAssignWorkers(me) {
@@ -1097,7 +1110,9 @@
     if (!rows.length) return '';
     var install = v.kind === 'install';
     var waitTag = function (it) {
-      return waitingOn(v.kind, it) ? ' <span class="sm-wait-tag">' + esc(TEXT.waitTag) + '</span>' : '';
+      return waitingOn(v.kind, it)
+        ? ' <span class="sm-wait-tag">' + esc(TEXT.waitTag) + '</span>'
+        : '';
     };
     var head = install
       ? ['번호', '날짜', '시각', '프로젝트', '지역', '설치팀', '상태']
@@ -1266,7 +1281,7 @@
       ? [
           ['일정', dayTitle(it.day) + (it.time ? ' ' + it.time : '')],
           ['종류', it.label],
-          ['설치팀', it.assignee_name || TEXT.unset],
+          [it.type === 'delivery' ? '납품 담당' : '설치팀', it.assignee_name || TEXT.unset],
           ['상태', SCHEDULE_STATUS[it.status] || it.status],
         ]
       : [
@@ -1409,6 +1424,19 @@
       '</button></div></div>'
     );
   }
+  /** 모집 칸 — 모집 중이거나 신청이 있으면 누구에게나(직원은 보기만), 아니면 올릴 수 있는 사람에게만 */
+  function recruitHtml(v, d, asked) {
+    var R = recruitKit();
+    if (!R || asked) return '';
+    return R.blockHtml(d.recruit, {
+      prefix: 'wk',
+      manage: d.manage,
+      assign: d.assign,
+      busy: v.busy,
+      asking: !!v.wk.ask && v.wk.ask.kind === 'recruit-stop',
+      fk: true,
+    });
+  }
   function workersHtml(v) {
     var k = v.wk;
     var close =
@@ -1491,6 +1519,7 @@
       (k.msg ? '<p class="me-pt-msg" role="status">' + esc(k.msg) + '</p>' : '') +
       err +
       pickHtml +
+      recruitHtml(v, d, asked) +
       close +
       '</div>'
     );
@@ -1816,6 +1845,12 @@
       return;
     }
     var next = panelOf(r.body.data);
+    if (!next) {
+      // 신청 뽑기 · 반려의 답에는 칸의 모습이 없다 — 다시 읽는다
+      var again = await call('GET', '/company/schedules/' + encodeURIComponent(k.id) + '/workers');
+      if (v.wk !== k) return render(v);
+      next = again.ok ? panelOf(again.body.data) : null;
+    }
     if (next) k.data = next;
     k.ask = null;
     k.picked = [];
@@ -1848,6 +1883,54 @@
           { link_ids: k.picked.slice() },
           TEXT.wkAssigned
         );
+    } else if (act === 'wk-recruit') {
+      var R = recruitKit();
+      var f = R ? R.readForm(boxOf(v), 'wk') : null;
+      if (!f) return true;
+      if (f.error) {
+        k.err = f.message;
+        k.msg = '';
+        render(v);
+        var bad = boxOf(v).querySelector('[name="wk-' + f.error + '"]');
+        if (bad && typeof bad.focus === 'function') bad.focus();
+        return true;
+      }
+      wkRun(
+        v,
+        'POST',
+        '/company/schedules/' + encodeURIComponent(k.id) + '/workers/recruit',
+        f.body,
+        R.TEXT.opened
+      );
+    } else if (act === 'wk-recruit-stop') {
+      k.ask = { kind: 'recruit-stop', id: '' };
+      k.err = '';
+      k.msg = '';
+      render(v);
+      var yes = boxOf(v).querySelector('[data-act="wk-recruit-stop-yes"]');
+      if (yes && typeof yes.focus === 'function') yes.focus();
+    } else if (act === 'wk-recruit-stop-no') {
+      k.ask = null;
+      render(v);
+    } else if (act === 'wk-recruit-stop-yes') {
+      wkRun(
+        v,
+        'POST',
+        '/company/schedules/' + encodeURIComponent(k.id) + '/workers/recruit',
+        { stop: true },
+        recruitKit() ? recruitKit().TEXT.stopped : ''
+      );
+    } else if ((act === 'wk-app-approve' || act === 'wk-app-reject') && id) {
+      var RT = recruitKit() ? recruitKit().TEXT : {};
+      wkRun(
+        v,
+        'POST',
+        '/company/work/applications/' +
+          encodeURIComponent(id) +
+          (act === 'wk-app-approve' ? '/approve' : '/reject'),
+        {},
+        act === 'wk-app-approve' ? RT.picked : RT.rejected
+      );
     } else if (act === 'wk-accept') {
       wkRun(
         v,

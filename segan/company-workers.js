@@ -20,7 +20,12 @@
                                                           링크는 이 답에서만 보인다 (서버에는 해시만). 한 번만 쓸 수 있다.
                POST  /company/workers/invites/:id/revoke  초대 취소
                PATCH /company/workers/:linkId             { status, reason? } — 대기 → 승인 · 반려, 승인 ↔ 정지, 승인 · 정지 → 연결 끝
+               GET   /company/workers/:linkId             작업자 한 명 — { …, counts, jobs[], events[], notes[]?, notes_pending? } (2026-11-14)
+               POST  /company/workers/:linkId/notes       { body } → { notes[] } — 메모 남기기 (대표 · 실장, DB 0066)
    화면      「작업자」 — 승인 대기 · 연결됨 · 정지 표 (줄마다 「승인」 「반려」 「정지」 「다시 승인」 「연결 끊기」), 반려 · 끝난 연결은 접어 둔다.
+                       작업자가 스스로 끊은 연결은 「연결 끝 (작업자가 끊음)」.
+                       이름을 누르면 표 아래에 그 작업자의 이력(우리 팩토리에서 한 일 · 연결 이력)과 메모 칸이 열린다.
+                       메모 · 전화는 대표 · 실장에게만 보인다. 메모는 쌓기만 한다 (고치기 · 지우기 없음) — 작업자 본인에게는 보이지 않는다.
              「초대」 — 종류(여럿) · 이름(선택) · 만료(3일 · 7일 · 30일 가운데 고른다 — 미리 고른 값 없음) → 「초대 링크 만들기」
                        → 링크 상자 + 「링크 복사」. 남은 초대 줄마다 「초대 취소」.
              맨 위 — 확인 안 한 완료 보고가 있으면 건수와 어디서 확인하는지(설치 일정 · A/S · 프로젝트의 「작업 배정」) 한 칸.
@@ -43,8 +48,47 @@
   var REASON_MAX = 200; // 서버 reason
 
   // 작업자 종류 — 서버 work/validate.js KIND_LABEL 과 같다
-  var KINDS = ['demolition', 'cutting', 'edge', 'assembly', 'install', 'as']; // 일하는 차례
-  var KIND = { install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거' };
+  var KINDS = ['demolition', 'cutting', 'edge', 'assembly', 'delivery', 'install', 'as']; // 일하는 차례
+  var KIND = {
+    install: '설치',
+    as: 'A/S',
+    assembly: '조립',
+    cutting: '재단',
+    edge: '엣지',
+    demolition: '철거',
+    delivery: '납품',
+  };
+  var NOTE_MAX = 1000; // 서버 work/company-worker.js WORKER_NOTE_MAX
+  // 배정 상태 — 서버 work/schedule-link.js ASSIGNMENT_LABEL 과 같다
+  var ASSIGN = {
+    offered: '수락 대기',
+    confirmed: '확정',
+    started: '작업 중',
+    submitted: '완료 보고',
+    revision: '보완 요청',
+    accepted: '확인함',
+    declined: '거절',
+    released: '포기',
+    removed: '뺌',
+  };
+  // 작업이 어디서 생겼나 — 서버 work/company-worker.js whereOf
+  var WHERE = {
+    install: '설치 일정',
+    as: 'A/S 방문',
+    delivery: '납품 일정',
+    project: '프로젝트',
+    pc: 'PC 관리자 화면',
+  };
+  var WHO = { member: '팩토리', worker: '작업자', admin: '본사', system: '' };
+  var COUNT_ORDER = ['done', 'working', 'offered', 'declined', 'released', 'removed'];
+  var COUNT = {
+    done: '끝낸 작업',
+    working: '맡은 작업',
+    offered: '수락 대기',
+    declined: '거절',
+    released: '포기',
+    removed: '뺌',
+  };
   var STATUS = {
     pending: '승인 대기',
     approved: '연결됨',
@@ -65,7 +109,7 @@
   var TEXT = {
     title: '작업자 연결 · 초대',
     generic: '처리하지 못했습니다. 잠시 뒤 다시 해 주세요.',
-    note: '초대 링크로 작업자(철거 · 재단 · 엣지 · 조립 · 설치 · A/S)를 모으고, 신청이 오면 승인합니다. 배정은 프로젝트의 「작업 배정」에서 합니다.',
+    note: '초대 링크로 작업자(철거 · 재단 · 엣지 · 조립 · 납품 · 설치 · A/S)를 모으고, 신청이 오면 승인합니다. 배정은 프로젝트의 「작업 배정」에서 합니다.',
     noteRead: '우리 팩토리와 연결된 작업자입니다. 초대 · 승인은 대표 · 실장이 합니다.',
     noteNoInvite:
       '지금 등급에서는 새 초대 · 승인을 할 수 없습니다. 정지 · 연결 끊기는 할 수 있습니다.',
@@ -115,7 +159,8 @@
     revokeAsk: '이 초대를 취소할까요? 보낸 링크를 더 이상 쓸 수 없습니다.',
     revokeYes: '초대 취소하기',
     revokedMsg: '초대를 취소했습니다.',
-    workerScreen: '작업자는 앱 「작업」 화면에서 초대를 받고 수락 · 보고합니다. 작업자로 등록하지 않은 계정으로 열면 신청서가 보입니다.',
+    workerScreen:
+      '작업자는 앱 「작업」 화면에서 초대를 받고 수락 · 보고합니다. 작업자로 등록하지 않은 계정으로 열면 신청서가 보입니다.',
     workerScreenLink: '작업자 화면 열기',
     waitHead: '확인 안 한 완료 보고',
     waitUnit: '건',
@@ -126,6 +171,36 @@
     waitMore: '외',
     anyKind: '정하지 않음',
     anyName: '정하지 않음',
+    endedByWorker: '작업자가 끊음',
+    openHint: '이름을 누르면 그 작업자의 이력을 봅니다.',
+    detailLoading: '이력을 불러오는 중입니다.',
+    detailFailed: '이력을 불러오지 못했습니다. 잠시 뒤 다시 해 주세요.',
+    detailClose: '닫기',
+    kindsLabel: '종류',
+    regionLabel: '지역',
+    phoneLabel: '전화',
+    linkLabel: '연결',
+    reasonLabel: '사유',
+    countsLabel: '우리 팩토리에서',
+    countUnit: '건',
+    noShow: '노쇼',
+    jobsHead: '작업 이력',
+    jobsNote: '우리 팩토리가 낸 작업만 보입니다. 다른 팩토리에서 한 일은 보이지 않습니다.',
+    jobsNone: '아직 우리 팩토리에서 맡은 작업이 없습니다.',
+    noDate: '날짜 미정',
+    eventsHead: '연결 이력',
+    evRequested: '연결 신청',
+    evLeft: '연결을 끊음',
+    notesHead: '메모',
+    notesNote:
+      '대표 · 실장만 봅니다. 작업자 본인에게는 보이지 않습니다. 남긴 메모는 고치거나 지울 수 없습니다. 고객 이름 · 전화 · 주소는 적지 마세요.',
+    notesNone: '아직 남긴 메모가 없습니다.',
+    notesPending: '메모는 준비 중입니다 (DB 0066 적용 뒤에 쓸 수 있습니다).',
+    noteField: '새 메모',
+    noteAdd: '메모 남기기',
+    noteNeed: '메모를 적어 주세요.',
+    noteAdded: '메모를 남겼습니다.',
+    noteMine: '내가 남김',
   };
 
   var J = {
@@ -143,6 +218,8 @@
     form: { kinds: [], name: '', days: 0 },
     made: null, // 방금 만든 초대 { id, url, expires_at } — 화면에만
     ask: null, // 확인을 기다리는 일 { kind: 'reject' | 'suspend' | 'end' | 'revoke', id }
+    open: '', // 이력을 펼친 작업자의 연결 id
+    detail: null, // { loading, data, err } — 그 작업자의 이력 · 메모 (화면에만)
     msg: '',
     err: '',
     copy: '',
@@ -195,6 +272,12 @@
       });
     return names.length ? names.join(' · ') : none || '-';
   }
+  /** 때 → 한국 시각 '11/20(금) 09:00' (없으면 '') */
+  function stampKst(iso) {
+    var t = Date.parse(str(iso));
+    if (isNaN(t)) return '';
+    return dayKst(iso) + ' ' + new Date(t + KST_MS).toISOString().slice(11, 16);
+  }
   /** 지금부터 days 일 뒤 (ISO) */
   function expiresIn(days, nowMs) {
     return new Date((nowMs == null ? Date.now() : nowMs) + days * DAY_MS).toISOString();
@@ -220,6 +303,88 @@
       reason: str(v.reason),
       active: Number(v.active) > 0 ? Math.floor(Number(v.active)) : 0,
       phone: str(v.phone),
+      endedBy: v.status === 'ended' && v.ended_by === 'worker' ? 'worker' : '',
+    };
+  }
+  /** 이력의 한 줄 글 — 연결 신청 · 상태 변경 · 끊김 (모르는 줄은 '') */
+  function eventText(e) {
+    if (e.type === 'link_requested') return TEXT.evRequested;
+    if (e.type === 'link_left') return TEXT.evLeft;
+    if (e.type === 'link_status_changed' && own(STATUS, e.to))
+      return e.to === 'pending' ? TEXT.pending : e.to === 'approved' ? TEXT.approve : STATUS[e.to];
+    return '';
+  }
+  /**
+   * GET /company/workers/:linkId 의 data → 화면 값 (모양이 틀리면 null)
+   * { id, name, status, endedBy, kinds, region, phone, via, since, reason, manage, counts, noShow,
+   *   jobs[{ kind, at, status, where, project, noShow }], events[{ text, who, at }], notes[{ id, body, by, mine, at }] | null, notesPending }
+   */
+  function detailOf(v) {
+    var w = workerOf(v);
+    if (!w) return null;
+    v = obj(v);
+    var c = obj(v.counts);
+    var n = function (x) {
+      return typeof x === 'number' && x > 0 ? Math.floor(x) : 0;
+    };
+    var counts = {};
+    COUNT_ORDER.forEach(function (k) {
+      counts[k] = n(c[k]);
+    });
+    var manage = v.can_manage === true;
+    return {
+      id: w.id,
+      name: w.name,
+      status: w.status,
+      endedBy: w.endedBy,
+      kinds: w.kinds,
+      region: w.region,
+      phone: w.phone,
+      via: w.via,
+      since: w.since,
+      reason: w.reason,
+      manage: manage,
+      counts: counts,
+      noShow: n(c.no_show),
+      jobs: arr(v.jobs)
+        .map(function (x) {
+          var j = obj(x);
+          if (!own(KIND, j.kind) || !own(ASSIGN, j.status)) return null;
+          return {
+            kind: j.kind,
+            at: str(j.at),
+            status: j.status,
+            where: own(WHERE, j.where) ? j.where : '',
+            project: str(j.project),
+            noShow: j.no_show === true,
+          };
+        })
+        .filter(Boolean),
+      events: arr(v.events)
+        .map(function (x) {
+          var e = obj(x);
+          var text = eventText({ type: str(e.type), to: str(e.to) });
+          return text ? { text: text, who: own(WHO, e.by) ? WHO[e.by] : '', at: str(e.at) } : null;
+        })
+        .filter(Boolean),
+      notes:
+        manage && Array.isArray(v.notes)
+          ? v.notes
+              .map(function (x) {
+                var m = obj(x);
+                return str(m.body)
+                  ? {
+                      id: str(m.id),
+                      body: str(m.body),
+                      by: str(m.by),
+                      mine: m.mine === true,
+                      at: str(m.at),
+                    }
+                  : null;
+              })
+              .filter(Boolean)
+          : null,
+      notesPending: manage && v.notes_pending === true,
     };
   }
   function inviteOf(v) {
@@ -246,7 +411,8 @@
         return { kind: i.kind, at: str(i.at), where: i.where };
       })
       .filter(Boolean);
-    var total = typeof o.total === 'number' && o.total >= 0 && Math.floor(o.total) === o.total ? o.total : 0;
+    var total =
+      typeof o.total === 'number' && o.total >= 0 && Math.floor(o.total) === o.total ? o.total : 0;
     return { total: Math.max(total, items.length), items: items };
   }
 
@@ -414,9 +580,9 @@
             : w.reason || '-';
       return (
         '<tr' +
-        (on ? ' class="od-row--on"' : '') +
+        (on || J.open === w.id ? ' class="od-row--on"' : '') +
         '><td>' +
-        esc(nameOf(w)) +
+        openBtn(w) +
         (w.accountStatus === 'suspended'
           ? ' <span class="pw-muted">(' + esc(TEXT.accountSuspended) + ')</span>'
           : '') +
@@ -464,12 +630,14 @@
     if (!list.length) return '';
     var rows = list.map(function (w) {
       return (
-        '<tr><td>' +
-        esc(nameOf(w)) +
+        '<tr' +
+        (J.open === w.id ? ' class="od-row--on"' : '') +
+        '><td>' +
+        openBtn(w) +
         '</td><td>' +
         esc(kindsText(w.kinds)) +
         '</td><td>' +
-        esc(STATUS[w.status]) +
+        esc(STATUS[w.status] + (w.endedBy === 'worker' ? ' (' + TEXT.endedByWorker + ')' : '')) +
         '</td><td>' +
         esc(dayKst(w.decidedAt || w.since)) +
         '</td></tr>'
@@ -485,9 +653,172 @@
       '</details>'
     );
   }
+  /** 이름 단추 — 누르면 그 작업자의 이력을 표 아래에 편다 */
+  function openBtn(w) {
+    var on = J.open === w.id;
+    return (
+      '<button type="button" class="od-open cw-name" data-act="open" data-id="' +
+      esc(w.id) +
+      '" aria-expanded="' +
+      on +
+      '"' +
+      dis() +
+      '>' +
+      esc(nameOf(w)) +
+      '</button>'
+    );
+  }
+  function factsHtml(pairs) {
+    return (
+      '<dl class="me-facts cw-facts">' +
+      pairs
+        .filter(function (p) {
+          return p[1];
+        })
+        .map(function (p) {
+          return '<div><dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd></div>';
+        })
+        .join('') +
+      '</dl>'
+    );
+  }
+  /** 메모 칸 — 대표 · 실장에게만. 쌓기만 한다 */
+  function notesHtml(d) {
+    if (!d.manage) return '';
+    var head = '<h5 class="cw-h">' + esc(TEXT.notesHead) + '</h5>';
+    if (d.notesPending || !d.notes)
+      return head + '<p class="mk-note" data-cw="notes-pending">' + esc(TEXT.notesPending) + '</p>';
+    var list = d.notes.length
+      ? '<ul class="cw-notes" data-cw="notes">' +
+        d.notes
+          .map(function (m) {
+            var who = [stampKst(m.at), m.mine ? TEXT.noteMine : m.by].filter(Boolean).join(' · ');
+            return '<li><span class="sm-wk-when">' + esc(who) + '</span>' + esc(m.body) + '</li>';
+          })
+          .join('') +
+        '</ul>'
+      : '<p class="me-empty">' + esc(TEXT.notesNone) + '</p>';
+    return (
+      head +
+      '<p class="mk-note">' +
+      esc(TEXT.notesNote) +
+      '</p>' +
+      list +
+      '<label class="mk-input ps-field" for="companyWorkers-memo"><span>' +
+      esc(TEXT.noteField) +
+      '</span><textarea id="companyWorkers-memo" data-cw="memo" rows="3" maxlength="' +
+      NOTE_MAX +
+      '"' +
+      dis() +
+      '></textarea></label><div class="rd-acts"><button type="button" class="mk-btn mk-btn--solid" data-act="note"' +
+      dis() +
+      '>' +
+      esc(TEXT.noteAdd) +
+      '</button></div>'
+    );
+  }
+  /** 펼친 작업자 한 명 — 우리 팩토리에서 한 일 · 연결 이력 · 메모. 표 아래에 그린다 */
+  function detailHtml() {
+    if (!J.open || !J.detail) return '';
+    var k = J.detail;
+    var close =
+      '<div class="rd-acts"><button type="button" class="mk-btn" data-act="close-detail"' +
+      dis() +
+      '>' +
+      esc(TEXT.detailClose) +
+      '</button></div>';
+    var wrap = function (inner) {
+      return '<div class="me-pt-box cw-detail" data-cw="detail">' + inner + '</div>';
+    };
+    if (k.loading)
+      return wrap('<p class="mk-note" role="status">' + esc(TEXT.detailLoading) + '</p>');
+    if (!k.data)
+      return wrap(
+        '<p class="mk-error" role="alert">' + esc(k.err || TEXT.detailFailed) + '</p>' + close
+      );
+    var d = k.data;
+    var counts = COUNT_ORDER.filter(function (c) {
+      return d.counts[c] > 0;
+    })
+      .map(function (c) {
+        return COUNT[c] + ' ' + d.counts[c] + TEXT.countUnit;
+      })
+      .concat(d.noShow ? [TEXT.noShow + ' ' + d.noShow + TEXT.countUnit] : [])
+      .join(' · ');
+    var jobs = d.jobs.length
+      ? tableHtml(
+          ['날짜', '종류', '어디서', '상태'],
+          d.jobs.map(function (j) {
+            return (
+              '<tr><td' +
+              (j.at ? '' : ' class="pw-muted"') +
+              '>' +
+              esc(stampKst(j.at) || TEXT.noDate) +
+              '</td><td>' +
+              esc(KIND[j.kind]) +
+              '</td><td>' +
+              esc(j.project || WHERE[j.where] || '-') +
+              '</td><td>' +
+              esc(ASSIGN[j.status] + (j.noShow ? ' (' + TEXT.noShow + ')' : '')) +
+              '</td></tr>'
+            );
+          })
+        )
+      : '<p class="me-empty">' + esc(TEXT.jobsNone) + '</p>';
+    var events = d.events.length
+      ? '<h5 class="cw-h">' +
+        esc(TEXT.eventsHead) +
+        '</h5><ul class="cw-notes" data-cw="events">' +
+        d.events
+          .map(function (e) {
+            return (
+              '<li><span class="sm-wk-when">' +
+              esc(stampKst(e.at)) +
+              '</span>' +
+              esc(e.text + (e.who ? ' (' + e.who + ')' : '')) +
+              '</li>'
+            );
+          })
+          .join('') +
+        '</ul>'
+      : '';
+    return wrap(
+      '<h4 class="od-h">' +
+        esc(nameOf(d)) +
+        ' <span class="pw-muted">' +
+        esc(STATUS[d.status] + (d.endedBy === 'worker' ? ' (' + TEXT.endedByWorker + ')' : '')) +
+        '</span></h4>' +
+        factsHtml([
+          [TEXT.kindsLabel, kindsText(d.kinds, '')],
+          [TEXT.regionLabel, d.region],
+          [TEXT.phoneLabel, d.manage ? d.phone : ''],
+          [
+            TEXT.linkLabel,
+            [dayKst(d.since) === '-' ? '' : dayKst(d.since), d.via ? VIA[d.via] : '']
+              .filter(Boolean)
+              .join(' · '),
+          ],
+          [TEXT.reasonLabel, d.reason],
+          [TEXT.countsLabel, counts],
+        ]) +
+        '<h5 class="cw-h">' +
+        esc(TEXT.jobsHead) +
+        '</h5><p class="mk-note">' +
+        esc(TEXT.jobsNote) +
+        '</p>' +
+        jobs +
+        events +
+        notesHtml(d) +
+        close
+    );
+  }
   function workersHtml() {
     var html = groupHtml('pending') + groupHtml('approved') + groupHtml('suspended') + closedHtml();
-    return html || '<p class="me-empty">' + esc(J.canInvite ? TEXT.noneManage : TEXT.none) + '</p>';
+    if (!html)
+      return '<p class="me-empty">' + esc(J.canInvite ? TEXT.noneManage : TEXT.none) + '</p>';
+    return (
+      '<p class="mk-note" data-cw="open-hint">' + esc(TEXT.openHint) + '</p>' + html + detailHtml()
+    );
   }
 
   function choiceBtn(act, attr, value, label, on) {
@@ -631,7 +962,9 @@
       esc(TEXT.waitHead + ' ' + w.total + TEXT.waitUnit) +
       '</b></p>' +
       (lines ? '<ul>' + lines + '</ul>' : '') +
-      (more > 0 ? '<p class="mk-note">' + esc(TEXT.waitMore + ' ' + more + TEXT.waitUnit) + '</p>' : '') +
+      (more > 0
+        ? '<p class="mk-note">' + esc(TEXT.waitMore + ' ' + more + TEXT.waitUnit) + '</p>'
+        : '') +
       '<p class="mk-note">' +
       esc(TEXT.waitNote + (J.canManage ? '' : ' ' + TEXT.waitNoteRead)) +
       '</p></div>'
@@ -671,9 +1004,12 @@
   function render() {
     var b = box();
     if (!b || !J.ready) return;
-    // 다시 그려도 적던 이름 · 사유 · 펼친 칸은 그대로
+    // 다시 그려도 적던 이름 · 사유 · 메모 · 펼친 칸은 그대로
     var reasonEl = b.querySelector('[data-cw="reason"]');
     var reason = reasonEl ? reasonEl.value : '';
+    var memoEl = b.querySelector('[data-cw="memo"]');
+    var memo = memoEl && !J.memoDone ? memoEl.value : '';
+    J.memoDone = false;
     var more = b.querySelector('details');
     var open = !!more && more.open;
     var invite = J.canManage && J.tab === 'invite';
@@ -701,6 +1037,8 @@
     b.toggleAttribute('aria-busy', J.busy);
     reasonEl = b.querySelector('[data-cw="reason"]');
     if (reasonEl && reason) reasonEl.value = reason;
+    memoEl = b.querySelector('[data-cw="memo"]');
+    if (memoEl && memo) memoEl.value = memo;
     more = b.querySelector('details');
     if (more && open) more.open = true;
     showSection();
@@ -731,6 +1069,9 @@
     var r = await fn();
     if (r.ok) {
       J.ask = null;
+      // 상태를 바꿨으면 펼쳐 둔 이력은 접는다 (옛 상태가 보이지 않게)
+      J.open = '';
+      J.detail = null;
       if (typeof done === 'function') done(r);
       else J.msg = done || '';
     } else J.err = errText(r);
@@ -738,6 +1079,71 @@
     await read();
     J.busy = false;
     render();
+  }
+  /** 작업자 한 명의 이력 · 메모를 읽어 표 아래에 편다 (같은 사람을 다시 누르면 접는다) */
+  async function openDetail(id) {
+    if (J.open === id) return closeDetail();
+    var k = (J.detail = { loading: true, data: null, err: '' });
+    J.open = id;
+    J.ask = null;
+    J.msg = '';
+    J.err = '';
+    render();
+    var r = await call('GET', '/company/workers/' + encodeURIComponent(id));
+    if (J.detail !== k) return; // 그 사이 닫았거나 다른 사람을 눌렀다
+    k.loading = false;
+    k.data = r.ok ? detailOf(r.body.data) : null;
+    if (!k.data) k.err = r.ok ? TEXT.detailFailed : errText(r);
+    render();
+    focusOn('[data-cw="detail"] [data-act="close-detail"]');
+  }
+  function closeDetail() {
+    var id = J.open;
+    J.open = '';
+    J.detail = null;
+    render();
+    if (id) focusOn('[data-act="open"][data-id="' + id + '"]');
+  }
+  /** 메모 남기기 — 받은 목록으로 메모 칸만 바꾼다 */
+  async function addNote() {
+    var k = J.detail;
+    if (J.busy || !k || !k.data || !k.data.manage) return;
+    var b = box();
+    var el = b && b.querySelector('[data-cw="memo"]');
+    var body = el ? el.value.trim() : '';
+    if (!body) {
+      J.msg = '';
+      J.err = TEXT.noteNeed;
+      render();
+      focusOn('[data-cw="memo"]');
+      return;
+    }
+    J.busy = true;
+    J.msg = '';
+    J.err = '';
+    render();
+    var r = await call('POST', '/company/workers/' + encodeURIComponent(J.open) + '/notes', {
+      body: body,
+    });
+    J.busy = false;
+    if (J.detail !== k) return render();
+    if (r.ok) {
+      var next = detailOf(
+        Object.assign(
+          {},
+          { link_id: k.data.id, status: k.data.status, can_manage: true },
+          { notes: obj(r.body.data).notes }
+        )
+      );
+      if (next && next.notes) {
+        k.data.notes = next.notes;
+        k.data.notesPending = false;
+      }
+      J.msg = TEXT.noteAdded;
+      J.memoDone = true; // 적던 글을 되살리지 않는다
+    } else J.err = errText(r);
+    render();
+    focusOn('[data-cw="memo"]');
   }
   function setStatus(id, status, reason, msg) {
     var body = { status: status };
@@ -819,10 +1225,16 @@
       copyLink();
       return;
     }
+    // 이력 보기는 구성원 누구나 (메모 · 전화는 서버가 대표 · 실장에게만 준다)
+    if (act === 'open' && ID_RE.test(id)) return void openDetail(id);
+    if (act === 'close-detail') return closeDetail();
     if (!J.canManage) return;
+    if (act === 'note') return void addNote();
     if (act === 'tab') {
       J.tab = el.getAttribute('data-tab') === 'invite' ? 'invite' : 'workers';
       J.ask = null;
+      J.open = '';
+      J.detail = null;
       J.msg = '';
       J.err = '';
       render();
@@ -889,6 +1301,8 @@
     J.form = { kinds: [], name: '', days: 0 };
     J.made = null;
     J.ask = null;
+    J.open = '';
+    J.detail = null;
     J.msg = '';
     J.err = '';
     J.copy = '';
@@ -915,6 +1329,8 @@
     kindsText: kindsText,
     expiresIn: expiresIn,
     workerOf: workerOf,
+    detailOf: detailOf,
+    stampKst: stampKst,
     inviteOf: inviteOf,
     waitOf: waitOf,
     state: J,
