@@ -57,6 +57,9 @@
     progress: '진행 보고', issue: '문제 보고', result: '완료 보고', correction: '회사 정정', note: '회사 메모',
   });
   const WORKER_STATUS_LABEL = Object.freeze({ pending: '승인 대기', approved: '승인', suspended: '정지', rejected: '반려' });
+  /** 팩토리와의 연결 상태 (GET /work/me 의 links[].status — 서버 work/links.js). 끝난 연결은 서버가 싣지 않는다 */
+  const LINK_STATUS_LABEL = Object.freeze({ pending: '승인 대기', approved: '연결됨', suspended: '정지', rejected: '승인되지 않음' });
+  const LINKS_NOTE = '팩토리가 보낸 초대 링크를 열면 그 팩토리와 연결을 신청할 수 있습니다. 연결된 팩토리의 작업만 보입니다.';
   const PAY_UNIT_LABEL = Object.freeze({ day: '일', hour: '시간', meter: 'm', job: '건' });
   const TABS = Object.freeze([
     { key: 'open', label: '모집중' },
@@ -385,6 +388,7 @@
     return `<a class="card job" href="#job=${esc(c.id)}">` +
       `<div class="chips">${kindChip(c.kind)}${chip(st.text, st.tone)}${dday ? chip(dday, 'dday') : ''}</div>` +
       `<div class="jt">${esc(c.title)}</div>` +
+      (c.company_name ? `<div class="jd co">${esc(c.company_name)}</div>` : '') +
       `<div class="jd">${esc(fmtRange(c.starts_at, c.ends_at))}${c.region_label ? ` · ${esc(c.region_label)}` : ''}</div>` +
       `<div class="jd">${esc(slotsText(c))}${pay ? ` · ${esc(pay)}` : ''}</div>` +
       (tab === 'open' ? deadlineLineHtml(c, nowMs) : '') +
@@ -590,6 +594,7 @@
     const pay = payText(d.pay);
     // [이름, 값 HTML] — 값은 여기서 esc() 를 거친다
     const facts = [
+      ...(d.company_name ? [['팩토리', esc(d.company_name)]] : []),
       ['일시', esc(`${fmtRange(d.starts_at, d.ends_at)}${dday ? ` (${dday})` : ''}`)],
       ['지역', esc(d.region_label || '정해지지 않음')],
       ['인원', esc(slotsText(d))],
@@ -612,8 +617,27 @@
       (showTimeline ? `<div class="card"><h3>작업 기록</h3><p class="muted">내 보고와 회사 정정 · 메모가 고쳐지지 않고 차례로 쌓입니다.</p>${timelineHtml(d.timeline)}</div>` : '');
   }
 
+  /**
+   * 연결된 팩토리 카드 (GET /work/me 의 links — 2026-11-13 작업자 한 길). 작업자는 여러 팩토리와 연결될 수 있다.
+   * links 가 없으면(옛 서버 · DB 적용 전) 빈 글 — 카드를 그리지 않는다.
+   */
+  function linksHtml(links) {
+    if (!Array.isArray(links)) return '';
+    const rows = links.filter((l) => l && Object.prototype.hasOwnProperty.call(LINK_STATUS_LABEL, l.status));
+    const list = rows.length
+      ? `<dl class="facts">${rows.map((l) => `<dt>${esc(l.company_name || '이름 없는 팩토리')}</dt><dd>${esc(LINK_STATUS_LABEL[l.status])}</dd>`).join('')}</dl>`
+      : '<p class="empty">아직 연결된 팩토리가 없습니다.</p>';
+    return `<div class="card"><h3>연결된 팩토리</h3>${list}<p class="muted">${esc(LINKS_NOTE)}</p></div>`;
+  }
+
+  /** 초대 링크를 연 작업자에게 묻는 글 (POST /work/invites/peek 의 답) */
+  function linkAskText(peek) {
+    const name = (peek && peek.company_name) || '초대한 팩토리';
+    return `${name}에서 작업자로 초대했습니다. 연결을 신청하면 ${name}에서 확인한 뒤 승인합니다. 승인되면 그 팩토리의 작업을 여기서 봅니다.`;
+  }
+
   /** 내 정보 탭 (WorkerSelf). mypage = 이 페이지에서 본 마이페이지 주소 (#workerApp 의 data-mypage — 앱은 me.html) */
-  function workerInfoHtml(w, mypage = 'mypage.html') {
+  function workerInfoHtml(w, mypage = 'mypage.html', links = null) {
     if (!w) return '';
     const rows = [
       ['이름', w.display_name],
@@ -624,7 +648,8 @@
       ['사진 동의', w.photo_consent ? '동의함' : '동의하지 않음'],
       ['동의 버전', w.consent_version || '-'],
     ];
-    return '<div class="card"><h3>내 정보</h3>' +
+    return linksHtml(links) +
+      '<div class="card"><h3>내 정보</h3>' +
       `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` +
       '<p class="muted">받은 정보: 이름 · 휴대폰(선택) · 작업 종류 · 활동 지역. 주민등록번호 · 계좌는 받지 않습니다.</p>' +
       '<p class="muted">이 화면에서는 아직 정보를 고칠 수 없습니다. 바꿀 내용은 회사에 알려 주세요.</p>' +
@@ -633,12 +658,14 @@
   }
 
   /** 신청 대기 화면의 내 신청 정보 */
-  function pendingInfoHtml(w) {
+  function pendingInfoHtml(w, links = null) {
     if (!w) return '';
+    const waiting = (Array.isArray(links) ? links : []).filter((l) => l && l.status === 'pending' && l.company_name).map((l) => l.company_name);
     const rows = [
       ['이름', w.display_name],
       ['작업 종류', kindsText(w.kinds)],
       ['활동 지역', w.region_label || '적지 않음'],
+      ...(waiting.length ? [['확인하는 곳', waiting.join(' · ')]] : []),
     ];
     return `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
   }
@@ -828,7 +855,7 @@
     const cfg = (typeof window !== 'undefined' && window.DADAM_CONFIG) || {};
     const API = (cfg.workflowApi && cfg.workflowApi.url) || '';
     // 정지(suspended)는 따로 막는 화면 없이 viewApp + 맨 위 안내 (1주차 후속 D)
-    const VIEWS = ['viewLoading', 'viewLogin', 'viewRegister', 'viewPending', 'viewRejected', 'viewNotReady', 'viewError', 'viewApp'];
+    const VIEWS = ['viewLoading', 'viewLogin', 'viewRegister', 'viewPending', 'viewRejected', 'viewNotReady', 'viewError', 'viewLink', 'viewApp'];
     let sb = null;
     let me = null;
     let route = parseHash(location.hash);
@@ -929,8 +956,20 @@
       show('viewLogin');
     }
 
+    /** 초대한 팩토리 이름을 신청서 안내에 — 못 읽으면 원래 글 그대로 */
+    async function nameInvite() {
+      const token = invite;
+      if (!token) return;
+      try {
+        const peek = await api('/work/invites/peek', { method: 'POST', body: { token } });
+        if (invite === token && peek && peek.company_name)
+          $('regInviteNote').textContent = `${peek.company_name}의 초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다. ${peek.company_name}에서 승인하면 작업을 볼 수 있습니다.`;
+      } catch (e) { /* 원래 글 그대로 */ }
+    }
+
     function showRegister() {
       $('regInviteNote').hidden = !invite;
+      nameInvite();
       $('regTitle').textContent = invite ? '초대 링크로 작업자 신청' : '작업자 신청';
       $('regKindsHint').textContent = invite ? '(초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다)' : '(하나 이상)';
       $('regConsentVersion').textContent = CONSENT_VERSION;
@@ -948,7 +987,7 @@
         showRegister();
       } else if (view === 'pending') {
         sub(`${w.display_name} 님 · 승인 대기`);
-        $('pendingInfo').innerHTML = pendingInfoHtml(w);
+        $('pendingInfo').innerHTML = pendingInfoHtml(w, me && me.links);
         show('viewPending');
       } else if (view === 'rejected') {
         sub(`${w.display_name} 님`);
@@ -1013,7 +1052,7 @@
       renderTabs(tab);
       if (tab === 'me') {
         const appEl = $('workerApp');
-        body.innerHTML = workerInfoHtml(me && me.worker, (appEl && appEl.getAttribute('data-mypage')) || 'mypage.html');
+        body.innerHTML = workerInfoHtml(me && me.worker, (appEl && appEl.getAttribute('data-mypage')) || 'mypage.html', me && me.links);
         return;
       }
       if (tab === 'factory') {
@@ -1273,13 +1312,71 @@
         return;
       }
       if (me && me.worker && invite) {
-        // 이미 작업자면 초대 링크는 쓰지 않는다 (서버도 409)
-        storeInvite(null);
-        invite = null;
-        say('이미 작업자로 등록돼 있어 초대 링크는 쓰지 않았습니다.', true);
+        // 이미 작업자 — 신청서 없이 그 팩토리와 연결만 신청한다 (2026-11-13). 먼저 어느 팩토리인지 묻는다
+        let peek = null;
+        try {
+          peek = await api('/work/invites/peek', { method: 'POST', body: { token: invite } });
+        } catch (err) {
+          if (err.status === 401) {
+            showLogin();
+            return;
+          }
+          dropInvite();
+          // 초대가 못 쓰게 된 것(거둠 · 만료 · 사용됨 · 없음)이면 서버 글, 그 밖(옛 서버 등)은 예전 안내
+          const dead = (err.status === 410 || err.status === 404) && /초대/.test(err.message || '');
+          say(dead ? err.message : '이미 작업자로 등록돼 있어 초대 링크는 쓰지 않았습니다.', !dead);
+        }
+        if (peek && (peek.link_status === 'approved' || peek.link_status === 'suspended')) {
+          dropInvite();
+          say(`이미 연결된 팩토리입니다 — ${peek.company_name || '초대한 팩토리'}`, true);
+        } else if (peek) {
+          $('linkTitle').textContent = `${peek.company_name || '팩토리'} 연결`;
+          $('linkText').textContent = linkAskText(peek);
+          $('linkGo').setAttribute('data-name', peek.company_name || '');
+          sub(`${me.worker.display_name} 님 · 팩토리 초대`);
+          show('viewLink');
+          return;
+        }
       }
       renderWorkerState();
     }
+
+    function dropInvite() {
+      storeInvite(null);
+      invite = null;
+    }
+
+    // ── 팩토리 연결 신청 (이미 작업자 + 초대 링크) ──
+    $('linkGo').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      if (!invite) {
+        renderWorkerState();
+        return;
+      }
+      const name = btn.getAttribute('data-name') || '그 팩토리';
+      btn.disabled = true;
+      try {
+        await api('/work/claim-invite', { method: 'POST', body: { token: invite } });
+        dropInvite();
+        await refreshMe().catch(() => {});
+        say(`연결을 신청했습니다. ${name}에서 승인하면 그 팩토리의 작업이 보입니다.`, true);
+        renderWorkerState();
+      } catch (err) {
+        if (err.status === 401) {
+          showLogin();
+        } else {
+          dropInvite();
+          say(err.message);
+          renderWorkerState();
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('linkSkip').addEventListener('click', () => {
+      dropInvite();
+      renderWorkerState();
+    });
 
     // ── 신청서 ──
     $('regForm').addEventListener('submit', async (e) => {
@@ -1565,6 +1662,9 @@
     jobDetailHtml,
     workerInfoHtml,
     pendingInfoHtml,
+    LINK_STATUS_LABEL,
+    linksHtml,
+    linkAskText,
     factoryDay,
     factoryRoleOf,
     worklogBody,

@@ -9,28 +9,28 @@
     <title>작업 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026111313" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026111313" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026111313" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111313" />
+    <link rel="icon" href="icons/icon.svg?v=2026111314" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026111314" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026111314" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026111314" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026111313" />
-    <link rel="stylesheet" href="work.css?v=2026111313" />
+    <link rel="stylesheet" href="shell.css?v=2026111314" />
+    <link rel="stylesheet" href="work.css?v=2026111314" />
     <!-- 로그인 · 관리 탭 · 작업 탭 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
-    <script src="../js/config.js?v=2026111313"></script>
+    <script src="../js/config.js?v=2026111314"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111313"></script>
-    <script src="../js/mypage-work.js?v=2026111313"></script>
+    <script src="../js/admin-access.js?v=2026111314"></script>
+    <script src="../js/mypage-work.js?v=2026111314"></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026111313"></script>
-    <script src="shell.js?v=2026111313" defer blocking="render"></script>
+    <script src="motion.js?v=2026111314"></script>
+    <script src="shell.js?v=2026111314" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026111313" defer></script>
+    <script src="guide.js?v=2026111314" defer></script>
   </head>
   <body class="sg-app" data-tab="work">
     <div data-segan-shell="header"></div>
@@ -142,6 +142,18 @@
           </div>
         </section>
 
+        <!-- 이미 작업자인 사람이 팩토리 초대 링크로 왔을 때 — 그 팩토리와 연결을 신청한다 (2026-11-13 작업자 한 길) -->
+        <section id="viewLink" hidden>
+          <div class="card">
+            <h2 id="linkTitle">팩토리 연결</h2>
+            <p id="linkText"></p>
+            <div class="btns">
+              <button type="button" class="big go" id="linkGo">연결 신청하기</button>
+              <button type="button" class="big" id="linkSkip">그만두기</button>
+            </div>
+          </div>
+        </section>
+
         <!-- 승인 · 정지 작업자 — 탭(모집중 · 내 작업 · 완료 · 내 정보), 작업 상세는 #job=<id>.
              정지(suspended)는 맨 위 안내 + 모집중 탭 · 신청 · 초대 수락 버튼만 빠진다 (계약 1주차 후속 D) -->
         <section id="viewApp" hidden>
@@ -156,6 +168,6 @@
     <div data-segan-shell="footer"></div>
     <div data-segan-shell="tabbar"></div>
 
-    <script src="../js/worker-portal.js?v=2026111313"></script>
+    <script src="../js/worker-portal.js?v=2026111314"></script>
   </body>
 </html>
