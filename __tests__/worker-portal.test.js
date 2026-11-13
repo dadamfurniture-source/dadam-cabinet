@@ -304,9 +304,9 @@ describe('segan/work.html — 머리 · 신청서', () => {
     expect(HTML).toContain('주민등록번호 · 계좌는 받지 않습니다');
     expect(HTML).toMatch(/name="consent"/);
     expect(HTML).toMatch(/name="photo_consent"/);
-    // 작업자 종류 — 여섯 (서버 WORKER_KINDS · DB 0065: 설치 · A/S · 조립 · 재단 · 엣지 · 철거)
+    // 작업자 종류 — 일곱 (서버 WORKER_KINDS · DB 0065: 설치 · A/S · 조립 · 재단 · 엣지 · 철거 + DB 0066: 납품)
     P.WORKER_KINDS.forEach((k) => expect(HTML).toContain(`name="kind_${k}" value="${k}" data-kind`));
-    expect([...P.WORKER_KINDS]).toEqual(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition']);
+    expect([...P.WORKER_KINDS]).toEqual(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition', 'delivery']);
     expect(HTML).not.toMatch(/name="(rrn|resident|ssn|bank|account|account_no)"/i);
   });
 
@@ -1659,5 +1659,93 @@ describe('작업 종류 여섯 · 이 일로 바로', () => {
     expect(document.getElementById('linkTitle').textContent).toBe('가나 인테리어 연결');
     expect(document.getElementById('linkGo').textContent).toBe('연결 신청하기');
     expect(document.getElementById('linkText').textContent).toContain('승인되면 그 작업이 「내 작업」에 초대로 들어옵니다.');
+  });
+});
+
+// ── 2026-11-14 납품 종류 · 스스로 연결 끊기 ─────────────────────────────
+describe('납품 종류 · 연결 끊기', () => {
+  const L1 = '77777777-7777-4777-8777-777777777771';
+  const L2 = '77777777-7777-4777-8777-777777777772';
+  const L3 = '77777777-7777-4777-8777-777777777773';
+  const WORKER = { id: 'w', status: 'approved', display_name: '시험기사', phone: null, kinds: ['install', 'delivery'], region_label: null, photo_consent: false, consent_version: 'v1' };
+  beforeEach(() => sessionStorage.clear());
+
+  test('순수 — 납품 이름표 · 현장 일(팩토리가 확인) · 신청서의 종류 칸 (두 페이지 모두)', () => {
+    expect(P.KIND_LABEL.delivery).toBe('납품');
+    const card = { id: '11111111-1111-4111-8111-111111111111', title: '납품', slots: 1, filled: 0, effective_status: 'open', my: {} };
+    expect(P.jobCardHtml({ ...card, kind: 'delivery' }, Date.now(), 'mine')).toContain('<span class="chip k-delivery">납품</span>');
+    expect(P.inviteJobText({ kind: 'delivery', starts_at: null })).toBe('납품 작업');
+    for (const html of [HTML, OLD]) expect(html).toContain('name="kind_delivery" value="delivery" data-kind /> 납품</label>');
+  });
+
+  test('순수 — 연결 카드: 연결 id 가 있는 대기 · 연결됨 · 정지 줄에만 단추. 묻는 글은 맡은 일을 미리 알린다', () => {
+    const html = P.linksHtml([
+      { id: L1, company_name: '가나 <인테리어>', status: 'approved', offered: 1, working: 2 },
+      { id: L2, company_name: '다라 가구', status: 'pending', offered: 0, working: 0 },
+      { id: L3, company_name: '마바 목공', status: 'rejected' },
+      { company_name: '옛 서버', status: 'approved' },
+    ]);
+    expect(html).toContain(`<dt>가나 &lt;인테리어&gt;</dt><dd>연결됨 <button type="button" class="link-leave" data-act="leave-link" data-id="${L1}">연결 끊기</button></dd>`);
+    expect(html).toContain(`data-id="${L2}">신청 거두기</button>`);
+    expect(html).toContain('<dt>마바 목공</dt><dd>승인되지 않음</dd>'); // 반려된 연결은 끊을 것이 없다
+    expect(html).toContain('<dt>옛 서버</dt><dd>연결됨</dd>'); // 연결 id 가 없으면 단추도 없다
+    expect(html.match(/data-act="leave-link"/g)).toHaveLength(2);
+    expect(html).toContain('다시 연결하려면 그 팩토리의 초대 링크가 필요합니다.');
+    expect(P.linksHtml([{ company_name: '옛 서버', status: 'approved' }])).not.toContain('연결을 끊으면');
+    expect([...P.LEAVABLE_LINKS]).toEqual(['pending', 'approved', 'suspended']);
+
+    expect(P.leaveAskText({ company_name: '가나 인테리어', status: 'approved', offered: 1, working: 2 })).toBe(
+      '가나 인테리어와(과)의 연결을 끊을까요? 답하지 않은 초대 1건은 거절로 끝납니다. 수락한 작업 2건은 끝까지 진행해야 합니다. 다시 연결하려면 그 팩토리의 초대 링크가 필요합니다.'
+    );
+    expect(P.leaveAskText({ company_name: '가나 인테리어', status: 'suspended', offered: 0, working: 0 })).toBe(
+      '가나 인테리어와(과)의 연결을 끊을까요? 다시 연결하려면 그 팩토리의 초대 링크가 필요합니다.'
+    );
+    expect(P.leaveAskText({ company_name: '다라 가구', status: 'pending' })).toBe('다라 가구에 낸 연결 신청을 거둘까요?');
+    expect(P.leaveAskText(null)).toContain('이 팩토리');
+  });
+
+  test('내 정보 › 「연결 끊기」 — 되묻고, 보내고, 다시 읽어 줄이 사라진다. 취소하면 보내지 않는다', async () => {
+    let left = false;
+    const links = () => [
+      ...(left ? [] : [{ id: L1, company_name: '가나 인테리어', status: 'approved', offered: 1, working: 0 }]),
+      { id: L2, company_name: '다라 가구', status: 'pending', offered: 0, working: 0 },
+    ];
+    const calls = mount({
+      hash: '#tab=me',
+      routes: {
+        'GET /work/me': () => ({ data: { ready: true, worker: WORKER, counts: COUNTS, next_job: null, factory: null, links: links() } }),
+        [`POST /work/links/${L1}/leave`]: () => {
+          left = true;
+          return { data: { id: L1, status: 'ended', company_name: '가나 인테리어', declined: 1, working: 0 } };
+        },
+        [`POST /work/links/${L2}/leave`]: () => ({ status: 409, message: '그 사이 연결 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요' }),
+      },
+    });
+    await settle();
+    const body = () => document.getElementById('appBody');
+    const btn = (id) => body().querySelector(`[data-act="leave-link"][data-id="${id}"]`);
+    expect(btn(L1).textContent).toBe('연결 끊기');
+    expect(btn(L2).textContent).toBe('신청 거두기');
+    // 취소하면 보내지 않는다
+    window.confirm = jest.fn(() => false);
+    btn(L1).click();
+    await settle();
+    expect(window.confirm).toHaveBeenCalledWith('가나 인테리어와(과)의 연결을 끊을까요? 답하지 않은 초대 1건은 거절로 끝납니다. 다시 연결하려면 그 팩토리의 초대 링크가 필요합니다.');
+    expect(calls.filter((c) => c.method === 'POST')).toEqual([]);
+    // 끊는다
+    window.confirm = jest.fn(() => true);
+    btn(L1).click();
+    await settle();
+    const sent = calls.filter((c) => c.method === 'POST');
+    expect(sent.map((c) => [c.path, c.body, c.auth])).toEqual([[`/work/links/${L1}/leave`, {}, 'Bearer jwt-test']]);
+    expect(btn(L1)).toBeNull();
+    expect(body().textContent).not.toContain('가나 인테리어');
+    expect(document.body.textContent).toContain('연결을 끊었습니다.');
+    // 서버가 막으면 그 글 — 줄은 그대로
+    btn(L2).click();
+    await settle();
+    expect(window.confirm).toHaveBeenLastCalledWith('다라 가구에 낸 연결 신청을 거둘까요?');
+    expect(document.body.textContent).toContain('그 사이 연결 상태가 바뀌었습니다');
+    expect(btn(L2)).not.toBeNull();
   });
 });

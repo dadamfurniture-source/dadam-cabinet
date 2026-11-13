@@ -341,13 +341,14 @@ describe('js/work-jobs-admin.js — 순수 함수', () => {
       .toEqual({ kinds_preset: ['install'], display_name_preset: '시험', expires_at: '2026-10-27T09:00:00.000Z' });
   });
 
-  test('작업자 종류 — 여섯 (작업 종류 셋 + 재단 · 엣지 · 철거): 초대 프리셋 · 작업자 줄의 종류 칸 · 초대 칸', () => {
-    expect([...W.WORKER_KINDS]).toEqual(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition']);
+  test('작업자 종류 — 일곱 (작업 종류 셋 + 재단 · 엣지 · 철거 · 납품): 초대 프리셋 · 작업자 줄의 종류 칸 · 초대 칸', () => {
+    expect([...W.WORKER_KINDS]).toEqual(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition', 'delivery']);
+    expect(W.kindsText(['delivery'])).toBe('납품');
     expect([...W.KINDS]).toEqual(['install', 'as', 'assembly']);
     const now = Date.parse('2026-10-20T00:00:00Z');
     expect(W.buildInvitePayload({ kinds: ['cutting', 'edge', 'bogus'], expires_at: '2026-10-27T18:00' }, now).kinds_preset).toEqual(['cutting', 'edge']);
     const row = W.workerRowHtml({ id: 'w1', display_name: '재단기사', status: 'approved', kinds: ['cutting'] }, { canEdit: true });
-    expect((row.match(/data-kind-of=/g) || []).length).toBe(6);
+    expect((row.match(/data-kind-of=/g) || []).length).toBe(7);
     expect(W.kindsText(['demolition'])).toBe('철거');
     expect(row).toContain('value="cutting" checked');
     expect(W.kindsText(['cutting', 'edge'])).toBe('재단 · 엣지');
