@@ -117,7 +117,7 @@
 
   // ── 글자 — admin/work-reports.html 과 같다 ────────────
   function kstDay(iso) {
-    var t = iso ? new Date(iso) : new Date();
+    var t = iso ? new Date(iso) : new Date(Date.now());
     if (isNaN(t.getTime())) return '';
     return new Date(t.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
   }
