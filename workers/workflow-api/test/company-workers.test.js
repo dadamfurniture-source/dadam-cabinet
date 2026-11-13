@@ -236,7 +236,7 @@ test('팩토리 초대로 오면 — 처음인 사람은 작업자 대기 + 그 
   const token = made.json.data.url.split('#invite=')[1];
 
   const peek = await call(fake, '/work/invites/peek', U_NEW, { method: 'POST', body: { token } });
-  assert.deepEqual(peek.json.data, { company_name: '가나 인테리어', kinds_preset: ['as'], expires_at: FAR, already_worker: false, link_status: null });
+  assert.deepEqual(peek.json.data, { company_name: '가나 인테리어', kinds_preset: ['as'], expires_at: FAR, already_worker: false, link_status: null, job: null });
   assert.ok(!fake.db.worker_invites.find((i) => i.id === made.json.data.id).used_at, '미리보기는 초대를 쓰지 않는다');
 
   const claim = await call(fake, '/work/claim-invite', U_NEW, { method: 'POST', body: { token, consent_version: 'v1' } });

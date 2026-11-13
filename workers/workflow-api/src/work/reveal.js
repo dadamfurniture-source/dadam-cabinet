@@ -22,8 +22,8 @@ export const SITE_NOTE = '현장 주소·연락처는 배정을 수락한 뒤부
 export const SITE_EMPTY_NOTE = '현장 주소·연락처가 아직 입력되지 않았습니다. 팩토리에 확인해 주세요';
 /** 작업이 끝난(완료 보고를 팩토리가 확인한) 뒤 현장을 여는 날 수 — 사장님 결정 ⑤ */
 export const SITE_OPEN_DAYS = 7;
-/** 현장이 있는 작업 종류 (공장 조립은 현장이 없다) */
-export const SITE_KINDS = Object.freeze(['install', 'as']);
+/** 현장이 있는 작업 종류 — 설치 · A/S · 철거 (공장 일 조립 · 재단 · 엣지는 현장이 없다) */
+export const SITE_KINDS = Object.freeze(['install', 'as', 'demolition']);
 /** 수락한 뒤 ~ 확인 전 — 이 상태의 배정은 현장을 본다 */
 export const SITE_OPEN_STATUSES = Object.freeze(['confirmed', 'started', 'submitted', 'revision']);
 const DAY_MS = 24 * 3600 * 1000;

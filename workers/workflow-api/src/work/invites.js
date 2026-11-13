@@ -11,6 +11,10 @@
  *   연결이 대기로 생기고, 그 팩토리가 승인해야 연결된다. 팩토리 칸이 빈 옛 초대는 다담 공장 것으로 받는다.
  *   이미 작업자인 사람도 초대로 새 팩토리와 연결을 신청할 수 있다 (신청서를 다시 쓰지 않는다).
  *   거둔 초대(revoked_at)는 410. peekInvite 는 누르기 전에 어느 팩토리의 초대인지 보여 준다.
+ *
+ * 2026-11-13 「이 일로 바로」 (DB 0065 worker_invites.job_id) — 프로젝트 「작업 배정」에서 만든 초대는 작업 하나에 이어진다:
+ *   처음 보는 작업자는 연결 신청(대기) → 팩토리가 승인하면 서버가 그 작업에 배정 제안을 넣는다 (work/invite-job.js).
+ *   이미 연결이 승인된 작업자가 열면 바로 배정 제안이 들어간다. 어느 쪽이든 작업자가 「수락」해야 확정된다.
  */
 
 import { pepperedHash } from '../util/hash.js';
@@ -19,7 +23,8 @@ import { loadSelfWorker, requireAdminEditor } from './access.js';
 import { recordWorkerEvent } from './events.js';
 import { notifyWork } from './notify.js';
 import { workerSelf } from './reveal.js';
-import { kindsOf, optIso, optText } from './validate.js';
+import { KIND_LABEL, kindsOf, kindsPending, optIso, optText } from './validate.js';
+import { offerInviteJob } from './invite-job.js';
 import { registrationFields } from './workers.js';
 import { companyNames, linkOf, requestLink } from './links.js';
 import { later, notifyCompanyWork } from '../push/work-hooks.js';
@@ -45,7 +50,7 @@ export function inviteUrl(env, token) {
  * 초대 한 줄 넣기 (권한 검사는 부르는 쪽) — { kinds_preset[], display_name_preset?, expires_at } → { id, url, expires_at }.
  * companyId 가 있으면 그 팩토리의 초대 (0064), 없으면 옛 본사 초대.
  */
-export async function createInviteCore(env, { user, body, companyId = null }) {
+export async function createInviteCore(env, { user, body, companyId = null, jobId = null }) {
   const b = body || {};
   const kinds = kindsOf(b.kinds_preset, 'kinds_preset');
   const name = optText(b.display_name_preset, 30, '이름 프리셋');
@@ -64,7 +69,13 @@ export async function createInviteCore(env, { user, body, companyId = null }) {
     created_by: user.id,
   };
   if (companyId) row.company_id = companyId;
-  const made = await insertOne(env, 'worker_invites', row);
+  if (jobId) row.job_id = jobId;
+  let made;
+  try {
+    made = await insertOne(env, 'worker_invites', row);
+  } catch (e) {
+    throw kindsPending(e);
+  }
   // ★ 평문 토큰은 이 응답에서만 볼 수 있다
   return { id: made.id, url: inviteUrl(env, token), expires_at: made.expires_at };
 }
@@ -108,7 +119,16 @@ export async function peekInvite(env, { user, body }) {
     expires_at: invite.expires_at,
     already_worker: !!worker,
     link_status: link ? link.status : null,
+    job: await inviteJobOf(env, invite, companyId),
   };
+}
+
+/** 「이 일로 바로」 초대의 작업 — 종류 · 날짜만 (제목 · 지역 · 현장은 싣지 않는다). 없거나 끝난 작업이면 null */
+async function inviteJobOf(env, invite, companyId) {
+  if (!invite.job_id || !companyId) return null;
+  const job = await selectOne(env, 'work_jobs', { id: `eq.${invite.job_id}`, company_id: `eq.${companyId}`, select: 'id,kind,status,starts_at' });
+  if (!job || ['done', 'closed', 'cancelled'].includes(job.status)) return null;
+  return { kind: job.kind, label: KIND_LABEL[job.kind] || job.kind, starts_at: job.starts_at || null };
 }
 
 /** 1회용 — 아직 안 쓴 경우에만 찍는다 (동시에 두 사람이 눌러도 한 명만) */
@@ -139,6 +159,13 @@ export async function claimInvite(env, { user, body, ctx }) {
   if (existing) {
     const cur = companyId ? await linkOf(env, companyId, existing.id) : undefined;
     if (cur === undefined) throw new ConflictError('이미 작업자로 등록돼 있습니다');
+    if (cur && cur.status === 'approved' && invite.job_id) {
+      // 이미 연결된 작업자가 「이 일로 바로」 초대를 열었다 — 연결은 그대로, 그 작업에 배정 제안을 넣는다 (수락은 작업자가)
+      await useInvite(env, invite, user);
+      const offered = await offerInviteJob(env, { companyId, workerId: existing.id, inviteId: invite.id, ctx });
+      const names = await companyNames(env, [companyId]);
+      return { ...workerSelf(existing), linked: { company_name: names.get(companyId) || null, status: 'approved' }, offered_job_id: offered ? offered.job_id : null };
+    }
     if (cur && (cur.status === 'approved' || cur.status === 'suspended')) {
       const err = new ConflictError('이미 연결된 팩토리입니다');
       err.code = 'already_linked';
@@ -166,7 +193,7 @@ export async function claimInvite(env, { user, body, ctx }) {
   } catch (err) {
     await unuseInvite(env, invite, user);
     if (err instanceof ConflictError) throw new ConflictError('이미 작업자로 등록돼 있습니다');
-    throw err;
+    throw kindsPending(err);
   }
   await recordWorkerEvent(env, { workerId: row.id, actorUserId: user.id, actorKind: 'worker', type: 'registered', to: 'pending', payload: { via: 'invite', invite_id: invite.id } });
   // 그 팩토리와의 연결을 대기로 — 연결 표가 없으면(0064 전) 넘어간다 (옛 동작: 본사 승인)

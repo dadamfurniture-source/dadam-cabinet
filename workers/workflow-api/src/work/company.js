@@ -33,6 +33,7 @@ import { createInviteCore } from './invites.js';
 import { MINE_STATUSES } from './jobs.js';
 import { LINK_STATUSES, LINK_STATUS_LABEL, LINK_TRANSITIONS, linksPending } from './links.js';
 import { later, notifyWorkerLink } from '../push/work-hooks.js';
+import { offerInviteJob } from './invite-job.js';
 import { assertUuid, kindsOf, oneOf, optText } from './validate.js';
 
 /** 아직 끝나지 않은 작업 상태 — 진행 중 배정 수를 셀 때 */
@@ -196,6 +197,9 @@ export async function patchCompanyWorker(env, { user, params, body, ctx }) {
       });
       if (patch.status === 'approved' || patch.status === 'rejected')
         await later(ctx, notifyWorkerLink(env, { worker, link: rows[0], status: patch.status, companyName: company.name }));
+      // 「이 일로 바로」 초대로 온 작업자 — 승인하면 그 작업에 배정 제안을 넣는다 (작업자가 수락해야 확정). 못 넣어도 승인은 그대로
+      if (patch.status === 'approved' && link.invite_id)
+        await offerInviteJob(env, { companyId: company.id, workerId: worker.id, inviteId: link.invite_id, actor: user, ctx });
     }
     return linkOut(rows[0]);
   });
