@@ -42,6 +42,7 @@ import {
 } from '../production/worker-access.js';
 import { maskOrderLabel, workerAssignmentText } from '../production/redact.js';
 import { loadSelfWorker } from './access.js';
+import { isMissingRelation } from '../work-order-data.js';
 import { assertUuid } from './validate.js';
 
 /** 작업자 종류 → 공장 공정 (생산 기록의 role). 공장 조립은 조립 종류로 함께 쓴다 */
@@ -251,6 +252,19 @@ const workerBrief = (w) => ({
 });
 const FACTORY_KINDS = Object.keys(FACTORY_ROLE_OF_KIND);
 
+/** 다담 공장과 연결이 승인된 작업자 id 들 — 연결 표가 없으면 null */
+async function hqLinkedWorkerIds(env) {
+  try {
+    const hq = await hqCompanyId(env);
+    if (!hq) return null;
+    const rows = (await selectMany(env, 'worker_companies', { company_id: `eq.${hq}`, status: 'eq.approved', select: 'worker_id', limit: '2000' })) || [];
+    return new Set(rows.map((r) => r.worker_id));
+  } catch (e) {
+    if (isMissingRelation(e)) return null;
+    throw e;
+  }
+}
+
 /** GET /production/factory-workers — 내 계획에 배정된 작업자 · 배정할 수 있는 작업자(승인 · 공장 종류 · 열린 배정 없음) */
 export async function listFactoryWorkers(env, { user }) {
   await assertFactoryAdmin(env, user);
@@ -269,6 +283,9 @@ export async function listFactoryWorkers(env, { user }) {
       order: 'display_name.asc',
       limit: '500',
     })) || [];
+  // 후보는 다담 공장과 연결이 승인된 작업자만 (2026-11-13 — 협력 팩토리가 데려온 작업자는 공장 배정 후보가 아니다).
+  // 연결 표가 없으면(0064 전) 옛 동작 그대로
+  const linkedToHq = await hqLinkedWorkerIds(env);
   const mine = open.filter((f) => f.plan_user_id === user.id);
   const mineIds = mine.map((f) => f.worker_id);
   const extra = mineIds.filter((id) => !workers.some((w) => w.id === id));
@@ -290,7 +307,7 @@ export async function listFactoryWorkers(env, { user }) {
         worker: workerBrief(byId.get(f.worker_id)),
         roles: factoryRolesOf(byId.get(f.worker_id).kinds),
       })),
-    candidates: workers.filter((w) => !busy.has(w.id)).map(workerBrief),
+    candidates: workers.filter((w) => !busy.has(w.id) && (!linkedToHq || linkedToHq.has(w.id))).map(workerBrief),
   };
 }
 

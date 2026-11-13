@@ -254,6 +254,9 @@ async function withDb(db, fn) {
       );
       return tok ? json({ id: tok }) : json({}, 401);
     }
+    // 연결 표(DB 0064) — 표를 넣지 않은 시험에서는 「아직 없는 표」로 답한다 (옛 동작: 팩토리로 거르지 않는다)
+    if (u.includes('/rest/v1/worker_companies') && !db.worker_companies)
+      return json({ code: 'PGRST205', message: 'Could not find the table' }, 404);
     const res = route(u, method, body);
     if (!res) throw new Error(`unexpected fetch ${method} ${u}`);
     return res;
@@ -758,5 +761,18 @@ test('라우트 — 로그인 없이는 401, 잇기는 X-Worker-Token 을 읽어
     assert.equal((await res.json()).data.linked, true);
     assert.match(res.headers.get('Cache-Control') || '', /no-store/);
     assert.equal(db.factory_workers[0].worker_id, W_INSTALL);
+  });
+});
+
+test('본사 목록 — 연결 표가 있으면(DB 0064) 다담 공장과 연결이 승인된 작업자만 후보로', async () => {
+  const links = (rows) => rows.map(([worker_id, company_id, status], i) => ({ id: `a9000000-0000-4000-8000-00000000000${i}`, worker_id, company_id, status }));
+  // 재단 작업자는 다른 팩토리와만 연결 — 후보에서 빠진다
+  await withDb(makeDb({ worker_companies: links([[W_CUT, PARTNER, 'approved'], [W_PEND, HQ, 'pending']]) }), async () => {
+    const r = await listFactoryWorkers(ENV, { user: { id: HQ_OWNER } });
+    assert.deepEqual(r.candidates, []);
+  });
+  await withDb(makeDb({ worker_companies: links([[W_CUT, HQ, 'approved'], [W_CUT, PARTNER, 'approved']]) }), async () => {
+    const r = await listFactoryWorkers(ENV, { user: { id: HQ_OWNER } });
+    assert.deepEqual(r.candidates.map((w) => w.id), [W_CUT]);
   });
 });

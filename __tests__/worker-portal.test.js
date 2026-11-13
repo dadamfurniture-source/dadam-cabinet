@@ -1338,3 +1338,122 @@ describe('작업 화면 꾸밈 — 앱과 같은 색 · 글꼴 · 각진 모서�
   });
 });
 
+
+// ── 팩토리 연결 (2026-11-13 「작업자 한 길」 — 작업자는 팩토리마다 연결된다) ──
+describe('팩토리 연결', () => {
+  beforeEach(() => sessionStorage.clear());
+  const WORKER = { id: 'w', status: 'approved', display_name: '테스트', kinds: ['install'] };
+  const ME = (links) => ({ data: { ready: true, worker: WORKER, counts: COUNTS, next_job: null, links } });
+  const LIST = { data: { items: [] } };
+
+  test('순수 — 카드 · 상세에 팩토리 이름, 내 정보에 연결된 팩토리, 대기 화면에 확인하는 곳', () => {
+    const card = { id: '11111111-1111-4111-8111-111111111111', kind: 'install', title: '시험 설치', slots: 1, filled: 0, effective_status: 'open', my: {} };
+    expect(P.jobCardHtml({ ...card, company_name: '가나 <인테리어>' }, Date.now(), 'open')).toContain('<div class="jd co">가나 &lt;인테리어&gt;</div>');
+    expect(P.jobCardHtml(card, Date.now(), 'open')).not.toContain('jd co');
+    expect(P.jobDetailHtml({ ...card, company_name: '가나 인테리어', timeline: [] }, Date.now(), 'open', {})).toContain('<dt>팩토리</dt><dd>가나 인테리어</dd>');
+    expect(P.jobDetailHtml({ ...card, timeline: [] }, Date.now(), 'open', {})).not.toContain('<dt>팩토리</dt>');
+
+    expect(P.LINK_STATUS_LABEL).toEqual({ pending: '승인 대기', approved: '연결됨', suspended: '정지', rejected: '승인되지 않음' });
+    expect(P.linksHtml(null)).toBe('');
+    expect(P.linksHtml([])).toContain('아직 연결된 팩토리가 없습니다.');
+    const html = P.linksHtml([
+      { company_name: '다담 공장', status: 'approved' },
+      { company_name: '가나 <b>', status: 'pending' },
+      { company_name: null, status: 'suspended' },
+      { company_name: '모르는 상태', status: 'ended' },
+    ]);
+    expect(html).toContain('<dt>다담 공장</dt><dd>연결됨</dd>');
+    expect(html).toContain('<dt>가나 &lt;b&gt;</dt><dd>승인 대기</dd>');
+    expect(html).toContain('<dt>이름 없는 팩토리</dt><dd>정지</dd>');
+    expect(html).not.toContain('모르는 상태');
+    expect(P.workerInfoHtml(WORKER, 'me.html', [{ company_name: '다담 공장', status: 'approved' }])).toContain('<h3>연결된 팩토리</h3>');
+    expect(P.workerInfoHtml(WORKER, 'me.html')).not.toContain('연결된 팩토리');
+    expect(P.pendingInfoHtml(WORKER, [{ company_name: '가나 인테리어', status: 'pending' }, { company_name: '다담 공장', status: 'approved' }])).toContain('<dt>확인하는 곳</dt><dd>가나 인테리어</dd>');
+    expect(P.pendingInfoHtml(WORKER)).not.toContain('확인하는 곳');
+    expect(P.linkAskText({ company_name: '가나 인테리어' })).toBe('가나 인테리어에서 작업자로 초대했습니다. 연결을 신청하면 가나 인테리어에서 확인한 뒤 승인합니다. 승인되면 그 팩토리의 작업을 여기서 봅니다.');
+    expect(P.linkAskText(null)).toContain('초대한 팩토리에서');
+  });
+
+  test('이미 작업자 + 초대 링크 → 어느 팩토리인지 묻고, 「연결 신청하기」를 누르면 신청서 없이 토큰만 보낸다', async () => {
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    let linked = false;
+    const calls = mount({
+      routes: {
+        'GET /work/me': () => ME(linked ? [{ company_name: '가나 인테리어', status: 'pending' }] : []),
+        'POST /work/invites/peek': { data: { company_name: '가나 인테리어', kinds_preset: [], expires_at: '2099-01-01T00:00:00Z', already_worker: true, link_status: null } },
+        'POST /work/claim-invite': () => {
+          linked = true;
+          return { status: 201, data: { ...WORKER, linked: { company_name: '가나 인테리어', status: 'pending' } } };
+        },
+        'GET /work/jobs?tab=mine': LIST,
+        'GET /work/jobs?tab=open': LIST,
+      },
+    });
+    await settle();
+    expect(visible('viewLink')).toBe(true);
+    expect(visible('viewApp')).toBe(false);
+    expect(document.getElementById('linkTitle').textContent).toBe('가나 인테리어 연결');
+    expect(document.getElementById('linkText').textContent).toContain('가나 인테리어에서 작업자로 초대했습니다.');
+    expect(calls.find((c) => c.path === '/work/invites/peek').body).toEqual({ token: TOKEN });
+    expect(calls.some((c) => c.path === '/work/claim-invite')).toBe(false);
+
+    document.getElementById('linkGo').click();
+    await settle();
+    expect(calls.find((c) => c.path === '/work/claim-invite').body).toEqual({ token: TOKEN });
+    expect(sessionStorage.getItem(P.INVITE_KEY)).toBe(null);
+    expect(visible('viewApp')).toBe(true);
+    expect(document.getElementById('alert').textContent).toBe('연결을 신청했습니다. 가나 인테리어에서 승인하면 그 팩토리의 작업이 보입니다.');
+  });
+
+  test('이미 연결된 팩토리의 초대 · 「그만두기」 · 못 쓰는 초대 — 초대를 쓰지 않고 내 화면으로', async () => {
+    const routes = (peek) => ({ 'GET /work/me': ME([]), 'POST /work/invites/peek': peek, 'GET /work/jobs?tab=mine': LIST, 'GET /work/jobs?tab=open': LIST });
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    let calls = mount({ routes: routes({ data: { company_name: '다담 공장', already_worker: true, link_status: 'approved' } }) });
+    await settle();
+    expect(visible('viewApp')).toBe(true);
+    expect(document.getElementById('alert').textContent).toBe('이미 연결된 팩토리입니다 — 다담 공장');
+    expect(sessionStorage.getItem(P.INVITE_KEY)).toBe(null);
+    expect(calls.some((c) => c.path === '/work/claim-invite')).toBe(false);
+
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    calls = mount({ routes: routes({ data: { company_name: '가나 인테리어', already_worker: true, link_status: 'rejected' } }) });
+    await settle();
+    expect(visible('viewLink')).toBe(true);
+    document.getElementById('linkSkip').click();
+    await settle();
+    expect(visible('viewApp')).toBe(true);
+    expect(sessionStorage.getItem(P.INVITE_KEY)).toBe(null);
+    expect(calls.some((c) => c.path === '/work/claim-invite')).toBe(false);
+
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    mount({ routes: routes({ status: 410, message: '거둔 초대 링크입니다' }) });
+    await settle();
+    expect(visible('viewApp')).toBe(true);
+    expect(document.getElementById('alert').textContent).toBe('거둔 초대 링크입니다');
+
+    // 옛 서버(미리보기 주소 없음) — 예전 안내 그대로
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    mount({ routes: routes(null) });
+    await settle();
+    expect(visible('viewApp')).toBe(true);
+    expect(document.getElementById('alert').textContent).toBe('이미 작업자로 등록돼 있어 초대 링크는 쓰지 않았습니다.');
+  });
+
+  test('처음인 사람 + 초대 링크 — 신청서 안내에 초대한 팩토리 이름 (못 읽으면 원래 글)', async () => {
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    mount({
+      routes: {
+        'GET /work/me': { data: { ready: true, worker: null, counts: {} } },
+        'POST /work/invites/peek': { data: { company_name: '가나 인테리어', already_worker: false, link_status: null } },
+      },
+    });
+    await settle();
+    expect(visible('viewRegister')).toBe(true);
+    expect(document.getElementById('regInviteNote').textContent).toBe('가나 인테리어의 초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다. 가나 인테리어에서 승인하면 작업을 볼 수 있습니다.');
+
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    mount({ routes: { 'GET /work/me': { data: { ready: true, worker: null, counts: {} } } } });
+    await settle();
+    expect(document.getElementById('regInviteNote').textContent).toBe('초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다.');
+  });
+});

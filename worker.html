@@ -7,7 +7,7 @@
     <meta name="referrer" content="no-referrer" />
     <title>작업자 · 다담가구</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026111313"></script>
+    <script src="js/config.js?v=2026111316"></script>
     <style>
       /* production-worker.html 의 틀 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼 */
       :root {
@@ -222,6 +222,18 @@
         </div>
       </section>
 
+      <!-- 이미 작업자인 사람이 팩토리 초대 링크로 왔을 때 — 그 팩토리와 연결을 신청한다 (2026-11-13 작업자 한 길) -->
+      <section id="viewLink" hidden>
+        <div class="card">
+          <h2 id="linkTitle">팩토리 연결</h2>
+          <p id="linkText"></p>
+          <div class="btns">
+            <button type="button" class="big go" id="linkGo">연결 신청하기</button>
+            <button type="button" class="big" id="linkSkip">그만두기</button>
+          </div>
+        </div>
+      </section>
+
       <!-- 승인 · 정지 작업자 — 탭(모집중 · 내 작업 · 완료 · 내 정보), 작업 상세는 #job=<id>.
            정지(suspended)는 맨 위 안내 + 모집중 탭 · 신청 · 초대 수락 버튼만 빠진다 (계약 1주차 후속 D) -->
       <section id="viewApp" hidden>
@@ -231,6 +243,6 @@
       </section>
     </div>
 
-    <script src="js/worker-portal.js?v=2026111313"></script>
+    <script src="js/worker-portal.js?v=2026111316"></script>
   </body>
 </html>

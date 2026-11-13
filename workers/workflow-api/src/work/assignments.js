@@ -17,6 +17,7 @@ import { notifyWork } from './notify.js';
 import { later, notifyWorkInvited } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, workerAssignment } from './reveal.js';
 import { assertUuid, optBool, optText, reqText } from './validate.js';
+import { isLinkedTo } from './links.js';
 
 const nowIso = () => new Date().toISOString();
 /** 사람을 새로 들일 수 있는 작업 상태 */
@@ -52,6 +53,8 @@ export async function confirmAssignment(env, { user, params }) {
   const { assignment, job, all } = await loadMyAssignment(env, user, params.id, { approvedFor: 'confirm' });
   if (assignment.status !== 'offered') throw new ConflictError('초대받은 배정만 수락할 수 있습니다');
   if (!STAFFABLE.includes(job.status)) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
+  // 그 팩토리와의 연결이 승인돼 있어야 새 일을 받는다 (정지 · 끝난 연결이면 거절만 할 수 있다 — 2026-11-13)
+  if (!(await isLinkedTo(env, assignment.worker_id, job.company_id))) throw new ConflictError('이 팩토리와의 연결이 승인돼 있지 않아 수락할 수 없습니다');
   if (countFilled(all) >= job.slots) throw new ConflictError('정원이 찼습니다');
   const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from: ['offered'], patch: { status: 'confirmed' } });
   await recordAssignmentChange(env, { user, actorKind: 'worker', type: 'assignment_confirmed', before: assignment, after: r.assignment, job, lockedJob: r.job });
