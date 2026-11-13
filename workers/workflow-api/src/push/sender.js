@@ -23,7 +23,7 @@
 
 import { callRpc, selectMany, updateBy, MONEY_ROLES } from '../supabase.js';
 import { loadVapid, sendWebPush, PushError } from './webpush.js';
-import { WORK_NOTIFICATION_KINDS } from './messages.js';
+import { WORK_MANAGER_KINDS, WORK_NOTIFICATION_KINDS } from './messages.js';
 
 export const PUSH_SEND_CRON = '* * * * *';
 /** 한 번에 잡는 줄 수 */
@@ -64,7 +64,7 @@ export function isEligible(row, memberships, workers = []) {
   if (!m) return false;
   const status = m.company && m.company.status;
   if (OWNER_KINDS.includes(row.kind)) return m.role === 'owner' && (status === 'active' || status === 'suspended');
-  if (MONEY_KINDS.includes(row.kind)) return MONEY_ROLES.includes(m.role) && status === 'active';
+  if (MONEY_KINDS.includes(row.kind) || WORK_MANAGER_KINDS.includes(row.kind)) return MONEY_ROLES.includes(m.role) && status === 'active';
   return status === 'active';
 }
 

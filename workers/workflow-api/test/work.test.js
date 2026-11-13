@@ -208,7 +208,13 @@ function seed(db) {
     { ...base, id: WP, user_id: U_PEND, display_name: '시험대기', phone: null, kinds: ['install'], status: 'pending', approved_at: null },
   ];
   db.tables.orders = [{ id: ORDER, order_no: 'DD-TEST-1', customer_name: CUSTOMER_NAME, contract_amount: 9900000, company_id: HQ }];
-  db.tables.companies = [{ id: HQ, kind: 'hq' }, { id: PARTNER, kind: 'partner' }];
+  db.tables.companies = [{ id: HQ, kind: 'hq', name: '다담 공장' }, { id: PARTNER, kind: 'partner', name: '시험 협력' }];
+  // DB 0064 뒤의 모습 — 지금 작업자는 모두 다담 공장과 연결돼 있다(옮기기). 승인된 작업자는 협력업체와도 연결해 둔다
+  // (협력업체 작업 시험). 연결로 거르는 것은 아래 「팩토리 연결」 시험이 따로 본다
+  db.tables.worker_companies = db.tables.workers.flatMap((w) => [
+    { id: randomUUID(), company_id: HQ, worker_id: w.id, status: w.status, kinds: w.kinds, via: 'migrated' },
+    ...(w.status === 'approved' ? [{ id: randomUUID(), company_id: PARTNER, worker_id: w.id, status: 'approved', kinds: w.kinds, via: 'invite' }] : []),
+  ]);
 }
 
 let db;
@@ -622,7 +628,11 @@ test('초대 링크 — 1회용 · 만료 410 · 없는 토큰 404 · 이미 작
   assert.equal(db.tables.workers.find((w) => w.user_id === NEWBIE).invited_via, inv.data.id);
 
   assert.equal((await call('POST', '/work/claim-invite', { token: 'tok-cust', body: { token, consent_version: 'v1' } })).status, 410, '1회용');
-  assert.equal((await call('POST', '/work/claim-invite', { token: 'tok-new', body: { token, consent_version: 'v1' } })).status, 409, '이미 작업자');
+  assert.equal((await call('POST', '/work/claim-invite', { token: 'tok-new', body: { token, consent_version: 'v1' } })).status, 410, '쓴 초대는 이미 작업자여도 410');
+  // 초대(팩토리 칸 없음 = 다담 공장)로 온 사람은 다담 공장 연결이 대기로 생긴다 (DB 0064)
+  const newbie = db.tables.workers.find((w) => w.user_id === NEWBIE);
+  assert.deepEqual(db.tables.worker_companies.filter((l) => l.worker_id === newbie.id).map((l) => [l.company_id, l.status, l.via, l.invite_id]), [[HQ, 'pending', 'invite', inv.data.id]]);
+  assert.deepEqual(claim.data.linked, { company_name: '다담 공장', status: 'pending' });
   assert.equal((await call('POST', '/work/claim-invite', { token: 'tok-cust', body: { token: 'z'.repeat(32), consent_version: 'v1' } })).status, 404);
   db.tables.worker_invites.push({ id: randomUUID(), token_hash: await hashInviteToken(ENV, 'y'.repeat(32)), kinds_preset: [], display_name_preset: null, expires_at: '2026-01-01T00:00:00Z', used_at: null });
   assert.equal((await call('POST', '/work/claim-invite', { token: 'tok-cust', body: { token: 'y'.repeat(32), consent_version: 'v1', display_name: '시험' } })).status, 410, '만료');
@@ -641,10 +651,15 @@ test('공개 신청 — pending 으로 등록, 두 번째는 409, 관리자 승�
   assert.equal((await call('POST', '/work/register', { token: 'tok-cust', body })).status, 409);
   assert.equal((await call('POST', '/work/register', { token: 'tok-w1', body })).status, 409);
 
+  // 초대 없는 공개 신청은 다담 공장이 받는다 — 다담 공장 연결이 대기로 (DB 0064)
+  const hqLink = () => db.tables.worker_companies.find((l) => l.worker_id === r.data.id && l.company_id === HQ);
+  assert.deepEqual([hqLink().status, hqLink().via], ['pending', 'public']);
   const ok = await call('PATCH', `/work/admin/workers/${r.data.id}`, { token: 'tok-admin', body: { status: 'approved' } });
   assert.deepEqual([ok.data.status, ok.data.approved_by], ['approved', ADMIN]);
+  assert.deepEqual([hqLink().status, hqLink().decided_by], ['approved', ADMIN], '사이트 관리자의 승인 = 다담 공장 연결 승인');
   assert.equal((await call('PATCH', `/work/admin/workers/${r.data.id}`, { token: 'tok-admin', body: { status: 'rejected' } })).status, 409, 'approved → rejected 없음');
   assert.equal((await call('PATCH', `/work/admin/workers/${r.data.id}`, { token: 'tok-admin', body: { status: 'suspended' } })).data.status, 'suspended');
+  assert.equal(hqLink().status, 'suspended', '정지도 같이');
   const pending = await call('GET', '/work/admin/workers?status=pending', { token: 'tok-admin' });
   assert.deepEqual(pending.data.items.map((w) => w.id), [WP]);
 
@@ -1004,7 +1019,7 @@ test('표가 아직 없으면 — 목록은 빈 결과, /work/me 는 { ready:fal
   for (const t of ['workers', 'worker_invites', 'worker_notes', 'work_jobs', 'work_applications', 'work_assignments', 'work_updates', 'work_job_events']) db.missing.add(t);
   const me = await call('GET', '/work/me', { token: 'tok-w1' });
   assert.equal(me.status, 200);
-  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 }, next_job: null, factory: null });
+  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 }, next_job: null, factory: null, links: null });
   for (const tab of ['open', 'mine', 'done']) {
     const r = await call('GET', `/work/jobs?tab=${tab}`, { token: 'tok-w1' });
     assert.deepEqual([r.status, r.data.items], [200, []], tab);
@@ -1303,4 +1318,98 @@ test('작업 만들기 — 주문에서 만들면 업체(company_id)를 그 주�
   assert.equal(plain.status, 201);
   assert.ok(!('company_id' in insertOf('주문 없는 작업')));
   assert.equal(db.calls.filter((c) => c.method === 'GET' && c.url.includes('/orders?') && c.url.includes('select=company_id')).length, 2);
+});
+
+// ── 팩토리 연결 (DB 0064 — 2026-11-13 「작업자 한 길」) ─────────────────────────────────────────
+
+const OTHER = 'f0000000-0000-4000-8000-0000000000cc';
+const linkTo = (companyId, workerId) => db.tables.worker_companies.find((l) => l.company_id === companyId && l.worker_id === workerId);
+
+test('팩토리 연결 — 모집 목록 · 상세 · 신청은 연결이 승인된 팩토리의 작업만, 카드에 팩토리 이름', async () => {
+  db.tables.companies.push({ id: OTHER, kind: 'partner', name: '남의 팩토리' });
+  const mine = await makeJob({ title: '시험 본사 설치' });
+  const theirs = await makeJob({ title: '시험 남의 설치' });
+  rowOf('work_jobs', theirs.id).company_id = OTHER;
+
+  const open = await call('GET', '/work/jobs?tab=open', { token: 'tok-w1' });
+  assert.deepEqual(open.data.items.map((j) => [j.id, j.company_name]), [[mine.id, '다담 공장']]);
+  assert.equal((await call('GET', `/work/jobs/${theirs.id}`, { token: 'tok-w1' })).status, 404, '남의 팩토리 작업은 있는지도 모르게');
+  assert.equal((await call('POST', `/work/jobs/${theirs.id}/apply`, { token: 'tok-w1', body: {} })).status, 404);
+  assert.equal((await call('GET', '/work/me', { token: 'tok-w1' })).data.counts.open, 1);
+
+  // 연결이 대기면 아직 안 보인다 → 승인되면 보인다
+  db.tables.worker_companies.push({ id: randomUUID(), company_id: OTHER, worker_id: W1, status: 'pending', kinds: ['install'], via: 'invite' });
+  assert.equal((await call('GET', '/work/jobs?tab=open', { token: 'tok-w1' })).data.items.length, 1);
+  linkTo(OTHER, W1).status = 'approved';
+  const both = await call('GET', '/work/jobs?tab=open', { token: 'tok-w1' });
+  assert.deepEqual(both.data.items.map((j) => j.company_name).sort(), ['남의 팩토리', '다담 공장']);
+  const detail = await call('GET', `/work/jobs/${theirs.id}`, { token: 'tok-w1' });
+  assert.deepEqual([detail.status, detail.data.company_name], [200, '남의 팩토리']);
+  assert.equal((await call('POST', `/work/jobs/${theirs.id}/apply`, { token: 'tok-w1', body: {} })).status, 201);
+  // 다른 작업자(W2)는 그 팩토리와 연결이 없다
+  assert.deepEqual((await call('GET', '/work/jobs?tab=open', { token: 'tok-w2' })).data.items.map((j) => j.id), [mine.id]);
+});
+
+test('팩토리 연결 — 정지 · 끝난 연결이면 초대를 수락하지 못한다 (거절은 된다), 내 배정이 있는 작업은 계속 보인다', async () => {
+  db.tables.companies.push({ id: OTHER, kind: 'partner', name: '남의 팩토리' });
+  db.tables.worker_companies.push({ id: randomUUID(), company_id: OTHER, worker_id: W1, status: 'approved', kinds: ['install'], via: 'invite' });
+  const job = await makeJob({ mode: 'invite' });
+  rowOf('work_jobs', job.id).company_id = OTHER;
+  const offer = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  assert.equal(offer.status, 201, JSON.stringify(offer.body));
+  linkTo(OTHER, W1).status = 'suspended';
+  const no = await call('POST', `/work/assignments/${offer.data.id}/confirm`, { token: 'tok-w1' });
+  assert.equal(no.status, 409);
+  assert.match(no.body.message, /연결이 승인돼 있지 않아/);
+  assert.equal((await call('GET', `/work/jobs/${job.id}`, { token: 'tok-w1' })).status, 200, '내 배정이 있으면 보인다');
+  assert.equal((await call('POST', `/work/assignments/${offer.data.id}/decline`, { token: 'tok-w1', body: {} })).status, 200);
+});
+
+test('/work/me links — 연결된 팩토리 이름과 상태만 (끝난 연결 · 팩토리 id 는 없다)', async () => {
+  db.tables.companies.push({ id: OTHER, kind: 'partner', name: '남의 팩토리' });
+  db.tables.worker_companies.push({ id: randomUUID(), company_id: OTHER, worker_id: W1, status: 'ended', kinds: [], via: 'invite' });
+  const me = await call('GET', '/work/me', { token: 'tok-w1' });
+  assert.deepEqual(me.data.links, [
+    { company_name: '다담 공장', status: 'approved' },
+    { company_name: '시험 협력', status: 'approved' },
+  ]);
+  assert.equal(JSON.stringify(me.data.links).includes(HQ), false);
+  assert.deepEqual((await call('GET', '/work/me', { token: 'tok-pend' })).data.links, [{ company_name: '다담 공장', status: 'pending' }]);
+  assert.equal((await call('GET', '/work/me', { token: 'tok-cust' })).data.links, null, '작업자가 아니면 없다');
+});
+
+test('연결 표가 아직 없으면(0064 전) 옛 동작 — 팩토리로 거르지 않고, 이미 작업자의 초대는 409, 공개 신청 · 승인은 그대로', async () => {
+  db.missing.add('worker_companies');
+  db.tables.companies.push({ id: OTHER, kind: 'partner', name: '남의 팩토리' });
+  const theirs = await makeJob({ title: '시험 남의 설치' });
+  rowOf('work_jobs', theirs.id).company_id = OTHER;
+  assert.deepEqual((await call('GET', '/work/jobs?tab=open', { token: 'tok-w1' })).data.items.map((j) => j.id), [theirs.id]);
+  assert.equal((await call('POST', `/work/jobs/${theirs.id}/apply`, { token: 'tok-w1', body: {} })).status, 201);
+  assert.equal((await call('GET', '/work/me', { token: 'tok-w1' })).data.links, null);
+
+  const inv = await call('POST', '/work/admin/invites', { token: 'tok-admin', body: { kinds_preset: ['as'], expires_at: '2099-01-01T00:00:00Z' } });
+  const token = inv.data.url.split('#invite=')[1];
+  const dup = await call('POST', '/work/claim-invite', { token: 'tok-w1', body: { token } });
+  assert.equal(dup.status, 409);
+  assert.match(dup.body.message, /이미 작업자로 등록돼 있습니다/);
+  assert.equal(rowOf('worker_invites', inv.data.id).used_at, null, '초대는 쓰지 않는다');
+  const claim = await call('POST', '/work/claim-invite', { token: 'tok-new', body: { token, consent_version: 'v1', display_name: '시험새' } });
+  assert.deepEqual([claim.status, claim.data.status, 'linked' in claim.data], [201, 'pending', false]);
+  const reg = await call('POST', '/work/register', { token: 'tok-cust', body: { display_name: '시험신청', kinds: ['install'], consent_version: 'v1' } });
+  assert.equal(reg.status, 201);
+  assert.equal((await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'approved' } })).data.status, 'approved');
+});
+
+test('초대 미리보기 — 어느 팩토리의 초대인지, 거둔 초대는 410, 초대를 쓰지 않는다', async () => {
+  const inv = await call('POST', '/work/admin/invites', { token: 'tok-admin', body: { kinds_preset: ['as'], expires_at: '2099-01-01T00:00:00Z' } });
+  const token = inv.data.url.split('#invite=')[1];
+  const peek = await call('POST', '/work/invites/peek', { token: 'tok-cust', body: { token } });
+  assert.deepEqual([peek.status, peek.data], [200, { company_name: '다담 공장', kinds_preset: ['as'], expires_at: '2099-01-01T00:00:00.000Z', already_worker: false, link_status: null }]);
+  const mine = await call('POST', '/work/invites/peek', { token: 'tok-w1', body: { token } });
+  assert.deepEqual([mine.data.already_worker, mine.data.link_status], [true, 'approved']);
+  assert.equal(rowOf('worker_invites', inv.data.id).used_at, null);
+  assert.equal((await call('POST', '/work/invites/peek', { body: { token } })).status, 401);
+  rowOf('worker_invites', inv.data.id).revoked_at = '2026-11-13T00:00:00Z';
+  assert.equal((await call('POST', '/work/invites/peek', { token: 'tok-cust', body: { token } })).status, 410);
+  assert.equal((await call('POST', '/work/claim-invite', { token: 'tok-cust', body: { token, consent_version: 'v1', display_name: '시험' } })).status, 410);
 });

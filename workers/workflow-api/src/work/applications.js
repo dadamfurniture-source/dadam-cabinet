@@ -13,6 +13,7 @@ import { notifyWork } from './notify.js';
 import { later, notifyWorkAssigned } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, effectiveStatus, workerApplication } from './reveal.js';
 import { assertUuid, optText } from './validate.js';
+import { isLinkedTo } from './links.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -33,6 +34,8 @@ export async function applyToJob(env, { user, params, body, ctx }) {
   if (job.status !== 'open' || job.mode !== 'open') throw new ConflictError('모집 중인 작업이 아닙니다');
   if (effectiveStatus(job) !== 'open') throw new ConflictError('지원 종료일이 지났습니다');
   if (!(worker.kinds || []).includes(job.kind)) throw new ConflictError('내 작업 종류와 맞지 않는 작업입니다');
+  // 연결이 승인된 팩토리의 작업만 — 아니면 있는지도 모르게 (2026-11-13)
+  if (!(await isLinkedTo(env, worker.id, job.company_id))) throw new NotFoundError('작업을 찾을 수 없습니다');
   const dup = await selectOne(env, 'work_applications', { job_id: `eq.${jobId}`, worker_id: `eq.${worker.id}`, select: 'id' });
   if (dup) throw new ConflictError('이미 신청한 작업입니다');
 

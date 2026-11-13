@@ -6,6 +6,10 @@
  *   수집: 표시 이름 · 휴대폰(선택) · 작업 종류 · 활동 지역 · 동의 버전 · 사진 동의(따로). 주민번호 · 계좌는 받지 않는다.
  *   관리자 메모(worker_notes)는 편집자(super_admin · admin)만 — support · moderator 는 403.
  *   가입 신청 · 상태 변경 · 종류 변경은 worker_events 에 한 줄씩 (실패해도 요청은 계속 — events.js)
+ *
+ *   2026-11-13 「작업자 한 길」 — 작업자는 팩토리마다 연결된다 (work/links.js · DB 0064):
+ *     초대 없는 공개 신청은 다담 공장이 받는다 (다담 공장 연결 대기) · /work/me 에 연결된 팩토리 목록(links) ·
+ *     사이트 관리자가 여기서 승인 · 정지하면 다담 공장 연결도 같은 상태로 맞춘다. workers.status 는 계정 상태로 남는다.
  */
 
 import { ConflictError, NotFoundError, ValidationError, insertOne, selectMany, selectOne, updateBy } from '../supabase.js';
@@ -18,6 +22,8 @@ import { later, notifyWorkerStatus } from '../push/work-hooks.js';
 import { workerSelf } from './reveal.js';
 import { factoryRolesOf, openFactoryOf } from './factory.js';
 import { assertUuid, kindsOf, oneOf, optBool, optPhone, optText, reqText } from './validate.js';
+import { hqCompanyId } from '../supabase.js';
+import { companyNames, linksOfWorker, requestLink, syncHqLink } from './links.js';
 
 export const WORKER_STATUSES = Object.freeze(['pending', 'approved', 'suspended', 'rejected']);
 /** 화면 · 409 문구의 상태 이름 */
@@ -70,7 +76,19 @@ async function summaryFor(env, worker) {
 }
 
 /**
- * GET /work/me — { ready, worker, counts, next_job, factory }. 표가 없으면 { ready:false } (화면은 메뉴 · 섹션을 숨긴다).
+ * 연결된 팩토리 — [{ company_name, status }] (끝난 연결은 뺀다). 연결 표가 없으면(0064 전) null.
+ * 팩토리 id 는 싣지 않는다 (화면은 이름과 상태만 쓴다).
+ */
+async function linksFor(env, worker) {
+  const rows = await linksOfWorker(env, worker.id);
+  if (rows === null) return null;
+  const live = rows.filter((l) => l.status !== 'ended');
+  const names = await companyNames(env, live.map((l) => l.company_id));
+  return live.map((l) => ({ company_name: names.get(l.company_id) || null, status: l.status }));
+}
+
+/**
+ * GET /work/me — { ready, worker, counts, next_job, factory, links }. 표가 없으면 { ready:false } (화면은 메뉴 · 섹션을 숨긴다).
  * next_job 은 승인 · 정지 작업자의 내 작업 탭 중 하나 (JobCard, pickNextJob 규칙) — 없으면 null.
  * factory 는 승인된 작업자의 열린 공장 배정 { roles, from_link } — 없으면 null (화면의 「공장」 탭, work/factory.js).
  */
@@ -79,10 +97,10 @@ export async function getMe(env, { user }) {
   try {
     worker = await loadSelfWorker(env, user);
   } catch (err) {
-    if (isMissingRelation(err)) return { ready: false, worker: null, counts: { ...ZERO }, next_job: null, factory: null };
+    if (isMissingRelation(err)) return { ready: false, worker: null, counts: { ...ZERO }, next_job: null, factory: null, links: null };
     throw err;
   }
-  if (!worker) return { ready: true, worker: null, counts: { ...ZERO }, next_job: null, factory: null };
+  if (!worker) return { ready: true, worker: null, counts: { ...ZERO }, next_job: null, factory: null, links: null };
   let counts = { ...ZERO };
   let nextJob = null;
   if (WORKER_ACCESS_STATUSES.includes(worker.status)) {
@@ -101,7 +119,11 @@ export async function getMe(env, { user }) {
       if (!isMissingRelation(err)) throw err;
     }
   }
-  return { ready: true, worker: workerSelf(worker), counts, next_job: nextJob, factory };
+  const links = await linksFor(env, worker).catch((e) => {
+    console.warn('[work] 연결 읽기 실패:', e && e.message);
+    return null;
+  });
+  return { ready: true, worker: workerSelf(worker), counts, next_job: nextJob, factory, links };
 }
 
 /** POST /work/register — 공개 신청 (pending). 이미 행이 있으면 409 */
@@ -116,6 +138,10 @@ export async function registerWorker(env, { user, body, ctx }) {
     throw err;
   }
   await recordWorkerEvent(env, { workerId: row.id, actorUserId: user.id, actorKind: 'worker', type: 'registered', to: 'pending', payload: { via: 'public' } });
+  // 초대 없는 공개 신청은 다담 공장이 받는다 — 다담 공장 연결을 대기로 (연결 표가 없으면 넘어간다)
+  await hqCompanyId(env)
+    .then((hq) => (hq ? requestLink(env, { companyId: hq, workerId: row.id, via: 'public', kinds: row.kinds || [] }) : null))
+    .catch((e) => console.warn('[work] 다담 공장 연결 넣기 실패:', e && e.message));
   notifyWork(env, ctx, 'worker_registered', { workerName: row.display_name });
   return workerSelf(row);
 }
@@ -189,6 +215,8 @@ export async function patchWorkerAdmin(env, { user, params, body, ctx }) {
       from: worker.status, to: patch.status, note: patch.status === 'rejected' ? patch.reject_reason : null,
     });
   }
+  // 다담 공장 연결도 같은 상태로 (2026-11-13 — 사이트 관리자의 승인 · 정지는 다담 공장의 것이기도 하다)
+  if (patch.status) await syncHqLink(env, { worker: rows[0], status: patch.status, userId: user.id });
   // 작업자 신청 결과 앱 알림 (승인 · 반려) — 응답 뒤에
   if (patch.status === 'approved' || patch.status === 'rejected') {
     await later(ctx, notifyWorkerStatus(env, { worker: rows[0], status: patch.status }));
