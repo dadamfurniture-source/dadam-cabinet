@@ -69,6 +69,8 @@
     <script src="orders.js?v=2026111313" defer></script>
     <!-- 프로젝트 관리 › 생산 › 생산 계획 — 추천 · 주문별 일정 · 날짜별 부하 · 지시 내역 · 월 손익 (segan/production-plan.js) -->
     <script src="production-plan.js?v=2026111313" defer></script>
+    <!-- 인사 › 작업자 — 팩토리의 작업자 연결 · 초대 링크 · 승인 · 정지 (segan/company-workers.js) -->
+    <script src="company-workers.js?v=2026111313" defer></script>
     <!-- 인사 › 작업자 (다담 공장) — 공장 배정 · 작업자 링크 · 실측 기록 · 표준시간 보정 (segan/production-workers.js) -->
     <script src="production-workers.js?v=2026111313" defer></script>
     <!-- 프로젝트 관리 › 생산 › 생산 설정 — 표준시간 · 인력 · 외주 업체 · 상판 · 납기 · 견적 원가 (segan/production-settings.js) -->
@@ -316,10 +318,11 @@
                     <li data-me-item="schedule" hidden>
                       <a class="sg-row me-row-soon" href="#schedule" data-me-go="schedule">근무 일정</a>
                     </li>
+                    <!-- 팩토리의 작업자 연결 · 초대 (segan/company-workers.js — 읽히면 「준비 중」 흐림을 뗀다) -->
                     <li data-me-item="workers" hidden>
                       <a class="sg-row me-row-soon" href="#workers" data-me-go="workers">작업자</a>
                     </li>
-                    <!-- 다담 공장 — 공장 배정 · 작업자 링크 · 실측 보정 (segan/production-workers.js, 읽은 뒤에만) -->
+                    <!-- 다담 공장 — 작업자 연결 · 초대 + 공장 배정 · 작업자 링크 · 실측 보정 (segan/company-workers.js · production-workers.js, 읽은 뒤에만) -->
                     <li data-me-item="workers-hq" hidden>
                       <a class="sg-row" href="#workers-hq" data-me-go="workers-hq">작업자</a>
                     </li>
@@ -584,6 +587,10 @@
                    (서버가 원가 설정을 대표 · 실장 · 공장 관리자에게만 준다). 표준시간 · 인력 · 외주 업체 · 상판 · 납기 · 견적 원가.
                    생산 설정 화면(#p-config)에서만, 읽은 뒤에만 보인다 (segan/production-settings.js) -->
               <div class="me-pt-group od ps" id="productionSettings" hidden></div>
+              <!-- 업체 › 작업자 연결 · 초대 — workflow-api GET /company/workers · POST /company/workers/invites · PATCH /company/workers/:id.
+                   다담 공장 · Agent 업체 구성원이 보고 대표 · 실장이 초대 · 승인 · 정지 · 연결 끊기를 한다 (DB 0064 적용 뒤).
+                   작업자 화면(#workers · 다담 공장은 #workers-hq)에서만, 읽은 뒤에만 보인다 (segan/company-workers.js) -->
+              <div class="me-pt-group od pw cw" id="companyWorkers" hidden></div>
               <!-- 업체 › 작업자 — workflow-api GET /production/factory-workers · /production/worker-links · /production/calibration.
                    다담 공장 대표 · 실장 · 관리자만 (서버가 공장 배정을 그 사람에게만 준다). 배정 · 배정 끝 · 링크 끊기 · 보정 적용.
                    작업자 화면(#workers-hq)에서만, 읽은 뒤에만 보인다 (segan/production-workers.js) -->

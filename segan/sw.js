@@ -99,6 +99,7 @@ const SHELL = [
   versioned(SCOPE + 'orders.js'),
   versioned(SCOPE + 'production-plan.js'),
   versioned(SCOPE + 'production-workers.js'),
+  versioned(SCOPE + 'company-workers.js'),
   versioned(SCOPE + 'production-settings.js'),
   versioned(SCOPE + 'outsource-orders.js'),
   versioned(SCOPE + 'counterparties.js'),
