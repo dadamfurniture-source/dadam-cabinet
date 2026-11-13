@@ -6,6 +6,7 @@
  *   - 받을 날(금액)은 대표 · 실장에게만, 다른 업체 줄은 안 나온다
  *   - 설계 마감 = 계약금 입금날 (받았으면 받은 날, 아직이면 받을 날) = 설계. 금액 없이 구성원 모두에게
  *   - 일정 넣기 · 고치기는 대표 · 실장만 (직원 403 not_manager)
+ *   - 프로젝트의 작업(철거 · 재단 · 엣지 · 조립 — 「작업 배정」에서 날짜를 정한 것)도 한 줄씩. 재단 · 엣지 · 조립 = 생산, 철거 = 설치
  * 시험 데이터는 모두 가짜다.
  */
 import { test } from 'node:test';
@@ -13,6 +14,9 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import {
   KIND_OF_TYPE,
+  KIND_OF_WORK,
+  WORK_STATES,
+  workStateOf,
   SCHEDULE_KINDS,
   SCHEDULE_RANGE_DAYS,
   scheduleRangeOf,
@@ -40,6 +44,7 @@ const S = (i) => id('05', i);
 const C = (i) => id('0c', i);
 const PAY = (i) => id('0b', i);
 const AS = (i) => id('07', i);
+const J = (i) => id('0f', i);
 /** 한국 시간 → ms · UTC ISO */
 const kst = (s) => Date.parse(`${s}+09:00`);
 const iso = (s) => new Date(kst(s)).toISOString();
@@ -114,6 +119,9 @@ function tables() {
       { id: AS(2), company_id: CO, order_id: O(1), state: 'cancelled', created_at: iso('2026-11-09T09:00:00'), body: 'x' },
       { id: AS(9), company_id: CO2, order_id: O(9), state: 'requested', created_at: iso('2026-11-08T10:00:00'), body: 'x' },
     ],
+    // 프로젝트의 작업 — 기본은 없다 (아래 「프로젝트의 작업」 시험이 넣는다)
+    work_jobs: [],
+    work_assignments: [],
   };
 }
 
@@ -390,4 +398,131 @@ test('일정 넣기 — 직원은 403 not_manager, 대표는 201 (협력업체 �
   const list = await call(fake, 't_staff', `/designs/${D(1)}/schedules`);
   assert.equal(list.status, 200);
   assert.ok(list.json.data.items.length >= 3);
+});
+
+// ── 2026-11-13 프로젝트의 작업 (철거 · 재단 · 엣지 · 조립) ───────────────
+
+/** 프로젝트 「작업 배정」에서 날짜를 정한 작업들 + 달력에 싣지 않는 것들 */
+function withWork() {
+  const t = tables();
+  const job = (n, kind, status, startsAt, more = {}) => ({
+    id: J(n), company_id: CO, kind, title: kind, status, starts_at: startsAt, ends_at: null, project_id: P(1), schedule_id: null, ...more,
+  });
+  t.work_jobs = [
+    job(1, 'demolition', 'filled', iso('2026-11-11T08:30:00'), { ends_at: iso('2026-11-11T12:00:00') }),
+    job(2, 'cutting', 'open', iso('2026-11-12T09:00:00')),
+    job(3, 'edge', 'open', iso('2026-11-13T09:00:00'), { project_id: P(2) }),
+    job(4, 'assembly', 'done', iso('2026-11-02T09:00:00'), { project_id: P(2) }),
+    // 싣지 않는다 — 날짜 없음 · 취소 · 일정에서 생긴 작업 · 프로젝트 없는 작업(PC 관리자 화면) · 기간 밖 · 달력에 없는 종류 · 다른 업체
+    job(5, 'cutting', 'open', null, { project_id: P(2) }),
+    job(6, 'edge', 'cancelled', iso('2026-11-14T09:00:00')),
+    job(7, 'install', 'filled', iso('2026-11-20T10:00:00'), { schedule_id: S(3) }),
+    job(8, 'assembly', 'open', iso('2026-11-15T09:00:00'), { project_id: null }),
+    job(9, 'cutting', 'open', iso('2026-12-01T00:30:00'), { project_id: P(2) }),
+    job(11, 'install', 'open', iso('2026-11-16T09:00:00')),
+    job(10, 'cutting', 'open', iso('2026-11-12T09:00:00'), { company_id: CO2, project_id: P(9) }),
+  ];
+  const a = (n, jobN, status, name) => ({
+    id: J(100 + n), job_id: J(jobN), worker_id: id('0b', 900 + n), status, worker_name_snapshot: name, created_at: iso(`2026-11-0${n}T09:00:00`),
+  });
+  t.work_assignments = [
+    a(1, 1, 'confirmed', '시험기사1'),
+    a(2, 1, 'declined', '시험기사9'),
+    a(3, 2, 'confirmed', '시험기사3'),
+    a(4, 2, 'offered', '시험기사2'),
+    a(5, 4, 'accepted', '시험기사4'),
+    a(6, 10, 'confirmed', '남의기사'),
+  ];
+  return t;
+}
+const workOf = (r) => r.json.data.items.filter((i) => i.source === 'work');
+
+test('프로젝트의 작업 (순수) — 재단 · 엣지 · 조립 = 생산, 철거 = 설치. 상태는 작업 상태가 먼저, 그 앞은 배정으로', () => {
+  assert.deepEqual(KIND_OF_WORK, { demolition: 'install', cutting: 'make', edge: 'make', assembly: 'make' });
+  for (const k of Object.values(KIND_OF_WORK)) assert.ok(SCHEDULE_KINDS.includes(k));
+  assert.deepEqual([...WORK_STATES], ['unassigned', 'offered', 'confirmed', 'in_progress', 'review', 'done']);
+  const a = (status) => ({ status });
+  assert.equal(workStateOf({ status: 'open' }, []), 'unassigned');
+  assert.equal(workStateOf({ status: 'open' }, [a('declined'), a('removed')]), 'unassigned', '거절 · 뺀 사람만 있으면 미정');
+  assert.equal(workStateOf({ status: 'open' }, [a('confirmed'), a('offered')]), 'offered');
+  assert.equal(workStateOf({ status: 'filled' }, [a('confirmed')]), 'confirmed');
+  assert.equal(workStateOf({ status: 'in_progress' }, [a('started')]), 'in_progress');
+  assert.equal(workStateOf({ status: 'review' }, [a('submitted')]), 'review');
+  assert.equal(workStateOf({ status: 'done' }, [a('accepted')]), 'done');
+  assert.equal(workStateOf({ status: 'closed' }, []), 'done');
+  assert.equal(workStateOf(null, null), 'unassigned');
+});
+
+test('프로젝트의 작업 — 날짜를 정한 철거 · 재단 · 엣지 · 조립이 달력에. 직원도 보고, 작업자 id 는 없다', async () => {
+  const fake = world(withWork());
+  const r = await call(fake, 't_owner', NOV);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const work = workOf(r);
+  assert.deepEqual(work.map((i) => i.key), [`work:${J(4)}`, `work:${J(1)}`, `work:${J(2)}`, `work:${J(3)}`]);
+  assert.deepEqual(work[1], {
+    key: `work:${J(1)}`,
+    source: 'work',
+    id: J(1),
+    kind: 'install',
+    type: 'work_demolition',
+    label: '철거',
+    day: '2026-11-11',
+    at: iso('2026-11-11T08:30:00'),
+    time: '08:30',
+    title: null,
+    status: 'confirmed',
+    duration_min: 210,
+    assignee_name: '시험기사1',
+    location: null,
+    design: null,
+    order_no: null,
+    amount: null,
+    project: { id: P(1), title: '예시 프로젝트 1' },
+  });
+  assert.deepEqual(
+    work.map((i) => [i.label, i.kind, i.status, i.assignee_name, i.project.title, i.duration_min]),
+    [
+      ['조립', 'make', 'done', '시험기사4', '예시 프로젝트 2', null],
+      ['철거', 'install', 'confirmed', '시험기사1', '예시 프로젝트 1', 210],
+      ['재단', 'make', 'offered', '시험기사3 · 시험기사2', '예시 프로젝트 1', null],
+      ['엣지', 'make', 'unassigned', null, '예시 프로젝트 2', null],
+    ],
+  );
+  // 일정에서 생긴 작업은 그 일정 줄 하나로만 (작업 줄을 따로 만들지 않는다)
+  assert.equal(r.json.data.items.filter((i) => i.day === '2026-11-20').map((i) => i.key).join(), `schedule:${S(3)}`);
+  // 작업자 id · 남의 업체 것은 없다
+  const text = JSON.stringify(r.json);
+  for (const bad of [id('0b', 901), id('0b', 903), '남의기사', J(10)]) assert.equal(text.includes(bad), false, bad);
+
+  // 직원도 같은 줄을 본다 (금액이 없다) · 다른 업체는 자기 것만
+  const staff = await call(fake, 't_staff', NOV);
+  assert.deepEqual(workOf(staff).map((i) => i.key), work.map((i) => i.key));
+  const other = await call(fake, 't_other', NOV);
+  assert.deepEqual(workOf(other).map((i) => [i.key, i.assignee_name, i.project.title]), [[`work:${J(10)}`, '남의기사', '남의 프로젝트']]);
+});
+
+test('프로젝트의 작업 — 기간으로 거른다 · 작업의 프로젝트 칸이 아직 없으면(DB 0065 전) 그 줄만 빼고 준다', async () => {
+  const fake = world(withWork());
+  const day = await call(fake, 't_owner', '/company/schedules?from=2026-11-11&to=2026-11-12');
+  assert.deepEqual(workOf(day).map((i) => i.key), [`work:${J(1)}`, `work:${J(2)}`]);
+  const dec = await call(fake, 't_owner', '/company/schedules?from=2026-12-01&to=2026-12-31');
+  assert.deepEqual(workOf(dec).map((i) => i.key), [`work:${J(9)}`]);
+
+  const old = world(withWork());
+  const inner = old.fetch;
+  old.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    if (url.pathname === '/rest/v1/work_jobs') {
+      return new Response(JSON.stringify({ code: '42703', message: 'column work_jobs.project_id does not exist' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return inner(input, init);
+  };
+  const before = await call(old, 't_owner', NOV);
+  assert.equal(before.status, 200, JSON.stringify(before.json));
+  assert.equal(workOf(before).length, 0);
+  // 다른 줄(일정 · 상담 · 받을 날 · 설계 마감 · A/S 접수)은 그대로 온다
+  assert.equal(before.json.data.items.length, 10);
 });

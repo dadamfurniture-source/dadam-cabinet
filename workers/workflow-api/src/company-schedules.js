@@ -15,9 +15,15 @@
  *     계약금을 받은 날(가장 이른 paid_on, status deposit_paid). 아직 안 받은 수주는 싣지 않는다 — 입금된 뒤에만 보인다
  *     (2026-11-10 대표님 결정. 받을 날은 영업의 「계약금 받을 날」 줄로 대표 · 실장에게만 간다).
  *     취소 수주 뺌. 날짜만 싣고 금액은 읽지도 않는다 — 구성원 모두에게
+ *   - 프로젝트의 작업 work_jobs.starts_at (source work) — 프로젝트 「작업 배정」에서 날짜를 정한 철거 · 재단 · 엣지 · 조립
+ *     (work/project-work.js). 재단 · 엣지 · 조립 = 생산(make), 철거 = 설치(install — 현장 일). 날짜를 정하지 않은 작업 · 취소한 작업은
+ *     싣지 않는다. 설치 · A/S 일정에서 생긴 작업은 그 일정 줄이 이미 있어 싣지 않는다. 표 · 칸이 아직 없으면(DB 0065 전) 건너뛴다.
+ *     status = unassigned(작업자 미정) · offered(수락 대기) · confirmed(연결됨) · in_progress(작업 중) · review(완료 보고) · done(끝남),
+ *     assignee_name = 배정된 작업자 이름. 여기서 고치지 않는다 — 날짜 · 작업자는 프로젝트의 「작업 배정」에서
  *
  * can_manage: 일정을 넣고 고칠 수 있나 (대표 · 실장 — src/schedules.js 가 서버에서 다시 막는다).
  * 고객 이름 · 전화 · 주소는 싣지 않는다 — 프로젝트 이름 · 설계 이름 · 수주 번호 · 상담 지역(시도 · 구군)까지.
+ * 작업자 이름은 일정의 담당 글과 같은 자리(assignee_name)에만 — 작업자 id · 전화는 싣지 않는다.
  */
 
 import { ValidationError, selectMany } from './supabase.js';
@@ -25,6 +31,9 @@ import { projectCompanyOf } from './company-projects.js';
 import { SCHEDULE_LABELS } from './slack.js';
 import { PAYMENT_STAGE_LABEL } from './payments.js';
 import { isMissingRelation } from './work-order-data.js';
+import { ACTIVE_STATUSES } from './work/reveal.js';
+import { assigneeNameOf } from './work/schedule-names.js';
+import { KIND_LABEL as WORK_KIND_LABEL } from './work/validate.js';
 
 const KST_MS = 9 * 3600 * 1000;
 const DAY_MS = 24 * 3600 * 1000;
@@ -48,6 +57,24 @@ export const KIND_OF_TYPE = Object.freeze({
   installation: 'install',
   as_visit: 'as',
 });
+
+/** 프로젝트의 작업 종류 → 종류 — 재단 · 엣지 · 조립 = 생산, 철거 = 설치(현장 일). 여기 없는 종류는 달력에 싣지 않는다 */
+export const KIND_OF_WORK = Object.freeze({ demolition: 'install', cutting: 'make', edge: 'make', assembly: 'make' });
+/** 작업 줄의 상태 (달력 글) */
+export const WORK_STATES = Object.freeze(['unassigned', 'offered', 'confirmed', 'in_progress', 'review', 'done']);
+
+/**
+ * 작업 줄의 상태 (순수) — 작업 상태가 먼저(작업 중 · 완료 보고 · 끝남), 그 앞은 배정으로 가른다:
+ * 답을 기다리는 사람이 있으면 offered, 확정된 사람만 있으면 confirmed, 아무도 없으면 unassigned.
+ */
+export function workStateOf(job, assignments) {
+  const st = job && job.status;
+  if (st === 'done' || st === 'closed') return 'done';
+  if (st === 'review' || st === 'in_progress') return st;
+  const live = (assignments || []).filter((a) => a && ACTIVE_STATUSES.includes(a.status));
+  if (live.some((a) => a.status === 'offered')) return 'offered';
+  return live.length ? 'confirmed' : 'unassigned';
+}
 
 const kstDateOf = (ms) => new Date(ms + KST_MS).toISOString().slice(0, 10);
 const kstTimeOf = (ms) => new Date(ms + KST_MS).toISOString().slice(11, 16);
@@ -97,7 +124,7 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
   const co = `eq.${company.id}`;
   const limit = String(SCHEDULE_FETCH);
 
-  const [schedules, consults, payments, asRows, depositPaid] = await Promise.all([
+  const [schedules, consults, payments, asRows, depositPaid, workJobs] = await Promise.all([
     selectMany(env, 'design_schedules', {
       scheduled_at: `gte.${fromIso}`,
       select:
@@ -144,8 +171,22 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
       order: 'paid_on.asc',
       limit,
     }),
+    // 프로젝트의 작업 — 「작업 배정」에서 날짜를 정한 것 (일정에서 생긴 작업은 일정 줄이 이미 있다). DB 0065 전이면 없다
+    selectMany(env, 'work_jobs', {
+      company_id: co,
+      project_id: 'not.is.null',
+      schedule_id: 'is.null',
+      status: 'neq.cancelled',
+      starts_at: `gte.${fromIso}`,
+      select: 'id,kind,status,starts_at,ends_at,project_id',
+      order: 'starts_at.asc',
+      limit,
+    }).catch((e) => {
+      if (isMissingRelation(e)) return null;
+      throw e;
+    }),
   ]);
-  const truncated = [schedules, consults, payments, asRows, depositPaid].some(
+  const truncated = [schedules, consults, payments, asRows, depositPaid, workJobs].some(
     (rows) => (rows || []).length >= SCHEDULE_FETCH,
   );
 
@@ -188,6 +229,24 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
     })) || []
     : [];
   const orderOf = new Map(asOrders.map((o) => [o.id, o]));
+
+  // 프로젝트의 작업 → 배정된 작업자 (이름 · 상태)
+  const workLive = (workJobs || []).filter((j) => KIND_OF_WORK[j.kind] && j.starts_at && j.starts_at < toIso);
+  const workAssignments = [];
+  for (let i = 0; i < workLive.length; i += 100) {
+    workAssignments.push(...((await selectMany(env, 'work_assignments', {
+      job_id: `in.(${workLive.slice(i, i + 100).map((j) => j.id).join(',')})`,
+      status: `in.(${ACTIVE_STATUSES.join(',')})`,
+      select: 'job_id,status,worker_name_snapshot,created_at',
+      order: 'created_at.asc',
+      limit: '1000',
+    })) || []));
+  }
+  const workersOfJob = new Map();
+  for (const a of workAssignments) {
+    if (!workersOfJob.has(a.job_id)) workersOfJob.set(a.job_id, []);
+    workersOfJob.get(a.job_id).push(a);
+  }
 
   const items = [];
   for (const s of schedules || []) {
@@ -300,6 +359,32 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
       design: null,
       project_id: o.project_id || null,
       order_no: o.order_no || null,
+      amount: null,
+    });
+  }
+
+  for (const j of workLive) {
+    const ms = Date.parse(j.starts_at);
+    const end = Date.parse(j.ends_at || '');
+    const mine = workersOfJob.get(j.id) || [];
+    items.push({
+      key: `work:${j.id}`,
+      source: 'work',
+      id: j.id,
+      kind: KIND_OF_WORK[j.kind],
+      type: `work_${j.kind}`,
+      label: WORK_KIND_LABEL[j.kind] || j.kind,
+      day: kstDateOf(ms),
+      at: j.starts_at,
+      time: kstTimeOf(ms),
+      title: null,
+      status: workStateOf(j, mine),
+      duration_min: Number.isFinite(end) && end > ms ? Math.round((end - ms) / 60000) : null,
+      assignee_name: assigneeNameOf(mine),
+      location: null,
+      design: null,
+      project_id: j.project_id,
+      order_no: null,
       amount: null,
     });
   }
