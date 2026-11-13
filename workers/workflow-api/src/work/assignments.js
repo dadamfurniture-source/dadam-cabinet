@@ -13,7 +13,7 @@
  * 일정의 담당 글(assignee_name)을 배정된 작업자 이름으로 맞춘다.
  */
 
-import { ConflictError, NotFoundError, insertOne, selectOne } from '../supabase.js';
+import { ConflictError, NotFoundError, insertOne, selectMany, selectOne } from '../supabase.js';
 import { assertAssignable, assertMine, requireAdminEditor, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent } from './events.js';
 import {
@@ -121,6 +121,34 @@ export async function releaseAssignment(env, { user, params, body, ctx }) {
   notifyWork(env, ctx, 'assignment_released', { job, workerName: worker.display_name });
   await afterWorkerReply(env, ctx, { job, assignment: r.assignment, reply: 'released' });
   return workerAssignment(r.assignment);
+}
+
+/**
+ * 작업자가 팩토리와의 연결을 스스로 끊었다 — 그 팩토리가 낸 작업의 답 없는 제안(offered)을 거절로 끝낸다.
+ * 수락한 배정(확정 · 작업 중 · 완료 보고 · 보완요청)은 건드리지 않는다 — 끝까지 간다.
+ * 제안마다 따로 알리지 않는다 (연결 끊김 알림 하나로 — work/workers.js leaveLink). 하나가 실패해도 나머지는 계속한다.
+ * @returns {Promise<number>} 끝낸 제안 수
+ */
+export async function declineOffersOnLeave(env, { user, worker, companyId, reason }) {
+  const offered = (await selectMany(env, 'work_assignments', { worker_id: `eq.${worker.id}`, status: 'eq.offered', select: '*', limit: '200' })) || [];
+  if (!offered.length) return 0;
+  const jobIds = [...new Set(offered.map((a) => a.job_id))];
+  const jobs = (await selectMany(env, 'work_jobs', { id: `in.(${jobIds.join(',')})`, company_id: `eq.${companyId}`, select: '*' })) || [];
+  let n = 0;
+  for (const job of jobs) {
+    for (const assignment of offered.filter((a) => a.job_id === job.id)) {
+      try {
+        const all = await loadJobAssignments(env, job.id);
+        const r = await transitionAssignment(env, { job, assignment, jobAssignments: all, from: ['offered'], patch: { status: 'declined', release_reason: reason } });
+        await recordAssignmentChange(env, { user, actorKind: 'worker', type: 'assignment_declined', before: assignment, after: r.assignment, job, lockedJob: r.job, note: reason });
+        await syncAssigneeName(env, r.job || job);
+        n += 1;
+      } catch (e) {
+        console.warn('[work] 연결 끊김 — 제안 끝내기 실패:', e && e.message);
+      }
+    }
+  }
+  return n;
 }
 
 // ── 관리자 ───────────────────────────────────────────────────────

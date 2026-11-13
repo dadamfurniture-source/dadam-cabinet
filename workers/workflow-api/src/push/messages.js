@@ -284,8 +284,14 @@ const companyJobUrl = (jobKind) => (jobKind === 'as' ? COMPANY_AS_URL : jobKind 
 
 const companyWhere = (jobKind) => (jobKind === 'as' || jobKind === 'install' ? '일정' : '프로젝트');
 
-/** 작업자가 연결을 신청함 — 이름 · 전화는 싣지 않는다 (화면에서 본다) */
-function workLinkRequest() {
+/**
+ * 작업자가 연결을 신청함 — 이름 · 전화는 싣지 않는다 (화면에서 본다).
+ * left 가 true 면 작업자가 스스로 연결을 끊은 것 — 같은 종류(work_link_request)로 글만 다르다
+ */
+function workLinkRequest({ left } = {}) {
+  if (left === true) {
+    return { title: '작업자 연결 끊김', body: '작업자가 팩토리 연결을 끊었습니다. 인사 › 작업자에서 확인해 주세요.', url: COMPANY_WORKERS_URL };
+  }
   return { title: '작업자 연결 신청', body: '작업자가 팩토리 연결을 신청했습니다. 인사 › 작업자에서 확인해 주세요.', url: COMPANY_WORKERS_URL };
 }
 

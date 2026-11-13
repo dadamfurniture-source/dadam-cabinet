@@ -179,8 +179,10 @@ export async function claimInvite(env, { user, body, ctx }) {
       await unuseInvite(env, invite, user);
       throw err;
     }
-    await recordWorkerEvent(env, { workerId: existing.id, actorUserId: user.id, actorKind: 'worker', type: 'link_requested', to: 'pending', payload: { via: 'invite', invite_id: invite.id } });
-    await later(ctx, notifyCompanyWork(env, { companyId, kind: 'work_link_request', refId: link && link.id }));
+    await recordWorkerEvent(env, { workerId: existing.id, actorUserId: user.id, actorKind: 'worker', type: 'link_requested', to: 'pending', payload: { via: 'invite', invite_id: invite.id, link_id: link ? link.id : null } });
+    // 반려 · 끝난 연결을 다시 신청한 것이면 같은 연결 줄이라 알림 꼬리를 달리한다 (같은 일로 걸러지지 않게)
+    const again = cur && cur.status !== 'pending' && link ? `re-${String(link.updated_at || '').replace(/[^0-9]/g, '')}` : null;
+    await later(ctx, notifyCompanyWork(env, { companyId, kind: 'work_link_request', refId: link && link.id, suffix: again }));
     const names = await companyNames(env, [companyId]);
     return { ...workerSelf(existing), linked: { company_name: names.get(companyId) || null, status: link ? link.status : 'pending' } };
   }

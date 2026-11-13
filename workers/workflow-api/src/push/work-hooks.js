@@ -8,6 +8,7 @@
  *                                                          ref = work_jobs.id (새 시작 · 끝 시각으로 한 번씩)
  *                      일정이 취소돼 작업이 취소됨         → 그때 제안 · 확정 · 진행 중이던 작업자 (작업마다 한 번)
  *   work_link_request · work_reply · work_report (0064) → 그 팩토리의 대표 · 실장 (업체 칸이 있는 알림, notifyCompanyWork)
+ *                      작업자가 스스로 연결을 끊으면 work_link_request 로 글만 달리 (연결마다 끊을 때마다 한 번)
  * 글은 src/push/messages.js — 작업 종류 · 날짜만 (작업 제목 · 지역 · 고객 정보 · 작업자 이름은 싣지 않는다).
  * 받을 사람인지는 보낼 때 다시 본다 (sender.js — 신청 결과는 작업자 행이 있으면, 그 밖은 승인된 작업자만).
  * 넣기는 원래 일을 막지 않는다 — 던지지 않는다. 부르는 쪽은 응답 뒤(waitUntil)에 돌린다 (later).

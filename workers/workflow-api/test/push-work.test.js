@@ -286,6 +286,7 @@ test('팩토리용 글 — 연결 신청 · 배정 답 · 작업 보고. 이름 
   const at = '2026-11-04T23:30:00Z';
   const cases = [
     ['work_link_request', {}, '작업자 연결 신청', '작업자가 팩토리 연결을 신청했습니다. 인사 › 작업자에서 확인해 주세요.', COMPANY_WORKERS_URL],
+    ['work_link_request', { left: true }, '작업자 연결 끊김', '작업자가 팩토리 연결을 끊었습니다. 인사 › 작업자에서 확인해 주세요.', COMPANY_WORKERS_URL],
     ['work_reply', { reply: 'confirmed', jobKind: 'install', startsAt: at }, '작업 배정 답', '작업자가 11/5(목) 설치 작업 배정을 수락했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
     ['work_reply', { reply: 'declined', jobKind: 'as', startsAt: at }, '작업 배정 답', '작업자가 11/5(목) A/S 작업 배정을 거절했습니다. 일정에서 확인해 주세요.', COMPANY_AS_URL],
     ['work_reply', { reply: 'released', jobKind: 'install', startsAt: null }, '작업 배정 답', '작업자가 설치 작업 배정을 포기했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],

@@ -7,6 +7,8 @@
  *      결제 실패 · 업체 정지(billing_failed · company_suspended)는 업체가 정지됐어도 active 대표에게 간다.
  *      업체 없는 업체 신청(partner_application, company_id 없음)은 그 사람의 업체 없는 기기로 간다.
  *      작업자 알림(work_*, company_id 없음)은 작업자에게 — 신청 결과는 작업자 행이 있으면, 그 밖은 승인된 작업자만.
+ *      작업자 알림은 그 사람의 기기 모두로 간다 — 팩토리 구성원이기도 한 작업자의 기기는 업체에 묶여 등록되기 때문이다
+ *      (routes.js pushCompanyFor · 2026-11-14).
  *      확인할 사진(ledger_pending)은 아직 그 업체의 대표 · 실장일 때만 (돌려받은 사진 ledger_returned 은 구성원이면).
  *   3. 그 사람의 그 업체 기기 (업체 없는 신청이면 업체 없는 기기) 모두에 보낸다.
  *        404 · 410 · 쓸 수 없는 키 → 그 기기 등록을 지운다
@@ -68,9 +70,14 @@ export function isEligible(row, memberships, workers = []) {
   return status === 'active';
 }
 
-/** 그 줄을 받을 기기 — 같은 사람 · 같은 업체 (업체 없는 신청이면 업체 없는 기기) */
+/**
+ * 그 줄을 받을 기기 — 같은 사람 · 같은 업체 (업체 없는 신청이면 업체 없는 기기).
+ * 작업자 알림(work_*, 업체 없음)은 그 사람의 기기 모두 — 팩토리 구성원이면서 작업자인 사람의 기기는 업체에 묶여 있어
+ * 업체 없는 기기만 찾으면 하나도 못 받는다. 받을 사람인지(작업자 · 승인)는 isEligible 이 이미 봤다.
+ */
 export function targetsFor(row, subs) {
   const company = row.company_id || null;
+  if (!company && WORK_NOTIFICATION_KINDS.includes(row.kind)) return subs.filter((s) => s.user_id === row.user_id);
   return subs.filter((s) => s.user_id === row.user_id && (s.company_id || null) === company);
 }
 

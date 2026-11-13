@@ -382,7 +382,7 @@ const CONTRACT_ROUTES = [
   ['GET', '/work/me'], ['POST', '/work/register'], ['POST', '/work/claim-invite'], ['GET', '/work/jobs'],
   ['GET', `/work/jobs/${ORDER}`], ['POST', `/work/jobs/${ORDER}/apply`], ['POST', `/work/applications/${ORDER}/withdraw`],
   ['POST', `/work/assignments/${ORDER}/confirm`], ['POST', `/work/assignments/${ORDER}/decline`], ['POST', `/work/assignments/${ORDER}/start`],
-  ['POST', `/work/assignments/${ORDER}/release`], ['POST', `/work/assignments/${ORDER}/updates`],
+  ['POST', `/work/assignments/${ORDER}/release`], ['POST', `/work/assignments/${ORDER}/updates`], ['POST', `/work/links/${ORDER}/leave`],
   ['GET', '/work/admin/jobs'], ['POST', '/work/admin/jobs'], ['GET', `/work/admin/jobs/${ORDER}`], ['PATCH', `/work/admin/jobs/${ORDER}`],
   ['POST', `/work/admin/jobs/${ORDER}/publish`], ['POST', `/work/admin/jobs/${ORDER}/cancel`], ['POST', `/work/admin/jobs/${ORDER}/close`],
   ['POST', `/work/admin/jobs/${ORDER}/invite`], ['POST', `/work/admin/jobs/${ORDER}/updates`],
@@ -1413,16 +1413,22 @@ test('팩토리 연결 — 정지 · 끝난 연결이면 초대를 수락하지 
   assert.equal((await call('POST', `/work/assignments/${offer.data.id}/decline`, { token: 'tok-w1', body: {} })).status, 200);
 });
 
-test('/work/me links — 연결된 팩토리 이름과 상태만 (끝난 연결 · 팩토리 id 는 없다)', async () => {
+test('/work/me links — 연결 id · 팩토리 이름 · 상태 · 맡은 일 수 (끝난 연결 · 팩토리 id 는 없다)', async () => {
   db.tables.companies.push({ id: OTHER, kind: 'partner', name: '남의 팩토리' });
   db.tables.worker_companies.push({ id: randomUUID(), company_id: OTHER, worker_id: W1, status: 'ended', kinds: [], via: 'invite' });
   const me = await call('GET', '/work/me', { token: 'tok-w1' });
   assert.deepEqual(me.data.links, [
-    { company_name: '다담 공장', status: 'approved' },
-    { company_name: '시험 협력', status: 'approved' },
+    { id: linkTo(HQ, W1).id, company_name: '다담 공장', status: 'approved', offered: 0, working: 0 },
+    { id: linkTo(PARTNER, W1).id, company_name: '시험 협력', status: 'approved', offered: 0, working: 0 },
   ]);
   assert.equal(JSON.stringify(me.data.links).includes(HQ), false);
-  assert.deepEqual((await call('GET', '/work/me', { token: 'tok-pend' })).data.links, [{ company_name: '다담 공장', status: 'pending' }]);
+  assert.deepEqual((await call('GET', '/work/me', { token: 'tok-pend' })).data.links, [{ id: linkTo(HQ, WP).id, company_name: '다담 공장', status: 'pending', offered: 0, working: 0 }]);
+  // 맡은 일 — 답 안 한 제안과 수락한 작업을 팩토리별로 센다
+  const offered = await makeJob({ mode: 'invite' });
+  await call('POST', `/work/admin/jobs/${offered.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  await assign(await makeJob());
+  const busy = (await call('GET', '/work/me', { token: 'tok-w1' })).data.links;
+  assert.deepEqual(busy.map((l) => [l.company_name, l.offered, l.working]), [['다담 공장', 1, 1], ['시험 협력', 0, 0]]);
   assert.equal((await call('GET', '/work/me', { token: 'tok-cust' })).data.links, null, '작업자가 아니면 없다');
 });
 
