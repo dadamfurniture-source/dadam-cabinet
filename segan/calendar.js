@@ -8,7 +8,7 @@
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET   /company/schedules?from=YYYY-MM-DD&to=YYYY-MM-DD   (한국 날짜 · 그날 포함 · 길어야 100일)
                      → { company, can_manage, range, today, truncated,
-                         items[{ key, source: schedule | consult | payment | design_due | as, id,
+                         items[{ key, source: schedule | consult | payment | design_due | as | work, id,
                                  kind: sales | design | make | install | as,
                                  type, label, day, at, time, title, status, location, design { id, name } | null,
                                  order_no, amount, project { id, title } | null, duration_min?, assignee_name? }] }
@@ -23,6 +23,10 @@
              「열기」 = 그 일의 하위 화면(상담 · 계약 · 설계 · 생산 · 설치 · A/S), 일정 표의 줄은 대표 · 실장에게 「고치기」(날 · 시각 · 상태).
              「일정 더하기」(대표 · 실장) — 설계 · 종류 · 날 · 시각 · 이름. 일정은 설계에 붙는다 (설계 없는 프로젝트에는 못 넣는다).
              영업 일정(상담 희망일 · 실측 · 받을 날)과 A/S 접수는 서버가 자료에서 찾아 준다 — 여기서 넣지 않는다.
+             프로젝트의 작업(source work) — 프로젝트 「작업 배정」에서 날짜를 정한 철거 · 재단 · 엣지 · 조립. 재단 · 엣지 · 조립은 생산 색,
+             철거는 설치 색(현장 일). 줄에 종류 · 프로젝트 · 담당(작업자 이름) · 상태(작업자 미정 · 수락 대기 · 연결됨 · 작업 중 · 완료 보고 · 끝남).
+             여기서 고치지 않는다 — 줄의 「작업 배정」(직원은 「작업자 보기」)을 누르면 아래 프로젝트 목록에서 그 프로젝트의 칸이 열린다
+             (segan/partner-projects.js openWork → segan/project-work.js). 날짜 · 작업자는 거기서 정한다.
              설계 마감 = 계약금 입금날 당일 (2026-11-10 대표님 결정) — 서버가 수주의 계약금에서 찾아 준다.
              입금된 뒤에만 보인다 — 계약금 받은 날에 「계약금 입금」 (아직 안 받은 수주는 줄이 없다). 금액은 오지 않는다 (구성원 모두 본다).
    쉬는 날    색 · 종류를 더하지 않는다 (2026-11-12 대표님 결정 — 색 없이 회색 글). 쉬는 사람이 있는 날 칸에 「쉼 N」,
@@ -66,6 +70,15 @@
   var AS_STATE = { requested: '접수', received: '받음', done: '끝' }; // segan/as-requests.js 와 같다
   // 설계 마감(계약금 입금날) — 입금된 뒤에만 온다 (2026-11-10 대표님 결정)
   var DESIGN_DUE_STATE = { deposit_paid: '계약금 입금' };
+  // 프로젝트의 작업 상태 — 워커 company-schedules.js WORK_STATES (배정 이름은 segan/project-work.js STATE 와 같은 글자)
+  var WORK_STATE = {
+    unassigned: '작업자 미정',
+    offered: '수락 대기',
+    confirmed: '연결됨',
+    in_progress: '작업 중',
+    review: '완료 보고',
+    done: '끝남',
+  };
   var DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
   var TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,6 +108,9 @@
     noProject: '프로젝트 없는 설계',
     noName: '이름 없는 설계',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    workOpen: '작업 배정',
+    workView: '작업자 보기',
+    workGone: '아래 프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.',
     off: '쉼',
     offWho: '쉬는 사람',
     offNoName: '이름 없음',
@@ -338,9 +354,13 @@
     return n;
   }
 
-  /** 「열기」가 가는 하위 화면 (segan/me.js 화면 이름) — 상담 희망일 · 실측 = 상담, 받을 날 = 계약, 설계 마감 = 설계 */
+  /**
+   * 「열기」가 가는 하위 화면 (segan/me.js 화면 이름) — 상담 희망일 · 실측 = 상담, 받을 날 = 계약, 설계 마감 = 설계.
+   * 프로젝트의 작업은 하위 화면이 아니라 이 화면의 프로젝트 목록에서 연다 (「작업 배정」 단추) — ''
+   */
   function openOf(x) {
     if (!x || typeof x !== 'object') return '';
+    if (x.source === 'work') return '';
     if (x.source === 'payment') return 'p-contract';
     if (x.kind === 'sales') return 'p-consult';
     if (x.kind === 'design') return 'p-design';
@@ -350,9 +370,17 @@
     return '';
   }
 
-  /** 상태 글 — 일정 표 · A/S 접수 · 설계 마감 (상담 상태 · 받을 날은 적지 않는다) */
+  /** 프로젝트의 작업 줄에서 여는 프로젝트 id — 그 줄이 아니거나 프로젝트를 모르면 '' */
+  function workProjectOf(x) {
+    if (!x || x.source !== 'work' || !x.project || typeof x.project !== 'object') return '';
+    var id = String(x.project.id || '');
+    return UUID_RE.test(id) ? id : '';
+  }
+
+  /** 상태 글 — 일정 표 · A/S 접수 · 설계 마감 · 프로젝트의 작업 (상담 상태 · 받을 날은 적지 않는다) */
   function statusOf(x) {
     if (x.source === 'schedule') return SCHEDULE_STATUS[x.status] || '';
+    if (x.source === 'work') return WORK_STATE[x.status] || '';
     if (x.source === 'as') return AS_STATE[x.status] || '';
     if (x.source === 'design_due') return DESIGN_DUE_STATE[x.status] || '';
     return '';
@@ -464,8 +492,15 @@
     return !!s && !s.soon && Me.available(name);
   }
 
+  /** 프로젝트 목록이 그 프로젝트의 「작업 배정」을 열 수 있나 (segan/partner-projects.js openWork) */
+  function canOpenWork() {
+    var PP = window.SeganPartnerProjects;
+    return !!PP && typeof PP.openWork === 'function';
+  }
+
   function itemHtml(x) {
     var manage = !!(C.data && C.data.manage);
+    var workFor = canOpenWork() ? workProjectOf(x) : '';
     var status = statusOf(x);
     var time = timeText(x);
     var detail = detailOf(x);
@@ -490,6 +525,15 @@
       '<div class="cal-item-acts">' +
       (canOpen(go)
         ? '<a class="cal-link" href="#' + go + '" data-me-go="' + go + '">열기</a>'
+        : '') +
+      (workFor
+        ? '<button type="button" class="cal-link" data-act="work" data-project="' +
+          esc(workFor) +
+          '" data-fk="work:' +
+          esc(x.id) +
+          '">' +
+          esc(manage ? TEXT.workOpen : TEXT.workView) +
+          '</button>'
         : '') +
       (manage && x.source === 'schedule' && !editing
         ? '<button type="button" class="cal-link" data-act="edit" data-id="' +
@@ -1106,6 +1150,13 @@
       C.form = null;
       C.err = '';
       render();
+    } else if (act === 'work') {
+      // 아래 프로젝트 목록에서 그 프로젝트의 「작업 배정」 칸을 연다 — 목록에 없으면 그 글만
+      var PP = window.SeganPartnerProjects;
+      var opened = !!PP && typeof PP.openWork === 'function' && PP.openWork(el.getAttribute('data-project') || '');
+      var was = C.msg;
+      C.msg = opened ? '' : TEXT.workGone;
+      if (C.msg !== was) render();
     }
   }
 
@@ -1196,6 +1247,8 @@
     countKinds: countKinds,
     openOf: openOf,
     statusOf: statusOf,
+    WORK_STATE: WORK_STATE,
+    workProjectOf: workProjectOf,
     detailOf: detailOf,
     designsOf: designsOf,
     designGroups: designGroups,

@@ -1111,3 +1111,105 @@ describe('고치기', () => {
     expect(box().querySelector('form')).toBeNull();
   });
 });
+
+// ── 2026-11-13 프로젝트의 작업 (철거 · 재단 · 엣지 · 조립) ──
+describe('프로젝트의 작업', () => {
+  const J1 = '99999999-9999-4999-8999-999999999991';
+  const work = (extra = {}) =>
+    item({
+      key: 'work:' + J1,
+      source: 'work',
+      id: J1,
+      kind: 'install',
+      type: 'work_demolition',
+      label: '철거',
+      day: '2026-11-10',
+      at: '2026-11-09T23:30:00Z',
+      time: '08:30',
+      title: null,
+      status: 'confirmed',
+      assignee_name: '시험기사 가',
+      project: { id: P1, title: '싱크대' },
+      ...extra,
+    });
+  const cutting = work({
+    key: 'work:j2',
+    id: 'j2',
+    kind: 'make',
+    type: 'work_cutting',
+    label: '재단',
+    time: '09:00',
+    status: 'unassigned',
+    assignee_name: null,
+  });
+  const withWork = (more = {}) => () => ok(sched({ items: [work(), cutting], ...more }));
+  const workBtns = () => [...box().querySelectorAll('[data-act="work"]')];
+
+  test('순수 — 상태 글 · 여는 프로젝트 · 「열기」(하위 화면)는 없다', () => {
+    const M = lib();
+    expect(M.WORK_STATE).toEqual({
+      unassigned: '작업자 미정',
+      offered: '수락 대기',
+      confirmed: '연결됨',
+      in_progress: '작업 중',
+      review: '완료 보고',
+      done: '끝남',
+    });
+    expect(M.statusOf(work())).toBe('연결됨');
+    expect(M.statusOf(work({ status: 'weird' }))).toBe('');
+    expect(M.openOf(work())).toBe('');
+    expect(M.openOf(cutting)).toBe('');
+    expect(M.workProjectOf(work())).toBe(P1);
+    expect(M.workProjectOf(work({ project: null }))).toBe('');
+    expect(M.workProjectOf(work({ project: { id: 'not-a-uuid', title: 'x' } }))).toBe('');
+    expect(M.workProjectOf({ ...work(), source: 'schedule' })).toBe(''); // 일정 줄에는 없다
+    expect(M.detailOf(work())).toBe('싱크대 · 담당 시험기사 가');
+  });
+
+  test('철거는 설치 색 · 재단은 생산 색 — 줄에 종류 · 프로젝트 · 담당 · 상태. 고치기 · 「열기」는 없다', async () => {
+    await load({ sched: withWork() });
+    expect(kinds()).toEqual(['영업0', '설계0', '생산1', '설치1', 'A/S0']);
+    expect(rows()).toEqual([
+      '08:30 철거 | 설치 · 싱크대 · 담당 시험기사 가 | 연결됨',
+      '09:00 재단 | 생산 · 싱크대 | 작업자 미정',
+    ]);
+    expect(box().querySelector('[data-act="edit"]')).toBeNull();
+    expect(box().querySelector('.cal-item a.cal-link')).toBeNull();
+    // 종류 단추로 끄면 빠진다
+    await click('.cal-kind[data-kind="make"]');
+    expect(rows()).toEqual(['08:30 철거 | 설치 · 싱크대 · 담당 시험기사 가 | 연결됨']);
+  });
+
+  test('「작업 배정」 — 프로젝트 목록의 그 프로젝트 칸을 연다. 목록에 없으면 그 글', async () => {
+    await load({ sched: withWork() });
+    const open = jest.fn(() => true);
+    window.SeganPartnerProjects.openWork = open;
+    await click('.cal-day[data-day="2026-11-10"]');
+    expect(workBtns().map(text)).toEqual(['작업 배정', '작업 배정']);
+    workBtns()[0].click();
+    await flush();
+    expect(open).toHaveBeenCalledWith(P1);
+    expect(box().querySelector('.me-pt-msg')).toBeNull();
+    // 목록에 그 프로젝트가 없다 (끝났거나 보관)
+    open.mockReturnValue(false);
+    workBtns()[1].click();
+    await flush();
+    expect(text(box().querySelector('.me-pt-msg'))).toBe(
+      '아래 프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.'
+    );
+    // 다시 열리면 글이 사라진다
+    open.mockReturnValue(true);
+    workBtns()[0].click();
+    await flush();
+    expect(box().querySelector('.me-pt-msg')).toBeNull();
+  });
+
+  test('직원은 「작업자 보기」 · 프로젝트를 모르는 줄에는 단추가 없다', async () => {
+    await load({
+      sched: () => ok(sched({ can_manage: false, items: [work(), work({ key: 'work:j3', id: 'j3', project: null })] })),
+    });
+    window.SeganPartnerProjects.openWork = jest.fn(() => true);
+    await click('.cal-day[data-day="2026-11-10"]');
+    expect(workBtns().map(text)).toEqual(['작업자 보기']);
+  });
+});
