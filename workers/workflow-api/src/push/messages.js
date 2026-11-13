@@ -258,10 +258,16 @@ function workAssigned(p) {
   return { title: '작업 확정', body: `${j.what}에 확정되었습니다. 작업 탭에서 확인해 주세요.`, url: j.url };
 }
 
-/** 작업 일정 바뀜 — 맡은 작업의 시각이 바뀜. { jobKind, startsAt(새 시각), jobId } */
+/**
+ * 작업 일정 바뀜 — 맡은 작업의 시각이 바뀜. { jobKind, startsAt(새 시각), jobId }
+ * cancelled 가 true 면 일정이 취소돼 그 작업이 취소된 것 — 같은 종류(work_schedule)로 글만 다르다
+ */
 function workSchedule(p) {
   const j = workJob(p);
   if (!j) return null;
+  if (p && p.cancelled === true) {
+    return { title: '작업 취소', body: `${j.what}이 취소되었습니다. 작업 탭에서 확인해 주세요.`, url: j.url };
+  }
   const body = j.day
     ? `${j.label} 작업 일정이 ${j.day}(으)로 바뀌었습니다. 작업 탭에서 확인해 주세요.`
     : `${j.label} 작업 일정이 바뀌었습니다. 작업 탭에서 확인해 주세요.`;

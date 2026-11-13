@@ -327,9 +327,14 @@ test('현장 일(철거) — 수락하면 현장이 열리고, 완료 보고를 
   await post(fake, 't_w1', `/work/assignments/${a.id}/start`);
   await post(fake, 't_w1', `/work/assignments/${a.id}/updates`, { kind: 'result', body: '철거를 마쳤습니다' });
   assert.deepEqual([asgOf(fake, W(1)).status, jobOf(fake, 'demolition').status], ['submitted', 'review']);
+  // 확인을 기다리는 완료 보고 — 인사 › 작업자 응답에 「프로젝트의 작업」으로 (종류 · 시각만)
+  const waiting = await call(fake, 't_owner', '/company/workers');
+  assert.equal(waiting.status, 200, JSON.stringify(waiting.json));
+  assert.deepEqual(waiting.json.data.unconfirmed, { total: 1, items: [{ kind: 'demolition', at: new Date('2026-11-18T09:00:00+09:00').toISOString(), where: 'project' }] });
   const ok = await post(fake, 't_manager', `/company/work/assignments/${a.id}/accept`);
   assert.equal(ok.status, 200, JSON.stringify(ok.json));
   assert.deepEqual([asgOf(fake, W(1)).status, jobOf(fake, 'demolition').status], ['accepted', 'done']);
+  assert.equal((await call(fake, 't_owner', '/company/workers')).json.data.unconfirmed.total, 0);
   // 남의 팩토리 대표는 이 배정을 못 건드린다
   assert.equal((await post(fake, 't_other', `/company/work/assignments/${a.id}/remove`, { reason: 'x' })).status, 404);
 });

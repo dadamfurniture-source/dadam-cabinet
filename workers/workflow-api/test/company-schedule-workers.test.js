@@ -15,7 +15,8 @@ import worker from '../src/worker.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { ASSIGNMENT_LABEL, ASSIGN_MAX, SCHEDULE_JOB_KIND, jobTimesOf } from '../src/work/schedule-link.js';
-import { ASSIGNEE_NAME_MAX, assigneeNameOf } from '../src/work/schedule-names.js';
+import { ASSIGNEE_NAME_MAX, OPEN_SCHEDULE_STATUSES, assigneeNameOf, completeScheduleOf } from '../src/work/schedule-names.js';
+import { UNCONFIRMED_MAX, unconfirmedOf } from '../src/work/company.js';
 import { SITE_EMPTY_NOTE, SITE_NOTE, findForbiddenKeys } from '../src/work/reveal.js';
 import { createFake, withFake, SB } from './helpers/push-fake.js';
 
@@ -113,6 +114,7 @@ function tables() {
     work_updates: [],
     work_job_events: [],
     worker_events: [],
+    worker_invites: [], // 인사 › 작업자 응답(GET /company/workers)의 남은 초대
     // 완료 보고의 필수 확인 (work/check-state.js) — 이 시험의 수주에는 작업지시서가 없다
     design_documents: [],
     design_snapshots: [],
@@ -370,8 +372,11 @@ test('완료 보고 → 확인 · 보완요청 · 빼기 — 대표 · 실장만
   const memo = fake.db.work_updates.find((u) => u.author_role === 'company');
   assert.deepEqual([memo.body, memo.visible_to_worker], ['보완 요청: 걸레받이 마감을 다시 봐 주세요', true]);
   await post(fake, 't_w1', `/work/assignments/${a1.id}/updates`, { kind: 'result', body: '다시 마쳤습니다' });
+  assert.equal(scheduleRow(fake, S(1)).status, 'scheduled', '확인 전에는 일정 상태를 건드리지 않는다');
   const done = await post(fake, 't_owner', `/company/work/assignments/${a1.id}/accept`);
   assert.equal(done.status, 200, JSON.stringify(done.json));
+  // 맡은 사람이 모두 확인됐다 → 그 일정도 「끝남」 (응답도 그 모습)
+  assert.deepEqual([scheduleRow(fake, S(1)).status, done.json.data.schedule.status], ['completed', 'completed']);
   assert.deepEqual([done.json.data.assignment, done.json.data.job.status], [{ id: a1.id, status: 'accepted', label: '확인함' }, 'done']);
   assert.ok(asgOf(fake, W(1)).accepted_at);
   assert.equal(scheduleRow(fake, S(1)).assignee_name, '시험기사1', '끝난 뒤에도 누가 했는지 남는다');
@@ -532,6 +537,18 @@ test('일정을 취소하면 작업도 취소되고 답 없는 초대는 끝난�
   assert.deepEqual([gone.status, gone.cancel_reason], ['cancelled', '일정이 취소되었습니다']);
   assert.deepEqual([asgOf(fake, W(1)).status, asgOf(fake, W(5)).status], ['confirmed', 'declined']);
   assert.equal(asgOf(fake, W(5)).release_reason, '작업이 취소돼 초대가 끝났습니다');
+  // 그때 맡고 있던 사람(확정 · 수락 대기)에게 알린다 — 작업 종류 · 날짜만, 업체 칸 없이, 그 작업으로 열린다
+  const told = outbox(fake, 'work_schedule');
+  assert.deepEqual(told.map((n) => n.user_id).sort(), [U_W1, U(105)].sort());
+  for (const n of told) {
+    assert.deepEqual(
+      [n.title, n.body, n.url, n.company_id, n.ref_id],
+      ['작업 취소', '11/20(금) 설치 작업이 취소되었습니다. 작업 탭에서 확인해 주세요.', `/segan/work.html#job=${first.id}`, null, first.id],
+    );
+  }
+  // 이미 취소한 일정을 다시 취소로 저장해도 또 알리지 않는다
+  await call(fake, 't_owner', `/schedules/${S(1)}`, { method: 'PATCH', body: { status: 'cancelled' } });
+  assert.equal(outbox(fake, 'work_schedule').length, 2);
   // 취소한 일정에는 배정할 수 없다
   assert.equal((await assign(fake, 't_owner', S(1), [L(6)])).status, 409);
   const v = await view(fake, 't_owner', S(1));
@@ -578,4 +595,107 @@ test('DB 0064 적용 전 — 배정 경로는 409 db_pending, 설치 표는 work
   assert.deepEqual(install.json.data.items.find((i) => i.schedule_id === S(1)).workers, []);
   const moved = await call(fake, 't_owner', `/schedules/${S(1)}`, { method: 'PATCH', body: { scheduled_at: iso('2026-11-21T13:00:00'), assignee_name: '설치 2팀' } });
   assert.deepEqual([moved.status, moved.json.data.assignee_name], [200, '설치 2팀']);
+});
+
+// ── 2026-11-13 빈틈 메우기 — 취소 알림 받는 사람 · 일정 끝남 · 확인을 기다리는 완료 보고 ──
+
+test('일정 취소 알림 — 거절 · 포기 · 뺀 사람에게는 가지 않는다. 배정이 없으면 아무에게도', async () => {
+  const fake = world();
+  await assign(fake, 't_owner', S(1), [L(1), L(6)]);
+  await post(fake, 't_w5', `/work/assignments/${asgOf(fake, W(5)).id}/decline`, { reason: '어렵습니다' });
+  await call(fake, 't_owner', `/schedules/${S(1)}`, { method: 'PATCH', body: { status: 'cancelled' } });
+  assert.deepEqual(outbox(fake, 'work_schedule').map((n) => [n.user_id, n.title]), [[U_W1, '작업 취소']]);
+  // 작업자를 배정한 적 없는 일정을 취소하면 알림이 없다
+  const bare = world();
+  await call(bare, 't_owner', `/schedules/${S(1)}`, { method: 'PATCH', body: { status: 'cancelled' } });
+  assert.deepEqual(bare.db.notification_outbox || [], []);
+});
+
+test('일정 끝남 — 맡은 사람이 모두 확인돼야 끝난다. 한 사람이 남아 있으면 그대로, 그 사람을 빼면 끝남', async () => {
+  const fake = world();
+  await assign(fake, 't_owner', S(1), [L(1), L(6)]);
+  const a1 = asgOf(fake, W(1));
+  const a5 = asgOf(fake, W(5));
+  for (const [tok, a] of [['t_w1', a1], ['t_w5', a5]]) {
+    await post(fake, tok, `/work/assignments/${a.id}/confirm`);
+    await post(fake, tok, `/work/assignments/${a.id}/start`);
+  }
+  await post(fake, 't_w1', `/work/assignments/${a1.id}/updates`, { kind: 'result', body: '설치를 마쳤습니다' });
+  const one = await post(fake, 't_owner', `/company/work/assignments/${a1.id}/accept`);
+  assert.equal(one.status, 200, JSON.stringify(one.json));
+  assert.deepEqual([jobOf(fake, S(1)).status, scheduleRow(fake, S(1)).status], ['in_progress', 'scheduled']);
+  const out = await post(fake, 't_owner', `/company/work/assignments/${a5.id}/remove`, { reason: '한 사람으로 끝냈습니다' });
+  assert.equal(out.status, 200, JSON.stringify(out.json));
+  assert.deepEqual([jobOf(fake, S(1)).status, scheduleRow(fake, S(1)).status], ['done', 'completed']);
+
+  // 순수 쪽 — 끝나지 않은 작업 · 일정 없는 작업은 건드리지 않고, 취소했거나 이미 끝난 일정은 그대로 둔다
+  assert.deepEqual([...OPEN_SCHEDULE_STATUSES], ['scheduled', 'confirmed', 'in_progress']);
+  const w = world();
+  const run = (job) => withFake(w, () => completeScheduleOf(ENV, job));
+  assert.equal(await run({ id: 'j', status: 'review', schedule_id: S(1) }), false);
+  assert.equal(await run({ id: 'j', status: 'done', schedule_id: null }), false);
+  assert.equal(await run({ id: 'j', status: 'done', schedule_id: S(4) }), false, '이미 끝난 일정');
+  scheduleRow(w, S(2)).status = 'cancelled';
+  assert.equal(await run({ id: 'j', status: 'done', schedule_id: S(2) }), false, '취소한 일정');
+  assert.equal(scheduleRow(w, S(2)).status, 'cancelled');
+  assert.equal(await run({ id: 'j', status: 'done', schedule_id: S(3) }), true);
+  assert.equal(scheduleRow(w, S(3)).status, 'completed');
+});
+
+test('확인을 기다리는 완료 보고 — 인사 › 작업자 응답에 건수와 종류 · 시각만. 확인하면 줄어든다', async () => {
+  const fake = world();
+  await assign(fake, 't_owner', S(1), [L(1)]);
+  await assign(fake, 't_owner', S(3), [L(2)]);
+  const a1 = asgOf(fake, W(1));
+  const a2 = asgOf(fake, W(2));
+  for (const [tok, a] of [['t_w1', a1], ['t_w2', a2]]) {
+    await post(fake, tok, `/work/assignments/${a.id}/confirm`);
+    await post(fake, tok, `/work/assignments/${a.id}/start`);
+  }
+  const none = await call(fake, 't_owner', '/company/workers');
+  assert.equal(none.status, 200, JSON.stringify(none.json));
+  assert.deepEqual(none.json.data.unconfirmed, { total: 0, items: [] });
+
+  await post(fake, 't_w2', `/work/assignments/${a2.id}/updates`, { kind: 'result', body: '방문 수리를 마쳤습니다' });
+  await post(fake, 't_w1', `/work/assignments/${a1.id}/updates`, { kind: 'result', body: '설치를 마쳤습니다' });
+  // 직원도 본다 (확인은 대표 · 실장). 작업 시각 순
+  const two = await call(fake, 't_staff', '/company/workers');
+  assert.deepEqual(two.json.data.unconfirmed, {
+    total: 2,
+    items: [
+      { kind: 'install', at: iso('2026-11-20T09:00:00'), where: 'install' },
+      { kind: 'as', at: iso('2026-11-25T15:00:00'), where: 'as' },
+    ],
+  });
+  // 작업자 · 고객 · 일정 · 작업을 가리키는 값은 없다
+  const text = JSON.stringify(two.json.data.unconfirmed);
+  for (const bad of [W(1), W(2), a1.id, a2.id, S(1), S(3), ADDR, '김고객', '마쳤습니다']) assert.equal(text.includes(bad), false, bad);
+  // 남의 팩토리 것은 세지 않는다
+  assert.deepEqual((await call(fake, 't_other', '/company/workers')).json.data.unconfirmed, { total: 0, items: [] });
+
+  await post(fake, 't_owner', `/company/work/assignments/${a2.id}/accept`);
+  const left = await call(fake, 't_owner', '/company/workers');
+  assert.deepEqual(left.json.data.unconfirmed, { total: 1, items: [{ kind: 'install', at: iso('2026-11-20T09:00:00'), where: 'install' }] });
+  assert.deepEqual([scheduleRow(fake, S(3)).status, scheduleRow(fake, S(1)).status], ['completed', 'scheduled']);
+});
+
+test('확인을 기다리는 완료 보고 (순수) — 앱에서 배정한 작업만, 프로젝트 작업은 project, 줄 수는 상한까지', () => {
+  const jobs = [
+    { id: 'j1', kind: 'demolition', project_id: 'p1', schedule_id: null, starts_at: '2026-11-14T00:00:00Z' },
+    { id: 'j2', kind: 'install', project_id: null, schedule_id: 's1', starts_at: '2026-11-12T00:00:00Z' },
+    { id: 'j3', kind: 'install', project_id: null, schedule_id: null, starts_at: '2026-11-10T00:00:00Z' }, // PC 관리자 화면에서 만든 작업
+    { id: 'j4', kind: 'as', project_id: 'p1', schedule_id: 's2', starts_at: null },
+  ];
+  const a = (job_id, status) => ({ job_id, status, worker_id: 'w' });
+  assert.deepEqual(unconfirmedOf(jobs, [a('j1', 'submitted'), a('j2', 'submitted'), a('j2', 'started'), a('j3', 'submitted'), a('j4', 'submitted'), a('nope', 'submitted')]), {
+    total: 3,
+    items: [
+      { kind: 'install', at: '2026-11-12T00:00:00Z', where: 'install' },
+      { kind: 'demolition', at: '2026-11-14T00:00:00Z', where: 'project' },
+      { kind: 'as', at: null, where: 'as' },
+    ],
+  });
+  assert.deepEqual(unconfirmedOf(null, null), { total: 0, items: [] });
+  const many = unconfirmedOf([jobs[1]], Array.from({ length: UNCONFIRMED_MAX + 5 }, () => a('j2', 'submitted')));
+  assert.deepEqual([many.total, many.items.length], [UNCONFIRMED_MAX + 5, UNCONFIRMED_MAX]);
 });

@@ -6,6 +6,7 @@
  *   work_assigned      신청한 작업에 뽑힘(배정 confirmed) → 뽑힌 작업자        ref = work_assignments.id
  *   work_schedule      작업의 시작 · 끝 시각이 바뀜       → 그 작업의 제안 · 확정 · 진행 중 작업자
  *                                                          ref = work_jobs.id (새 시작 · 끝 시각으로 한 번씩)
+ *                      일정이 취소돼 작업이 취소됨         → 그때 제안 · 확정 · 진행 중이던 작업자 (작업마다 한 번)
  *   work_link_request · work_reply · work_report (0064) → 그 팩토리의 대표 · 실장 (업체 칸이 있는 알림, notifyCompanyWork)
  * 글은 src/push/messages.js — 작업 종류 · 날짜만 (작업 제목 · 지역 · 고객 정보 · 작업자 이름은 싣지 않는다).
  * 받을 사람인지는 보낼 때 다시 본다 (sender.js — 신청 결과는 작업자 행이 있으면, 그 밖은 승인된 작업자만).
@@ -166,28 +167,57 @@ export async function notifyWorkSchedule(env, { before, after }) {
         status: `in.(${SCHEDULE_ASSIGNMENT_STATUSES.join(',')})`,
         select: 'id,worker_id',
       })) || [];
-    const workerIds = [...new Set(assignments.map((a) => a.worker_id).filter(isUuid))];
-    if (!workerIds.length) return 0;
-    const workers =
-      (await selectMany(env, 'workers', {
-        id: `in.(${workerIds.join(',')})`,
-        select: 'id,user_id',
-      })) || [];
     const suffix = `${stamp(after.starts_at)}-${stamp(after.ends_at)}`;
-    const rows = [];
-    for (const w of workers) {
-      if (!isUuid(w.user_id) || rows.some((r) => r.userId === w.user_id)) continue;
-      rows.push({
-        userId: w.user_id,
-        kind: 'work_schedule',
-        ...message,
-        refId: after.id,
-        dedupeKey: dedupeKeyOf('work_schedule', after.id, w.user_id, suffix),
-      });
-    }
-    return await enqueueNotifications(env, rows);
+    return await enqueueNotifications(env, await scheduleRows(env, { job: after, assignments, message, suffix }));
   } catch (e) {
     console.warn('[push] work_schedule failed:', statusOf(e));
+    return 0;
+  }
+}
+
+/** 배정들 → 그 작업자 계정마다 work_schedule 알림 한 줄 (같은 계정은 한 번, 계정 없는 작업자는 뺀다) */
+async function scheduleRows(env, { job, assignments, message, suffix }) {
+  const workerIds = [...new Set((assignments || []).map((a) => a.worker_id).filter(isUuid))];
+  if (!workerIds.length) return [];
+  const workers =
+    (await selectMany(env, 'workers', {
+      id: `in.(${workerIds.join(',')})`,
+      select: 'id,user_id',
+    })) || [];
+  const rows = [];
+  for (const w of workers) {
+    if (!isUuid(w.user_id) || rows.some((r) => r.userId === w.user_id)) continue;
+    rows.push({
+      userId: w.user_id,
+      kind: 'work_schedule',
+      ...message,
+      refId: job.id,
+      dedupeKey: dedupeKeyOf('work_schedule', job.id, w.user_id, suffix),
+    });
+  }
+  return rows;
+}
+
+/**
+ * 일정이 취소돼 작업이 취소됐다 → 그때 수락 대기 · 확정 · 작업 중이던 작업자에게 (작업마다 사람마다 한 번).
+ * 답 없는 초대는 취소와 함께 끝나므로(declined) 부르는 쪽이 끝내기 전에 읽은 배정을 넘긴다.
+ * @param {object} job          취소된 작업 (id · kind · starts_at)
+ * @param {object[]} assignments 취소 직전의 배정들 (status · worker_id)
+ */
+export async function notifyWorkCancelled(env, { job, assignments }) {
+  try {
+    if (!job || !isUuid(job.id)) return 0;
+    const message = buildMessage('work_schedule', {
+      jobKind: job.kind,
+      startsAt: job.starts_at,
+      jobId: job.id,
+      cancelled: true,
+    });
+    if (!message) return 0;
+    const held = (assignments || []).filter((a) => a && SCHEDULE_ASSIGNMENT_STATUSES.includes(a.status));
+    return await enqueueNotifications(env, await scheduleRows(env, { job, assignments: held, message, suffix: 'cancelled' }));
+  } catch (e) {
+    console.warn('[push] work_schedule(cancelled) failed:', statusOf(e));
     return 0;
   }
 }

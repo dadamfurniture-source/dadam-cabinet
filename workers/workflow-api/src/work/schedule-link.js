@@ -19,8 +19,10 @@
  * 누가       그 팩토리의 구성원이면 읽는다. 배정 · 확인 · 보완요청 · 빼기는 대표 · 실장.
  *            새 배정은 「인사를 쓰는 팩토리」(다담 공장 · active Agent)만 — 확인 · 보완요청 · 빼기는 등급이 내려가도 된다.
  * 다른 업체   일정은 designs!inner(company_id) 로, 작업 · 연결은 company_id 로 거른다. 남의 것은 404.
- * 일정 동기   일정 시각이 바뀌면 작업 시각을 맞추고 작업자에게 알린다. 일정이 취소되면 작업도 취소한다 (syncJobWithSchedule —
- *            schedules.js updateSchedule · company-sites.js setAsVisit 가 부른다). 실패해도 일정 저장을 막지 않고, 다음 읽기에서 다시 맞춘다.
+ * 일정 동기   일정 시각이 바뀌면 작업 시각을 맞추고 작업자에게 알린다. 일정이 취소되면 작업도 취소하고, 그때 맡고 있던
+ *            작업자(수락 대기 · 확정 · 작업 중)에게 알린다 (syncJobWithSchedule — worker.js handleUpdateSchedule ·
+ *            company-sites.js setAsVisit 가 부른다). 실패해도 일정 저장을 막지 않고, 다음 읽기에서 다시 맞춘다.
+ *            거꾸로, 맡은 사람이 모두 확인되면(작업 done) 그 일정을 「끝남」으로 둔다 (schedule-names.js completeScheduleOf).
  * 고객 정보   이 응답에는 없다 (작업자 이름 · 보고 글만). DB 0064 적용 전이면 409 db_pending.
  */
 
@@ -37,7 +39,7 @@ import { computeJobStatus, declineOffersIfEnded, loadJobAssignments, lockJob } f
 import { linksPending } from './links.js';
 import { ACTIVE_STATUSES } from './reveal.js';
 import { syncAssigneeName } from './schedule-names.js';
-import { later, notifyWorkSchedule } from '../push/work-hooks.js';
+import { later, notifyWorkCancelled, notifyWorkSchedule } from '../push/work-hooks.js';
 import { assertUuid, optBool, reqText } from './validate.js';
 
 /** 작업자를 배정할 수 있는 일정 종류 → 작업 종류 (납품 줄은 2차) */
@@ -184,10 +186,14 @@ export async function syncJobWithSchedule(env, ctx, schedule) {
     const job = await liveJobOf(env, schedule.id, null);
     if (!job || FINISHED_JOB.includes(job.status)) return null;
     if (schedule.status === 'cancelled') {
+      // 취소 전에 맡고 있던 사람 — 답 없는 초대는 아래에서 끝나므로(declined) 먼저 읽어 둔다
+      const held = await loadJobAssignments(env, job.id);
       const locked = await lockJob(env, job, { status: 'cancelled', cancel_reason: SCHEDULE_CANCELLED });
       await recordEvent(env, { jobId: job.id, actorKind: 'system', type: 'job_cancelled', from: job.status, to: 'cancelled', note: SCHEDULE_CANCELLED });
       // 답 없는 초대는 끝낸다 (확정 · 진행 중 배정은 그대로 — 관리자 취소와 같다)
       await declineOffersIfEnded(env, job.id);
+      // 수락 대기 · 확정 · 작업 중이던 작업자에게 앱 알림 — 응답 뒤에
+      await later(ctx, notifyWorkCancelled(env, { job: locked, assignments: held }));
       return locked;
     }
     const times = jobTimesOf(schedule);
