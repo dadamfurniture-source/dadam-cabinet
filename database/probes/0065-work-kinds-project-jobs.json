@@ -206,8 +206,8 @@
       }
     },
     {
-      "name": "남의 업체 프로젝트에는 작업을 잇지 못한다",
-      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('cutting', 'probe 남의 프로젝트', 'open', {{company_y}}, {{project_x}})",
+      "name": "남의 업체 프로젝트에는 작업을 잇지 못한다 (그 프로젝트에 살아 있는 작업이 없는 종류로 — 외래 키가 막는다)",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('assembly', 'probe 남의 프로젝트', 'open', {{company_y}}, {{project_x}})",
       "roles": [
         "service_role"
       ],
