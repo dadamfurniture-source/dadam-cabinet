@@ -47,6 +47,9 @@ export const DRAFT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{3,80}$/;
 export const MY_MODULE_ID_RE = /^my-[a-z0-9]{6,40}$/;
 export const PHOTO_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9-]{3,80}\.(jpg|png|webp)$/;
 export const ITEM_RE = /^[a-z_]{1,40}$/;
+/** 점검용 시험 설계 id 머리 (본사 점검) — 목록 · 수 · 추천에서 감추고, 밖에서는 이 머리로 저장하지 못한다 (설계는 지우지 못한다 — 0046) */
+export const PROBE_ID_PREFIX = 'probe-';
+export const isProbeId = (id) => typeof id === 'string' && id.startsWith(PROBE_ID_PREFIX);
 export const PHOTOS_BUCKET = 'planner-photos';
 /** 설계 한 벌 (DB 0046 model 상한과 같다) · 저장 요청 본문 · 사진 한 장 · 앱 보낸 기록 · 내 모듈 */
 export const MODEL_MAX_BYTES = 5 * 1024 * 1024;
@@ -200,7 +203,7 @@ async function liveCount(env, companyId) {
     select: 'id',
     limit: '1000',
   });
-  return (rows || []).length;
+  return (rows || []).filter((r) => !isProbeId(r.id)).length;
 }
 
 /** GET /planner/drafts */
@@ -215,7 +218,9 @@ export async function listDrafts(env, { user }) {
         order: 'updated_at.desc',
         limit: String(LIST_MAX),
       })) || [];
-    const items = rows.map((r) => {
+    const items = rows
+      .filter((r) => !isProbeId(r.id))
+      .map((r) => {
       const s = r.summary || {};
       return {
         id: r.id,
@@ -249,11 +254,15 @@ export async function getDraft(env, { user, params, query }) {
   });
 }
 
-/** POST /planner/drafts { project, check } */
-export async function saveDraft(env, { user, body }) {
+/**
+ * POST /planner/drafts { project, check }
+ * @param {{internal?: boolean}} [opts] internal — 본사 점검이 쓰는 시험 설계(probe-)도 받는다
+ */
+export async function saveDraft(env, { user, body }, opts = {}) {
   const { company, canManage } = await plannerCompanyOf(env, user);
   const project = body && body.project;
   const model = modelOf(project);
+  if (isProbeId(model.id) && opts.internal !== true) throw new ValidationError('쓸 수 없는 설계 id 입니다', { field: 'id' });
   const check = body && body.check === true;
   return guard(async () => {
     const stored = await draftOf(env, company.id, model.id);
@@ -554,15 +563,16 @@ export async function recommendOf(env, { user, query }) {
   const item = query && typeof query.item === 'string' && ITEM_RE.test(query.item) ? query.item : null;
   if (!item) throw new ValidationError('item 이 필요합니다', { field: 'item' });
   return guard(async () => {
-    const rows =
+    const rows = (
       (await selectMany(env, 'planner_drafts', {
         company_id: `eq.${company.id}`,
         updated_by: `eq.${user.id}`,
         item: `eq.${item}`,
         discarded_at: 'is.null',
-        select: 'summary',
+        select: 'id,summary',
         limit: '1000',
-      })) || [];
+      })) || []
+    ).filter((r) => !isProbeId(r.id));
     const count = new Map();
     for (const r of rows) for (const id of (r.summary && Array.isArray(r.summary.libIds) ? r.summary.libIds : [])) count.set(id, (count.get(id) || 0) + 1);
     const used = [...count.entries()].map(([id, n]) => ({ id, n })).sort((a, b) => b.n - a.n || (a.id < b.id ? -1 : 1));

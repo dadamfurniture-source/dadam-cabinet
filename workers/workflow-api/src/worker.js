@@ -8,6 +8,7 @@
  *   POST /designs/:designId/snapshots   — 설계+BOM 동결 (멱등)
  *   POST /planner/designs               — 간편 플래너 설계 받기 → 앱 설계 찾거나 만들고 동결 (본사 대표 · 실장 · 관리자, src/planner-handoff.js)
  *   GET /planner/access · /planner/drafts(…) · /planner/my-modules(…) · /planner/recommend — 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
+ *   PUT /planner/drafts/:id/learn · POST /planner/drafts/report · GET · PUT /planner/photo-consent — 학습 묶음 · 저장 실패 기록 · 사진 제공 동의 (src/planner-learn.js, DB 0067)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
  *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
@@ -108,6 +109,14 @@ import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshotForViewer, previewQuote, quoteForViewer } from './snapshots.js';
 import { receivePlannerDesign } from './planner-handoff.js';
+import {
+  LEARN_MAX_BYTES as PLANNER_LEARN_MAX_BYTES,
+  getPhotoConsent,
+  noteIssue as notePlannerIssue,
+  putLearn as putPlannerLearn,
+  putPhotoConsent,
+  reportIssue as reportPlannerIssue,
+} from './planner-learn.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
@@ -1381,7 +1390,38 @@ async function handleSavePlannerDraft(request, env, { user }) {
   } catch {
     body = null;
   }
-  const data = await saveDraft(env, { user, body: body || {} });
+  let data;
+  try {
+    data = await saveDraft(env, { user, body: body || {} });
+  } catch (e) {
+    // 저장이 안 된 것만 적는다 (DB 0067 — 기록이 안 돼도 원래 오류가 그대로 나간다)
+    const p = body && body.project;
+    await notePlannerIssue(env, user, { stage: 'save', error: e, draftId: p && p.id, rev: p && p.rev });
+    throw e;
+  }
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 간편 플래너 학습 묶음 — 본문을 상한까지만 읽는다 (묶음 1MB), 안 된 것은 적는다 */
+async function handlePutPlannerLearn(request, env, { params, user }) {
+  const max = PLANNER_LEARN_MAX_BYTES + 64 * 1024;
+  const declared = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declared) && declared > max) throw new TooLargeError('학습 묶음이 너무 큽니다');
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > max) throw new TooLargeError('학습 묶음이 너무 큽니다');
+  let body = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = null;
+  }
+  let data;
+  try {
+    data = await putPlannerLearn(env, { user, params, body: body || {} });
+  } catch (e) {
+    await notePlannerIssue(env, user, { stage: 'learn', error: e, draftId: params && params.id, rev: body && body.rev });
+    throw e;
+  }
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
@@ -1407,6 +1447,11 @@ const router = createRouter([
   { method: 'GET',    path: '/planner/access',                     auth: 'jwt', handler: workRoute(plannerAccess) },
   { method: 'GET',    path: '/planner/drafts',                     auth: 'jwt', handler: workRoute(listDrafts) },
   { method: 'POST',   path: '/planner/drafts',                     auth: 'jwt', handler: handleSavePlannerDraft },
+  // 학습 묶음 · 저장 실패 기록 · 사진 제공 동의 (src/planner-learn.js, DB 0067)
+  { method: 'POST',   path: '/planner/drafts/report',              auth: 'jwt', handler: workRoute(reportPlannerIssue, 201) },
+  { method: 'PUT',    path: '/planner/drafts/:id/learn',           auth: 'jwt', handler: handlePutPlannerLearn },
+  { method: 'GET',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(getPhotoConsent) },
+  { method: 'PUT',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(putPhotoConsent) },
   { method: 'GET',    path: '/planner/drafts/:id',                 auth: 'jwt', handler: workRoute(getDraft) },
   { method: 'POST',   path: '/planner/drafts/:id/discard',         auth: 'jwt', handler: workRoute(discardDraft) },
   { method: 'GET',    path: '/planner/drafts/:id/app-state',       auth: 'jwt', handler: workRoute(getAppState) },
