@@ -1,0 +1,293 @@
+{
+  "title": "0066 납품 작업자 · 팩토리의 작업자 메모 — 작업자 · 작업 종류에 납품(delivery) 일곱, worker_company_notes 는 서버만 · 같은 팩토리의 연결에만 · 쌓기만 (scripts/rls-probe.mjs --migration database/migrations/0066_work_delivery_company_notes.sql). 0064 · 0065 가 먼저 적용돼 있어야 한다. 칸은 하나씩 되돌린다 — 칸에서는 한 번 쓰거나 읽기만 한다",
+  "ids": [
+    "company_x",
+    "company_y",
+    "worker_a",
+    "link_a",
+    "link_y",
+    "invite_a",
+    "design_x",
+    "sched_x",
+    "note_a"
+  ],
+  "users": [
+    "x_owner_user",
+    "w1_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.workers (id, user_id, display_name, kinds, status, consent_version) VALUES ({{worker_a}}, {{w1_user}}, 'probe A', '{install}', 'approved', 'probe')",
+    "INSERT INTO public.worker_companies (id, company_id, worker_id, status, kinds, via) VALUES ({{link_a}}, {{company_x}}, {{worker_a}}, 'approved', '{install}', 'invite'), ({{link_y}}, {{company_y}}, {{worker_a}}, 'approved', '{install}', 'invite')",
+    "INSERT INTO public.worker_invites (id, token_hash, kinds_preset, expires_at, company_id) VALUES ({{invite_a}}, 'probe-' || {{invite_a}}::text, '{install}', now() + interval '7 days', {{company_x}})",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_x}}, {{design_x}}, gen_random_uuid(), 'delivery', '납품', timestamptz '2026-11-20 09:00+09')",
+    "INSERT INTO public.worker_company_notes (id, link_id, company_id, author, note) VALUES ({{note_a}}, {{link_a}}, {{company_x}}, {{x_owner_user}}, 'probe 첫 메모')"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "작업자 종류에 납품 — 작업자 (일곱 종류 모두)",
+      "sql": "update public.workers set kinds = '{install,as,assembly,cutting,edge,demolition,delivery}' where id = {{worker_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "작업자 종류에 납품 — 초대",
+      "sql": "update public.worker_invites set kinds_preset = '{delivery}' where id = {{invite_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "작업자 종류에 납품 — 연결",
+      "sql": "update public.worker_companies set kinds = '{delivery,install}' where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "작업 종류 — 납품 (납품 일정에서 생긴 작업)",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, design_id, schedule_id) values ('delivery', 'probe 납품', 'open', {{company_x}}, {{design_x}}, {{sched_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "앞의 종류는 그대로 — 철거 작업",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id) values ('demolition', 'probe 철거', 'open', {{company_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모르는 작업자 종류는 여전히 거절 (작업자)",
+      "sql": "update public.workers set kinds = '{paint}' where id = {{worker_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 작업자 종류는 여전히 거절 (초대)",
+      "sql": "update public.worker_invites set kinds_preset = '{paint}' where id = {{invite_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 작업자 종류는 여전히 거절 (연결)",
+      "sql": "update public.worker_companies set kinds = '{paint}' where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 작업 종류는 여전히 거절",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id) values ('paint', 'probe 도장', 'open', {{company_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "메모 읽기 — 서버만 (팩토리 대표도 브라우저로는 못 읽는다)",
+      "sql": "select count(*) from public.worker_company_notes where link_id = {{link_a}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "구성원은 브라우저로 메모를 쓰지 못한다",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values ({{link_a}}, {{company_x}}, {{x_owner_user}}, 'probe 브라우저')",
+      "roles": [
+        "anon",
+        "x_owner"
+      ],
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "서버는 메모를 남긴다",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values ({{link_a}}, {{company_x}}, {{x_owner_user}}, 'probe 둘째 메모')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "메모는 1000자까지 — 1000자는 받는다",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values ({{link_a}}, {{company_x}}, {{x_owner_user}}, repeat('가', 1000))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "메모는 1000자까지 — 1001자는 거절",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values ({{link_a}}, {{company_x}}, {{x_owner_user}}, repeat('가', 1001))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "빈 메모는 거절",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values ({{link_a}}, {{company_x}}, {{x_owner_user}}, '')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "남의 팩토리 연결에는 메모를 붙이지 못한다 (연결 X 에 팩토리 Y 로 — 외래 키가 막는다)",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values ({{link_a}}, {{company_y}}, {{x_owner_user}}, 'probe 남의 연결')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "없는 연결에는 메모를 붙이지 못한다",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values (gen_random_uuid(), {{company_x}}, {{x_owner_user}}, 'probe 없는 연결')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "같은 작업자라도 팩토리마다 메모가 따로 — 팩토리 Y 의 연결에는 Y 로 붙는다",
+      "sql": "insert into public.worker_company_notes (link_id, company_id, author, note) values ({{link_y}}, {{company_y}}, NULL, 'probe Y 의 메모')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "팩토리 Y 의 메모는 X 의 연결로 세면 없다",
+      "sql": "select count(*) from public.worker_company_notes where link_id = {{link_a}} and company_id = {{company_y}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "서버도 메모를 고치지 못한다",
+      "sql": "update public.worker_company_notes set note = 'probe 고침' where id = {{note_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "서버도 메모를 지우지 못한다",
+      "sql": "delete from public.worker_company_notes where id = {{note_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "연결 줄이 지워지면 메모도 지워진다 (외래 키 정의)",
+      "sql": "select (pg_get_constraintdef(oid) like '%(id, company_id) ON DELETE CASCADE%')::text from pg_constraint where conname = 'worker_company_notes_link_fkey' and conrelid = 'public.worker_company_notes'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "연결 줄에 (id, 팩토리) 유니크가 하나 있다",
+      "sql": "select count(*) from pg_constraint where conname = 'worker_companies_id_company_id_key' and conrelid = 'public.worker_companies'::regclass and contype = 'u'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "메모 표 — RLS 켬",
+      "sql": "select relrowsecurity::text from pg_class where oid = 'public.worker_company_notes'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "메모 표 — 정책 없음",
+      "sql": "select count(*) from pg_policies where schemaname = 'public' and tablename = 'worker_company_notes'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    }
+  ]
+}
