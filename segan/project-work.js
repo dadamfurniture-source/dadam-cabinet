@@ -612,12 +612,13 @@
     var row = d.rows.filter(function (r) {
       return r.key === W.open;
     })[0];
-    // 다시 그려도 적던 사유 · 날짜는 그대로
+    // 같은 줄을 다시 그릴 때만 적던 사유 · 날짜를 되살린다 — 다른 줄로 옮기면 그 줄의 값이 보여야 한다
     var keep = {};
-    ['pw-reason', 'pw-date', 'pw-time'].forEach(function (name) {
-      var el = h.querySelector('[name="' + name + '"]');
-      if (el) keep[name] = el.value;
-    });
+    if (row && h.getAttribute('data-pjw-open') === row.key)
+      ['pw-reason', 'pw-date', 'pw-time'].forEach(function (name) {
+        var el = h.querySelector('[name="' + name + '"]');
+        if (el) keep[name] = el.value;
+      });
     h.innerHTML =
       head +
       '<p class="mk-note">' +
@@ -642,6 +643,7 @@
       if (el && keep[name] && (name === 'pw-reason' || !W.freshDate)) el.value = keep[name];
     });
     W.freshDate = false;
+    h.setAttribute('data-pjw-open', row ? row.key : '');
   }
   function focusOn(sel) {
     var el = W.host && W.host.querySelector(sel);
