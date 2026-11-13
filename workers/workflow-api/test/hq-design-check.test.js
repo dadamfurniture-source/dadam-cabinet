@@ -21,6 +21,8 @@ import {
   REVIEW_GRADES,
   REVIEW_REASONS,
   compositionOf,
+  pcGroupKey,
+  photoRefOf,
   designCheckSummary,
   groupOf,
   isDailyCheckTime,
@@ -48,6 +50,8 @@ const u = (id) => ({ id });
 const NOW = Date.parse('2026-11-14T03:00:00Z');
 const iso = (ms) => new Date(ms).toISOString();
 const GK1 = webGroupKey(P1, 'design-aaaa-0001');
+const PCK = pcGroupKey('design-pc01-0001');
+const PCK2 = pcGroupKey('design-pc02-0001');
 
 const json = (rows, status = 200) => ({
   ok: status < 300,
@@ -81,6 +85,7 @@ function makeDb(over = {}) {
     dataset_reviews: [],
     dataset_ingest_state: [{ src_table: 'planner_drafts', last_run: iso(NOW - 5 * 60000), last_count: 1, last_error: null }],
     system_checks: [],
+    planner_completions: [],
     design_site_info: [],
     notification_outbox: [],
     signed: [],
@@ -91,8 +96,23 @@ function makeDb(over = {}) {
 
 const KEYS = { planner_drafts: ['company_id', 'id'], planner_draft_learn: ['company_id', 'draft_id'] };
 
+/** 칸 값 — attrs->>grade 같은 JSON 화살표도 (PostgREST 처럼 글자로) */
+function valueOf(row, key) {
+  const m = /^([a-z_]+)->>([a-z_]+)$/.exec(key);
+  if (!m) return row[key];
+  const o = row[m[1]];
+  const v = o && typeof o === 'object' ? o[m[2]] : undefined;
+  return v === undefined || v === null ? null : typeof v === 'string' ? v : JSON.stringify(v);
+}
+
 function matches(row, key, expr) {
-  const v = row[key];
+  if (key === 'or') {
+    return expr
+      .replace(/^\(|\)$/g, '')
+      .split(',')
+      .some((part) => matches(row, part.slice(0, part.indexOf('.')), part.slice(part.indexOf('.') + 1)));
+  }
+  const v = valueOf(row, key);
   if (expr === 'is.null') return v === null || v === undefined;
   if (expr === 'not.is.null') return v !== null && v !== undefined;
   if (expr === 'is.true') return v === true;
@@ -113,8 +133,9 @@ async function withDb(db, fn) {
     const method = init.method || 'GET';
     if (s.includes('/storage/v1/object/sign/')) {
       const { paths } = JSON.parse(init.body);
-      db.signed.push(...paths);
-      return json(paths.map((p) => ({ path: p, signedURL: `/object/sign/planner-photos/${p}?token=t` })));
+      const bucket = s.split('/storage/v1/object/sign/')[1];
+      db.signed.push(...paths.map((p) => (bucket === 'planner-photos' ? p : `${bucket}:${p}`)));
+      return json(paths.map((p) => ({ path: p, signedURL: `/object/sign/${bucket}/${p}?token=t` })));
     }
     const m = /\/rest\/v1\/([a-z_]+)(?:\?(.*))?$/.exec(s);
     if (!m) throw new Error(`unexpected fetch ${method} ${s}`);
@@ -218,9 +239,38 @@ const photoSample = (gk, file, over = {}) => {
   };
 };
 
+const pcDesign = (gk, over = {}) => ({
+  sample_id: gk,
+  group_key: gk,
+  src_table: 'planner_lite',
+  image_url: null,
+  needs_review: false,
+  label_source: 'structured',
+  space: 'kitchen',
+  furniture: 'sink',
+  layout_shape: 'L',
+  design_id: null,
+  attrs: { record: record() },
+  updated_at: iso(NOW - 120000),
+  ...over,
+});
+const pcPhoto = (gk, file, over = {}) => ({
+  sample_id: `${gk}:photo:${file.replace(/\.jpg$/, '')}`,
+  group_key: gk,
+  src_table: 'planner_lite',
+  image_url: `https://x.supabase.co/storage/v1/object/public/design-images/planner-lite/${groupOf(gk).designId}/${file}`,
+  needs_review: false,
+  phase: 'after',
+  media: 'photo',
+  attrs: { kind: 'complete' },
+  ...over,
+});
+
 test('묶음 키 · 장소 · 날짜 · 시각 · 구성 요약', () => {
-  assert.deepEqual(groupOf(GK1), { companyId: P1, draftId: 'design-aaaa-0001' });
-  assert.equal(groupOf('planner-lite:design:design-aaaa-0001'), null);
+  assert.deepEqual(groupOf(GK1), { kind: 'web', companyId: P1, draftId: 'design-aaaa-0001' });
+  assert.deepEqual(groupOf(PCK), { kind: 'pc', designId: 'design-pc01-0001' });
+  assert.equal(groupOf('ohouse:123'), null);
+  assert.equal(groupOf('planner-lite:design:../x'), null);
   assert.equal(groupOf(`planner-web:${P1}:../x`), null);
   // 주소는 시 · 군 · 구까지만
   assert.equal(regionOf('대구 북구 합성로 12 301호'), '대구 북구');
@@ -279,9 +329,11 @@ test('한눈에 — 업체별 저장 · 묶음 · 실패, 가는 길의 수, 사
       designSample(webGroupKey(P1, 'design-aaaa-0002')),
       photoSample(GK1, 'photo-a1b2c3.jpg'),
     ],
-    dataset_exportable: [designSample(GK1)],
+    dataset_exportable: [designSample(GK1), pcDesign(PCK)],
+    planner_completions: [{ group_key: PCK }],
     system_checks: [{ id: 'c1', kind: CHECK_KIND, cause: 'daily', run_date: '2026-11-14', ok: true, steps: [{ key: 'save', ok: true }], created_at: iso(NOW) }],
   });
+  db.dataset_samples.push(pcDesign(PCK, { attrs: { record: record(), grade: 'good' } }), pcDesign(PCK2), pcPhoto(PCK, 'photo-pc0001.jpg'), pcPhoto(PCK, 'photo-pc0002.jpg'));
   // 실패 기록의 「지난 7일」은 지금 시각 기준이라, 시험 줄의 때를 지금 쪽으로 옮긴다
   db.planner_save_issues.slice(0, 3).forEach((r, i) => { r.created_at = iso(Date.now() - (i + 1) * 3600e3); });
   await withDb(db, async () => {
@@ -295,6 +347,8 @@ test('한눈에 — 업체별 저장 · 묶음 · 실패, 가는 길의 수, 사
     assert.deepEqual(s.issues, { days: 7, total: 3, by_code: [{ stage: 'save', code: 'conflict', n: 2 }, { stage: 'save', code: 'offline', n: 1 }] });
     assert.deepEqual(s.checks.map((c) => [c.cause, c.run_date, c.ok]), [['daily', '2026-11-14', true]]);
     assert.equal(s.ingest.last_count, 1);
+    // PC 플래너 「앱 창고로 올리기」로 올라온 것 — 앱 플래너 수와 섞지 않고 따로
+    assert.deepEqual(s.pc, { designs: 2, photos: 2, completed: 1, graded: 1, exportable: 1 });
   });
 });
 
@@ -331,6 +385,78 @@ test('검토 줄 — 설계 구성 · 장소는 시 · 군 · 구까지 · 사�
     const d = await listDesignReviews(ENV, { user: u(BOSS), query: { state: 'done' } });
     assert.deepEqual(d.items.map((x) => [x.company, x.grade, x.reasons, x.reviewed_rev, x.gone, x.name]), [['다라 팩토리', 'normal', ['photo_blur'], 2, true, '']]);
   });
+});
+
+test('검토 줄 — PC 플래너로 올라온 설계도 같이: 다담 공장 · 시공 완료 확인 · 내보낼 수 있나 · 사진은 그 설계 자리 것만', async () => {
+  const db = makeDb({
+    planner_drafts: [{ company_id: P1, id: 'design-aaaa-0001', name: '합성 주방', item: 'sink', rev: 5, summary: {}, updated_at: iso(NOW), discarded_at: null }],
+    dataset_samples: [
+      designSample(GK1),
+      pcDesign(PCK, { design_id: APP_DESIGN }),
+      pcDesign(PCK2),
+      pcPhoto(PCK, 'photo-pc0001.jpg'),
+      // 다른 설계 자리를 가리키는 주소 — 서명하지 않는다
+      pcPhoto(PCK, 'photo-evil01.jpg', { image_url: 'https://x.supabase.co/storage/v1/object/public/design-images/planner-lite/design-pc02-0001/photo-evil01.jpg' }),
+      pcPhoto(PCK, 'photo-evil02.jpg', { image_url: 'https://x.supabase.co/storage/v1/object/public/design-images/someone/site_photo/1.jpg' }),
+    ],
+    planner_completions: [{ group_key: PCK }, { group_key: 'not-a-planner-key' }],
+    dataset_exportable: [pcDesign(PCK)],
+    design_site_info: [{ design_id: APP_DESIGN, address: '경북 경산시 합성읍 1-2' }],
+  });
+  await withDb(db, async () => {
+    const w = await listDesignReviews(ENV, { user: u(BOSS), query: {} });
+    assert.deepEqual(w.items.map((x) => [x.source, x.group_key, x.company, x.completed, x.exportable]), [
+      ['web', GK1, '가나 팩토리', false, false],
+      ['pc', PCK, '다담 공장', true, true],
+      ['pc', PCK2, '다담 공장', false, false],
+    ]);
+    const pc = w.items[1];
+    assert.deepEqual([pc.draft_id, pc.name, pc.item, pc.region, pc.rev_now, pc.gone, pc.modules, pc.photo_count], ['design-pc01-0001', '', 'sink', '경북 경산시', null, false, 4, 3]);
+    assert.deepEqual(pc.photos.map((p) => p.url), ['https://x.supabase.co/storage/v1/object/sign/design-images/planner-lite/design-pc01-0001/photo-pc0001.jpg?token=t']);
+    assert.deepEqual(db.signed, ['design-images:planner-lite/design-pc01-0001/photo-pc0001.jpg']);
+    // 시공 완료 확인된 것만
+    const c = await listDesignReviews(ENV, { user: u(BOSS), query: { only: 'completed' } });
+    assert.deepEqual([c.only, c.items.map((x) => x.group_key)], ['completed', [PCK]]);
+    // 등급을 매기면 「기다림」에서 빠지고 「검토함」으로 (PC 것은 묶음 키로 쓴다)
+    const r = await writeDesignReview(ENV, { user: u(BOSS), body: { group_key: PCK, grade: 'normal', reasons: ['incomplete'] } });
+    assert.deepEqual(r, { reviewed: 4, grade: 'normal', reasons: ['incomplete'], src_rev: null });
+    assert.deepEqual(db.dataset_reviews.map((x) => x.verdict), ['confirm', 'confirm', 'confirm', 'confirm']);
+    await rejects(writeDesignReview(ENV, { user: u(BOSS), body: { group_key: 'ohouse:1', grade: 'good' } }), 422);
+    // (가짜 DB 는 지킴이가 없어 등급을 손으로 적는다 — 실DB 는 apply_dataset_review_grade 가 적는다)
+    db.dataset_samples.find((x) => x.sample_id === PCK).attrs.grade = 'normal';
+    const after = await listDesignReviews(ENV, { user: u(BOSS), query: {} });
+    assert.deepEqual(after.items.map((x) => x.group_key), [GK1, PCK2]);
+    const d = await listDesignReviews(ENV, { user: u(BOSS), query: { state: 'done' } });
+    assert.deepEqual(d.items.map((x) => [x.group_key, x.grade]), [[PCK, 'normal']]);
+  });
+  // 시공 완료 확인이 하나도 없으면 빈 목록 (표본을 읽지 않는다)
+  const none = makeDb({ dataset_samples: [pcDesign(PCK)] });
+  await withDb(none, async () => assert.deepEqual(await listDesignReviews(ENV, { user: u(BOSS), query: { only: 'completed' } }), { state: 'waiting', only: 'completed', items: [] }));
+});
+
+test('검토 줄 — 검토한 뒤 설계가 바뀌어 다시 검토가 필요한 것은 등급이 있어도 「기다림」', async () => {
+  const db = makeDb({
+    planner_drafts: [{ company_id: P1, id: 'design-aaaa-0001', name: '합성 주방', item: 'sink', rev: 6, summary: { completed: true }, updated_at: iso(NOW), discarded_at: null }],
+    dataset_samples: [designSample(GK1, { needs_review: true, label_source: 'human', attrs: { record: record(), web: { rev: 6 }, grade: 'good', reviewed_rev: 4 } })],
+  });
+  await withDb(db, async () => {
+    const w = await listDesignReviews(ENV, { user: u(BOSS), query: {} });
+    assert.deepEqual(w.items.map((x) => [x.grade, x.reviewed_rev, x.rev_now, x.completed]), [['good', 4, 6, true]]);
+    assert.deepEqual((await listDesignReviews(ENV, { user: u(BOSS), query: { state: 'done' } })).items, []);
+    assert.deepEqual((await listDesignReviews(ENV, { user: u(BOSS), query: { only: 'completed' } })).items.map((x) => x.group_key), [GK1]);
+  });
+});
+
+test('사진 자리 — 그 묶음의 자리만 (남의 업체 · 다른 설계 · 다른 버킷 · 위로 올라가는 길은 null)', () => {
+  const web = (url) => photoRefOf({ group_key: GK1, image_url: url });
+  assert.deepEqual(web(`https://x/storage/v1/object/authenticated/planner-photos/${P1}/design-aaaa-0001/a.jpg`), { bucket: 'planner-photos', path: `${P1}/design-aaaa-0001/a.jpg` });
+  assert.equal(web(`https://x/storage/v1/object/authenticated/planner-photos/${P2}/design-aaaa-0001/a.jpg`), null);
+  assert.equal(web('https://x/storage/v1/object/public/design-images/planner-lite/design-aaaa-0001/a.jpg'), null);
+  const pc = (url) => photoRefOf({ group_key: PCK, image_url: url });
+  assert.deepEqual(pc('https://x/storage/v1/object/public/design-images/planner-lite/design-pc01-0001/a.jpg'), { bucket: 'design-images', path: 'planner-lite/design-pc01-0001/a.jpg' });
+  assert.equal(pc('https://x/storage/v1/object/public/design-images/planner-lite/design-pc01-0001/../design-pc02-0001/a.jpg'), null);
+  assert.equal(pc('https://x/storage/v1/object/public/design-images/customer-folder/a.jpg'), null);
+  assert.equal(photoRefOf({ group_key: 'ohouse:1', image_url: 'https://x/a.jpg' }), null);
 });
 
 test('검토 쓰기 — 묶음의 표본마다 한 줄 (제외 = reject), 본 rev 를 같이, 값은 먼저 거른다', async () => {
