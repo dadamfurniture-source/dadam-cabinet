@@ -35,7 +35,7 @@ function card(over) {
   };
 }
 function detail(over) {
-  return { ...card(), detail: '상부장 3칸', site: null, site_note: '현장 주소·연락처는 공개 기간이 정해지면 열립니다', timeline: [], ...over };
+  return { ...card(), detail: '상부장 3칸', site: null, site_note: '현장 주소·연락처는 배정을 수락한 뒤부터 작업이 끝나고 7일까지 열립니다', timeline: [], ...over };
 }
 
 describe('esc · 카드 — 사용자 글은 글자로 나온다', () => {
@@ -208,7 +208,7 @@ describe('작업 상세에서 할 수 있는 일 (서버 조건과 같다)', () 
 describe('작업 상세 · 기록', () => {
   test('현장 주소 대신 site_note — 주소 · 연락처 칸이 없다', () => {
     const html = P.jobDetailHtml(detail({ my: { assignment_id: A1, assignment_status: 'confirmed' }, order_no: 'TEST-0001', customer_masked: '테*' }), NOW, 'mine');
-    expect(html).toContain('현장 주소·연락처는 공개 기간이 정해지면 열립니다');
+    expect(html).toContain('현장 주소·연락처는 배정을 수락한 뒤부터 작업이 끝나고 7일까지 열립니다');
     expect(html).toContain('TEST-0001');
     expect(html).toContain('테*');
     expect(html).not.toMatch(/주소<\/dt>|연락처<\/dt>/);
@@ -474,7 +474,7 @@ describe('페이지 — 상태별 화면', () => {
       },
     });
     await settle();
-    expect(document.getElementById('appBody').textContent).toContain('현장 주소·연락처는 공개 기간이 정해지면 열립니다');
+    expect(document.getElementById('appBody').textContent).toContain('현장 주소·연락처는 배정을 수락한 뒤부터 작업이 끝나고 7일까지 열립니다');
     document.querySelector('[data-act="start"]').click();
     await settle();
     expect(calls.some((c) => c.method === 'POST' && c.path === `/work/assignments/${A1}/start`)).toBe(true);
@@ -1455,5 +1455,82 @@ describe('팩토리 연결', () => {
     mount({ routes: { 'GET /work/me': { data: { ready: true, worker: null, counts: {} } } } });
     await settle();
     expect(document.getElementById('regInviteNote').textContent).toBe('초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다.');
+  });
+});
+
+// ── 현장 (2026-11-13 「작업자 한 길」 ⑤ — 수락한 때부터 작업이 끝나고 7일까지, 서버가 연 것만 그린다) ──
+describe('현장', () => {
+  const SITE = {
+    address: '시험시 시험구 시험로 1',
+    address_detail: '1동 <1호>',
+    floor: '3',
+    has_elevator: false,
+    elevator_note: '사다리차 필요',
+    access_note: '공동현관 #0000',
+    contact_name: '시험고객',
+    contact_phone: '010-0000-0002',
+  };
+  const open = (site = SITE, over = {}) =>
+    P.jobDetailHtml(detail({ site, site_note: null, my: { assignment_id: 'a', assignment_status: 'confirmed' }, ...over }), NOW, 'mine');
+
+  test('서버가 site 를 주면 현장 카드 — 주소 · 층 · 엘리베이터 · 출입 · 현장 연락처(전화 걸기), 안내 한 줄', () => {
+    const html = open();
+    expect(html).toContain('<div class="card site-card"><h3>현장</h3>');
+    expect(html).toContain('<dt>주소</dt><dd>시험시 시험구 시험로 1 1동 &lt;1호&gt;</dd>');
+    expect(html).toContain('<dt>층</dt><dd>3</dd>');
+    expect(html).toContain('<dt>엘리베이터</dt><dd>없음 — 사다리차 필요</dd>');
+    expect(html).toContain('<dt>출입</dt><dd>공동현관 #0000</dd>');
+    expect(html).toContain('<dt>현장 연락처</dt><dd>시험고객 <a href="tel:01000000002">010-0000-0002</a></dd>');
+    expect(html).toContain(P.SITE_OPEN_NOTE);
+    expect(html).not.toContain('site-note');
+    // 현장 카드는 작업 카드 다음 · 「내 상태」 앞
+    expect(html.indexOf('site-card')).toBeLessThan(html.indexOf('<h3>내 상태</h3>'));
+  });
+
+  test('적힌 칸만 그린다 — 엘리베이터를 모르면 줄이 없고, 전화가 숫자가 아니면 걸기 주소를 만들지 않는다', () => {
+    const html = open({ address: '시험시 시험로 2', has_elevator: null, contact_phone: '사무실로 연락' });
+    expect(html).toContain('<dt>주소</dt><dd>시험시 시험로 2</dd>');
+    expect(html).not.toContain('<dt>층</dt>');
+    expect(html).not.toContain('<dt>엘리베이터</dt>');
+    expect(html).toContain('<dt>현장 연락처</dt><dd>사무실로 연락</dd>');
+    expect(html).not.toContain('tel:');
+    expect(P.telOf('010-0000-0002')).toBe('01000000002');
+    expect(P.telOf('+82 10 0000 0002')).toBe('+821000000002');
+    expect(P.telOf('"><script>')).toBe('');
+    expect(open({ has_elevator: true })).toContain('<dt>엘리베이터</dt><dd>있음</dd>');
+  });
+
+  test('site 가 없으면 안내 한 줄만 · 안내가 null 이면(현장이 없는 종류) 아무것도 없다 · 빈 site 는 없는 것으로', () => {
+    const closed = P.jobDetailHtml(detail(), NOW, 'open');
+    expect(closed).toContain('<p class="site-note">현장 주소·연락처는 배정을 수락한 뒤부터 작업이 끝나고 7일까지 열립니다</p>');
+    expect(closed).not.toContain('site-card');
+    const none = P.jobDetailHtml(detail({ kind: 'assembly', site: null, site_note: null }), NOW, 'open');
+    expect(none).not.toContain('site-note');
+    expect(none).not.toContain('site-card');
+    const empty = open({}, { site_note: '현장 주소·연락처가 아직 입력되지 않았습니다. 팩토리에 확인해 주세요' });
+    expect(empty).toContain('<p class="site-note">현장 주소·연락처가 아직 입력되지 않았습니다. 팩토리에 확인해 주세요</p>');
+    expect(empty).not.toContain('site-card');
+    // 배열 · 글자 같은 틀린 모양은 그리지 않는다
+    expect(P.siteHtml({ site: ['x'], site_note: 'y' })).toEqual({ note: '<p class="site-note">y</p>', card: '' });
+    expect(P.siteHtml({ site: null }).note).toContain(P.SITE_NOTE);
+  });
+
+  test('페이지 — 받은 현장을 그리되 기기 저장소 · 주소에 남기지 않는다', async () => {
+    sessionStorage.clear();
+    localStorage.clear();
+    mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': { data: { ready: true, worker: { id: 'w', status: 'approved', display_name: '테스트', kinds: ['install'] }, counts: COUNTS } },
+        [`GET /work/jobs/${J1}`]: { data: detail({ site: SITE, site_note: null, effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'confirmed' } }) },
+      },
+    });
+    await settle();
+    const body = document.getElementById('appBody');
+    expect(body.querySelector('.site-card h3').textContent).toBe('현장');
+    expect(body.textContent).toContain('시험시 시험구 시험로 1 1동 <1호>');
+    expect(body.querySelector('.site-card a[href^="tel:"]').getAttribute('href')).toBe('tel:01000000002');
+    const kept = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + window.location.href;
+    for (const v of ['시험로', '0000-0002', '시험고객', '공동현관']) expect(kept).not.toContain(v);
   });
 });
