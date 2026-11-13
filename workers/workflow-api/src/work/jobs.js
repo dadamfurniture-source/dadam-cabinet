@@ -20,17 +20,17 @@ import { later, notifyWorkSchedule } from '../push/work-hooks.js';
 import { completeScheduleOf } from './schedule-names.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment, siteOpenFor } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
-import { approvedCompanyIds, companyNames } from './links.js';
+import { approvedLinkMap, companyNames, kindsFor } from './links.js';
 
 export const JOB_STATUSES = Object.freeze(['draft', 'open', 'filled', 'in_progress', 'review', 'done', 'closed', 'cancelled']);
 export const JOB_MODES = Object.freeze(['open', 'invite', 'direct']);
 export const PAY_UNITS = Object.freeze(['day', 'hour', 'meter', 'job']);
 
 /**
- * 검수(review)를 거치는 종류 — 현장 일(설치 · A/S · 철거)은 팩토리가 「확인」해야 끝난다.
+ * 검수(review)를 거치는 종류 — 현장 일(설치 · A/S · 철거 · 납품)은 팩토리가 「확인」해야 끝난다.
  * 공장 일(조립 · 재단 · 엣지)은 "각자 스스로 검수" (work-order-stage.plan.md) — 완료 보고로 끝난다
  */
-const REVIEWED_KINDS = Object.freeze(['install', 'as', 'demolition']);
+const REVIEWED_KINDS = Object.freeze(['install', 'as', 'demolition', 'delivery']);
 /** 자동 전이가 건드리지 않는 상태 */
 const FROZEN_STATUSES = Object.freeze(['draft', 'done', 'closed', 'cancelled']);
 /** 일이 시작된 배정 */
@@ -182,23 +182,39 @@ export async function loadWorkerSite(env, job) {
 
 const WORKER_TABS = ['open', 'mine', 'done'];
 
-/** 작업자가 모집중으로 볼 수 있는 작업인가 — 승인된 작업자 · 공개 모집 · 지원 종료일 전 · 내 종류 (정지된 작업자는 모집중 열람 경로가 없다) */
-export function isBrowsable(job, worker, now = Date.now()) {
+/**
+ * 작업자가 모집중으로 볼 수 있는 작업인가 — 승인된 작업자 · 공개 모집 · 지원 종료일 전 · 내 종류 (정지된 작업자는 모집중 열람 경로가 없다).
+ * kinds 는 그 작업을 낸 팩토리가 이 작업자에게 맡기는 종류 (연결에 적은 것 — links.js kindsFor). 안 주면 작업자가 적은 종류.
+ */
+export function isBrowsable(job, worker, now = Date.now(), kinds = worker.kinds) {
   return worker.status === 'approved'
     && job.status === 'open' && job.mode === 'open'
-    && Array.isArray(worker.kinds) && worker.kinds.includes(job.kind)
+    && Array.isArray(kinds) && kinds.includes(job.kind)
     && effectiveStatus(job, now) === 'open';
 }
 
 /**
+ * 연결까지 본 판정 — 그 작업을 낸 팩토리와 연결이 승인돼 있고, 그 팩토리가 맡기는 종류여야 한다.
+ * links 는 approvedLinkMap 의 값 (null 이면 연결 표가 없는 옛 동작 — 팩토리로 거르지 않는다).
+ */
+export function isBrowsableVia(job, worker, links, now = Date.now()) {
+  if (links === null) return isBrowsable(job, worker, now);
+  const link = links.get(job.company_id);
+  return !!link && isBrowsable(job, worker, now, kindsFor(link, worker));
+}
+
+/**
  * 모집중 탭의 작업 (마감은 읽을 때 거른다) — 연결이 승인된 팩토리의 작업만 (2026-11-13 「작업자 한 길」).
+ * 종류는 팩토리마다 그 팩토리가 맡기는 종류로 거른다 (2026-11-14 — 「A/S 만」 맡긴 작업자에게 설치 모집이 보이지 않게).
  * 연결 표가 없으면(0064 전) 옛 동작 — 팩토리로 거르지 않는다.
  */
 export async function openJobsFor(env, worker) {
-  const kinds = (worker.kinds || []).filter((k) => WORK_KINDS.includes(k));
-  if (!kinds.length) return [];
-  const linked = await approvedCompanyIds(env, worker.id);
+  const linked = await approvedLinkMap(env, worker.id);
   if (linked && !linked.size) return [];
+  const all = new Set(worker.kinds || []);
+  if (linked) for (const l of linked.values()) for (const k of kindsFor(l, worker)) all.add(k);
+  const kinds = [...all].filter((k) => WORK_KINDS.includes(k));
+  if (!kinds.length) return [];
   const q = {
     status: 'eq.open',
     mode: 'eq.open',
@@ -207,10 +223,10 @@ export async function openJobsFor(env, worker) {
     order: 'starts_at.asc.nullslast,created_at.desc',
     limit: '200',
   };
-  if (linked) q.company_id = `in.(${[...linked].join(',')})`;
+  if (linked) q.company_id = `in.(${[...linked.keys()].join(',')})`;
   const rows = (await selectMany(env, 'work_jobs', q)) || [];
   const now = Date.now();
-  return rows.filter((j) => isBrowsable(j, worker, now) && (!linked || linked.has(j.company_id)));
+  return rows.filter((j) => isBrowsableVia(j, worker, linked, now));
 }
 
 /** 카드 묶음 — 확정 수 · 내 신청 · 내 배정(pool 안에서 고른다) */
@@ -317,9 +333,9 @@ export async function getJobForWorker(env, { user, params }) {
   const myApps = apps || [];
   const myAsg = mine || [];
   if (!myApps.length && !myAsg.length) {
-    // 내 신청 · 배정이 없으면 — 모집 중이고, 연결이 승인된 팩토리의 작업일 때만 (남의 팩토리 작업은 있는지도 모르게)
-    const linked = isBrowsable(job, worker) ? await approvedCompanyIds(env, worker.id) : null;
-    if (!isBrowsable(job, worker) || (linked && !linked.has(job.company_id))) throw new NotFoundError('작업을 찾을 수 없습니다');
+    // 내 신청 · 배정이 없으면 — 모집 중이고, 연결이 승인된 팩토리가 내게 맡기는 종류의 작업일 때만 (남의 팩토리 작업은 있는지도 모르게)
+    const open = job.status === 'open' && job.mode === 'open';
+    if (!open || !isBrowsableVia(job, worker, await approvedLinkMap(env, worker.id))) throw new NotFoundError('작업을 찾을 수 없습니다');
   }
 
   const assignment = pickAssignment(myAsg);

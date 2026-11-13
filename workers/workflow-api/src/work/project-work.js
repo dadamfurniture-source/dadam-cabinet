@@ -6,11 +6,14 @@
  *   GET   /company/projects/:id/work                 그 프로젝트의 종류 줄 · 배정 · 고를 수 있는 작업자 (구성원)
  *     { project { id, title, status }, can_manage, can_assign,
  *       rows [{ key, kind, label, source: 'project' | 'schedule', schedule_id, schedule_status, at, job { id, status } | null,
- *               can_assign, workers [{ assignment_id, name, status, label, reason, …, reports[] }], candidates [{ link_id, name, kinds, region }] }] }
- *     줄: 철거 · 재단 · 엣지 · 조립은 늘 한 줄씩(프로젝트에 붙는 작업), 설치 · A/S 방문은 그 프로젝트 설계의 일정마다 한 줄.
+ *               can_assign, workers [{ assignment_id, name, status, label, reason, …, reports[] }], candidates [{ link_id, name, kinds, region }],
+ *               recruit { on, state, slots, filled, deadline, applications [{ application_id, name, message, at }] } | null }] }
+ *     줄: 철거 · 재단 · 엣지 · 조립은 늘 한 줄씩(프로젝트에 붙는 작업), 납품 · 설치 · A/S 방문은 그 프로젝트 설계의 일정마다 한 줄.
  *   POST  /company/projects/:id/work                 { kind, link_ids[], at? } — 철거 · 재단 · 엣지 · 조립 줄에 배정 (대표 · 실장)
  *     작업이 없으면 만들고(지정 방식 · 제목은 종류 이름뿐) 작업자마다 수락 대기로 넣는다. at = 작업 날짜 · 시각 (없어도 된다).
- *     설치 · A/S 줄은 일정에 붙는다 → POST /company/schedules/:id/workers (work/schedule-link.js).
+ *     납품 · 설치 · A/S 줄은 일정에 붙는다 → POST /company/schedules/:id/workers (work/schedule-link.js).
+ *   POST  /company/projects/:id/work/recruit         { kind, people, apply_deadline?, at? } | { kind, stop: true } — 그 종류 줄의 모집 올리기 · 내리기
+ *     (대표 · 실장, work/recruit.js). 일정 줄의 모집은 POST /company/schedules/:id/workers/recruit.
  *   PATCH /company/projects/:id/work/:kind           { at } — 그 종류 줄의 날짜 · 시각 (대표 · 실장). 작업이 없으면 빈 작업을 만든다.
  *     시각이 바뀌면 그 작업의 작업자에게 알린다.
  *   POST  /company/projects/:id/work/invite          { kind, schedule_id?, display_name_preset?, expires_at } — 「이 일로 바로」 초대 (대표 · 실장)
@@ -32,9 +35,10 @@ import { workersCompanyOf } from './company.js';
 import { recordEvent } from './events.js';
 import { createInviteCore } from './invites.js';
 import { computeJobStatus, loadJobAssignments, lockJob } from './jobs.js';
+import { closeRecruit, openRecruit, recruitOf } from './recruit.js';
 import { ACTIVE_STATUSES } from './reveal.js';
 import {
-  ASSIGN_MAX, SCHEDULE_COLS, SCHEDULE_JOB_KIND, createJobFor, kindsFor, liveJobOf, regionOf, syncJobWithSchedule, workerRow,
+  ASSIGN_MAX, SCHEDULE_COLS, SCHEDULE_JOB_KIND, createJobFor, kindsFor, liveJobOf, recruitFields, regionOf, syncJobWithSchedule, workerRow,
 } from './schedule-link.js';
 import { syncAssigneeName } from './schedule-names.js';
 import { later, notifyWorkSchedule } from '../push/work-hooks.js';
@@ -176,6 +180,7 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
       ...base,
       job: job ? { id: job.id, status: job.status } : null,
       can_assign: mayAssign && rowOpen && (!job || STAFFABLE.includes(job.status)),
+      recruit: await recruitOf(env, job, all),
       workers: all.slice().sort((a, b) => active(a) - active(b)).map((a) => workerRow(a, reportsOf(a.id))),
       candidates: (links || [])
         .filter((l) => byId.has(l.worker_id) && !taken.has(l.worker_id) && kindsFor(l, byId.get(l.worker_id)).includes(base.kind))
@@ -265,6 +270,33 @@ export async function assignProjectWork(env, { user, params, body, ctx }) {
     const need = taken.size + fresh.length;
     if (job.slots < need) job = await lockJob(env, job, { slots: need, status: computeJobStatus({ ...job, slots: need }, all) });
     for (const w of fresh) await inviteWorkerCore(env, { user, job, worker: w, actorKind: 'member', ctx });
+    return viewOf(env, ctx, { company, canAct, holds, project });
+  });
+}
+
+/** POST /company/projects/:id/work/recruit — 그 종류 줄의 모집 올리기 · 내리기 (철거 · 재단 · 엣지 · 조립) */
+export async function recruitProjectWork(env, { user, params, body, ctx }) {
+  const b = body || {};
+  const kind = oneOf(b.kind, PROJECT_KINDS, 'kind');
+  const f = recruitFields(b);
+  const at = b.at === undefined ? undefined : optIso(b.at, '날짜');
+  if (f.stop) {
+    // 내리기는 끝난 프로젝트 · 등급이 내려간 팩토리도 한다 (정리)
+    const scope = await workersCompanyOf(env, user, { manage: true });
+    const project = await loadProject(env, scope.company, params.id);
+    return ready(async () => {
+      const job = await projectJobOf(env, scope.company, project, kind);
+      if (job && job.mode === 'open') await closeRecruit(env, { user, job });
+      return viewOf(env, ctx, { ...scope, project });
+    });
+  }
+  const { company, canAct, holds, project } = await manageScope(env, user, params.id);
+  return ready(async () => {
+    let job = await projectJobOf(env, company, project, kind);
+    if (!job) job = await createProjectJob(env, { user, company, project, kind, at: at || null, slots: f.people });
+    else if (at !== undefined) job = await setJobTime(env, ctx, job, at);
+    if (!STAFFABLE.includes(job.status)) throw conflict('끝난 작업에는 모집할 수 없습니다', 'closed');
+    await openRecruit(env, { user, job, people: f.people, deadline: f.deadline, ctx });
     return viewOf(env, ctx, { company, canAct, holds, project });
   });
 }

@@ -9,22 +9,23 @@ import { isUuid } from '../reports/record.js';
 /**
  * 작업 종류 — work_jobs.kind. 2026-11-13 사장님 결정으로 여섯 (DB 0065): 설치 · A/S · 조립 + 재단 · 엣지 · 철거.
  * 0065 적용 전의 DB 는 앞의 셋만 받는다 — 새 종류로 쓰면 DB 가 거절하고, 부르는 쪽이 409 db_pending 으로 돌린다 (kindsPending).
+ * 2026-11-14 사장님 결정으로 일곱 (DB 0066): + 납품 — 설치 · A/S 표의 「납품」 일정 줄에도 작업자를 배정한다 (설치 작업자와 가른다).
  */
-export const WORK_KINDS = Object.freeze(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition']);
-/** 작업자 종류 — workers.kinds · worker_invites.kinds_preset · worker_companies.kinds. 작업 종류와 같은 여섯 */
+export const WORK_KINDS = Object.freeze(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition', 'delivery']);
+/** 작업자 종류 — workers.kinds · worker_invites.kinds_preset · worker_companies.kinds. 작업 종류와 같은 일곱 */
 export const WORKER_KINDS = WORK_KINDS;
-export const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거' });
-/** 프로젝트 「작업 배정」의 종류 줄 차례 — 일하는 차례 (설치 · A/S 는 일정 줄에서 온다) */
+export const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거', delivery: '납품' });
+/** 프로젝트 「작업 배정」의 종류 줄 차례 — 일하는 차례 (납품 · 설치 · A/S 는 일정 줄에서 온다) */
 export const PROJECT_KINDS = Object.freeze(['demolition', 'cutting', 'edge', 'assembly']);
 
 /**
- * DB 가 새 종류 · 새 칸을 아직 모른다 (0065 적용 전) → 409 db_pending. 그 밖의 오류는 그대로 던진다.
+ * DB 가 새 종류 · 새 칸을 아직 모른다 (0065 · 0066 적용 전) → 409 db_pending. 그 밖의 오류는 그대로 던진다.
  * 종류 제약(23514) · 없는 칸(42703 · PGRST204) 을 본다.
  */
 export function kindsPending(e) {
   const text = String((e && e.message) || '');
   if (!/23514|42703|PGRST204/.test(text)) return e;
-  const err = new ConflictError('DB 0065 적용 전입니다 — 철거 · 재단 · 엣지 작업과 프로젝트 작업 배정은 적용 뒤에 쓸 수 있습니다');
+  const err = new ConflictError('DB 적용 전입니다 — 새 작업 종류(철거 · 재단 · 엣지는 0065, 납품은 0066)와 프로젝트 작업 배정은 적용 뒤에 쓸 수 있습니다');
   err.code = 'db_pending';
   return err;
 }

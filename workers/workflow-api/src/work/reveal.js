@@ -5,7 +5,8 @@
  *   - 금액은 pay_visible 일 때만 (원가 · 마진은 어디에도 없다)
  *   - 주문번호 · 가린 고객 이름은 내 배정이 활성일 때만
  *   - 현장 주소 · 층 · 출입 메모 · 현장 연락처는 **내가 수락한 때부터 작업이 끝나고(확인된 때) 7일까지만** (siteOpenFor —
- *     2026-11-13 사장님 결정 ⑤ · 처리방침 「5. 제3자 제공」의 시공 작업자 줄). 설치 · A/S 작업만.
+ *     2026-11-13 사장님 결정 ⑤ · 처리방침 「5. 제3자 제공」의 시공 작업자 줄). 현장 일(설치 · A/S · 철거 · 납품)만.
+ *     모집에 신청해서 뽑힌 작업자는 뽑힌 때(배정 confirmed)부터 같다 — 신청만 한 작업자에게는 열리지 않는다.
  *     수락 전 · 거절 · 포기 · 제외 · 취소된 작업 · 7일이 지난 작업은 site: null + 안내 문구
  *   - 다른 작업자의 이름 · 신청 · 관리자 메모는 없다
  * 금지 키(FORBIDDEN_KEYS)는 시험이 모든 작업자 응답을 깊이 훑어 고정한다 — address 는 열린 site 아래에서만 허용한다.
@@ -22,8 +23,8 @@ export const SITE_NOTE = '현장 주소·연락처는 배정을 수락한 뒤부
 export const SITE_EMPTY_NOTE = '현장 주소·연락처가 아직 입력되지 않았습니다. 팩토리에 확인해 주세요';
 /** 작업이 끝난(완료 보고를 팩토리가 확인한) 뒤 현장을 여는 날 수 — 사장님 결정 ⑤ */
 export const SITE_OPEN_DAYS = 7;
-/** 현장이 있는 작업 종류 — 설치 · A/S · 철거 (공장 일 조립 · 재단 · 엣지는 현장이 없다) */
-export const SITE_KINDS = Object.freeze(['install', 'as', 'demolition']);
+/** 현장이 있는 작업 종류 — 설치 · A/S · 철거 · 납품 (공장 일 조립 · 재단 · 엣지는 현장이 없다) */
+export const SITE_KINDS = Object.freeze(['install', 'as', 'demolition', 'delivery']);
 /** 수락한 뒤 ~ 확인 전 — 이 상태의 배정은 현장을 본다 */
 export const SITE_OPEN_STATUSES = Object.freeze(['confirmed', 'started', 'submitted', 'revision']);
 const DAY_MS = 24 * 3600 * 1000;

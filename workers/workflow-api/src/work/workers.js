@@ -17,6 +17,7 @@
  */
 
 import { ConflictError, NotFoundError, ValidationError, insertOne, selectMany, selectOne, updateBy } from '../supabase.js';
+import { withdrawApplicationsOnLeave } from './applications.js';
 import { declineOffersOnLeave } from './assignments.js';
 import { isMissingRelation } from '../work-order-data.js';
 import { WORKER_ACCESS_STATUSES, loadSelfWorker, requireAdminEditor, requireAdminReader } from './access.js';
@@ -26,9 +27,9 @@ import { notifyWork } from './notify.js';
 import { later, notifyCompanyWork, notifyWorkerStatus } from '../push/work-hooks.js';
 import { workerSelf } from './reveal.js';
 import { factoryRolesOf, openFactoryOf } from './factory.js';
-import { assertUuid, kindsOf, oneOf, optBool, optPhone, optText, reqText } from './validate.js';
+import { assertUuid, kindsOf, kindsPending, oneOf, optBool, optPhone, optText, reqText } from './validate.js';
 import { hqCompanyId } from '../supabase.js';
-import { companyNames, linksOfWorker, requestLink, syncHqLink } from './links.js';
+import { companyNames, linksOfWorker, requestLink, syncHqLink, syncHqLinkKinds } from './links.js';
 
 export const WORKER_STATUSES = Object.freeze(['pending', 'approved', 'suspended', 'rejected']);
 /** 화면 · 409 문구의 상태 이름 */
@@ -168,7 +169,8 @@ export async function registerWorker(env, { user, body, ctx }) {
     row = await insertOne(env, 'workers', { user_id: user.id, ...fields, status: 'pending', consent_at: nowIso() });
   } catch (err) {
     if (err instanceof ConflictError) throw new ConflictError('이미 작업자로 등록돼 있습니다');
-    throw err;
+    // DB 가 아직 모르는 종류(납품 — 0066 전)면 409 db_pending
+    throw kindsPending(err);
   }
   await recordWorkerEvent(env, { workerId: row.id, actorUserId: user.id, actorKind: 'worker', type: 'registered', to: 'pending', payload: { via: 'public' } });
   // 초대 없는 공개 신청은 다담 공장이 받는다 — 다담 공장 연결을 대기로 (연결 표가 없으면 넘어간다)
@@ -188,6 +190,7 @@ export const LEFT_OFFER_REASON = '팩토리와의 연결을 끊어 제안이 끝
  * POST /work/links/:id/leave — 작업자가 스스로 팩토리와의 연결을 끊는다 (대기 중이면 신청을 거둔다).
  *   연결 → ended (decided_by = 작업자 본인 → 팩토리 화면에 「작업자가 끊음」).
  *   그 팩토리가 낸 작업의 답 없는 제안은 거절로 끝난다. 수락한 작업(확정 · 작업 중 · 완료 보고 · 보완요청)은 끝까지 간다.
+ *   그 팩토리의 모집에 내고 답을 기다리던 신청은 거둔다.
  *   승인 · 정지된 연결을 끊으면 그 팩토리 대표 · 실장에게 알린다 (대기 신청을 거둘 때는 알리지 않는다).
  * → { id, status, company_name, declined, working }.
  * 없는 연결 · 남의 연결 404, 반려된 연결 409. 이미 끝난 연결은 그대로 돌려준다 (여러 번 눌러도 같은 결과).
@@ -228,6 +231,9 @@ export async function leaveLink(env, { user, params, ctx }) {
       console.warn('[work] 연결 끊김 — 제안 정리 실패:', e && e.message);
       return 0;
     });
+  await withdrawApplicationsOnLeave(env, { user, worker, companyId: link.company_id }).catch((e) => {
+    console.warn('[work] 연결 끊김 — 신청 정리 실패:', e && e.message);
+  });
   const held = (await heldByCompany(env, worker).catch(() => new Map())).get(link.company_id);
   if (link.status !== 'pending') {
     await later(ctx, notifyCompanyWork(env, {
@@ -298,7 +304,9 @@ export async function patchWorkerAdmin(env, { user, params, body, ctx }) {
   }
   if (!Object.keys(patch).length) throw new ValidationError('바꿀 칸이 없습니다');
 
-  const rows = await updateBy(env, 'workers', { id: `eq.${id}`, status: `eq.${worker.status}` }, { ...patch, updated_at: nowIso() });
+  const rows = await updateBy(env, 'workers', { id: `eq.${id}`, status: `eq.${worker.status}` }, { ...patch, updated_at: nowIso() }).catch((e) => {
+    throw kindsPending(e);
+  });
   if (!rows || !rows.length) throw new ConflictError('작업자 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요');
   if (patch.status) {
     await recordWorkerEvent(env, {
@@ -313,6 +321,8 @@ export async function patchWorkerAdmin(env, { user, params, body, ctx }) {
     await later(ctx, notifyWorkerStatus(env, { worker: rows[0], status: patch.status }));
   }
   if (patch.kinds && !sameKinds(patch.kinds, worker.kinds)) {
+    // 다담 공장 연결의 종류도 같이 — 모집중 작업은 팩토리마다 연결에 적은 종류로 거른다
+    await syncHqLinkKinds(env, { worker: rows[0], kinds: patch.kinds });
     await recordWorkerEvent(env, { workerId: id, actorUserId: user.id, actorKind: 'admin', type: 'kinds_changed', payload: { kinds: patch.kinds } });
   }
   return rows[0];

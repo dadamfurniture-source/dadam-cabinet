@@ -70,6 +70,19 @@ export async function linkOf(env, companyId, workerId) {
   }
 }
 
+/** 이 팩토리가 그 작업자에게 맡기는 종류 — 연결에 적은 것, 없으면 작업자가 적은 것 */
+export const kindsFor = (link, worker) => (link && link.kinds && link.kinds.length ? link.kinds : (worker && worker.kinds) || []);
+
+/**
+ * 작업자의 승인된 연결 — Map(팩토리 id → 연결 줄). 표가 없으면 null (= 옛 동작, 거르지 않는다).
+ * 모집중 작업을 볼 때 팩토리마다 맡기는 종류(kindsFor)로 거른다.
+ */
+export async function approvedLinkMap(env, workerId) {
+  const rows = await linksOfWorker(env, workerId);
+  if (rows === null) return null;
+  return new Map(rows.filter((l) => l.status === 'approved').map((l) => [l.company_id, l]));
+}
+
 /** 표가 있는가 (0064 적용됨) */
 export async function linksReady(env) {
   const rows = await orNull(() => selectMany(env, 'worker_companies', { select: 'id', limit: '1' }));
@@ -116,6 +129,24 @@ export async function requestLink(env, { companyId, workerId, via, inviteId = nu
       throw e;
     }
   });
+}
+
+/**
+ * 사이트 관리자가 작업자의 종류를 바꿨다 (PC 관리자 화면) → 다담 공장 연결의 종류도 같이 맞춘다.
+ * (모집중 작업은 팩토리마다 연결에 적은 종류로 거른다 — 안 맞추면 다담 공장의 새 종류 작업이 안 보인다.) 실패해도 던지지 않는다.
+ */
+export async function syncHqLinkKinds(env, { worker, kinds }) {
+  try {
+    const hq = await hqCompanyId(env);
+    if (!hq) return null;
+    const cur = await linkOf(env, hq, worker.id);
+    if (!cur) return null;
+    const rows = await updateBy(env, 'worker_companies', { id: `eq.${cur.id}` }, { kinds: kinds || [], updated_at: nowIso() });
+    return (rows && rows[0]) || cur;
+  } catch (e) {
+    console.warn('[work] 다담 공장 연결 종류 맞추기 실패:', e && e.message);
+    return null;
+  }
 }
 
 /**

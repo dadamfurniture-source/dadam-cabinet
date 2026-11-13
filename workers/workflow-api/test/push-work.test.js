@@ -20,6 +20,7 @@ import {
   WORK_MANAGER_KINDS,
   COMPANY_WORKERS_URL,
   COMPANY_INSTALL_URL,
+  COMPANY_PROJECT_URL,
   COMPANY_AS_URL,
   workDay,
 } from '../src/push/messages.js';
@@ -288,6 +289,10 @@ test('팩토리용 글 — 연결 신청 · 배정 답 · 작업 보고. 이름 
     ['work_link_request', {}, '작업자 연결 신청', '작업자가 팩토리 연결을 신청했습니다. 인사 › 작업자에서 확인해 주세요.', COMPANY_WORKERS_URL],
     ['work_link_request', { left: true }, '작업자 연결 끊김', '작업자가 팩토리 연결을 끊었습니다. 인사 › 작업자에서 확인해 주세요.', COMPANY_WORKERS_URL],
     ['work_reply', { reply: 'confirmed', jobKind: 'install', startsAt: at }, '작업 배정 답', '작업자가 11/5(목) 설치 작업 배정을 수락했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
+    // 납품 줄은 설치 화면에 있다 · 모집에 신청한 것은 글만 다르다 (2026-11-14)
+    ['work_reply', { reply: 'confirmed', jobKind: 'delivery', startsAt: at }, '작업 배정 답', '작업자가 11/5(목) 납품 작업 배정을 수락했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
+    ['work_reply', { reply: 'applied', jobKind: 'install', startsAt: at }, '작업 신청', '작업자가 11/5(목) 설치 작업 모집에 신청했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
+    ['work_reply', { reply: 'applied', jobKind: 'cutting', startsAt: null }, '작업 신청', '작업자가 재단 작업 모집에 신청했습니다. 프로젝트에서 확인해 주세요.', COMPANY_PROJECT_URL],
     ['work_reply', { reply: 'declined', jobKind: 'as', startsAt: at }, '작업 배정 답', '작업자가 11/5(목) A/S 작업 배정을 거절했습니다. 일정에서 확인해 주세요.', COMPANY_AS_URL],
     ['work_reply', { reply: 'released', jobKind: 'install', startsAt: null }, '작업 배정 답', '작업자가 설치 작업 배정을 포기했습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],
     ['work_report', { report: 'result', jobKind: 'install', startsAt: at }, '작업 완료 보고', '11/5(목) 설치 작업 완료 보고가 왔습니다. 일정에서 확인해 주세요.', COMPANY_INSTALL_URL],

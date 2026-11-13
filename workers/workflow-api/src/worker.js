@@ -34,6 +34,8 @@
  *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
  *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
  *   GET|POST /company/projects/:id/work · PATCH …/work/:kind · POST …/work/invite — 프로젝트의 작업 배정 (src/work/project-work.js)
+ *   POST /company/projects/:id/work/recruit · POST /company/schedules/:id/workers/recruit — 모집 올리기 · 내리기,
+ *     POST /company/work/applications/:id/approve|reject — 신청한 작업자 뽑기 · 반려 (src/work/recruit.js, 2026-11-14)
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
@@ -47,7 +49,7 @@
  *   GET|POST /stock/orders · POST /stock/orders/:id/receive · POST /stock/orders/:id/cancel — 재고 구매 발주 (src/stock-orders.js, DB 0062)
  *   GET /stock/needs · PUT /stock/links · POST /stock/needs/:orderId/issue · GET /stock/needs/:orderId/offcuts — 작업지시 자재 ↔ 재고 (src/stock-needs.js, DB 0063)
  *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
- *   GET|POST /company/schedules/:id/workers — 설치 · A/S 방문 일정 줄의 작업자 배정 (src/work/schedule-link.js)
+ *   GET|POST /company/schedules/:id/workers — 납품 · 설치 · A/S 방문 일정 줄의 작업자 배정 (src/work/schedule-link.js)
  *   POST /company/work/assignments/:id/accept|revision|remove — 팩토리 대표 · 실장의 완료 보고 확인 · 보완요청 · 빼기
  *   GET  /company/sites?kind=install|as · PUT /company/sites/geo · PUT /company/as-requests/:id/visit —
  *                                 설치 · A/S 지도 + 표: 현장 좌표 · A/S 방문 일정 (src/company-sites.js, DB 0058)
@@ -189,9 +191,10 @@ import { listCompanyWorkers, createCompanyInvite, revokeCompanyInvite, patchComp
 import { getCompanyWorker, addCompanyWorkerNote } from './work/company-worker.js';
 import {
   listScheduleWorkers, assignScheduleWorkers, acceptCompanyAssignment, reviseCompanyAssignment, removeCompanyAssignment,
-  keepAssigneeName, syncJobWithSchedule,
+  keepAssigneeName, syncJobWithSchedule, recruitScheduleWorkers,
 } from './work/schedule-link.js';
-import { listProjectWork, assignProjectWork, patchProjectWork, inviteProjectWork } from './work/project-work.js';
+import { listProjectWork, assignProjectWork, patchProjectWork, inviteProjectWork, recruitProjectWork } from './work/project-work.js';
+import { approveCompanyApplication, rejectCompanyApplication } from './work/recruit.js';
 import {
   listJobsForWorker,
   getJobForWorker,
@@ -1503,10 +1506,11 @@ const router = createRouter([
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
   { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
-  // 프로젝트의 작업 배정 — 종류 줄(철거 · 재단 · 엣지 · 조립 · 설치 · A/S)마다 작업자 (src/work/project-work.js, DB 0064 · 0065)
+  // 프로젝트의 작업 배정 — 종류 줄(철거 · 재단 · 엣지 · 조립 · 납품 · 설치 · A/S)마다 작업자 (src/work/project-work.js, DB 0064 · 0065 · 0066)
   { method: 'GET',   path: '/company/projects/:id/work',          auth: 'jwt', handler: workRoute(listProjectWork) },
   { method: 'POST',  path: '/company/projects/:id/work',          auth: 'jwt', handler: workRoute(assignProjectWork) },
   { method: 'POST',  path: '/company/projects/:id/work/invite',   auth: 'jwt', handler: workRoute(inviteProjectWork, 201) },
+  { method: 'POST',  path: '/company/projects/:id/work/recruit',  auth: 'jwt', handler: workRoute(recruitProjectWork) },
   { method: 'PATCH', path: '/company/projects/:id/work/:kind',    auth: 'jwt', handler: workRoute(patchProjectWork) },
   { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
   // 업체 견적 목록 — 고객 확인서 모아 읽기 (src/company-quotes.js)
@@ -1554,6 +1558,10 @@ const router = createRouter([
   // 일정 줄에서 작업자 배정 · 완료 보고 확인 (src/work/schedule-link.js, DB 0064)
   { method: 'GET',  path: '/company/schedules/:id/workers',       auth: 'jwt', handler: workRoute(listScheduleWorkers) },
   { method: 'POST', path: '/company/schedules/:id/workers',       auth: 'jwt', handler: workRoute(assignScheduleWorkers) },
+  { method: 'POST', path: '/company/schedules/:id/workers/recruit', auth: 'jwt', handler: workRoute(recruitScheduleWorkers) },
+  //   모집에 신청한 작업자 뽑기 · 반려 — 내 팩토리 작업의 신청만 (src/work/recruit.js)
+  { method: 'POST', path: '/company/work/applications/:id/approve', auth: 'jwt', handler: workRoute(approveCompanyApplication) },
+  { method: 'POST', path: '/company/work/applications/:id/reject',  auth: 'jwt', handler: workRoute(rejectCompanyApplication) },
   { method: 'POST', path: '/company/work/assignments/:id/accept',   auth: 'jwt', handler: workRoute(acceptCompanyAssignment) },
   { method: 'POST', path: '/company/work/assignments/:id/revision', auth: 'jwt', handler: workRoute(reviseCompanyAssignment) },
   { method: 'POST', path: '/company/work/assignments/:id/remove',   auth: 'jwt', handler: workRoute(removeCompanyAssignment) },
