@@ -164,5 +164,13 @@ describe('0064 — 작업자 ↔ 팩토리 연결', () => {
     ])
       expect(names).toContain(word);
     expect(probe.checks.length).toBeGreaterThanOrEqual(25);
+    // 실행기는 칸마다 되돌린다 (SAVEPOINT → ROLLBACK TO) — 앞 칸에서 지운 것은 다음 칸에 남지 않는다.
+    // 일정 지우기는 준비 단계에서 하고, 칸은 그 뒤 모습을 읽기만 한다 (2026-11-13 실DB 미리 보기에서 한 칸이 어긋났다)
+    expect(probe.setup).toContain('DELETE FROM public.design_schedules WHERE id = {{sched_z}}');
+    expect(probe.checks.some((c) => /^\s*delete\s+from\s+public\.design_schedules/i.test(c.sql))).toBe(false);
+    const cleared = probe.checks.find((c) => c.name.startsWith('일정이 지워지면 작업의 일정 칸이 빈다'));
+    expect(cleared.sql).toContain('{{job_z}}');
+    expect(cleared.expect.service_role).toBe('true');
+    expect(probe.title).toContain('칸은 하나씩 되돌린다');
   });
 });
