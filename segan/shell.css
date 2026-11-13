@@ -1648,6 +1648,95 @@ button.sm-num[aria-pressed='true'] {
   overflow-wrap: anywhere;
 }
 
+/* 설치 · A/S 줄의 작업자 칸 (segan/site-map.js workersHtml) — 배정된 작업자 줄 · 보고 글 · 고르기.
+   물음 칸 · 고르기 단추는 인사 › 작업자 화면(.pw-ask · .cs-choices · .cw-label)과 같은 것을 쓴다 */
+.sm-wk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--v5-line-18);
+}
+
+.sm-wk-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--v5-ink-60);
+}
+
+.sm-wk-list,
+.sm-wk-reports {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sm-wk-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line-18);
+}
+
+.sm-wk-item--on {
+  background: var(--v5-well);
+}
+
+.sm-wk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.sm-wk-name {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.sm-wk-state {
+  color: var(--v5-ink-60);
+}
+
+.sm-wk-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+  margin-left: auto;
+}
+
+.sm-wk-item .mk-note {
+  margin: 4px 0 0;
+}
+
+.sm-wk-reports li {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.sm-wk-when {
+  display: block;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.sm-wk .pw-ask {
+  margin-top: 0;
+}
+
+.sm-wk .pw-ask .mk-input {
+  margin-top: 10px;
+  max-width: 420px;
+}
+
+.sm-wk .cw-label {
+  margin: 4px 0 0;
+}
+
 @media (min-width: 720px) {
   .sm-mapwrap {
     height: 380px;
