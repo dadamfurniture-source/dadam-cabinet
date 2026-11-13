@@ -207,6 +207,14 @@ test('받을 기기 · 보낼 글 · 결과 나누기', () => {
   ];
   assert.deepEqual(targetsFor({ user_id: U.owner, company_id: CO.partner }, subs).map((s) => s.id), [1]);
   assert.deepEqual(targetsFor({ user_id: U.owner, company_id: null }, subs).map((s) => s.id), [2]);
+  // 작업자 알림(업체 없음)은 그 사람의 기기 모두 — 팩토리 구성원이기도 한 작업자의 기기는 업체에 묶여 있다 (2026-11-14)
+  for (const kind of ['work_invited', 'work_registration', 'work_assigned', 'work_schedule']) {
+    assert.deepEqual(targetsFor({ user_id: U.owner, company_id: null, kind }, subs).map((s) => s.id), [1, 2], kind);
+    assert.deepEqual(targetsFor({ user_id: U.staff, company_id: null, kind }, subs).map((s) => s.id), [3], kind);
+  }
+  // 업체 없는 다른 알림(업체 신청)과 업체 칸이 있는 알림은 전처럼 — 남의 기기로는 가지 않는다
+  assert.deepEqual(targetsFor({ user_id: U.owner, company_id: null, kind: 'partner_application' }, subs).map((s) => s.id), [2]);
+  assert.deepEqual(targetsFor({ user_id: U.owner, company_id: CO.partner, kind: 'work_reply' }, subs).map((s) => s.id), [1]);
   assert.deepEqual(payloadOf({ id: 'x', kind: 'billing_failed', ref_id: REF, title: 't', body: 'b', url: '/segan/me.html', user_id: U.owner }), {
     title: 't',
     body: 'b',

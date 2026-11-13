@@ -40,6 +40,8 @@
  *   GET|PUT /company/shifts — 근무 일정(쉬는 날), 구성원이 보고 대표 · 실장이 적는다 (src/work-shifts.js, DB 0060)
  *   GET /company/workers · POST /company/workers/invites(/:id/revoke) · PATCH /company/workers/:linkId — 팩토리의 작업자:
  *     연결된 작업자 · 초대 · 승인 · 정지 (src/work/company.js, DB 0064 — 2026-11-13 「작업자 한 길」). POST /work/invites/peek 는 초대 미리보기
+ *   GET /company/workers/:linkId · POST /company/workers/:linkId/notes — 작업자 한 명의 이력 · 메모 (src/work/company-worker.js, 메모는 DB 0066)
+ *   POST /work/links/:id/leave — 작업자가 스스로 팩토리와의 연결을 끊는다 (src/work/workers.js)
  *   GET|POST /stock/items · PATCH /stock/items/:id · POST /stock/items/:id/moves · GET /stock/moves — 재고 품목 · 입출고 (src/stock.js, DB 0059)
  *   GET|POST /stock/offcuts · PATCH /stock/offcuts/:id · GET /stock/offcuts/:id/events · POST /stock/offcuts/labels · GET /stock/summary — 자투리 · 재고 숫자 (src/stock-offcuts.js, DB 0059)
  *   GET|POST /stock/orders · POST /stock/orders/:id/receive · POST /stock/orders/:id/cancel — 재고 구매 발주 (src/stock-orders.js, DB 0062)
@@ -181,9 +183,10 @@ import {
   applyCalibration,
 } from './production/worker-access.js';
 import { runConsultNotices, runPartnerApplicationNotices, isConsultNoticeMinute } from './consult-notify.js';
-import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
+import { getMe, registerWorker, leaveLink, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite, peekInvite } from './work/invites.js';
 import { listCompanyWorkers, createCompanyInvite, revokeCompanyInvite, patchCompanyWorker } from './work/company.js';
+import { getCompanyWorker, addCompanyWorkerNote } from './work/company-worker.js';
 import {
   listScheduleWorkers, assignScheduleWorkers, acceptCompanyAssignment, reviseCompanyAssignment, removeCompanyAssignment,
   keepAssigneeName, syncJobWithSchedule,
@@ -1519,6 +1522,9 @@ const router = createRouter([
   { method: 'POST',  path: '/company/workers/invites',             auth: 'jwt', handler: workRoute(createCompanyInvite, 201) },
   { method: 'POST',  path: '/company/workers/invites/:id/revoke',  auth: 'jwt', handler: workRoute(revokeCompanyInvite) },
   { method: 'PATCH', path: '/company/workers/:linkId',             auth: 'jwt', handler: workRoute(patchCompanyWorker) },
+  //   작업자 한 명 — 내 팩토리에서 한 일 · 연결 이력 · 메모 (src/work/company-worker.js, 메모는 DB 0066)
+  { method: 'GET',   path: '/company/workers/:linkId',             auth: 'jwt', handler: workRoute(getCompanyWorker) },
+  { method: 'POST',  path: '/company/workers/:linkId/notes',       auth: 'jwt', handler: workRoute(addCompanyWorkerNote, 201) },
   { method: 'GET',  path: '/company/shifts',                      auth: 'jwt', handler: workRoute((env, a) => listShifts(env, a)) },
   { method: 'PUT',  path: '/company/shifts',                      auth: 'jwt', handler: workRoute((env, a) => putShift(env, a)) },
   // 재고 — 판재 · 철물 품목과 입출고 (src/stock.js, DB 0059)
@@ -1654,6 +1660,8 @@ const router = createRouter([
   { method: 'POST',  path: '/work/register',                          auth: 'jwt', handler: workRoute(registerWorker, 201) },
   { method: 'POST',  path: '/work/invites/peek',                      auth: 'jwt', handler: workRoute(peekInvite) },
   { method: 'POST',  path: '/work/claim-invite',                      auth: 'jwt', handler: workRoute(claimInvite, 201) },
+  //   작업자가 스스로 연결을 끊는다 — 계정 상태와 상관없이 본인의 연결이면 된다 (대기 중이면 신청을 거둔다)
+  { method: 'POST',  path: '/work/links/:id/leave',                   auth: 'jwt', handler: workRoute(leaveLink) },
   { method: 'GET',   path: '/work/jobs',                              auth: 'jwt', handler: workRoute(listJobsForWorker) },
   { method: 'GET',   path: '/work/jobs/:id',                          auth: 'jwt', handler: workRoute(getJobForWorker) },
   { method: 'POST',  path: '/work/jobs/:id/apply',                    auth: 'jwt', handler: workRoute(applyToJob, 201) },

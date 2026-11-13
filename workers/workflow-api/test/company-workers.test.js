@@ -2,6 +2,8 @@
  * 팩토리의 작업자 — src/work/company.js 를 워커로 부른다 (2026-11-13 「작업자 한 길」, DB 0064).
  *   GET /company/workers · POST /company/workers/invites · POST …/invites/:id/revoke · PATCH /company/workers/:linkId
  *   + 작업자 쪽: POST /work/invites/peek · POST /work/claim-invite (팩토리 초대)
+ *   + 작업자가 스스로 끊기: POST /work/links/:id/leave (2026-11-14)
+ *   + 작업자 한 명 — 이력 · 메모: GET /company/workers/:linkId · POST …/notes (src/work/company-worker.js, DB 0066)
  * 가짜 Supabase 는 test/helpers/distribution-fake.js. 시험 데이터는 모두 가짜다.
  */
 import { test, beforeEach } from 'node:test';
@@ -53,6 +55,10 @@ const JOB_A = rid(21);
 const JOB_B = rid(22);
 const INV_A = rid(31);
 const INV_B = rid(32);
+const JOB_A2 = rid(23);
+const JOB_A3 = rid(24);
+const PROJ_A = rid(51);
+const MEMO = '주말에도 가능 · 상부장 설치가 꼼꼼하다';
 const PHONE = '010-0000-0001';
 const FAR = '2099-01-01T00:00:00.000Z';
 
@@ -103,8 +109,8 @@ function tables() {
       { id: rid(33), token_hash: 'hash-old', kinds_preset: [], display_name_preset: null, expires_at: '2020-01-01T00:00:00.000Z', used_at: null, used_by: null, revoked_at: null, company_id: A, created_at: '2020-01-01T00:00:00.000Z' },
     ],
     work_jobs: [
-      { id: JOB_A, company_id: A, kind: 'install', status: 'filled', title: '시험 설치' },
-      { id: JOB_B, company_id: B, kind: 'install', status: 'filled', title: '남의 설치' },
+      { id: JOB_A, company_id: A, kind: 'install', status: 'filled', title: '시험 설치', slots: 1, version: 0, starts_at: '2026-11-20T01:00:00.000Z', schedule_id: rid(61), project_id: null },
+      { id: JOB_B, company_id: B, kind: 'install', status: 'filled', title: '남의 설치', slots: 2, version: 0, starts_at: '2026-11-21T01:00:00.000Z', schedule_id: rid(62), project_id: null },
     ],
     work_assignments: [
       { id: rid(41), job_id: JOB_A, worker_id: W1, status: 'confirmed' },
@@ -112,6 +118,13 @@ function tables() {
       { id: rid(43), job_id: JOB_B, worker_id: W1, status: 'offered' },
     ],
     worker_events: [],
+    work_job_events: [],
+    work_applications: [],
+    work_updates: [],
+    factory_workers: [],
+    worker_company_notes: [],
+    projects: [{ id: PROJ_A, company_id: A, title: '시험 프로젝트' }],
+    profiles: [{ id: OWNER_A, name: '시험대표' }, { id: MANAGER_A, name: null }],
   };
 }
 
@@ -123,6 +136,9 @@ const patch = (fake, id, body, token = OWNER_A) => call(fake, `/company/workers/
 const invite = (fake, body, token = OWNER_A) => call(fake, '/company/workers/invites', token, { method: 'POST', body });
 const linkRow = (fake, id) => fake.db.worker_companies.find((l) => l.id === id);
 const outbox = (fake) => fake.db.notification_outbox;
+const leave = (fake, id, token) => call(fake, `/work/links/${id}/leave`, token, { method: 'POST', body: {} });
+const one = (fake, id, token = OWNER_A) => call(fake, `/company/workers/${id}`, token);
+const note = (fake, id, body, token = OWNER_A) => call(fake, `/company/workers/${id}/notes`, token, { method: 'POST', body });
 
 // ── 순수 ──────────────────────────────────────────────────────
 
@@ -365,4 +381,200 @@ test('그 사이 다른 사람이 바꿨으면 409 stale', async () => {
   const r = await patch(fake, L_A2, { status: 'approved' });
   assert.deepEqual([r.status, r.json.code], [409, 'stale']);
   assert.equal(fake.db.workers.find((x) => x.id === W2).status, 'pending');
+});
+
+// ── 작업자가 스스로 끊기 (2026-11-14) ───────────────────────────
+
+test('작업자가 스스로 연결을 끊는다 — 연결은 끝, 답 안 한 제안은 거절로, 수락한 작업은 그대로. 대표 · 실장에게 알림', async () => {
+  const fake = fakeOf();
+  // 팩토리 A 의 다른 작업에 답 안 한 제안이 하나 있다
+  fake.db.work_jobs.push({ id: JOB_A2, company_id: A, kind: 'install', status: 'open', title: '설치', slots: 1, version: 0, starts_at: null, schedule_id: null, project_id: PROJ_A });
+  fake.db.work_assignments.push({ id: rid(44), job_id: JOB_A2, worker_id: W1, status: 'offered', worker_name_snapshot: '시험기사A', created_at: '2026-11-13T00:00:00.000Z' });
+
+  // 끊기 전 — 내 연결 목록에 연결 id 와 맡은 일 수 (팩토리 id 는 없다)
+  const me = (await call(fake, '/work/me', U_W1)).json.data.links;
+  assert.deepEqual(me.map((l) => [l.id, l.company_name, l.status, l.offered, l.working]).sort(), [
+    [L_A1, '가나 인테리어', 'approved', 1, 1],
+    [L_B1, '다라 가구', 'approved', 1, 1],
+    [L_HELD, '멈춘 업체', 'pending', 0, 0],
+  ].sort());
+  for (const banned of [A, B, HELD]) assert.equal(JSON.stringify(me).includes(banned), false);
+
+  const r = await leave(fake, L_A1, U_W1);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(r.json.data, { id: L_A1, status: 'ended', company_name: '가나 인테리어', declined: 1, working: 1 });
+  const row = linkRow(fake, L_A1);
+  assert.deepEqual([row.status, row.decided_by, row.reason, !!row.decided_at], ['ended', U_W1, null, true]);
+  // 답 안 한 제안은 거절로 끝나고 사유가 남는다 — 수락한 작업(확정)은 그대로, 남의 팩토리 제안도 그대로
+  const asg = (id) => fake.db.work_assignments.find((x) => x.id === id);
+  assert.deepEqual([asg(rid(44)).status, asg(rid(44)).release_reason], ['declined', '팩토리와의 연결을 끊어 제안이 끝났습니다']);
+  assert.equal(asg(rid(41)).status, 'confirmed');
+  assert.deepEqual([asg(rid(42)).status, asg(rid(43)).status], ['started', 'offered']);
+  assert.equal(linkRow(fake, L_B1).status, 'approved', '다른 팩토리와의 연결은 그대로');
+  // 이력 — 작업자 본인이 끊었다
+  assert.deepEqual(fake.db.worker_events.map((e) => [e.type, e.actor_kind, e.from_status, e.to_status, e.payload.link_id]), [['link_left', 'worker', 'approved', 'ended', L_A1]]);
+  // 대표 · 실장에게만 — 글에 이름 · 전화가 없다
+  const sent = outbox(fake).filter((n) => n.kind === 'work_link_request');
+  assert.deepEqual(sent.map((n) => [n.user_id, n.company_id, n.title]).sort(), [[OWNER_A, A, '작업자 연결 끊김'], [MANAGER_A, A, '작업자 연결 끊김']].sort());
+  for (const n of sent) assert.equal(/시험기사|010/.test(n.title + n.body), false);
+  assert.equal(outbox(fake).filter((n) => n.kind === 'work_reply').length, 0, '제안마다 따로 알리지 않는다');
+
+  // 팩토리 화면 — 「작업자가 끊음」
+  const w = (await list(fake, OWNER_A)).json.data.workers.find((x) => x.link_id === L_A1);
+  assert.deepEqual([w.status, w.ended_by, w.active], ['ended', 'worker', 1]);
+  // 내 연결 목록에서는 사라진다
+  assert.deepEqual((await call(fake, '/work/me', U_W1)).json.data.links.map((l) => l.id).sort(), [L_B1, L_HELD].sort());
+
+  // 한 번 더 눌러도 같은 결과 — 알림은 다시 가지 않는다
+  const again = await leave(fake, L_A1, U_W1);
+  assert.deepEqual([again.status, again.json.data.status], [200, 'ended']);
+  assert.equal(outbox(fake).filter((n) => n.kind === 'work_link_request').length, 2);
+});
+
+test('연결 끊기 — 남의 연결 · 작업자가 아닌 사람 404, 대기는 신청 거두기(알림 없음), 반려는 409, 팩토리가 끊은 것은 company', async () => {
+  const fake = fakeOf();
+  assert.equal((await leave(fake, L_A2, U_W1)).status, 404, '남의 연결');
+  assert.equal((await leave(fake, L_A1, NOBODY)).status, 404, '작업자가 아니다');
+  assert.equal((await leave(fake, L_A1, OWNER_A)).status, 404, '팩토리 대표도 이 경로로는 못 끊는다');
+  assert.equal((await leave(fake, 'not-a-uuid', U_W1)).status, 422);
+  assert.equal((await leave(fake, L_A1, null)).status, 401);
+  assert.equal(linkRow(fake, L_A1).status, 'approved');
+
+  // 대기 중인 신청을 거둔다 (계정이 대기여도 된다) — 팩토리에 알리지 않는다
+  const w = await leave(fake, L_A2, U_W2);
+  assert.deepEqual([w.status, w.json.data.status, linkRow(fake, L_A2).status], [200, 'ended', 'ended']);
+  assert.equal(outbox(fake).length, 0);
+  // 정지된 계정도 정리는 된다
+  assert.equal((await leave(fake, L_A3, U_W3)).status, 200);
+
+  // 반려된 연결은 끊을 것이 없다
+  const f2 = fakeOf();
+  await patch(f2, L_A2, { status: 'rejected' });
+  const no = await leave(f2, L_A2, U_W2);
+  assert.equal(no.status, 409);
+  // 팩토리가 끊은 연결은 company
+  await patch(f2, L_A1, { status: 'ended' });
+  assert.equal((await list(f2, OWNER_A)).json.data.workers.find((x) => x.link_id === L_A1).ended_by, 'company');
+  // 끝나지 않은 연결에는 ended_by 가 없다
+  assert.equal('ended_by' in (await list(f2, OWNER_A)).json.data.workers.find((x) => x.link_id === L_A3), false);
+});
+
+test('끊은 뒤 다시 초대하면 같은 줄이 대기로 돌아오고, 연결 신청 알림도 다시 간다', async () => {
+  const fake = fakeOf();
+  await leave(fake, L_A1, U_W1);
+  const made = await invite(fake, { kinds_preset: ['install'], expires_at: FAR });
+  const claim = await call(fake, '/work/claim-invite', U_W1, { method: 'POST', body: { token: made.json.data.url.split('#invite=')[1] } });
+  assert.equal(claim.status, 201, JSON.stringify(claim.json));
+  assert.deepEqual([linkRow(fake, L_A1).status, linkRow(fake, L_A1).decided_by], ['pending', null]);
+  const titles = outbox(fake).filter((n) => n.kind === 'work_link_request' && n.user_id === OWNER_A).map((n) => n.title);
+  assert.deepEqual(titles, ['작업자 연결 끊김', '작업자 연결 신청']);
+  // 다시 끊고 다시 신청해도 — 끊을 때마다 · 신청할 때마다 한 번씩
+  await patch(fake, L_A1, { status: 'approved' });
+  await new Promise((r) => setTimeout(r, 5));
+  await leave(fake, L_A1, U_W1);
+  assert.equal(outbox(fake).filter((n) => n.kind === 'work_link_request' && n.user_id === OWNER_A && n.title === '작업자 연결 끊김').length, 2);
+});
+
+// ── 작업자 한 명 — 이력 · 메모 (2026-11-14, DB 0066) ───────────────
+
+function historyFake(opts) {
+  const fake = fakeOf(opts);
+  // 팩토리 A: 설치 일정 작업(확정 — 위에서) + 프로젝트 재단(확인함) + 프로젝트 조립(거절). 팩토리 B 작업은 A 에게 보이지 않는다
+  fake.db.work_jobs.push(
+    { id: JOB_A2, company_id: A, kind: 'cutting', status: 'done', title: '재단', slots: 1, version: 0, starts_at: '2026-11-05T01:00:00.000Z', schedule_id: null, project_id: PROJ_A },
+    { id: JOB_A3, company_id: A, kind: 'assembly', status: 'open', title: '조립', slots: 1, version: 0, starts_at: null, schedule_id: null, project_id: PROJ_A },
+  );
+  fake.db.work_assignments.push(
+    { id: rid(45), job_id: JOB_A2, worker_id: W1, status: 'accepted', no_show: false, created_at: '2026-11-04T00:00:00.000Z' },
+    { id: rid(46), job_id: JOB_A3, worker_id: W1, status: 'declined', no_show: false, created_at: '2026-11-12T00:00:00.000Z' },
+    { id: rid(47), job_id: JOB_A3, worker_id: W2, status: 'removed', no_show: true, created_at: '2026-11-12T00:00:00.000Z' },
+  );
+  fake.db.worker_events.push(
+    { worker_id: W1, type: 'link_status_changed', actor_kind: 'member', from_status: 'pending', to_status: 'approved', payload: { link_id: L_A1 }, created_at: '2026-11-10T02:00:00.000Z' },
+    { worker_id: W1, type: 'link_status_changed', actor_kind: 'member', from_status: 'pending', to_status: 'approved', payload: { link_id: L_B1 }, created_at: '2026-11-10T03:00:00.000Z' },
+    { worker_id: W1, type: 'status_changed', actor_kind: 'admin', from_status: 'pending', to_status: 'approved', payload: {}, created_at: '2026-11-01T00:00:00.000Z' },
+  );
+  return fake;
+}
+
+test('작업자 한 명 — 내 팩토리에서 한 일만 · 이 연결의 이력만. 전화 · 메모는 대표 · 실장 답에만', async () => {
+  const fake = historyFake();
+  const r = await one(fake, L_A1);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const d = r.json.data;
+  assert.deepEqual(
+    [d.link_id, d.name, d.status, d.account_status, d.via, d.since, d.can_manage, d.phone],
+    [L_A1, '시험기사A', 'approved', 'approved', 'invite', '2026-11-10T00:00:00.000Z', true, PHONE],
+  );
+  assert.deepEqual(d.counts, { done: 1, working: 1, offered: 0, declined: 1, released: 0, removed: 0, no_show: 0 });
+  // 작업 날짜가 새 것부터 (날짜가 없으면 배정한 때) — 종류 · 날짜 · 상태 · 어디서 · 프로젝트 이름만
+  assert.deepEqual(d.jobs, [
+    { kind: 'install', label: '설치', at: '2026-11-20T01:00:00.000Z', status: 'confirmed', status_label: '확정', where: 'install', project: null, no_show: false },
+    { kind: 'assembly', label: '조립', at: null, status: 'declined', status_label: '거절', where: 'project', project: '시험 프로젝트', no_show: false },
+    { kind: 'cutting', label: '재단', at: '2026-11-05T01:00:00.000Z', status: 'accepted', status_label: '확인함', where: 'project', project: '시험 프로젝트', no_show: false },
+  ]);
+  // 이 연결의 이력만 — 다른 팩토리(B)와의 연결 · 계정 이력은 없다
+  assert.deepEqual(d.events, [{ type: 'link_status_changed', from: 'pending', to: 'approved', by: 'member', at: '2026-11-10T02:00:00.000Z' }]);
+  assert.deepEqual([d.notes, d.notes_pending], [[], false]);
+  for (const banned of [B, JOB_B, L_B1, W1, U_W1, '남의 설치', '시험 설치']) assert.equal(JSON.stringify(d).includes(banned), false, banned);
+
+  // 직원 — 이력은 보지만 전화 · 메모는 없다
+  const s = (await one(fake, L_A1, STAFF_A)).json.data;
+  assert.deepEqual([s.can_manage, 'phone' in s, 'notes' in s, s.jobs.length], [false, false, false, 3]);
+  // 노쇼로 뺀 작업자
+  const w2 = (await one(fake, L_A2)).json.data;
+  assert.deepEqual([w2.counts.removed, w2.counts.no_show, w2.jobs.map((j) => [j.status, j.no_show])], [1, 1, [['removed', true]]]);
+  // 남의 연결 · 없는 연결 · 본사 구성원
+  assert.equal((await one(fake, L_A1, OWNER_B)).status, 404);
+  assert.equal((await one(fake, rid(999))).status, 404);
+  assert.equal((await one(fake, 'nope')).status, 422);
+  assert.deepEqual([(await one(fake, L_A1, PLATFORM_STAFF)).json.code, (await one(fake, L_A1, NOBODY)).json.code], ['not_people_company', 'not_member']);
+  // 팩토리 B 는 같은 작업자의 B 일만 본다
+  const b = (await one(fake, L_B1, OWNER_B)).json.data;
+  assert.deepEqual([b.jobs.map((j) => j.status).sort(), b.events.length], [['offered', 'started'], 1]);
+});
+
+test('메모 — 대표 · 실장만 남기고 읽는다. 쌓기만, 팩토리마다 따로, 작업자 본인에게는 나가지 않는다', async () => {
+  const fake = historyFake();
+  const made = await note(fake, L_A1, { body: `  ${MEMO}  ` });
+  assert.equal(made.status, 201, JSON.stringify(made.json));
+  assert.deepEqual(made.json.data.notes.map((n) => [n.body, n.by, n.mine]), [[MEMO, '시험대표', true]]);
+  assert.deepEqual(fake.db.worker_company_notes.map((n) => [n.link_id, n.company_id, n.author, n.note]), [[L_A1, A, OWNER_A, MEMO]]);
+  // 실장이 하나 더 — 새 것부터, 내가 남긴 것만 mine. 이름이 없는 구성원은 by 가 비어 있다
+  fake.db.worker_company_notes[0].created_at = '2026-11-13T00:00:00.000Z';
+  const second = await note(fake, L_A1, { body: '11월 설치 한 건 맡김' }, MANAGER_A);
+  assert.equal(second.status, 201);
+  fake.db.worker_company_notes[1].created_at = '2026-11-14T00:00:00.000Z';
+  const seen = (await one(fake, L_A1)).json.data.notes;
+  assert.deepEqual(seen.map((n) => [n.body, n.by, n.mine]), [['11월 설치 한 건 맡김', null, false], [MEMO, '시험대표', true]]);
+  assert.equal(JSON.stringify(seen).includes(OWNER_A), false, '남긴 사람의 계정 id 는 싣지 않는다');
+
+  // 직원은 못 남기고 못 읽는다 · 빈 글 · 1001자 · 남의 연결
+  assert.deepEqual([(await note(fake, L_A1, { body: '직원 메모' }, STAFF_A)).json.code], ['not_manager']);
+  assert.equal((await note(fake, L_A1, { body: '   ' })).status, 422);
+  assert.equal((await note(fake, L_A1, { body: '가'.repeat(1001) })).status, 422);
+  assert.equal((await note(fake, L_A1, { body: '가'.repeat(1000) })).status, 201);
+  assert.equal((await note(fake, L_A1, { body: '남의 연결' }, OWNER_B)).status, 404);
+  assert.equal(fake.db.worker_company_notes.length, 3);
+
+  // 같은 작업자라도 팩토리 B 는 A 의 메모를 못 본다
+  assert.deepEqual((await one(fake, L_B1, OWNER_B)).json.data.notes, []);
+  // 작업자 본인 · 목록 응답에는 메모가 없다
+  for (const path of ['/work/me', '/work/jobs?tab=mine', '/work/jobs?tab=done']) {
+    assert.equal(JSON.stringify((await call(fake, path, U_W1)).json).includes('주말에도'), false, path);
+  }
+  assert.equal(JSON.stringify((await list(fake, OWNER_A)).json).includes('주말에도'), false);
+  // 등급이 내려간 팩토리도 메모는 남긴다 (지난 일 정리) — 멈춘 팩토리의 대표
+  assert.equal((await note(fake, L_HELD, { body: '멈춘 팩토리 메모' }, OWNER_HELD)).status, 201);
+});
+
+test('DB 0066 적용 전 — 이력은 그대로 보이고 메모는 「준비 중」(읽기 null · 쓰기 409 db_pending)', async () => {
+  const fake = historyFake({ before: (m, t) => (t === 'worker_company_notes' ? json({ code: 'PGRST205', message: 'Could not find the table' }, 404) : null) });
+  const d = (await one(fake, L_A1)).json.data;
+  assert.deepEqual([d.notes, d.notes_pending, d.jobs.length, d.counts.done], [null, true, 3, 1]);
+  const w = await note(fake, L_A1, { body: MEMO });
+  assert.deepEqual([w.status, w.json.code], [409, 'db_pending']);
+  // 연결 표도 없으면(0064 전) 전체가 db_pending
+  const old = fakeOf({ before: (m, t) => (t === 'worker_companies' ? json({ code: 'PGRST205', message: 'Could not find the table' }, 404) : null) });
+  assert.deepEqual([(await one(old, L_A1)).json.code, (await note(old, L_A1, { body: MEMO })).json.code], ['db_pending', 'db_pending']);
 });

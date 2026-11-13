@@ -11,6 +11,7 @@
  *       where = install(설치 일정) · as(A/S 방문) · project(프로젝트의 작업 배정), at = 작업 시각. 작업자 · 고객을 가리키는 값은 없다.
  *       팩토리가 「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 현장 정보가 닫힌다 (work/reveal.js siteOpenFor).
  *     status = 연결 상태(pending 대기 · approved 승인 · suspended 정지 · rejected 반려 · ended 끝),
+ *     ended_by = 끝난 연결을 누가 끊었나 (worker 작업자가 스스로 · company 팩토리가) — 끝난 연결에만,
  *     account_status = 계정 상태(사이트 관리자의 전역 정지 suspended 를 알리려고), active = 내 팩토리 작업의 진행 중 배정 수.
  *     전화 · 초대 목록은 대표 · 실장 답에만 싣는다.
  *   POST  /company/workers/invites            초대 링크 만들기 (대표 · 실장) { kinds_preset[], display_name_preset?, expires_at }
@@ -19,6 +20,8 @@
  *   PATCH /company/workers/:linkId            연결 바꾸기 (대표 · 실장) { status?, kinds?, reason? }
  *     대기 → 승인 · 반려, 승인 ↔ 정지, 승인 · 정지 → 끝. 처음 승인하면 계정(workers.status)도 approved 로.
  *     계정이 전역 정지면 승인할 수 없다 (409 account_suspended).
+ *   GET   /company/workers/:linkId            작업자 한 명 — 이력 · 메모 (work/company-worker.js)
+ *   POST  /company/workers/:linkId/notes      메모 남기기 (대표 · 실장, DB 0066)
  *
  * 누가       그 업체의 구성원이면 읽는다 (다담 본사 구성원은 403). 쓰기는 대표 · 실장.
  *            새 초대 · 승인은 「인사를 쓰는 팩토리」(다담 공장 · active Agent — work-shifts.js canHoldPeople)만.
@@ -68,6 +71,9 @@ export async function workersCompanyOf(env, user, { manage = false, fresh = fals
   if (fresh && !holds) throw new ForbiddenError('작업자를 초대 · 승인할 수 있는 팩토리가 아닙니다', 'not_people_company');
   return { company, canAct, holds };
 }
+
+/** 끝난 연결을 누가 끊었나 — 결정한 사람이 그 작업자 본인이면 worker (work/workers.js leaveLink), 아니면 company */
+export const endedBy = (link, worker) => (link.decided_by && worker && link.decided_by === worker.user_id ? 'worker' : 'company');
 
 /** 바꾼 뒤 돌려주는 연결 한 줄 (업체 · 작업자 id 는 싣지 않는다) */
 const linkOut = (l) => ({ link_id: l.id, status: l.status, kinds: l.kinds || [], decided_at: l.decided_at || null, reason: l.reason || null });
@@ -121,7 +127,7 @@ export async function listCompanyWorkers(env, { user }) {
   const links = await ready(async () => (await selectMany(env, 'worker_companies', { company_id: co, select: '*', order: 'created_at.desc', limit: String(COMPANY_WORKERS_LIMIT) })) || []);
   const ids = [...new Set(links.map((l) => l.worker_id))];
   const [people, jobs] = await Promise.all([
-    ids.length ? selectMany(env, 'workers', { id: `in.(${ids.join(',')})`, select: 'id,display_name,phone,kinds,region_label,status' }) : [],
+    ids.length ? selectMany(env, 'workers', { id: `in.(${ids.join(',')})`, select: 'id,user_id,display_name,phone,kinds,region_label,status' }) : [],
     ids.length ? liveJobsOf(env, co) : [],
   ]);
   const jobIds = (jobs || []).map((j) => j.id);
@@ -160,6 +166,7 @@ export async function listCompanyWorkers(env, { user }) {
           reason: l.reason || null,
           active: active.get(w.id) || 0,
         };
+        if (l.status === 'ended') out.ended_by = endedBy(l, w);
         if (canAct) out.phone = w.phone || null;
         return out;
       }),
