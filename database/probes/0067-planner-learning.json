@@ -1,0 +1,361 @@
+{
+  "title": "0067 간편 플래너 설계가 모여 검토되는 길 — 학습 묶음 · 저장 실패 · 신호 · 점검 기록 · 업체 동의는 서버만, 묶음 rev 는 뒤로 안 감 · 수집 표시만 바뀌면 고친 때 그대로, 매일 점검은 날마다 한 줄, 검토 등급이 표본에 적힌다, 알림 종류 24개 (scripts/rls-probe.mjs --migration database/migrations/0067_planner_learning.sql)",
+  "ids": [
+    "company_x",
+    "company_y"
+  ],
+  "users": [
+    "x_owner_user",
+    "hq_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.planner_drafts (company_id, id, model, created_by) VALUES ({{company_x}}, 'd-probe-a', '{\"walls\":[]}'::jsonb, {{x_owner_user}}), ({{company_x}}, 'd-probe-b', '{\"walls\":[]}'::jsonb, {{x_owner_user}}), ({{company_x}}, 'd-probe-c', '{\"walls\":[]}'::jsonb, {{x_owner_user}}), ({{company_x}}, 'd-probe-d', '{\"walls\":[]}'::jsonb, {{x_owner_user}}), ({{company_y}}, 'd-probe-y', '{\"walls\":[]}'::jsonb, NULL)",
+    "INSERT INTO public.planner_draft_learn (company_id, draft_id, rev, bundle, bundle_sha256, sent_by) VALUES ({{company_x}}, 'd-probe-a', 1, '{\"v\":1}'::jsonb, repeat('a', 64), {{x_owner_user}}), ({{company_x}}, 'd-probe-b', 2, '{\"v\":2}'::jsonb, repeat('b', 64), {{x_owner_user}}), ({{company_x}}, 'd-probe-c', 1, '{\"v\":3}'::jsonb, repeat('c', 64), {{x_owner_user}})",
+    "UPDATE public.planner_draft_learn SET ingested_sha256 = bundle_sha256, ingested_rev = rev, ingested_at = now(), updated_at = '2000-01-01' WHERE company_id = {{company_x}} AND draft_id = 'd-probe-b'",
+    "UPDATE public.planner_draft_learn SET ingest_error = 'probe', ingest_tries = 3 WHERE company_id = {{company_x}} AND draft_id = 'd-probe-c'",
+    "UPDATE public.planner_draft_learn SET bundle = '{\"v\":4}'::jsonb, bundle_sha256 = repeat('d', 64), rev = 2 WHERE company_id = {{company_x}} AND draft_id = 'd-probe-c'",
+    "INSERT INTO public.planner_save_issues (company_id, user_id, draft_id, source, stage, code, status, rev) VALUES ({{company_x}}, {{x_owner_user}}, 'd-probe-a', 'server', 'save', 'conflict', 409, 1)",
+    "INSERT INTO public.planner_save_issues (company_id, source, stage, code, created_at) VALUES ({{company_x}}, 'client', 'save', 'offline', now() - interval '40 days')",
+    "INSERT INTO public.planner_signals (company_id, user_id, draft_id, kind, item, payload) VALUES ({{company_x}}, {{x_owner_user}}, 'd-probe-a', 'fill_all', 'sink', '{\"walls\":1}'::jsonb)",
+    "INSERT INTO public.system_checks (kind, cause, run_date, ok, steps) VALUES ('planner_learning', 'daily', '2000-01-01', true, '[]'::jsonb)",
+    "INSERT INTO public.company_consents (company_id, kind, granted, terms_version, actor, created_at) VALUES ({{company_x}}, 'planner_photo_learning', true, 'probe-1', {{x_owner_user}}, now() - interval '1 hour')",
+    "INSERT INTO public.company_consents (company_id, kind, granted, terms_version, actor) VALUES ({{company_x}}, 'planner_photo_learning', false, 'probe-1', {{x_owner_user}})",
+    "INSERT INTO public.dataset_samples (sample_id, source, group_key, label_source, license, needs_review) VALUES ('probe-0067-s1', 'dadam_planner', 'planner-web:probe-0067', 'structured', 'restricted-internal', true), ('probe-0067-s2', 'dadam_planner', 'planner-web:probe-0067', 'structured', 'restricted-internal', true)",
+    "INSERT INTO public.dataset_reviews (sample_id, reviewer, verdict, grade, reasons, src_rev) VALUES ('probe-0067-s1', {{hq_user}}, 'confirm', 'normal', ARRAY['photo_blur'], 3)",
+    "INSERT INTO public.dataset_reviews (sample_id, reviewer, verdict, grade, reasons, src_rev) VALUES ('probe-0067-s2', {{hq_user}}, 'reject', 'exclude', ARRAY['test'], 1)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "학습 묶음 읽기 — 서버만 (익명 · 구성원 deny)",
+      "sql": "select count(*) from public.planner_draft_learn where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "3"
+      }
+    },
+    {
+      "name": "저장 실패 · 신호 · 점검 · 동의 읽기 — 서버만",
+      "sql": "select (select count(*) from public.planner_save_issues where company_id = {{company_x}}) + (select count(*) from public.planner_signals where company_id = {{company_x}}) + (select count(*) from public.system_checks where run_date = '2000-01-01') + (select count(*) from public.company_consents where company_id = {{company_x}})",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "6"
+      }
+    },
+    {
+      "name": "구성원은 묶음을 쓰지 못한다",
+      "sql": "insert into public.planner_draft_learn (company_id, draft_id, rev, bundle, bundle_sha256) values ({{company_x}}, 'd-probe-d', 1, '{\"v\":5}'::jsonb, repeat('e', 64))",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "서버 — 새 묶음",
+      "sql": "insert into public.planner_draft_learn (company_id, draft_id, rev, bundle, bundle_sha256) values ({{company_x}}, 'd-probe-d', 1, '{\"v\":5}'::jsonb, repeat('e', 64))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "남의 업체 설계에는 묶음을 붙이지 못한다",
+      "sql": "insert into public.planner_draft_learn (company_id, draft_id, rev, bundle, bundle_sha256) values ({{company_y}}, 'd-probe-a', 1, '{\"v\":5}'::jsonb, repeat('e', 64))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "묶음은 객체여야 한다",
+      "sql": "insert into public.planner_draft_learn (company_id, draft_id, rev, bundle, bundle_sha256) values ({{company_x}}, 'd-probe-d', 1, '[]'::jsonb, repeat('e', 64))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "rev 는 뒤로 가지 않는다",
+      "sql": "update public.planner_draft_learn set rev = 1 where company_id = {{company_x}} and draft_id = 'd-probe-b'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "묶음이 바뀌면 지문도 바뀐다",
+      "sql": "update public.planner_draft_learn set bundle = '{\"v\":9}'::jsonb where company_id = {{company_x}} and draft_id = 'd-probe-a'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "수집 표시만 바뀌면 고친 때는 그대로 · 수집 끝 (pending false)",
+      "sql": "select pending || '/' || (updated_at > '2001-01-01') || '/' || ingested_rev from public.planner_draft_learn where company_id = {{company_x}} and draft_id = 'd-probe-b'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/true/2"
+      }
+    },
+    {
+      "name": "묶음이 바뀌면 다시 수집 대상 · 오류와 해 본 수는 처음으로",
+      "sql": "select pending || '/' || rev || '/' || ingest_tries || '/' || (ingest_error is null) from public.planner_draft_learn where company_id = {{company_x}} and draft_id = 'd-probe-c'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/2/0/true"
+      }
+    },
+    {
+      "name": "묶음 지우기는 서버도 못 한다",
+      "sql": "delete from public.planner_draft_learn where company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "저장 실패 — 모르는 단계는 거절",
+      "sql": "insert into public.planner_save_issues (company_id, source, stage, code) values ({{company_x}}, 'server', 'upload', 'error')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "저장 실패 — 코드에 글을 넣지 못한다",
+      "sql": "insert into public.planner_save_issues (company_id, source, stage, code) values ({{company_x}}, 'server', 'save', 'kim kitchen')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "저장 실패 — 서버가 30일 지난 줄을 지운다",
+      "sql": "delete from public.planner_save_issues where company_id = {{company_x}} and created_at < now() - interval '30 days'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "저장 실패 — 고치기는 서버도 못 한다",
+      "sql": "update public.planner_save_issues set code = 'fixed' where company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "신호 — 모르는 종류는 거절",
+      "sql": "insert into public.planner_signals (company_id, kind) values ({{company_x}}, 'probe_kind')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "신호 — 지우기는 서버도 못 한다",
+      "sql": "delete from public.planner_signals where company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "점검 — 매일 점검은 날마다 한 줄",
+      "sql": "insert into public.system_checks (kind, cause, run_date, ok, steps) values ('planner_learning', 'daily', '2000-01-01', false, '[]'::jsonb)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "점검 — 사람이 누른 점검은 같은 날에도 된다",
+      "sql": "insert into public.system_checks (kind, cause, run_date, ok, steps, run_by) values ('planner_learning', 'manual', '2000-01-01', true, '[{\"key\":\"save\",\"ok\":true}]'::jsonb, {{hq_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "점검 — 매일 점검에는 누른 사람이 없다",
+      "sql": "insert into public.system_checks (kind, cause, run_date, ok, steps, run_by) values ('planner_learning', 'daily', '2000-01-02', true, '[]'::jsonb, {{hq_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "점검 — 고치기는 서버도 못 한다",
+      "sql": "update public.system_checks set ok = false where run_date = '2000-01-01'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "사진 제공 동의 — 지금 값은 마지막 줄 (켰다가 끔)",
+      "sql": "select granted::text from public.company_consents where company_id = {{company_x}} and kind = 'planner_photo_learning' order by created_at desc limit 1",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false"
+      }
+    },
+    {
+      "name": "동의 — 고치기는 서버도 못 한다 (쌓기만)",
+      "sql": "update public.company_consents set granted = true where company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "동의 — 모르는 종류는 거절",
+      "sql": "insert into public.company_consents (company_id, kind, granted, terms_version) values ({{company_x}}, 'marketing', true, 'probe-1')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "검토 등급 — 표본에 적힌다 (보통 · 까닭 · 본 rev · 검수 끝)",
+      "sql": "select (attrs->>'grade') || '/' || (attrs->'grade_reasons')::text || '/' || (attrs->>'reviewed_rev') || '/' || needs_review from public.dataset_samples where sample_id = 'probe-0067-s1'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "normal/[\"photo_blur\"]/3/false"
+      }
+    },
+    {
+      "name": "검토 등급 — 제외는 표본이 제외로 남는다",
+      "sql": "select (attrs->>'grade') || '/' || (attrs->>'rejected') from public.dataset_samples where sample_id = 'probe-0067-s2'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "exclude/true"
+      }
+    },
+    {
+      "name": "제외 등급은 reject 일 때만",
+      "sql": "insert into public.dataset_reviews (sample_id, reviewer, verdict, grade) values ('probe-0067-s1', {{hq_user}}, 'confirm', 'exclude')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "양질에는 까닭을 달지 않는다",
+      "sql": "insert into public.dataset_reviews (sample_id, reviewer, verdict, grade, reasons) values ('probe-0067-s1', {{hq_user}}, 'confirm', 'good', ARRAY['test'])",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 까닭은 거절",
+      "sql": "insert into public.dataset_reviews (sample_id, reviewer, verdict, grade, reasons) values ('probe-0067-s1', {{hq_user}}, 'confirm', 'normal', ARRAY['ugly'])",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "등급 없는 옛 검수는 전처럼 된다",
+      "sql": "insert into public.dataset_reviews (sample_id, reviewer, verdict) values ('probe-0067-s1', {{hq_user}}, 'confirm')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "앱 알림 종류 — 24개 (0064 의 23개 + 점검 막힘)",
+      "sql": "select count(*) from pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m where c.conname = 'notification_outbox_kind_check' and c.conrelid = 'public.notification_outbox'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "24"
+      }
+    },
+    {
+      "name": "점검 알림 — 업체 칸과 함께 넣어진다",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{hq_user}}, {{company_x}}, 'system_check_failed', '설계 저장 점검', '점검이 막혔습니다.', '/segan/me.html#hq-design-check')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    }
+  ]
+}
