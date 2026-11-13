@@ -260,6 +260,15 @@ export async function getDraft(env, { user, params, query }) {
  */
 export async function saveDraft(env, { user, body }, opts = {}) {
   const { company, canManage } = await plannerCompanyOf(env, user);
+  return saveDraftIn(env, { company, canManage, userId: user.id, body }, opts);
+}
+
+/**
+ * 저장의 속 — 업체를 직접 받는다 (본사 점검은 사람 없이 다담 공장에 쓴다 — userId null).
+ * @param {{company: {id: string}, canManage: boolean, userId: string|null, body: object}} o
+ */
+export async function saveDraftIn(env, { company, canManage, userId, body }, opts = {}) {
+  const user = { id: userId || null };
   const project = body && body.project;
   const model = modelOf(project);
   if (isProbeId(model.id) && opts.internal !== true) throw new ValidationError('쓸 수 없는 설계 id 입니다', { field: 'id' });

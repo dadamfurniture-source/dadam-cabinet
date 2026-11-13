@@ -75,11 +75,12 @@ describe('0053 — 제작 의뢰 거둠 앱 알림 종류', () => {
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
     expect(names).toContain('production_cancelled');
-    // 뒤 번호 0064 가 팩토리용 작업자 알림 셋을 더한다 (db-migration-0064 시험이 본다)
+    // 뒤 번호 0064 가 팩토리용 작업자 알림 셋을, 0067 이 점검 알림을 더한다 (db-migration-0064 · 0067 시험이 본다)
     expect(names.filter((k) => !kindsIn(f).includes(k))).toEqual([
       'work_link_request',
       'work_reply',
       'work_report',
+      'system_check_failed',
     ]);
     // 거둠 알림은 제작 의뢰를 거두는 곳에서 넣는다
     expect(read('workers', 'workflow-api', 'src', 'production-requests', 'manager.js')).toContain(

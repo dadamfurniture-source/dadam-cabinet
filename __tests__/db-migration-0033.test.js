@@ -253,7 +253,7 @@ describe('0033 — 장부 사진 확인 · 거래처 기억 · 장부 알림', (
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
     const all = kindsOf(S, 'notification_outbox_kind_check');
-    expect(names.filter((k) => !all.includes(k))).toEqual(['as_request', 'production_recommended', 'production_offered', 'production_answered', 'production_cancelled', 'work_link_request', 'work_reply', 'work_report']);
+    expect(names.filter((k) => !all.includes(k))).toEqual(['as_request', 'production_recommended', 'production_offered', 'production_answered', 'production_cancelled', 'work_link_request', 'work_reply', 'work_report', 'system_check_failed']);
     expect(names).toContain('ledger_notice');
   });
 

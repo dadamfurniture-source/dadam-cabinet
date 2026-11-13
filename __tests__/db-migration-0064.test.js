@@ -122,8 +122,10 @@ describe('0064 — 작업자 ↔ 팩토리 연결', () => {
           .matchAll(/'([a-z_]+)'/g),
       ].map((x) => x[1]);
     const after = kindsIn(f.match(/notification_outbox_kind_check CHECK \(([^;]+)\);/)[1]);
-    expect(listOf('NOTIFICATION_KINDS').sort()).toEqual([...after].sort());
-    expect(listOf('NOTIFICATION_KINDS').slice(-3)).toEqual(after.slice(-3));
+    // 뒤 번호 0067 이 점검 알림 하나를 더한다 (db-migration-0067 시험이 본다)
+    const upTo0064 = listOf('NOTIFICATION_KINDS').filter((k) => k !== 'system_check_failed');
+    expect(upTo0064.slice(-3)).toEqual(after.slice(-3));
+    expect([...upTo0064].sort()).toEqual([...after].sort());
     expect(listOf('WORK_MANAGER_KINDS')).toEqual([
       'work_link_request',
       'work_reply',

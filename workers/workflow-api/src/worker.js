@@ -279,6 +279,7 @@ import { listStockNeeds, putStockLink, issueStockForOrder, listOffcutCandidates 
 import { listCompanySchedules } from './company-schedules.js';
 import { listCompanySites, saveSiteGeo, setAsVisit } from './company-sites.js';
 import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
+import { designCheckSummary, isDailyCheckTime, listDesignReviews, runDailyDesignCheck, runDesignCheck, writeDesignReview } from './hq-design-check.js';
 import { setProjectAssignee, assigneeCandidates } from './company-assignee.js';
 import {
   plannerAccess,
@@ -1451,6 +1452,11 @@ const router = createRouter([
   { method: 'POST',   path: '/planner/drafts/report',              auth: 'jwt', handler: workRoute(reportPlannerIssue, 201) },
   { method: 'PUT',    path: '/planner/drafts/:id/learn',           auth: 'jwt', handler: handlePutPlannerLearn },
   { method: 'GET',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(getPhotoConsent) },
+  // 다담 본사 › 설계 · 학습 점검 (src/hq-design-check.js, DB 0067) — 본사 대표 · 실장
+  { method: 'GET',    path: '/hq/design-check',                    auth: 'jwt', handler: workRoute(designCheckSummary) },
+  { method: 'GET',    path: '/hq/design-check/reviews',            auth: 'jwt', handler: workRoute(listDesignReviews) },
+  { method: 'POST',   path: '/hq/design-check/reviews',            auth: 'jwt', handler: workRoute(writeDesignReview, 201) },
+  { method: 'POST',   path: '/hq/design-check/run',                auth: 'jwt', handler: workRoute(runDesignCheck) },
   { method: 'PUT',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(putPhotoConsent) },
   { method: 'GET',    path: '/planner/drafts/:id',                 auth: 'jwt', handler: workRoute(getDraft) },
   { method: 'POST',   path: '/planner/drafts/:id/discard',         auth: 'jwt', handler: workRoute(discardDraft) },
@@ -1848,6 +1854,8 @@ export default {
       ctx.waitUntil(runLedgerNotices(env, { nowMs: event.scheduledTime }));
       // 아침 브리핑 — 08:00 부터 업체마다 정해진 분에 「오늘 볼 것 N건」 (src/brief.js, 던지지 않는다)
       ctx.waitUntil(runMorningBrief(env, { nowMs: event.scheduledTime }));
+      // 설계 저장 · 학습 길 매일 점검 — 07:00 한 번, 막힌 날만 본사 대표 · 실장에게 알림 (src/hq-design-check.js, 던지지 않는다)
+      if (isDailyCheckTime(event.scheduledTime)) ctx.waitUntil(runDailyDesignCheck(env, { nowMs: event.scheduledTime }));
       // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),
