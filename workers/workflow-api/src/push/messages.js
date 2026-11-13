@@ -196,7 +196,7 @@ function consultAssigned({ items = [], gugun = null } = {}) {
 export const WORK_URL = '/segan/work.html';
 
 /** 작업 종류 이름 — work/validate.js WORK_KINDS 와 같은 키 (작업 제목 · 지역은 싣지 않는다 — 고객 이름 · 주소가 섞일 수 있다) */
-export const WORK_KIND_LABELS = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립' });
+export const WORK_KIND_LABELS = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거' });
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -268,11 +268,15 @@ function workSchedule(p) {
   return { title: '작업 일정 바뀜', body, url: j.url };
 }
 
-/** 팩토리 쪽 화면 — 인사 › 작업자 · 설치 · A/S 일정 */
+/** 팩토리 쪽 화면 — 인사 › 작업자 · 설치 · A/S 일정 · 프로젝트(작업 배정) */
 export const COMPANY_WORKERS_URL = '/segan/me.html#workers';
 export const COMPANY_INSTALL_URL = '/segan/me.html#p-install';
 export const COMPANY_AS_URL = '/segan/me.html#p-as';
-const companyJobUrl = (jobKind) => (jobKind === 'as' ? COMPANY_AS_URL : COMPANY_INSTALL_URL);
+export const COMPANY_PROJECT_URL = '/segan/me.html#dash-project';
+/** 설치 · A/S 는 그 일정 화면, 철거 · 재단 · 엣지 · 조립은 프로젝트의 「작업 배정」 */
+const companyJobUrl = (jobKind) => (jobKind === 'as' ? COMPANY_AS_URL : jobKind === 'install' ? COMPANY_INSTALL_URL : COMPANY_PROJECT_URL);
+
+const companyWhere = (jobKind) => (jobKind === 'as' || jobKind === 'install' ? '일정' : '프로젝트');
 
 /** 작업자가 연결을 신청함 — 이름 · 전화는 싣지 않는다 (화면에서 본다) */
 function workLinkRequest() {
@@ -286,15 +290,15 @@ function workReply({ reply, jobKind, startsAt } = {}) {
   const said = Object.prototype.hasOwnProperty.call(WORK_REPLY_TEXT, reply) ? WORK_REPLY_TEXT[reply] : null;
   const j = workJob({ jobKind, startsAt });
   if (!said || !j) return null;
-  return { title: '작업 배정 답', body: `작업자가 ${j.what} 배정을 ${said}. 일정에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
+  return { title: '작업 배정 답', body: `작업자가 ${j.what} 배정을 ${said}. ${companyWhere(jobKind)}에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
 }
 
 /** 작업자가 보고함. { report: result | issue, jobKind, startsAt } — 보고 글은 싣지 않는다 */
 function workReport({ report, jobKind, startsAt } = {}) {
   const j = workJob({ jobKind, startsAt });
   if (!j) return null;
-  if (report === 'result') return { title: '작업 완료 보고', body: `${j.what} 완료 보고가 왔습니다. 일정에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
-  if (report === 'issue') return { title: '작업 문제 보고', body: `${j.what}에 문제 보고가 왔습니다. 일정에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
+  if (report === 'result') return { title: '작업 완료 보고', body: `${j.what} 완료 보고가 왔습니다. ${companyWhere(jobKind)}에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
+  if (report === 'issue') return { title: '작업 문제 보고', body: `${j.what}에 문제 보고가 왔습니다. ${companyWhere(jobKind)}에서 확인해 주세요.`, url: companyJobUrl(jobKind) };
   return null;
 }
 

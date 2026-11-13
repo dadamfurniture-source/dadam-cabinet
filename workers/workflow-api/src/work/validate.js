@@ -3,14 +3,31 @@
  * 형식이 틀리면 422 (ValidationError). 사업 규칙(금액 · 기간 · 정원 상한)은 여기서 정하지 않는다.
  */
 
-import { ValidationError } from '../supabase.js';
+import { ConflictError, ValidationError } from '../supabase.js';
 import { isUuid } from '../reports/record.js';
 
-/** 작업(모집) 종류 — work_jobs.kind */
-export const WORK_KINDS = Object.freeze(['install', 'as', 'assembly']);
-/** 작업자 종류 — workers.kinds · worker_invites.kinds_preset. 작업 종류 + 공장 공정 재단 · 엣지 (DB 0024, 공장 조립은 조립) */
-export const WORKER_KINDS = Object.freeze([...WORK_KINDS, 'cutting', 'edge']);
-export const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지' });
+/**
+ * 작업 종류 — work_jobs.kind. 2026-11-13 사장님 결정으로 여섯 (DB 0065): 설치 · A/S · 조립 + 재단 · 엣지 · 철거.
+ * 0065 적용 전의 DB 는 앞의 셋만 받는다 — 새 종류로 쓰면 DB 가 거절하고, 부르는 쪽이 409 db_pending 으로 돌린다 (kindsPending).
+ */
+export const WORK_KINDS = Object.freeze(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition']);
+/** 작업자 종류 — workers.kinds · worker_invites.kinds_preset · worker_companies.kinds. 작업 종류와 같은 여섯 */
+export const WORKER_KINDS = WORK_KINDS;
+export const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거' });
+/** 프로젝트 「작업 배정」의 종류 줄 차례 — 일하는 차례 (설치 · A/S 는 일정 줄에서 온다) */
+export const PROJECT_KINDS = Object.freeze(['demolition', 'cutting', 'edge', 'assembly']);
+
+/**
+ * DB 가 새 종류 · 새 칸을 아직 모른다 (0065 적용 전) → 409 db_pending. 그 밖의 오류는 그대로 던진다.
+ * 종류 제약(23514) · 없는 칸(42703 · PGRST204) 을 본다.
+ */
+export function kindsPending(e) {
+  const text = String((e && e.message) || '');
+  if (!/23514|42703|PGRST204/.test(text)) return e;
+  const err = new ConflictError('DB 0065 적용 전입니다 — 철거 · 재단 · 엣지 작업과 프로젝트 작업 배정은 적용 뒤에 쓸 수 있습니다');
+  err.code = 'db_pending';
+  return err;
+}
 
 /** 경로 · 본문 id — UUID 가 아니면 422 */
 export function assertUuid(value, label = 'id') {
