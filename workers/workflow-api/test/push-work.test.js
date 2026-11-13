@@ -115,6 +115,21 @@ test('글 — 작업 종류 · 날짜만, 열 곳은 작업 탭 (#job=), DB 글�
       '설치 작업 일정이 바뀌었습니다. 작업 탭에서 확인해 주세요.',
       WORK_URL,
     ],
+    // 일정이 취소돼 작업이 취소됨 — 같은 종류(work_schedule), 글만 다르다
+    [
+      'work_schedule',
+      { ...p, cancelled: true },
+      '작업 취소',
+      '11/5(목) 설치 작업이 취소되었습니다. 작업 탭에서 확인해 주세요.',
+      `${WORK_URL}#job=${JOB}`,
+    ],
+    [
+      'work_schedule',
+      { jobKind: 'as', startsAt: null, jobId: JOB, cancelled: true },
+      '작업 취소',
+      'A/S 작업이 취소되었습니다. 작업 탭에서 확인해 주세요.',
+      `${WORK_URL}#job=${JOB}`,
+    ],
     [
       'work_registration',
       { status: 'approved' },

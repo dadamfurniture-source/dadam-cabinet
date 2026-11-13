@@ -17,6 +17,7 @@ import { isMissingRelation } from '../work-order-data.js';
 import { requireAdminEditor, requireAdminReader, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent, recordJobStatusChange } from './events.js';
 import { later, notifyWorkSchedule } from '../push/work-hooks.js';
+import { completeScheduleOf } from './schedule-names.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment, siteOpenFor } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
 import { approvedCompanyIds, companyNames } from './links.js';
@@ -115,6 +116,8 @@ export async function transitionAssignment(env, { job, assignment, jobAssignment
   const after = (jobAssignments || []).map((a) => (a.id === updated.id ? updated : a));
   try {
     const locked = await lockJob(env, job, { status: computeJobStatus(job, after) });
+    // 맡은 사람이 모두 확인됐으면(done) 그 일정도 「끝남」으로 — 던지지 않는다 (schedule-names.js)
+    if (locked.status === 'done' && job.status !== 'done') await completeScheduleOf(env, locked);
     return { assignment: updated, job: locked };
   } catch (err) {
     const back = { updated_at: assignment.updated_at || nowIso() };

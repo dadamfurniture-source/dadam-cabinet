@@ -5,7 +5,11 @@
  *   GET   /company/workers                    내 팩토리와 연결된 작업자 + 남은 초대 (구성원)
  *     { company { name }, can_manage, can_invite,
  *       workers [{ link_id, name, kinds, region, status, account_status, via, since, decided_at, reason, active, phone? }],
- *       invites [{ id, kinds_preset, display_name_preset, expires_at, created_at }] }
+ *       invites [{ id, kinds_preset, display_name_preset, expires_at, created_at }],
+ *       unconfirmed { total, items [{ kind, at, where }] } }
+ *     unconfirmed = 확인을 기다리는 완료 보고 (앱에서 배정한 작업의 submitted 배정 — 일정 줄 · 프로젝트 「작업 배정」).
+ *       where = install(설치 일정) · as(A/S 방문) · project(프로젝트의 작업 배정), at = 작업 시각. 작업자 · 고객을 가리키는 값은 없다.
+ *       팩토리가 「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 현장 정보가 닫힌다 (work/reveal.js siteOpenFor).
  *     status = 연결 상태(pending 대기 · approved 승인 · suspended 정지 · rejected 반려 · ended 끝),
  *     account_status = 계정 상태(사이트 관리자의 전역 정지 suspended 를 알리려고), active = 내 팩토리 작업의 진행 중 배정 수.
  *     전화 · 초대 목록은 대표 · 실장 답에만 싣는다.
@@ -39,6 +43,8 @@ import { assertUuid, kindsOf, oneOf, optText } from './validate.js';
 /** 아직 끝나지 않은 작업 상태 — 진행 중 배정 수를 셀 때 */
 const LIVE_JOB_STATUSES = Object.freeze(['draft', 'open', 'filled', 'in_progress', 'review']);
 export const COMPANY_WORKERS_LIMIT = 500;
+/** 확인을 기다리는 완료 보고 — 응답에 싣는 줄 수 (total 은 모두 센다) */
+export const UNCONFIRMED_MAX = 20;
 
 const nowIso = () => new Date().toISOString();
 
@@ -76,6 +82,38 @@ async function ready(fn) {
   }
 }
 
+/** 끝나지 않은 내 팩토리 작업 — 일정 · 프로젝트 칸이 아직 없으면(0064 · 0065 전) id 만 */
+async function liveJobsOf(env, co) {
+  const q = { company_id: co, status: `in.(${LIVE_JOB_STATUSES.join(',')})`, limit: '500' };
+  try {
+    return (await selectMany(env, 'work_jobs', { ...q, select: 'id,kind,schedule_id,project_id,starts_at' })) || [];
+  } catch (e) {
+    if (!isMissingRelation(e)) throw e;
+    return (await selectMany(env, 'work_jobs', { ...q, select: 'id' })) || [];
+  }
+}
+
+/**
+ * 확인을 기다리는 완료 보고 (순수) — 앱에서 배정한 작업(일정 줄 · 프로젝트)의 submitted 배정을 작업 시각 순으로.
+ * PC 관리자 화면에서 만든 작업(일정 · 프로젝트 칸 없음)은 세지 않는다 — 확인도 그 화면에서 한다.
+ */
+export function unconfirmedOf(jobs, assignments) {
+  const byId = new Map((jobs || []).map((j) => [j.id, j]));
+  const items = [];
+  for (const a of assignments || []) {
+    if (!a || a.status !== 'submitted') continue;
+    const j = byId.get(a.job_id);
+    if (!j || !(j.schedule_id || j.project_id)) continue;
+    items.push({ kind: j.kind, at: j.starts_at || null, where: !j.schedule_id ? 'project' : j.kind === 'as' ? 'as' : 'install' });
+  }
+  const ms = (v) => {
+    const t = Date.parse(v || '');
+    return Number.isFinite(t) ? t : Infinity;
+  };
+  items.sort((a, b) => ms(a.at) - ms(b.at));
+  return { total: items.length, items: items.slice(0, UNCONFIRMED_MAX) };
+}
+
 /** GET /company/workers */
 export async function listCompanyWorkers(env, { user }) {
   const { company, canAct, holds } = await workersCompanyOf(env, user);
@@ -84,11 +122,11 @@ export async function listCompanyWorkers(env, { user }) {
   const ids = [...new Set(links.map((l) => l.worker_id))];
   const [people, jobs] = await Promise.all([
     ids.length ? selectMany(env, 'workers', { id: `in.(${ids.join(',')})`, select: 'id,display_name,phone,kinds,region_label,status' }) : [],
-    ids.length ? selectMany(env, 'work_jobs', { company_id: co, status: `in.(${LIVE_JOB_STATUSES.join(',')})`, select: 'id', limit: '500' }) : [],
+    ids.length ? liveJobsOf(env, co) : [],
   ]);
   const jobIds = (jobs || []).map((j) => j.id);
   const busy = jobIds.length
-    ? (await selectMany(env, 'work_assignments', { job_id: `in.(${jobIds.join(',')})`, status: `in.(${MINE_STATUSES.join(',')})`, select: 'worker_id' })) || []
+    ? (await selectMany(env, 'work_assignments', { job_id: `in.(${jobIds.join(',')})`, status: `in.(${MINE_STATUSES.join(',')})`, select: 'worker_id,job_id,status' })) || []
     : [];
   const active = new Map();
   for (const a of busy) active.set(a.worker_id, (active.get(a.worker_id) || 0) + 1);
@@ -126,6 +164,7 @@ export async function listCompanyWorkers(env, { user }) {
         return out;
       }),
     invites,
+    unconfirmed: unconfirmedOf(jobs, busy),
   };
 }
 
