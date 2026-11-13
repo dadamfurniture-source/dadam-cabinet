@@ -1822,6 +1822,230 @@ button.sm-num[aria-pressed='true'] {
   border-bottom: 1px solid var(--v5-line);
 }
 
+/* 관리 › 플랫폼 › 설계 · 학습 점검 (segan/hq-design-check.js) — 점검 걸음 · 가는 길의 수 · 팩토리별 · 검토 줄 */
+#hqDesignCheckBody > .me-pt-sub {
+  margin-top: 28px;
+}
+
+.me-facts.me-dc-facts dt {
+  width: 9em;
+}
+
+.me-facts.me-dc-facts dd b {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-facts.me-dc-facts dd small {
+  font-size: 12px;
+  color: var(--v5-ink-45);
+}
+
+.me-dc-line {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.me-dc-line.me-dc-bad {
+  font-weight: 500;
+}
+
+.me-dc-steps {
+  margin: 0 0 12px;
+  padding: 0;
+  border-top: 1px solid var(--v5-line);
+  list-style: none;
+}
+
+.me-dc-steps li {
+  display: grid;
+  grid-template-columns: 3.4em minmax(0, 1fr);
+  gap: 0 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.me-dc-steps li b {
+  font-weight: 400;
+  color: var(--v5-ink-45);
+}
+
+.me-dc-steps li.me-dc-bad b,
+.me-dc-steps li.me-dc-bad span {
+  font-weight: 500;
+  color: var(--v5-ink);
+}
+
+.me-dc-steps li small {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--v5-ink-45);
+}
+
+.me-dc-co {
+  gap: 12px;
+}
+
+.me-dc-codes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-dc-codes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.me-dc-codes li b {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-dc-only {
+  min-height: 36px;
+  margin: 0 0 12px;
+}
+
+.me-dc-list {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-dc-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-card);
+}
+
+.me-dc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13px;
+}
+
+.me-dc-head b {
+  margin-right: auto;
+  font-weight: 400;
+}
+
+.me-dc-head .me-badge {
+  margin-left: 0;
+}
+
+.me-dc-name {
+  margin: 0;
+  font-size: 15px;
+}
+
+.me-dc-card > .mk-note {
+  margin: 0;
+}
+
+.me-dc-wall {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.me-dc-wall p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.me-dc-bar {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.me-dc-bar small {
+  font-size: 11.5px;
+  color: var(--v5-ink-45);
+}
+
+.me-dc-bar span {
+  display: flex;
+  min-width: 0;
+  border: 1px solid var(--v5-line-25);
+  background: var(--v5-paper);
+}
+
+.me-dc-bar i {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 0;
+  border-left: 1px solid var(--v5-line-25);
+  font-size: 11px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--v5-ink-60);
+}
+
+.me-dc-bar i:first-child {
+  border-left: 0;
+}
+
+.me-dc-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+}
+
+.me-dc-photos a {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: var(--v5-photo);
+}
+
+.me-dc-photos img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.me-dc-grade,
+.me-dc-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.me-dc-grade .mk-chip {
+  flex: 1 1 0;
+}
+
+.me-dc-why .mk-chip {
+  min-height: 36px;
+  font-size: 12.5px;
+}
+
+.me-dc-note {
+  margin-top: 16px;
+}
+
 /* 메뉴 줄의 값 (팩토리 이름 · 구독 상태) — 줄 글이 먼저, 값은 남는 폭에 */
 .me-hub .sg-row .me-val {
   min-width: 0;
