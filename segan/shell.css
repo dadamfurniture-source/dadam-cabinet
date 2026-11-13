@@ -3711,6 +3711,70 @@ button.sm-num[aria-pressed='true'] {
   margin-top: 28px;
 }
 
+/* 프로젝트 줄의 「작업 배정」 칸 (segan/project-work.js) — 종류 줄 표 + 펼친 줄. 줄 · 물음 · 고르기는 .sm-wk* · .pw-* · .cs-choices 와 같은 것을 쓴다 */
+.pjw {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.pjw .od-h {
+  margin-top: 0;
+}
+
+.pjw .od-tablewrap {
+  position: relative;
+}
+
+.pjw-table th[scope='row'] {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.pjw .od-table .pw-act {
+  position: sticky;
+  right: 0;
+  padding-right: 0;
+  background: var(--v5-paper);
+  background-clip: padding-box;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pjw .od-table .od-row--on .pw-act {
+  background: var(--v5-well);
+}
+
+.pjw-detail {
+  margin-top: 14px;
+}
+
+.pjw-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.pjw-date .mk-input {
+  flex: 0 1 180px;
+  min-width: 0;
+}
+
+.pjw-date .rd-acts {
+  margin-top: 0;
+}
+
+.pjw-invite {
+  padding-top: 12px;
+  border-top: 1px solid var(--v5-line-18);
+}
+
+.pjw .me-pt-made {
+  margin-top: 0;
+}
+
 /* 업체 › 작업 자재 (#stockNeeds — segan/stock-needs.js) — 줄 · 표는 재고 · 발주(.st-* · .po-*)와 같은 것을 쓴다 */
 .sn2-view {
   margin-top: 12px;

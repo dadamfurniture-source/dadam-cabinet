@@ -39,8 +39,8 @@
   var REASON_MAX = 200; // 서버 reason
 
   // 작업자 종류 — 서버 work/validate.js KIND_LABEL 과 같다
-  var KINDS = ['install', 'as', 'assembly', 'cutting', 'edge'];
-  var KIND = { install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지' };
+  var KINDS = ['demolition', 'cutting', 'edge', 'assembly', 'install', 'as']; // 일하는 차례
+  var KIND = { install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거' };
   var STATUS = {
     pending: '승인 대기',
     approved: '연결됨',
@@ -54,7 +54,7 @@
   var TEXT = {
     title: '작업자 연결 · 초대',
     generic: '처리하지 못했습니다. 잠시 뒤 다시 해 주세요.',
-    note: '초대 링크로 설치 · A/S 작업자를 모으고, 신청이 오면 승인합니다. 승인한 작업자는 설치 · A/S 일정에서 배정합니다.',
+    note: '초대 링크로 작업자(철거 · 재단 · 엣지 · 조립 · 설치 · A/S)를 모으고, 신청이 오면 승인합니다. 배정은 프로젝트의 「작업 배정」에서 합니다.',
     noteRead: '우리 팩토리와 연결된 작업자입니다. 초대 · 승인은 대표 · 실장이 합니다.',
     noteNoInvite:
       '지금 등급에서는 새 초대 · 승인을 할 수 없습니다. 정지 · 연결 끊기는 할 수 있습니다.',
@@ -72,7 +72,7 @@
     reject: '반려',
     suspend: '정지',
     end: '연결 끊기',
-    approvedMsg: '승인했습니다. 설치 · A/S 일정에서 배정할 수 있습니다.',
+    approvedMsg: '승인했습니다. 프로젝트의 「작업 배정」에서 배정할 수 있습니다.',
     rejectedMsg: '반려했습니다.',
     suspendedMsg: '정지했습니다. 새 배정을 받지 않습니다.',
     endedMsg: '연결을 끊었습니다.',
@@ -104,6 +104,8 @@
     revokeAsk: '이 초대를 취소할까요? 보낸 링크를 더 이상 쓸 수 없습니다.',
     revokeYes: '초대 취소하기',
     revokedMsg: '초대를 취소했습니다.',
+    workerScreen: '작업자는 앱 「작업」 화면에서 초대를 받고 수락 · 보고합니다. 작업자로 등록하지 않은 계정으로 열면 신청서가 보입니다.',
+    workerScreenLink: '작업자 화면 열기',
     anyKind: '정하지 않음',
     anyName: '정하지 않음',
   };
@@ -608,7 +610,11 @@
       esc(TEXT.title) +
       '</h3><p class="mk-note">' +
       esc(J.canManage ? TEXT.note : TEXT.noteRead) +
-      '</p>' +
+      '</p><p class="mk-note" data-cw="worker-screen">' +
+      esc(TEXT.workerScreen) +
+      ' <a class="od-pc" href="work.html">' +
+      esc(TEXT.workerScreenLink) +
+      ' →</a></p>' +
       (J.canManage ? tabsHtml() : '') +
       '<p class="me-pt-msg" role="status" data-cw="msg">' +
       esc(J.msg) +

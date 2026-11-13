@@ -24,6 +24,9 @@
                대표 · 실장은 줄의 「담당자」 → 지금 구성원 중 고르기 · 비우기 (Agent 의 비서 추천은 비서 대화의 승인 카드).
                서버가 담당자 칸을 아직 못 받으면(assignee_ready false — DB 0042 전) 담당자를 적지도 고르지도 않는다.
              새 고객 · 프로젝트 — 프로젝트 이름 + 「새 고객」(이름 · 전화) 또는 「있는 고객」(목록에 나온 고객 중 고르기)
+             작업 배정 (2026-11-13 「작업자 한 길」 — 작업 종류 → 작업자 → 배정 → 승인(작업자 수락) → 연결):
+               인사를 쓰는 팩토리(다담 공장 · Agent)의 진행 중 프로젝트 줄마다 「작업 배정」(직원은 「작업자 보기」) →
+               그 줄 아래에 종류 줄(철거 · 재단 · 엣지 · 조립 · 설치 · A/S) 표. 그리기 · 서버는 segan/project-work.js.
    이름      상태 = segan/me.js PROJECT_STATUS 와 같다 (active 는 적지 않는다)
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · 모양이 틀림) → 칸째 감춘다. 만들기를 못 하면 서버 글을 그 자리에.
    ============================================================ */
@@ -78,6 +81,7 @@
     data: null, // { company, can_manage, items }
     open: false, // 새 고객 · 프로젝트 칸
     assignFor: '', // 담당자를 고르는 프로젝트 id
+    workFor: '', // 작업 배정 칸을 펼친 프로젝트 id (segan/project-work.js)
     mode: 'new', // new | existing
     err: '',
     msg: '',
@@ -247,6 +251,27 @@
         '</small>'
       : '';
     var canAssign = d.assignee && d.manage;
+    // 작업 배정 — 인사를 쓰는 팩토리의 진행 중 프로젝트 (담당자 고르는 보기에서는 뺀다)
+    var PW = window.SeganProjectWork;
+    var canWork = !!PW && PW.canSee(J.me) && !J.view.assign && (p.status === 'active' || !p.status);
+    var working = canWork && J.workFor === p.id;
+    var acts =
+      (canAssign && J.assignFor !== p.id
+        ? '<button type="button" class="mk-btn" data-act="assign" data-for="' + esc(p.id) + '">담당자</button>'
+        : '') +
+      (canWork
+        ? '<button type="button" class="mk-btn' +
+          (working ? ' mk-btn--solid' : '') +
+          '" data-act="' +
+          (working ? 'work-close' : 'work') +
+          '" data-for="' +
+          esc(p.id) +
+          '" aria-expanded="' +
+          working +
+          '">' +
+          esc(working ? '작업 배정 닫기' : d.manage ? '작업 배정' : '작업자 보기') +
+          '</button>'
+        : '');
     return (
       '<li class="me-pt-row" data-project="' +
       esc(p.id) +
@@ -262,12 +287,9 @@
       '</span>' +
       (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
       '</span>' +
-      (canAssign && J.assignFor !== p.id
-        ? '<div class="rd-acts"><button type="button" class="mk-btn" data-act="assign" data-for="' +
-          esc(p.id) +
-          '">담당자</button></div>'
-        : '') +
+      (acts ? '<div class="rd-acts">' + acts + '</div>' : '') +
       (canAssign && J.assignFor === p.id ? assignHtml(p) : '') +
+      (working ? '<div class="pjw" data-pj-work="' + esc(p.id) + '"></div>' : '') +
       '</li>'
     );
   }
@@ -399,6 +421,21 @@
           : '<div class="rd-acts"><button type="button" class="mk-btn" data-act="open">새 고객 · 프로젝트</button></div>'
         : '');
     box.hidden = false;
+    mountWork(box);
+  }
+
+  /** 펼쳐 둔 「작업 배정」 자리에 칸을 올린다 — 목록을 다시 그릴 때마다 (읽어 둔 것은 그 모듈이 기억한다) */
+  function mountWork(box) {
+    var PW = window.SeganProjectWork;
+    if (!PW) return;
+    var host = J.workFor ? box.querySelector('[data-pj-work]') : null;
+    if (!host) {
+      // 그 프로젝트가 이 보기에 없다(다른 단계로 갔다) — 닫는다
+      if (J.workFor) PW.unmount();
+      J.workFor = '';
+      return;
+    }
+    PW.mount(host, { id: J.workFor, sb: J.sb, session: J.session });
   }
 
   /** 다담 공장 구성원은 업체 칸에 협력업체 내용이 없다 — 이 칸을 그렸으면 업체 칸을 연다 */
@@ -582,6 +619,15 @@
       J.assignFor = '';
       J.err = '';
       render();
+    } else if (act === 'work' || act === 'work-close') {
+      var PW = window.SeganProjectWork;
+      if (PW) PW.unmount();
+      J.workFor = act === 'work' ? el.getAttribute('data-for') || '' : '';
+      J.open = false;
+      J.assignFor = '';
+      J.err = '';
+      J.msg = '';
+      render();
     }
   }
 
@@ -623,6 +669,8 @@
     J.data = null;
     J.open = false;
     J.assignFor = '';
+    J.workFor = '';
+    if (window.SeganProjectWork) window.SeganProjectWork.unmount();
     J.mode = 'new';
     J.err = '';
     J.msg = '';

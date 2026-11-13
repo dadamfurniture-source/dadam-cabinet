@@ -451,7 +451,7 @@ describe('작업자 — 대표 · 실장', () => {
       'PATCH /company/workers/l-1',
       'GET /company/workers',
     ]);
-    expect(msg()).toBe('승인했습니다. 설치 · A/S 일정에서 배정할 수 있습니다.');
+    expect(msg()).toBe('승인했습니다. 프로젝트의 「작업 배정」에서 배정할 수 있습니다.');
     expect(group('pending')).toBeNull();
     expect(rows('approved').length).toBe(3);
 
@@ -706,5 +706,33 @@ describe('누가 무엇을', () => {
     // 둘 다 못 읽으면 줄이 없다
     await load({ partner: HQ, hash: '#workers-hq', workers: () => fail(403, 'x', 'x') });
     expect(menu('workers-hq').hidden).toBe(true);
+  });
+});
+
+// ── 2026-11-13 둘째 묶음 — 작업 종류 여섯 · 작업자 화면으로 가는 줄 ──
+describe('작업 종류 여섯 · 작업자 화면', () => {
+  test('초대의 종류는 일하는 차례로 여섯 (철거 · 재단 · 엣지 · 조립 · 설치 · A/S) · 작업자 화면으로 가는 줄', async () => {
+    const calls = await load();
+    const note = box().querySelector('[data-cw="worker-screen"]');
+    expect(text(note)).toContain('작업자는 앱 「작업」 화면에서 초대를 받고 수락 · 보고합니다.');
+    expect(note.querySelector('a').getAttribute('href')).toBe('work.html');
+    expect(text(box().querySelector('.mk-note'))).toContain(
+      '배정은 프로젝트의 「작업 배정」에서 합니다.'
+    );
+    await press(box().querySelector('[data-act="tab"][data-tab="invite"]'));
+    expect([...box().querySelectorAll('[data-act="kind"]')].map(text)).toEqual([
+      '철거',
+      '재단',
+      '엣지',
+      '조립',
+      '설치',
+      'A/S',
+    ]);
+    await press(box().querySelector('[data-kind="demolition"]'));
+    await press(box().querySelector('[data-days="3"]'));
+    await press(box().querySelector('[data-act="make"]'));
+    expect(calls.fetch.find((c) => c.method === 'POST').body.kinds_preset).toEqual(['demolition']);
+    expect(mod().KIND.demolition).toBe('철거');
+    expect(mod().kindsText(['demolition', 'cutting'])).toBe('철거 · 재단');
   });
 });
