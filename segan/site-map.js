@@ -18,6 +18,11 @@
                PUT   /company/sites/geo             { items: [{ design_id, address, lat, lng, sido?, gugun? }] }  (구성원 · 한 번에 20곳)
                PATCH /schedules/:id                 { scheduled_at?, assignee_name?, status? }                     (대표 · 실장)
                PUT   /company/as-requests/:id/visit { visit_at, assignee_name? }                                   (대표 · 실장)
+               GET   /company/schedules/:id/workers  → { kind, can_manage, can_assign, job, workers[{ assignment_id, name, status,
+                     label, reason, reports[{ kind, by, body, at }] }], candidates[{ link_id, name, kinds, region }] }   (구성원)
+               POST  /company/schedules/:id/workers { link_ids[] }                                                  (대표 · 실장)
+               POST  /company/work/assignments/:id/accept | revision { reason } | remove { reason }                 (대표 · 실장)
+                     설치 줄 · A/S 방문에는 workers[{ name, status, label }] 가 실려 온다 (배정된 작업자)
    지도      카카오맵 JavaScript SDK (2026-11-10 대표님 결정). 키는 JavaScript 키 하나 — 사이트 도메인에만 묶인 공개 키다.
              키는 js/config.js 의 DADAM_CONFIG.kakaoJsKey 에 적는다 (아래 KAKAO_JS_KEY 는 비워 둔다).
              둘 다 비어 있으면 지도 자리에 「준비 중」 한 줄, 표는 그대로.
@@ -31,6 +36,12 @@
              줄 · 핀을 누르면 아래에 현장 정보. 대표 · 실장은 설치 줄의 날짜 · 시각 · 설치팀 · 상태를 고치고(일정 표에 저장),
              A/S 줄의 방문일 · 담당을 잡는다(일정 표의 「A/S 방문」 한 줄). 저장하면 업무 달력도 다시 읽는다.
              「이번 주」 = 일요일부터 (업무 달력과 같다).
+   작업자    (2026-11-13 「작업자 한 길」) 설치 줄 · A/S 방문 줄에서 「작업자 배정」 → 그 자리에서 연결된 작업자를 골라 「배정하기」.
+             배정하면 작업자에게 알림이 가고, 작업자가 수락해야 확정된다 (수락 대기 → 확정 → 작업 중 → 완료 보고 → 확인함).
+             줄마다 「확인」 「보완요청」 「빼기」 (보완요청 · 빼기는 사유를 적고 한 번 더 묻는다). 작업자의 보고 글도 여기서 읽는다.
+             배정은 인사를 쓰는 팩토리(다담 공장 · Agent)의 대표 · 실장만 — 그 밖의 사람은 배정된 작업자를 보기만 한다.
+             작업자를 배정한 일정은 담당 글이 작업자 이름으로 적힌다 (손으로 적는 칸을 감춘다). 납품 줄에는 없다.
+             작업자 이름 · 보고 글은 화면에만 그린다 — 기기 저장 · 주소에 싣지 않는다.
    색        핀 · 번호 네모 넷 — 파랑(예정) · 노랑(진행 중 / 방문일 미정) · 빨강(팀 · 담당 미정) · 초록(끝).
              색만으로 가리지 않는다: 표에 상태 글자가 있고 범례에 이름을 적는다.
    움직임    없다 — 줄 · 핀 고르기는 자주 누르는 곳이다 (지도도 밀지 않고 바로 옮긴다. CLAUDE.md 「SEGAN 앱 모션 규칙」).
@@ -73,6 +84,29 @@
   // 여기서 고를 수 있는 상태 — 취소 · 되살리기는 업무 달력에서 한다
   var STATUS_OPTIONS = ['scheduled', 'confirmed', 'in_progress', 'completed'];
   var AS_STATE = { requested: '접수', received: '받음', done: '끝' };
+  // 작업자 배정 상태 — 워커 work/schedule-link.js ASSIGNMENT_LABEL 과 같은 글자
+  var ASSIGN_LABEL = {
+    offered: '수락 대기',
+    confirmed: '확정',
+    started: '작업 중',
+    submitted: '완료 보고',
+    revision: '보완 요청',
+    accepted: '확인함',
+    declined: '거절',
+    released: '포기',
+    removed: '뺌',
+  };
+  // 아직 살아 있는 배정 (뺄 수 있다)
+  var ASSIGN_LIVE = ['offered', 'confirmed', 'started', 'submitted', 'revision'];
+  var REPORT_LABEL = {
+    progress: '진행',
+    issue: '문제',
+    result: '완료 보고',
+    note: '메모',
+    correction: '정정',
+  };
+  var PEOPLE_PLANS = ['agent']; // 인사를 쓰는 등급 (+ 다담 공장) — segan/me.js PEOPLE_PLANS
+  var REASON_MAX = 200; // 서버 reason
   var TYPE_LABEL = { delivery: '납품', installation: '설치' };
   var VIEW = {
     install: {
@@ -132,6 +166,33 @@
     visitSoon: '방문일 넣기는 준비 중입니다.',
     unset: '미정',
     noName: '(이름 없음)',
+    wkTitle: '작업자',
+    wkOpen: '작업자 배정',
+    wkView: '작업자 보기',
+    wkLoading: '작업자를 불러오는 중입니다.',
+    wkFailed: '작업자를 불러오지 못했습니다. 잠시 뒤 다시 해 주세요.',
+    wkNone: '아직 배정한 작업자가 없습니다.',
+    wkPick: '배정할 작업자 (여럿 고를 수 있습니다)',
+    wkNoCandidates:
+      '배정할 수 있는 작업자가 없습니다. 인사 › 작업자에서 초대하고 승인하면 여기에 나옵니다.',
+    wkGoWorkers: '인사 › 작업자 열기',
+    wkAssign: '배정하기',
+    wkAssignNote: '배정하면 작업자에게 알림이 가고, 작업자가 수락해야 확정됩니다.',
+    wkAssigned: '배정했습니다. 작업자가 수락하면 확정됩니다.',
+    wkAccept: '확인',
+    wkAccepted: '완료 보고를 확인했습니다.',
+    wkRevision: '보완요청',
+    wkRevisionAsk: '보완할 내용을 적어 주세요. 작업자에게 그대로 보입니다.',
+    wkRevised: '보완을 요청했습니다.',
+    wkRemove: '빼기',
+    wkRemoveAsk: '이 작업자를 이 일정에서 뺄까요? 사유는 우리 팩토리 기록에만 남습니다.',
+    wkRemoved: '작업자를 뺐습니다.',
+    wkReason: '사유',
+    wkNeedReason: '사유를 적어 주세요.',
+    wkCancel: '취소',
+    wkClose: '작업자 닫기',
+    wkLocked: '작업자를 배정한 일정입니다 — 담당은 작업자 이름으로 적힙니다.',
+    wkDeclined: '사유',
   };
   var DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
   var TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -149,6 +210,7 @@
     geoBusy: false,
     sdk: 'idle', // idle | loading | ready | failed | nokey
     sdkWait: null,
+    people: false, // 인사를 쓰는 팩토리(다담 공장 · Agent) — 작업자 배정 단추를 보인다
   };
   function viewState(kind) {
     return {
@@ -158,6 +220,7 @@
       team: '',
       region: '',
       sel: '', // 고른 줄의 key
+      wk: null, // 열어 둔 작업자 칸 { id(일정), data, loading, picked[], ask, err, msg }
       form: false,
       err: '',
       msg: '',
@@ -284,6 +347,18 @@
       needs_geo: raw.needs_geo === true,
     };
   }
+  /** 줄에 실려 온 배정된 작업자 → [{ name, status, label }] (아는 상태만) */
+  function workersOfRaw(list) {
+    return (Array.isArray(list) ? list : [])
+      .filter(function (w) {
+        return (
+          w && typeof w === 'object' && Object.prototype.hasOwnProperty.call(ASSIGN_LABEL, w.status)
+        );
+      })
+      .map(function (w) {
+        return { name: str(w.name), status: w.status, label: ASSIGN_LABEL[w.status] };
+      });
+  }
   function visitOfRaw(raw) {
     var x = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null;
     if (!x || !str(x.schedule_id) || !isDay(x.day)) return null;
@@ -293,6 +368,7 @@
       time: TIME_RE.test(str(x.time)) ? str(x.time) : '',
       assignee_name: str(x.assignee_name),
       status: str(x.status),
+      workers: workersOfRaw(x.workers),
     };
   }
   function itemOf(kind, raw) {
@@ -308,6 +384,7 @@
       it.time = TIME_RE.test(str(raw.time)) ? str(raw.time) : '';
       it.status = str(raw.status);
       it.assignee_name = str(raw.assignee_name);
+      it.workers = workersOfRaw(raw.workers);
       return it;
     }
     if (!str(raw.as_id) || !AS_STATE[raw.state]) return null;
@@ -371,6 +448,91 @@
   /** A/S 방문 일정 — 취소된 방문은 「방문일 미정」으로 읽는다 */
   function visitOf(item) {
     return item.visit && item.visit.status !== 'cancelled' ? item.visit : null;
+  }
+  /** 그 줄에 배정된 작업자 (설치 줄 · A/S 방문) */
+  function workersOn(kind, item) {
+    if (kind === 'install') return item.workers || [];
+    var v = visitOf(item);
+    return v ? v.workers || [] : [];
+  }
+  /** 작업자를 배정할 수 있는 일정의 id — 설치 줄(납품 아님) · 잡아 둔 A/S 방문. 없으면 '' */
+  function workScheduleOf(kind, item) {
+    if (kind === 'install') return item.type === 'installation' ? item.schedule_id : '';
+    var v = visitOf(item);
+    return v ? v.schedule_id : '';
+  }
+  /** '김기사 (수락 대기) · 이기사 (확정)' */
+  function workersText(list) {
+    return (list || [])
+      .map(function (w) {
+        return (w.name || TEXT.noName) + ' (' + w.label + ')';
+      })
+      .join(' · ');
+  }
+  /** 때 → 한국 시각 '11/20 14:05' (없으면 '') */
+  function stampOf(iso) {
+    var t = Date.parse(typeof iso === 'string' ? iso : '');
+    if (isNaN(t)) return '';
+    var at = new Date(t + KST_MS).toISOString();
+    return Number(at.slice(5, 7)) + '/' + Number(at.slice(8, 10)) + ' ' + at.slice(11, 16);
+  }
+  /**
+   * GET|POST /company/schedules/:id/workers · 배정 바꾸기 응답의 data → 작업자 칸 값 (모양이 틀리면 null)
+   * { manage, assign, job, workers[{ id, name, status, label, reason, live, reports[{ label, by, body, at }] }], candidates[{ id, name, region }] }
+   */
+  function panelOf(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d) || !Array.isArray(d.workers)) return null;
+    return {
+      manage: d.can_manage === true,
+      assign: d.can_manage === true && d.can_assign === true,
+      job: d.job && typeof d.job === 'object' ? str(d.job.status) : '',
+      workers: d.workers
+        .filter(function (w) {
+          return (
+            w &&
+            typeof w === 'object' &&
+            str(w.assignment_id) &&
+            Object.prototype.hasOwnProperty.call(ASSIGN_LABEL, w.status)
+          );
+        })
+        .map(function (w) {
+          return {
+            id: str(w.assignment_id),
+            name: str(w.name),
+            status: w.status,
+            label: ASSIGN_LABEL[w.status],
+            reason: str(w.reason),
+            live: ASSIGN_LIVE.indexOf(w.status) >= 0,
+            reports: (Array.isArray(w.reports) ? w.reports : [])
+              .filter(function (u) {
+                return u && typeof u === 'object' && str(u.body);
+              })
+              .map(function (u) {
+                return {
+                  label: REPORT_LABEL[u.kind] || '',
+                  by: u.by === 'company' ? 'company' : 'worker',
+                  body: str(u.body),
+                  at: stampOf(u.at),
+                };
+              }),
+          };
+        }),
+      candidates: (Array.isArray(d.candidates) ? d.candidates : [])
+        .filter(function (c) {
+          return c && typeof c === 'object' && str(c.link_id);
+        })
+        .map(function (c) {
+          return { id: str(c.link_id), name: str(c.name), region: str(c.region) };
+        }),
+    };
+  }
+  /** 인사를 쓰는 팩토리인가 — 다담 공장 · Agent (작업자 배정 단추) */
+  function canAssignWorkers(me) {
+    var m = me && typeof me === 'object' && !Array.isArray(me) ? me : {};
+    if (m.platform_member === true) return false;
+    if (m.hq_member === true) return true;
+    var c = m.company && typeof m.company === 'object' ? m.company : {};
+    return PEOPLE_PLANS.indexOf(c.plan) >= 0;
   }
   /** 설치팀 · 방문 담당 */
   function teamOf(kind, item) {
@@ -1021,14 +1183,16 @@
         '<input name="time" type="time" value="' + esc(time) + '" data-fk="in:time" required />'
       ) +
       '</div>' +
-      field(
-        VIEW[v.kind].team,
-        '<input name="team" type="text" maxlength="' +
-          TEAM_MAX +
-          '" value="' +
-          esc(team) +
-          '" data-fk="in:team" autocomplete="off" />'
-      ) +
+      (workersOn(v.kind, item).length
+        ? '<p class="mk-note" data-sm="team-locked">' + esc(TEXT.wkLocked) + '</p>'
+        : field(
+            VIEW[v.kind].team,
+            '<input name="team" type="text" maxlength="' +
+              TEAM_MAX +
+              '" value="' +
+              esc(team) +
+              '" data-fk="in:team" autocomplete="off" />'
+          )) +
       status +
       '<p class="mk-error" data-err role="alert"' +
       (v.err ? '' : ' hidden') +
@@ -1068,6 +1232,9 @@
           ['담당', (visit && visit.assignee_name) || TEXT.unset],
           ['상태', it.label],
         ];
+    var assigned = workersOn(v.kind, it);
+    var sid = workScheduleOf(v.kind, it);
+    if (assigned.length) pairs.push([TEXT.wkTitle, workersText(assigned)]);
     pairs = pairs.concat([
       ['프로젝트', it.project_title],
       ['설계', it.design ? it.design.name : ''],
@@ -1081,6 +1248,14 @@
       note = '<p class="mk-note">' + esc(TEXT.visitSoon) + '</p>';
       canEdit = false;
     }
+    // 작업자 — 배정은 인사를 쓰는 팩토리의 대표 · 실장, 그 밖의 사람은 배정된 사람이 있을 때 보기만
+    var wkOn = !!v.wk && !!sid && v.wk.id === sid;
+    var wkBtn = '';
+    if (sid && !wkOn && (assigned.length || (v.data.manage && S.people)))
+      wkBtn =
+        '<button type="button" class="mk-btn" data-act="workers" data-fk="workers">' +
+        esc(v.data.manage && S.people ? TEXT.wkOpen : TEXT.wkView) +
+        '</button>';
     if (!v.form)
       acts =
         '<div class="rd-acts">' +
@@ -1089,6 +1264,7 @@
             (install ? '고치기' : visit ? '방문일 고치기' : '방문일 잡기') +
             '</button>'
           : '') +
+        wkBtn +
         '<button type="button" class="mk-btn" data-act="unpick" data-fk="unpick">닫기</button></div>';
     return (
       '<div class="me-pt-box sm-detail">' +
@@ -1103,6 +1279,172 @@
       msg +
       note +
       (v.form && canEdit ? formHtml(v, it) : acts) +
+      (wkOn && !v.form ? workersHtml(v) : '') +
+      '</div>'
+    );
+  }
+
+  // ── 작업자 칸 ───────────────────────────────────────────────────────────────
+  function wkBtnHtml(act, id, label, busy, solid) {
+    return (
+      '<button type="button" class="' +
+      (solid ? 'mk-btn mk-btn--solid' : 'od-open') +
+      '" data-act="' +
+      act +
+      '"' +
+      (id ? ' data-id="' + esc(id) + '"' : '') +
+      ' data-fk="' +
+      act +
+      ':' +
+      esc(id || '') +
+      '"' +
+      (busy ? ' disabled' : '') +
+      '>' +
+      esc(label) +
+      '</button>'
+    );
+  }
+  /** 배정된 작업자 한 줄 — 이름 · 상태 · 단추 · 사유 · 보고 글 */
+  function wkRowHtml(w, manage, asking, busy) {
+    var acts = '';
+    if (manage) {
+      if (w.status === 'submitted')
+        acts +=
+          wkBtnHtml('wk-accept', w.id, TEXT.wkAccept, busy) +
+          wkBtnHtml('wk-revision', w.id, TEXT.wkRevision, busy);
+      if (w.live) acts += wkBtnHtml('wk-remove', w.id, TEXT.wkRemove, busy);
+    }
+    var reports = w.reports.length
+      ? '<ul class="sm-wk-reports">' +
+        w.reports
+          .map(function (u) {
+            var who = u.by === 'company' ? '팩토리' : '작업자';
+            var head = [who, u.label, u.at].filter(Boolean).join(' · ');
+            return '<li><span class="sm-wk-when">' + esc(head) + '</span>' + esc(u.body) + '</li>';
+          })
+          .join('') +
+        '</ul>'
+      : '';
+    return (
+      '<li class="sm-wk-item' +
+      (asking ? ' sm-wk-item--on' : '') +
+      '"><div class="sm-wk-row"><span class="sm-wk-name">' +
+      esc(w.name || TEXT.noName) +
+      '</span><span class="sm-wk-state">' +
+      esc(w.label) +
+      '</span><span class="sm-wk-acts">' +
+      acts +
+      '</span></div>' +
+      (w.reason ? '<p class="mk-note">' + esc(TEXT.wkDeclined + ': ' + w.reason) + '</p>' : '') +
+      reports +
+      '</li>'
+    );
+  }
+  function wkAskHtml(k, w, busy) {
+    var revision = k.ask.kind === 'revision';
+    return (
+      '<div class="pw-ask" role="group" aria-label="확인" data-sm="wk-ask"><p><b>' +
+      esc((w && w.name) || TEXT.noName) +
+      '</b> — ' +
+      esc(revision ? TEXT.wkRevisionAsk : TEXT.wkRemoveAsk) +
+      '</p><label class="mk-input"><span>' +
+      esc(TEXT.wkReason) +
+      '</span><input name="wk-reason" type="text" maxlength="' +
+      REASON_MAX +
+      '" autocomplete="off" data-fk="in:wk-reason"' +
+      (busy ? ' disabled' : '') +
+      ' /></label><div class="rd-acts">' +
+      wkBtnHtml('wk-yes', '', revision ? TEXT.wkRevision : TEXT.wkRemove, busy, true) +
+      '<button type="button" class="mk-btn" data-act="wk-no" data-fk="wk-no"' +
+      (busy ? ' disabled' : '') +
+      '>' +
+      esc(TEXT.wkCancel) +
+      '</button></div></div>'
+    );
+  }
+  function workersHtml(v) {
+    var k = v.wk;
+    var close =
+      '<div class="rd-acts"><button type="button" class="mk-btn" data-act="wk-close" data-fk="wk-close"' +
+      (v.busy ? ' disabled' : '') +
+      '>' +
+      esc(TEXT.wkClose) +
+      '</button></div>';
+    var head =
+      '<div class="sm-wk" data-sm="wk"><h5 class="sm-wk-title">' + esc(TEXT.wkTitle) + '</h5>';
+    var err =
+      '<p class="mk-error" role="alert" data-sm="wk-err"' +
+      (k.err ? '' : ' hidden') +
+      '>' +
+      esc(k.err) +
+      '</p>';
+    if (k.loading)
+      return head + '<p class="mk-note" role="status">' + esc(TEXT.wkLoading) + '</p></div>';
+    if (!k.data) return head + err + close + '</div>';
+    var d = k.data;
+    var asked = k.ask
+      ? d.workers.filter(function (w) {
+          return w.id === k.ask.id;
+        })[0]
+      : null;
+    var list = d.workers.length
+      ? '<ul class="sm-wk-list">' +
+        d.workers
+          .map(function (w) {
+            return wkRowHtml(w, d.manage, !!asked && asked.id === w.id, v.busy);
+          })
+          .join('') +
+        '</ul>'
+      : '<p class="me-empty">' + esc(TEXT.wkNone) + '</p>';
+    var pickHtml = '';
+    if (d.assign && !k.ask) {
+      pickHtml = d.candidates.length
+        ? '<p class="cw-label">' +
+          esc(TEXT.wkPick) +
+          '</p><div class="cs-choices">' +
+          d.candidates
+            .map(function (c) {
+              var on = k.picked.indexOf(c.id) >= 0;
+              return (
+                '<button type="button" class="mk-btn' +
+                (on ? ' mk-btn--solid' : '') +
+                '" data-act="wk-pick" data-id="' +
+                esc(c.id) +
+                '" data-fk="wk-pick:' +
+                esc(c.id) +
+                '" aria-pressed="' +
+                on +
+                '"' +
+                (v.busy ? ' disabled' : '') +
+                '>' +
+                esc((c.name || TEXT.noName) + (c.region ? ' · ' + c.region : '')) +
+                '</button>'
+              );
+            })
+            .join('') +
+          '</div><p class="mk-note">' +
+          esc(TEXT.wkAssignNote) +
+          '</p><div class="rd-acts"><button type="button" class="mk-btn mk-btn--solid" data-act="wk-assign" data-fk="wk-assign"' +
+          (v.busy || !k.picked.length ? ' disabled' : '') +
+          '>' +
+          esc(TEXT.wkAssign) +
+          '</button></div>'
+        : '<p class="mk-note">' +
+          esc(TEXT.wkNoCandidates) +
+          ' <a class="od-pc" href="#' +
+          (S.hq ? 'workers-hq' : 'workers') +
+          '">' +
+          esc(TEXT.wkGoWorkers) +
+          ' →</a></p>';
+    }
+    return (
+      head +
+      list +
+      (asked ? wkAskHtml(k, asked, v.busy) : '') +
+      (k.msg ? '<p class="me-pt-msg" role="status">' + esc(k.msg) + '</p>' : '') +
+      err +
+      pickHtml +
+      close +
       '</div>'
     );
   }
@@ -1259,6 +1601,7 @@
   function pick(v, key) {
     if (v.sel === key) return;
     v.sel = key;
+    v.wk = null;
     v.form = false;
     v.err = '';
     v.msg = '';
@@ -1343,6 +1686,8 @@
     })[0];
     if (!item || !v.data.manage) return;
     var values = formValues(box) || {};
+    // 작업자를 배정한 일정은 담당 글 칸이 없다 — 지금 값 그대로 둔다 (서버가 작업자 이름으로 맞춘다)
+    if (workersOn(v.kind, item).length) values.team = teamOf(v.kind, item);
     var install = form.getAttribute('data-form') === 'edit';
     var res = install ? patchOf(item, values) : visitBodyOf(item, values);
     if (res.error) return showError(v, box, res);
@@ -1377,10 +1722,127 @@
     }
     calendarReload();
   }
+  // ── 작업자 칸 — 누른 일 ───────────────────────────────────────────────────────
+  /** 작업자 칸을 연다 — 그 일정의 배정 · 고를 수 있는 작업자를 읽는다 */
+  async function openWorkers(v) {
+    var item = v.data.items.filter(function (it) {
+      return it.key === v.sel;
+    })[0];
+    var sid = item ? workScheduleOf(v.kind, item) : '';
+    if (!sid) return;
+    var k = (v.wk = {
+      id: sid,
+      data: null,
+      loading: true,
+      picked: [],
+      ask: null,
+      err: '',
+      msg: '',
+    });
+    v.form = false;
+    v.err = '';
+    v.msg = '';
+    render(v);
+    var r = await call('GET', '/company/schedules/' + encodeURIComponent(sid) + '/workers');
+    if (v.wk !== k) return; // 그 사이 닫았거나 다른 줄을 골랐다
+    k.loading = false;
+    k.data = r.ok ? panelOf(r.body.data) : null;
+    if (!k.data) k.err = r.ok || !r.body || !r.body.message ? TEXT.wkFailed : errText(r);
+    render(v);
+  }
+  /** 작업자 칸에서 서버에 한 가지를 하고, 받은 답으로 칸을 바꾼 뒤 표를 다시 읽는다 */
+  async function wkRun(v, method, path, body, done) {
+    var k = v.wk;
+    if (!k || v.busy) return;
+    v.busy = true;
+    k.err = '';
+    k.msg = '';
+    render(v);
+    var r = await call(method, path, body);
+    v.busy = false;
+    if (v.wk !== k) return render(v);
+    if (!r.ok) {
+      k.err = errText(r);
+      render(v);
+      return;
+    }
+    var next = panelOf(r.body.data);
+    if (next) k.data = next;
+    k.ask = null;
+    k.picked = [];
+    k.msg = done;
+    // 표의 작업자 · 담당 글 · 업무 달력도 바뀐다
+    if (!(await reloadView(v))) render(v);
+    calendarReload();
+  }
+  function onWorkersClick(v, act, el) {
+    var k = v.wk;
+    if (act === 'workers') return (openWorkers(v), true);
+    if (!k || act.indexOf('wk-') !== 0) return false;
+    var id = el.getAttribute('data-id') || '';
+    if (act === 'wk-close') {
+      v.wk = null;
+      render(v);
+    } else if (!k.data || !k.data.manage) {
+      return true;
+    } else if (act === 'wk-pick') {
+      var at = k.picked.indexOf(id);
+      if (at >= 0) k.picked.splice(at, 1);
+      else if (id) k.picked.push(id);
+      render(v);
+    } else if (act === 'wk-assign') {
+      if (k.picked.length)
+        wkRun(
+          v,
+          'POST',
+          '/company/schedules/' + encodeURIComponent(k.id) + '/workers',
+          { link_ids: k.picked.slice() },
+          TEXT.wkAssigned
+        );
+    } else if (act === 'wk-accept') {
+      wkRun(
+        v,
+        'POST',
+        '/company/work/assignments/' + encodeURIComponent(id) + '/accept',
+        {},
+        TEXT.wkAccepted
+      );
+    } else if (act === 'wk-revision' || act === 'wk-remove') {
+      k.ask = { kind: act === 'wk-revision' ? 'revision' : 'remove', id: id };
+      k.err = '';
+      k.msg = '';
+      render(v);
+      var input = boxOf(v).querySelector('[name="wk-reason"]');
+      if (input && typeof input.focus === 'function') input.focus();
+    } else if (act === 'wk-no') {
+      k.ask = null;
+      k.err = '';
+      render(v);
+    } else if (act === 'wk-yes' && k.ask) {
+      var field = boxOf(v).querySelector('[name="wk-reason"]');
+      var reason = field ? field.value.trim() : '';
+      if (!reason) {
+        k.err = TEXT.wkNeedReason;
+        render(v);
+        var again = boxOf(v).querySelector('[name="wk-reason"]');
+        if (again && typeof again.focus === 'function') again.focus();
+        return true;
+      }
+      wkRun(
+        v,
+        'POST',
+        '/company/work/assignments/' + encodeURIComponent(k.ask.id) + '/' + k.ask.kind,
+        { reason: reason },
+        k.ask.kind === 'revision' ? TEXT.wkRevised : TEXT.wkRemoved
+      );
+    }
+    return true;
+  }
   function onClick(v, e) {
     var el = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el || el.disabled || v.busy || !v.data) return;
     var act = el.getAttribute('data-act');
+    if (onWorkersClick(v, act, el)) return;
     if (act === 'pick') {
       // 열어 둔 입력 칸 안을 누른 것은 줄 고르기가 아니다
       pick(v, el.getAttribute('data-key'));
@@ -1391,12 +1853,14 @@
       render(v);
     } else if (act === 'unpick') {
       v.sel = '';
+      v.wk = null;
       v.form = false;
       v.err = '';
       v.msg = '';
       render(v);
     } else if (act === 'edit') {
       v.form = true;
+      v.wk = null;
       v.err = '';
       v.msg = '';
       render(v);
@@ -1449,6 +1913,8 @@
     S.base = (cfg.workflowApi && cfg.workflowApi.url) || '';
     S.geo = {};
     S.geoLeft = GEO_MAX;
+    S.people = canAssignWorkers(me);
+    S.hq = !!me && me.hq_member === true;
     await Promise.all(
       KINDS.map(async function (k) {
         var v = V[k];
@@ -1503,6 +1969,12 @@
     coordOf: coordOf,
     regionOf: regionOf,
     visitOf: visitOf,
+    ASSIGN_LABEL: ASSIGN_LABEL,
+    workersOn: workersOn,
+    workScheduleOf: workScheduleOf,
+    workersText: workersText,
+    panelOf: panelOf,
+    canAssignWorkers: canAssignWorkers,
     teamOf: teamOf,
     pinTone: pinTone,
     tabsOf: tabsOf,
