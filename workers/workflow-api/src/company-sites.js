@@ -15,8 +15,6 @@
  *   PUT /company/as-requests/:id/visit { visit_at, assignee_name? }
  *     → { id, visit }
  *     그 접수의 방문 일정(design_schedules, type as_visit) 한 줄을 만들거나 고친다 → 업무 달력의 「A/S 방문」과 같은 줄
- *   설치 줄 · A/S 방문에는 그 일정에 배정된 작업자 workers [{ name, status, label }] 를 싣는다 (2026-11-13 작업자 한 길 —
- *     배정은 GET|POST /company/schedules/:id/workers, src/work/schedule-link.js. 납품 줄은 늘 빈 배열)
  *
  * 누가: 프로젝트를 가질 수 있는 업체의 active 구성원 — /company/schedules 와 같다.
  *   좌표 적기는 구성원 누구나 (주소에서 나온 값일 뿐). 방문 일정은 대표 · 실장만 (일정 고치기 = 대표 · 실장, 2026-11-10 결정).
@@ -45,7 +43,6 @@ import { SCHEDULE_LABELS } from './slack.js';
 import { AS_STATE_LABEL } from './as-requests.js';
 import { isMissingRelation } from './work-order-data.js';
 import { assertUuid, optIso, optText } from './work/validate.js';
-import { keepAssigneeName, syncJobWithSchedule, workersOfSchedules } from './work/schedule-link.js';
 
 const KST_MS = 9 * 3600 * 1000;
 const DAY_MS = 24 * 3600 * 1000;
@@ -137,8 +134,8 @@ async function projectTitles(env, co, ids) {
   return new Map(rows.map((p) => [p.id, p.title || null]));
 }
 
-/** 방문 일정 줄 → 표에 싣는 칸. workersOf = 일정 id → 배정된 작업자 (없으면 빈 배열) */
-function visitOf(s, workersOf = null) {
+/** 방문 일정 줄 → 표에 싣는 칸 */
+function visitOf(s) {
   if (!s || !s.scheduled_at) return null;
   const ms = Date.parse(s.scheduled_at);
   return {
@@ -148,7 +145,6 @@ function visitOf(s, workersOf = null) {
     at: s.scheduled_at,
     assignee_name: s.assignee_name || null,
     status: s.status,
-    workers: (workersOf && workersOf.get(s.id)) || [],
   };
 }
 
@@ -179,7 +175,7 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
   const live = rows.filter((s) => s.scheduled_at < toIso);
   const designIds = [...new Set(live.map((s) => s.design_id))];
 
-  const [{ ready, siteByDesign }, orders, titleOf, workersOf] = await Promise.all([
+  const [{ ready, siteByDesign }, orders, titleOf] = await Promise.all([
     sitesOfDesigns(env, designIds),
     designIds.length
       ? selectIn(env, 'orders', 'design_id', designIds, {
@@ -190,7 +186,6 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
       })
       : [],
     projectTitles(env, co, [...new Set(live.map((s) => (s.designs || {}).project_id).filter(Boolean))]),
-    workersOfSchedules(env, company.id, live.filter((s) => s.type === 'installation').map((s) => s.id)),
   ]);
   const orderNoOf = new Map();
   for (const o of orders) if (!orderNoOf.has(o.design_id)) orderNoOf.set(o.design_id, o.order_no || null);
@@ -216,7 +211,6 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
         at: s.scheduled_at,
         status: s.status,
         assignee_name: s.assignee_name || null,
-        workers: workersOf.get(s.id) || [],
         design: { id: s.design_id, name: d.name || null },
         project_id: d.project_id || null,
         project_title: (d.project_id && titleOf.get(d.project_id)) || null,
@@ -255,14 +249,13 @@ async function listAsSites(env, { company, canAct }, nowMs) {
   const designIds = [...new Set(orders.map((o) => o.design_id).filter(Boolean))];
   const visitIds = [...new Set(rows.map((r) => r.visit_schedule_id).filter(Boolean))];
 
-  const [sites, designs, visits, titleOf, workersOf] = await Promise.all([
+  const [sites, designs, visits, titleOf] = await Promise.all([
     sitesOfDesigns(env, designIds),
     designIds.length ? selectIn(env, 'designs', 'id', designIds, { company_id: co, select: 'id,name' }) : [],
     visitIds.length
       ? selectIn(env, 'design_schedules', 'id', visitIds, { select: 'id,scheduled_at,assignee_name,status' })
       : [],
     projectTitles(env, co, [...new Set(orders.map((o) => o.project_id).filter(Boolean))]),
-    workersOfSchedules(env, company.id, visitIds),
   ]);
   const designNameOf = new Map(designs.map((d) => [d.id, d.name || null]));
   const visitById = new Map(visits.map((v) => [v.id, v]));
@@ -285,7 +278,7 @@ async function listAsSites(env, { company, canAct }, nowMs) {
         day: kstDateOf(Date.parse(r.created_at)),
         at: r.created_at,
         body: body.length > BODY_MAX ? `${body.slice(0, BODY_MAX)}…` : body,
-        visit: visitOf(r.visit_schedule_id ? visitById.get(r.visit_schedule_id) : null, workersOf),
+        visit: visitOf(r.visit_schedule_id ? visitById.get(r.visit_schedule_id) : null),
         design: o.design_id ? { id: o.design_id, name: designNameOf.get(o.design_id) || null } : null,
         project_id: o.project_id || null,
         project_title: (o.project_id && titleOf.get(o.project_id)) || null,
@@ -379,7 +372,7 @@ export async function saveSiteGeo(env, { user, body }) {
 }
 
 /** PUT /company/as-requests/:id/visit */
-export async function setAsVisit(env, { user, params, body, ctx }) {
+export async function setAsVisit(env, { user, params, body }) {
   const id = assertUuid(params.id, '접수 id');
   const { company } = await projectCompanyOf(env, user, { manage: true });
   const visitAt = optIso(body && body.visit_at, '방문일');
@@ -400,16 +393,12 @@ export async function setAsVisit(env, { user, params, body, ctx }) {
 
   // 이미 방문 일정이 있으면 그 줄을 고친다 (취소 · 완료했던 줄은 다시 예정으로)
   if (row.visit_schedule_id) {
-    const cur = await selectOne(env, 'design_schedules', { id: `eq.${row.visit_schedule_id}`, select: 'id,type,status,scheduled_at,duration_min' });
+    const cur = await selectOne(env, 'design_schedules', { id: `eq.${row.visit_schedule_id}`, select: 'id,status' });
     if (cur) {
       const patch = { scheduled_at: visitAt, assignee_name: assignee };
       if (cur.status === 'cancelled' || cur.status === 'completed') patch.status = 'scheduled';
-      const next = (await updateById(env, 'design_schedules', cur.id, patch)) || { ...cur, ...patch };
-      // 이 방문에 작업자를 배정해 두었으면 작업 시각을 맞추고 담당 글은 작업자 이름으로 둔다 (src/work/schedule-link.js)
-      await syncJobWithSchedule(env, ctx, { ...cur, ...next });
-      const name = await keepAssigneeName(env, { ...cur, ...next });
-      const visit = visitOf(name === undefined ? next : { ...next, assignee_name: name }, await workersOfSchedules(env, company.id, [cur.id]));
-      return { id: row.id, visit };
+      const next = await updateById(env, 'design_schedules', cur.id, patch);
+      return { id: row.id, visit: visitOf(next || { ...cur, ...patch }) };
     }
   }
 
