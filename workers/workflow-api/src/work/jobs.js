@@ -25,8 +25,11 @@ export const JOB_STATUSES = Object.freeze(['draft', 'open', 'filled', 'in_progre
 export const JOB_MODES = Object.freeze(['open', 'invite', 'direct']);
 export const PAY_UNITS = Object.freeze(['day', 'hour', 'meter', 'job']);
 
-/** 검수(review)를 거치는 종류. 공장 조립은 "각자 스스로 검수" (work-order-stage.plan.md) — 완료 보고로 끝난다 */
-const REVIEWED_KINDS = Object.freeze(['install', 'as']);
+/**
+ * 검수(review)를 거치는 종류 — 현장 일(설치 · A/S · 철거)은 팩토리가 「확인」해야 끝난다.
+ * 공장 일(조립 · 재단 · 엣지)은 "각자 스스로 검수" (work-order-stage.plan.md) — 완료 보고로 끝난다
+ */
+const REVIEWED_KINDS = Object.freeze(['install', 'as', 'demolition']);
 /** 자동 전이가 건드리지 않는 상태 */
 const FROZEN_STATUSES = Object.freeze(['draft', 'done', 'closed', 'cancelled']);
 /** 일이 시작된 배정 */

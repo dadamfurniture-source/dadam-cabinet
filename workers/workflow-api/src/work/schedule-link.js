@@ -52,7 +52,7 @@ export const ASSIGNMENT_LABEL = Object.freeze({
 /** 일정이 취소돼 작업을 닫을 때 남기는 사유 */
 export const SCHEDULE_CANCELLED = '일정이 취소되었습니다';
 
-const SCHEDULE_COLS = 'id,type,status,scheduled_at,duration_min,assignee_name,design_id,designs!inner(company_id)';
+export const SCHEDULE_COLS = 'id,type,status,scheduled_at,duration_min,assignee_name,design_id,designs!inner(company_id)';
 const ENDED_SCHEDULE = ['cancelled', 'completed'];
 const FINISHED_JOB = ['done', 'closed', 'cancelled'];
 const REASON_STATUSES = ['declined', 'released'];
@@ -102,17 +102,17 @@ async function loadSchedule(env, company, rawId) {
 }
 
 /** 그 일정의 살아 있는 작업 (없으면 null) */
-async function liveJobOf(env, scheduleId, companyId) {
+export async function liveJobOf(env, scheduleId, companyId) {
   const q = { schedule_id: `eq.${scheduleId}`, status: 'neq.cancelled', select: '*', order: 'created_at.desc' };
   if (companyId) q.company_id = `eq.${companyId}`;
   return (await selectOne(env, 'work_jobs', q)) || null;
 }
 
 /** 이 팩토리가 그 작업자에게 맡기는 종류 — 연결에 적은 것, 없으면 작업자가 적은 것 */
-const kindsFor = (link, worker) => (link.kinds && link.kinds.length ? link.kinds : (worker && worker.kinds) || []);
+export const kindsFor = (link, worker) => (link.kinds && link.kinds.length ? link.kinds : (worker && worker.kinds) || []);
 
 /** 현장의 시 · 구 (좌표를 바꾼 그때의 주소가 지금 주소와 같을 때만 — company-sites.js siteOf 와 같은 판정). 없으면 null */
-async function regionOf(env, designId) {
+export async function regionOf(env, designId) {
   try {
     const s = await selectOne(env, 'design_site_info', { design_id: `eq.${designId}`, select: 'address,sido,gugun,geo_address' });
     if (!s || !s.address || s.geo_address !== s.address) return null;
@@ -142,7 +142,7 @@ async function orderIdOf(env, company, schedule) {
 }
 
 /** 일정에서 작업을 만든다 — 그 사이 다른 사람이 만들었으면 그 작업을 쓴다 */
-async function createJobFor(env, { user, company, schedule, kind, slots }) {
+export async function createJobFor(env, { user, company, schedule, kind, slots }) {
   const [region, orderId] = await Promise.all([regionOf(env, schedule.design_id), orderIdOf(env, company, schedule)]);
   const row = {
     kind,
@@ -258,7 +258,7 @@ export async function workersOfSchedules(env, companyId, scheduleIds) {
 }
 
 /** 배정 한 줄 → 팩토리 화면 줄 (작업자 id 는 싣지 않는다) */
-function workerRow(a, reports) {
+export function workerRow(a, reports) {
   return {
     assignment_id: a.id,
     name: a.worker_name_snapshot || null,

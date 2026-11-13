@@ -42,9 +42,12 @@
 
   // ── 이름표 (계약 §1 · §2 의 CHECK 값) ──
   const KINDS = Object.freeze(['install', 'as', 'assembly']);
-  /** 작업자 종류 — 작업 종류 + 공장 공정 재단 · 엣지 (공장 조립은 조립, 서버 WORKER_KINDS · DB 0024) */
-  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge']);
-  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지' });
+  /**
+   * 작업자 종류 = 작업 종류 여섯 — 설치 · A/S · 조립 + 재단 · 엣지 · 철거 (서버 WORKER_KINDS · DB 0065, 2026-11-13).
+   * 팩토리가 프로젝트의 종류 줄마다 작업자를 배정한다 (재단 · 엣지 · 철거 작업도 「내 작업」에 초대로 온다).
+   */
+  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge', 'demolition']);
+  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지', demolition: '철거' });
   /** 작업자에게 보이는 작업 상태 (effective_status — expired 는 API 가 읽을 때 판정) */
   const JOB_STATUS_LABEL = Object.freeze({
     draft: '준비 중', open: '모집중', expired: '지원 종료', filled: '인원 마감', in_progress: '진행 중',
@@ -121,7 +124,7 @@
   const REPORTABLE = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
   const RESULT_FROM = Object.freeze(['started', 'revision']);
   /** 검수를 거치는 종류 — 공장 조립은 완료 보고로 끝난다 (계약 머리말) */
-  const REVIEWED_KINDS = Object.freeze(['install', 'as']);
+  const REVIEWED_KINDS = Object.freeze(['install', 'as', 'demolition']);
   const ENDED_JOB = Object.freeze(['closed', 'cancelled']);
   /** 작업자 탭에 드는 배정 (서버 jobs.js 의 MINE_STATUSES · DONE_STATUSES 와 같다) — 상세의 '← 목록으로' 를 고른다 */
   const MINE_ASSIGN = Object.freeze(['offered', 'confirmed', 'started', 'submitted', 'revision']);
@@ -671,9 +674,24 @@
     return `<div class="card"><h3>연결된 팩토리</h3>${list}<p class="muted">${esc(LINKS_NOTE)}</p></div>`;
   }
 
-  /** 초대 링크를 연 작업자에게 묻는 글 (POST /work/invites/peek 의 답) */
+  /** 「이 일로 바로」 초대의 작업 한 줄 — '11/22(일) 설치 작업' (종류를 모르면 '') */
+  function inviteJobText(job) {
+    if (!job || typeof job !== 'object' || !Object.prototype.hasOwnProperty.call(KIND_LABEL, job.kind)) return '';
+    const day = fmtDate(job.starts_at);
+    return `${day ? `${day} ` : ''}${job.kind === 'assembly' ? '조립' : KIND_LABEL[job.kind]} 작업`;
+  }
+
+  /**
+   * 초대 링크를 연 작업자에게 묻는 글 (POST /work/invites/peek 의 답).
+   * 초대가 작업 하나에 이어져 있으면(peek.job) 그 작업을 말한다 — 이미 연결된 작업자는 바로 받고, 아니면 승인 뒤에 받는다.
+   */
   function linkAskText(peek) {
     const name = (peek && peek.company_name) || '초대한 팩토리';
+    const job = inviteJobText(peek && peek.job);
+    if (job && peek.link_status === 'approved')
+      return `${name}에서 ${job}을 맡기려고 합니다. 「작업 받기」를 누르면 「내 작업」에 초대로 들어옵니다. 수락해야 확정됩니다.`;
+    if (job)
+      return `${name}에서 ${job}을 맡기려고 초대했습니다. 연결을 신청하면 ${name}에서 확인한 뒤 승인합니다. 승인되면 그 작업이 「내 작업」에 초대로 들어옵니다.`;
     return `${name}에서 작업자로 초대했습니다. 연결을 신청하면 ${name}에서 확인한 뒤 승인합니다. 승인되면 그 팩토리의 작업을 여기서 봅니다.`;
   }
 
@@ -1003,8 +1021,10 @@
       if (!token) return;
       try {
         const peek = await api('/work/invites/peek', { method: 'POST', body: { token } });
-        if (invite === token && peek && peek.company_name)
-          $('regInviteNote').textContent = `${peek.company_name}의 초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다. ${peek.company_name}에서 승인하면 작업을 볼 수 있습니다.`;
+        if (invite === token && peek && peek.company_name) {
+          const job = inviteJobText(peek.job);
+          $('regInviteNote').textContent = `${peek.company_name}의 초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다. ${peek.company_name}에서 승인하면 ${job ? `${job}이 「내 작업」에 초대로 들어옵니다.` : '작업을 볼 수 있습니다.'}`;
+        }
       } catch (e) { /* 원래 글 그대로 */ }
     }
 
@@ -1367,13 +1387,26 @@
           const dead = (err.status === 410 || err.status === 404) && /초대/.test(err.message || '');
           say(dead ? err.message : '이미 작업자로 등록돼 있어 초대 링크는 쓰지 않았습니다.', !dead);
         }
+        if (peek && peek.link_status === 'approved' && inviteJobText(peek.job)) {
+          // 이미 연결된 팩토리가 「이 일로 바로」 보낸 초대 — 받으면 그 작업이 초대로 들어온다
+          $('linkTitle').textContent = `${peek.company_name || '팩토리'} 작업 초대`;
+          $('linkText').textContent = linkAskText(peek);
+          $('linkGo').textContent = '작업 받기';
+          $('linkGo').setAttribute('data-name', peek.company_name || '');
+          $('linkGo').setAttribute('data-mode', 'job');
+          sub(`${me.worker.display_name} 님 · 작업 초대`);
+          show('viewLink');
+          return;
+        }
         if (peek && (peek.link_status === 'approved' || peek.link_status === 'suspended')) {
           dropInvite();
           say(`이미 연결된 팩토리입니다 — ${peek.company_name || '초대한 팩토리'}`, true);
         } else if (peek) {
           $('linkTitle').textContent = `${peek.company_name || '팩토리'} 연결`;
           $('linkText').textContent = linkAskText(peek);
+          $('linkGo').textContent = '연결 신청하기';
           $('linkGo').setAttribute('data-name', peek.company_name || '');
+          $('linkGo').setAttribute('data-mode', 'link');
           sub(`${me.worker.display_name} 님 · 팩토리 초대`);
           show('viewLink');
           return;
@@ -1397,10 +1430,17 @@
       const name = btn.getAttribute('data-name') || '그 팩토리';
       btn.disabled = true;
       try {
-        await api('/work/claim-invite', { method: 'POST', body: { token: invite } });
+        const done = await api('/work/claim-invite', { method: 'POST', body: { token: invite } });
         dropInvite();
         await refreshMe().catch(() => {});
-        say(`연결을 신청했습니다. ${name}에서 승인하면 그 팩토리의 작업이 보입니다.`, true);
+        if (btn.getAttribute('data-mode') === 'job') {
+          // 이미 연결된 작업자 — 그 작업이 초대로 들어왔으면 바로 그 작업을 연다 (수락은 거기서)
+          const jobId = done && isUuid(done.offered_job_id) ? done.offered_job_id : '';
+          say(jobId ? '작업이 「내 작업」에 초대로 들어왔습니다. 내용을 보고 수락해 주세요.' : '이 작업은 이미 끝났거나 받을 수 없습니다.', !!jobId);
+          if (jobId) global.location.hash = `#job=${jobId}`;
+        } else {
+          say(`연결을 신청했습니다. ${name}에서 승인하면 그 팩토리의 작업이 보입니다.`, true);
+        }
         renderWorkerState();
       } catch (err) {
         if (err.status === 401) {
@@ -1709,6 +1749,7 @@
     SITE_OPEN_NOTE,
     linksHtml,
     linkAskText,
+    inviteJobText,
     factoryDay,
     factoryRoleOf,
     worklogBody,

@@ -1082,7 +1082,7 @@ test('작업 만들기 — 초안 · 금액 기본 숨김 · 주소 칸은 받�
   assert.equal(r.status, 201);
   assert.deepEqual([r.data.status, r.data.title, r.data.pay_visible, r.data.mode, r.data.version, r.data.slots], ['draft', '시험 A/S', false, 'open', 0, 2]);
   assert.equal('address' in rowOf('work_jobs', r.data.id) || 'customer_name' in rowOf('work_jobs', r.data.id), false);
-  for (const bad of [{ kind: 'cutting', title: 't' }, { kind: 'as', title: '' }, { kind: 'as', title: 't', slots: 0 }, { kind: 'as', title: 't', pay_amount: -1 }, { kind: 'as', title: 't', pay_unit: 'month' }, { kind: 'as', title: 'x'.repeat(81) }, { kind: 'as', title: 't', starts_at: 'tomorrow' }]) {
+  for (const bad of [{ kind: 'paint', title: 't' }, { kind: 'as', title: '' }, { kind: 'as', title: 't', slots: 0 }, { kind: 'as', title: 't', pay_amount: -1 }, { kind: 'as', title: 't', pay_unit: 'month' }, { kind: 'as', title: 'x'.repeat(81) }, { kind: 'as', title: 't', starts_at: 'tomorrow' }]) {
     assert.equal((await call('POST', '/work/admin/jobs', { token: 'tok-admin', body: bad })).status, 422, JSON.stringify(bad));
   }
   const p = await call('PATCH', `/work/admin/jobs/${r.data.id}`, { token: 'tok-admin', body: { pay_amount: PAY, pay_unit: 'day', version: 0 } });
@@ -1452,7 +1452,7 @@ test('초대 미리보기 — 어느 팩토리의 초대인지, 거둔 초대는
   const inv = await call('POST', '/work/admin/invites', { token: 'tok-admin', body: { kinds_preset: ['as'], expires_at: '2099-01-01T00:00:00Z' } });
   const token = inv.data.url.split('#invite=')[1];
   const peek = await call('POST', '/work/invites/peek', { token: 'tok-cust', body: { token } });
-  assert.deepEqual([peek.status, peek.data], [200, { company_name: '다담 공장', kinds_preset: ['as'], expires_at: '2099-01-01T00:00:00.000Z', already_worker: false, link_status: null }]);
+  assert.deepEqual([peek.status, peek.data], [200, { company_name: '다담 공장', kinds_preset: ['as'], expires_at: '2099-01-01T00:00:00.000Z', already_worker: false, link_status: null, job: null }]);
   const mine = await call('POST', '/work/invites/peek', { token: 'tok-w1', body: { token } });
   assert.deepEqual([mine.data.already_worker, mine.data.link_status], [true, 'approved']);
   assert.equal(rowOf('worker_invites', inv.data.id).used_at, null);

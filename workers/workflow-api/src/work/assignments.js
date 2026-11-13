@@ -49,7 +49,8 @@ export async function loadMyAssignment(env, user, rawId, { approvedFor = null } 
  * 응답 뒤에 돈다. 실패해도 원래 일을 막지 않는다.
  */
 function afterWorkerReply(env, ctx, { job, assignment, reply }) {
-  if (!job || !job.schedule_id) return Promise.resolve(null);
+  // 팩토리가 앱에서 배정한 작업만 — 일정 줄(schedule_id) · 프로젝트 「작업 배정」(project_id)
+  if (!job || !(job.schedule_id || job.project_id)) return Promise.resolve(null);
   return later(
     ctx,
     Promise.all([

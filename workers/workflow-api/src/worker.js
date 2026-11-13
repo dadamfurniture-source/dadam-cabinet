@@ -33,6 +33,7 @@
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
  *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
+ *   GET|POST /company/projects/:id/work · PATCH …/work/:kind · POST …/work/invite — 프로젝트의 작업 배정 (src/work/project-work.js)
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
@@ -187,6 +188,7 @@ import {
   listScheduleWorkers, assignScheduleWorkers, acceptCompanyAssignment, reviseCompanyAssignment, removeCompanyAssignment,
   keepAssigneeName, syncJobWithSchedule,
 } from './work/schedule-link.js';
+import { listProjectWork, assignProjectWork, patchProjectWork, inviteProjectWork } from './work/project-work.js';
 import {
   listJobsForWorker,
   getJobForWorker,
@@ -1498,6 +1500,11 @@ const router = createRouter([
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
   { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
+  // 프로젝트의 작업 배정 — 종류 줄(철거 · 재단 · 엣지 · 조립 · 설치 · A/S)마다 작업자 (src/work/project-work.js, DB 0064 · 0065)
+  { method: 'GET',   path: '/company/projects/:id/work',          auth: 'jwt', handler: workRoute(listProjectWork) },
+  { method: 'POST',  path: '/company/projects/:id/work',          auth: 'jwt', handler: workRoute(assignProjectWork) },
+  { method: 'POST',  path: '/company/projects/:id/work/invite',   auth: 'jwt', handler: workRoute(inviteProjectWork, 201) },
+  { method: 'PATCH', path: '/company/projects/:id/work/:kind',    auth: 'jwt', handler: workRoute(patchProjectWork) },
   { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
   // 업체 견적 목록 — 고객 확인서 모아 읽기 (src/company-quotes.js)
   { method: 'GET',  path: '/company/quotes',                      auth: 'jwt', handler: workRoute((env, a) => listCompanyQuotes(env, a)) },

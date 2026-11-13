@@ -53,6 +53,18 @@ describe('0065 — 작업 종류 넓히기 · 프로젝트의 작업', () => {
     expect(f).toContain(`ADD CONSTRAINT work_jobs_kind_chk CHECK (kind = ANY (${SIX}));`);
   });
 
+  test('서버의 종류 목록(workflow-api work/validate.js) · 알림 글의 종류 이름이 이 여섯과 같다', () => {
+    const six = [...SIX.matchAll(/'([a-z_]+)'::text/g)].map((x) => x[1]);
+    const validate = read('workers', 'workflow-api', 'src', 'work', 'validate.js');
+    const kinds = /WORK_KINDS = Object\.freeze\(\[([^\]]*)\]\)/.exec(validate)[1];
+    expect([...kinds.matchAll(/'([a-z_]+)'/g)].map((x) => x[1])).toEqual(six);
+    expect(validate).toContain('export const WORKER_KINDS = WORK_KINDS;');
+    const labels = /WORK_KIND_LABELS = Object\.freeze\(\{([^}]*)\}\)/.exec(
+      read('workers', 'workflow-api', 'src', 'push', 'messages.js')
+    )[1];
+    expect([...labels.matchAll(/([a-z_]+):/g)].map((x) => x[1]).sort()).toEqual([...six].sort());
+  });
+
   test('작업의 프로젝트 칸 — 같은 업체의 프로젝트만, 프로젝트 하나 · 종류 하나에 살아 있는 작업 하나 (일정 작업은 세지 않는다)', () => {
     expect(f).toContain('ALTER TABLE public.work_jobs ADD COLUMN IF NOT EXISTS project_id uuid;');
     expect(f).toContain(

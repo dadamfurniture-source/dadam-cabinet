@@ -304,9 +304,9 @@ describe('segan/work.html — 머리 · 신청서', () => {
     expect(HTML).toContain('주민등록번호 · 계좌는 받지 않습니다');
     expect(HTML).toMatch(/name="consent"/);
     expect(HTML).toMatch(/name="photo_consent"/);
-    // 작업자 종류 — 작업 종류 셋 + 공장 재단 · 엣지 (서버 WORKER_KINDS)
+    // 작업자 종류 — 여섯 (서버 WORKER_KINDS · DB 0065: 설치 · A/S · 조립 · 재단 · 엣지 · 철거)
     P.WORKER_KINDS.forEach((k) => expect(HTML).toContain(`name="kind_${k}" value="${k}" data-kind`));
-    expect([...P.WORKER_KINDS]).toEqual(['install', 'as', 'assembly', 'cutting', 'edge']);
+    expect([...P.WORKER_KINDS]).toEqual(['install', 'as', 'assembly', 'cutting', 'edge', 'demolition']);
     expect(HTML).not.toMatch(/name="(rrn|resident|ssn|bank|account|account_no)"/i);
   });
 
@@ -1532,5 +1532,132 @@ describe('현장', () => {
     expect(body.querySelector('.site-card a[href^="tel:"]').getAttribute('href')).toBe('tel:01000000002');
     const kept = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + window.location.href;
     for (const v of ['시험로', '0000-0002', '시험고객', '공동현관']) expect(kept).not.toContain(v);
+  });
+});
+
+// ── 작업 종류 여섯 · 「이 일로 바로」 초대 (2026-11-13 「작업자 한 길」 둘째 묶음 — DB 0065) ──
+describe('작업 종류 여섯 · 이 일로 바로', () => {
+  beforeEach(() => sessionStorage.clear());
+  const WORKER = { id: 'w', status: 'approved', display_name: '테스트', kinds: ['install', 'demolition'] };
+  const ME = { data: { ready: true, worker: WORKER, counts: COUNTS, next_job: null, links: [] } };
+  const LIST = { data: { items: [] } };
+
+  test('순수 — 철거 · 재단 · 엣지 이름표, 철거는 회사가 검수하는 현장 일. 초대의 작업 한 줄', () => {
+    expect(P.KIND_LABEL.demolition).toBe('철거');
+    const card = { id: '11111111-1111-4111-8111-111111111111', title: '철거', slots: 1, filled: 0, effective_status: 'open', my: {} };
+    expect(P.jobCardHtml({ ...card, kind: 'demolition' }, NOW, 'mine')).toContain('<span class="chip k-demolition">철거</span>');
+    expect(P.jobCardHtml({ ...card, kind: 'cutting', title: '재단' }, NOW, 'mine')).toContain('<span class="chip k-cutting">재단</span>');
+    const started = (kind) =>
+      P.jobDetailHtml(detail({ kind, site_note: null, effective_status: 'in_progress', my: { assignment_id: A1, assignment_status: 'started' } }), NOW, 'mine');
+    expect(started('demolition')).toContain('완료 보고를 보내면 회사가 검수한 뒤 완료로 바뀝니다.');
+    expect(started('edge')).toContain('완료 보고를 보내면 바로 완료로 기록됩니다.');
+
+    expect(P.inviteJobText({ kind: 'install', starts_at: '2026-10-21T00:00:00Z' })).toBe('10/21(수) 설치 작업');
+    expect(P.inviteJobText({ kind: 'demolition', starts_at: null })).toBe('철거 작업');
+    expect(P.inviteJobText({ kind: 'assembly', starts_at: null })).toBe('조립 작업');
+    expect(P.inviteJobText({ kind: 'paint' })).toBe('');
+    expect(P.inviteJobText(null)).toBe('');
+    const peek = { company_name: '가나 인테리어', job: { kind: 'demolition', starts_at: null } };
+    expect(P.linkAskText({ ...peek, link_status: 'approved' })).toBe(
+      '가나 인테리어에서 철거 작업을 맡기려고 합니다. 「작업 받기」를 누르면 「내 작업」에 초대로 들어옵니다. 수락해야 확정됩니다.'
+    );
+    expect(P.linkAskText({ ...peek, link_status: null })).toBe(
+      '가나 인테리어에서 철거 작업을 맡기려고 초대했습니다. 연결을 신청하면 가나 인테리어에서 확인한 뒤 승인합니다. 승인되면 그 작업이 「내 작업」에 초대로 들어옵니다.'
+    );
+    // 작업이 없는 초대는 예전 글
+    expect(P.linkAskText({ company_name: '가나 인테리어' })).toContain('가나 인테리어에서 작업자로 초대했습니다.');
+  });
+
+  test('신청서 — 종류에 철거가 있다 (두 페이지 모두)', () => {
+    const fs = require('fs');
+    const path = require('path');
+    for (const file of ['worker.html', 'segan/work.html']) {
+      const html = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+      expect(html).toContain('name="kind_demolition" value="demolition" data-kind /> 철거</label>');
+    }
+  });
+
+  test('이미 연결된 팩토리의 「이 일로 바로」 초대 — 「작업 받기」 → 그 작업이 초대로 들어오고 그 작업을 연다', async () => {
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    const calls = mount({
+      routes: {
+        'GET /work/me': ME,
+        'POST /work/invites/peek': { data: { company_name: '가나 인테리어', already_worker: true, link_status: 'approved', job: { kind: 'install', starts_at: '2026-10-21T00:00:00Z' } } },
+        'POST /work/claim-invite': { status: 201, data: { ...WORKER, linked: { company_name: '가나 인테리어', status: 'approved' }, offered_job_id: J1 } },
+        'GET /work/jobs?tab=mine': LIST,
+        'GET /work/jobs?tab=open': LIST,
+        [`GET /work/jobs/${J1}`]: { data: detail({ my: { assignment_id: A1, assignment_status: 'offered' } }) },
+      },
+    });
+    await settle();
+    expect(visible('viewLink')).toBe(true);
+    expect(document.getElementById('linkTitle').textContent).toBe('가나 인테리어 작업 초대');
+    expect(document.getElementById('linkText').textContent).toContain('10/21(수) 설치 작업을 맡기려고 합니다.');
+    expect(document.getElementById('linkGo').textContent).toBe('작업 받기');
+    document.getElementById('linkGo').click();
+    await settle();
+    expect(calls.find((c) => c.path === '/work/claim-invite').body).toEqual({ token: TOKEN });
+    expect(sessionStorage.getItem(P.INVITE_KEY)).toBe(null);
+    expect(window.location.hash).toBe(`#job=${J1}`);
+    expect(document.getElementById('alert').textContent).toBe('작업이 「내 작업」에 초대로 들어왔습니다. 내용을 보고 수락해 주세요.');
+  });
+
+  test('작업이 이미 끝난 초대 — 그렇게 알린다. 작업 없는 초대로 이미 연결된 팩토리면 예전처럼 쓰지 않는다', async () => {
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    mount({
+      routes: {
+        'GET /work/me': ME,
+        'POST /work/invites/peek': { data: { company_name: '가나 인테리어', already_worker: true, link_status: 'approved', job: { kind: 'cutting', starts_at: null } } },
+        'POST /work/claim-invite': { status: 201, data: { ...WORKER, linked: { company_name: '가나 인테리어', status: 'approved' }, offered_job_id: null } },
+        'GET /work/jobs?tab=mine': LIST,
+        'GET /work/jobs?tab=open': LIST,
+      },
+    });
+    await settle();
+    document.getElementById('linkGo').click();
+    await settle();
+    expect(document.getElementById('alert').textContent).toBe('이 작업은 이미 끝났거나 받을 수 없습니다.');
+
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    const calls = mount({
+      routes: {
+        'GET /work/me': ME,
+        'POST /work/invites/peek': { data: { company_name: '가나 인테리어', already_worker: true, link_status: 'approved', job: null } },
+        'GET /work/jobs?tab=mine': LIST,
+        'GET /work/jobs?tab=open': LIST,
+      },
+    });
+    await settle();
+    expect(visible('viewApp')).toBe(true);
+    expect(calls.some((c) => c.path === '/work/claim-invite')).toBe(false);
+    expect(sessionStorage.getItem(P.INVITE_KEY)).toBe(null);
+  });
+
+  test('처음인 사람 — 신청서 안내에 그 작업을 적는다 · 연결 안 된 작업자는 「연결 신청하기」', async () => {
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    mount({
+      routes: {
+        'GET /work/me': { data: { ready: true, worker: null, counts: {} } },
+        'POST /work/invites/peek': { data: { company_name: '가나 인테리어', already_worker: false, link_status: null, job: { kind: 'demolition', starts_at: null } } },
+      },
+    });
+    await settle();
+    expect(document.getElementById('regInviteNote').textContent).toBe(
+      '가나 인테리어의 초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다. 가나 인테리어에서 승인하면 철거 작업이 「내 작업」에 초대로 들어옵니다.'
+    );
+
+    sessionStorage.setItem(P.INVITE_KEY, TOKEN);
+    mount({
+      routes: {
+        'GET /work/me': ME,
+        'POST /work/invites/peek': { data: { company_name: '가나 인테리어', already_worker: true, link_status: null, job: { kind: 'demolition', starts_at: null } } },
+        'GET /work/jobs?tab=mine': LIST,
+        'GET /work/jobs?tab=open': LIST,
+      },
+    });
+    await settle();
+    expect(document.getElementById('linkTitle').textContent).toBe('가나 인테리어 연결');
+    expect(document.getElementById('linkGo').textContent).toBe('연결 신청하기');
+    expect(document.getElementById('linkText').textContent).toContain('승인되면 그 작업이 「내 작업」에 초대로 들어옵니다.');
   });
 });

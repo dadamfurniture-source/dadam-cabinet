@@ -76,7 +76,7 @@ export async function addWorkerUpdate(env, { user, params, body, ctx }) {
   if (kind === 'result') notifyWork(env, ctx, 'result_submitted', { job, workerName: worker.display_name });
   if (kind === 'issue') notifyWork(env, ctx, 'issue_reported', { job, workerName: worker.display_name });
   // 일정에서 생긴 작업이면 완료 · 문제 보고를 그 팩토리 대표 · 실장에게 (보고 글 · 이름은 싣지 않는다 — 2026-11-13 작업자 한 길)
-  if (job.schedule_id && kind !== 'progress') {
+  if ((job.schedule_id || job.project_id) && kind !== 'progress') {
     await later(ctx, notifyCompanyWork(env, {
       companyId: job.company_id, kind: 'work_report', refId: row.id,
       params: { report: kind, jobKind: job.kind, startsAt: job.starts_at },
