@@ -1,5 +1,5 @@
 {
-  "title": "0064 작업자 ↔ 팩토리 연결 — worker_companies 는 서버만, 한 작업자 × 한 팩토리 한 줄, 여러 팩토리와 연결됨. 초대의 팩토리 칸 · 작업의 일정 칸(일정 하나에 살아 있는 작업 하나) · 기존 작업자 옮기기 · 알림 종류 23 · 이력 member (scripts/rls-probe.mjs --migration database/migrations/0064_worker_companies.sql). 고치기는 준비 단계나 앞 칸에서 하고 다음 칸에서 읽는다",
+  "title": "0064 작업자 ↔ 팩토리 연결 — worker_companies 는 서버만, 한 작업자 × 한 팩토리 한 줄, 여러 팩토리와 연결됨. 초대의 팩토리 칸 · 작업의 일정 칸(일정 하나에 살아 있는 작업 하나) · 기존 작업자 옮기기 · 알림 종류 23 · 이력 member (scripts/rls-probe.mjs --migration database/migrations/0064_worker_companies.sql). 고치기 · 지우기는 준비 단계에서 하고 칸에서는 읽는다 (칸은 하나씩 되돌린다)",
   "ids": [
     "company_x",
     "company_y",
@@ -11,8 +11,10 @@
     "design_x",
     "sched_x",
     "sched_y",
+    "sched_z",
     "job_a",
-    "job_c"
+    "job_c",
+    "job_z"
   ],
   "users": [
     "x_owner_user",
@@ -27,7 +29,10 @@
     "INSERT INTO public.worker_companies (id, company_id, worker_id, status, kinds, via, invite_id) VALUES ({{link_a}}, {{company_x}}, {{worker_a}}, 'approved', '{install}', 'invite', {{invite_a}}), ({{link_b}}, {{company_x}}, {{worker_b}}, 'pending', '{as}', 'invite', NULL)",
     "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
     "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_x}}, {{design_x}}, gen_random_uuid(), 'installation', '설치', timestamptz '2026-11-20 10:00+09'), ({{sched_y}}, {{design_x}}, gen_random_uuid(), 'as_visit', 'A/S 방문', timestamptz '2026-11-21 10:00+09')",
-    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, design_id, schedule_id) VALUES ({{job_a}}, 'install', 'probe 설치', 'open', {{company_x}}, {{design_x}}, {{sched_x}}), ({{job_c}}, 'as', 'probe A/S', 'cancelled', {{company_x}}, {{design_x}}, {{sched_y}})"
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, design_id, schedule_id) VALUES ({{job_a}}, 'install', 'probe 설치', 'open', {{company_x}}, {{design_x}}, {{sched_x}}), ({{job_c}}, 'as', 'probe A/S', 'cancelled', {{company_x}}, {{design_x}}, {{sched_y}})",
+    "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_z}}, {{design_x}}, gen_random_uuid(), 'installation', '설치', timestamptz '2026-11-22 10:00+09')",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, design_id, schedule_id) VALUES ({{job_z}}, 'install', 'probe 지울 일정', 'open', {{company_x}}, {{design_x}}, {{sched_z}})",
+    "DELETE FROM public.design_schedules WHERE id = {{sched_z}}"
   ],
   "roles": {
     "anon": {
@@ -192,23 +197,23 @@
       }
     },
     {
-      "name": "일정을 지운다 (다음 칸의 준비)",
-      "sql": "delete from public.design_schedules where id = {{sched_x}}",
-      "roles": [
-        "service_role"
-      ],
-      "expect": {
-        "service_role": "rows:1"
-      }
-    },
-    {
-      "name": "일정이 지워지면 작업의 일정 칸이 빈다 (작업은 남는다)",
-      "sql": "select (schedule_id is null)::text from public.work_jobs where id = {{job_a}}",
+      "name": "일정이 지워지면 작업의 일정 칸이 빈다 (준비 단계에서 지운 일정)",
+      "sql": "select (schedule_id is null)::text from public.work_jobs where id = {{job_z}}",
       "roles": [
         "service_role"
       ],
       "expect": {
         "service_role": "true"
+      }
+    },
+    {
+      "name": "일정이 지워져도 작업은 남는다",
+      "sql": "select count(*) from public.work_jobs where id = {{job_z}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
       }
     },
     {

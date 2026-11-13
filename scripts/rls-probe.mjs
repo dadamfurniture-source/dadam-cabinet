@@ -19,6 +19,8 @@
 //   roles    { 이름: { role: anon | authenticated | service_role, user?: users 의 이름 } } — 열 차례 그대로
 //   checks   [{ name, sql, roles?: [역할 이름…], expect: { 역할 이름 | "*": 기대값 } }]
 // 시험 SQL 은 가짜 행만 세거나 고친다 — 실제 행을 읽지 않게 쓴다 (값은 첫 칸 하나만 찍힌다).
+// 칸은 하나씩 되돌린다 — 앞 칸에서 고치거나 지운 것은 다음 칸에 남지 않는다.
+//   고친 뒤 · 지운 뒤의 모습을 보려면 고치기 · 지우기를 setup 에 두고 칸에서는 읽기만 한다.
 //
 // 쓰는 법:
 //   node scripts/rls-probe.mjs --probe database/probes/0003-company-tables.json \
