@@ -1,0 +1,325 @@
+{
+  "title": "0064 작업자 ↔ 팩토리 연결 — worker_companies 는 서버만, 한 작업자 × 한 팩토리 한 줄, 여러 팩토리와 연결됨. 초대의 팩토리 칸 · 작업의 일정 칸(일정 하나에 살아 있는 작업 하나) · 기존 작업자 옮기기 · 알림 종류 23 · 이력 member (scripts/rls-probe.mjs --migration database/migrations/0064_worker_companies.sql). 고치기는 준비 단계나 앞 칸에서 하고 다음 칸에서 읽는다",
+  "ids": [
+    "company_x",
+    "company_y",
+    "worker_a",
+    "worker_b",
+    "link_a",
+    "link_b",
+    "invite_a",
+    "design_x",
+    "sched_x",
+    "sched_y",
+    "job_a",
+    "job_c"
+  ],
+  "users": [
+    "x_owner_user",
+    "w1_user",
+    "w2_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.workers (id, user_id, display_name, kinds, status, consent_version) VALUES ({{worker_a}}, {{w1_user}}, 'probe A', '{install}', 'approved', 'probe'), ({{worker_b}}, {{w2_user}}, 'probe B', '{as}', 'pending', 'probe')",
+    "INSERT INTO public.worker_invites (id, token_hash, kinds_preset, expires_at, company_id) VALUES ({{invite_a}}, 'probe-' || {{invite_a}}::text, '{install}', now() + interval '7 days', {{company_x}})",
+    "INSERT INTO public.worker_companies (id, company_id, worker_id, status, kinds, via, invite_id) VALUES ({{link_a}}, {{company_x}}, {{worker_a}}, 'approved', '{install}', 'invite', {{invite_a}}), ({{link_b}}, {{company_x}}, {{worker_b}}, 'pending', '{as}', 'invite', NULL)",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_x}}, {{design_x}}, gen_random_uuid(), 'installation', '설치', timestamptz '2026-11-20 10:00+09'), ({{sched_y}}, {{design_x}}, gen_random_uuid(), 'as_visit', 'A/S 방문', timestamptz '2026-11-21 10:00+09')",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, design_id, schedule_id) VALUES ({{job_a}}, 'install', 'probe 설치', 'open', {{company_x}}, {{design_x}}, {{sched_x}}), ({{job_c}}, 'as', 'probe A/S', 'cancelled', {{company_x}}, {{design_x}}, {{sched_y}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "연결 읽기 — 서버만 (팩토리 대표도 브라우저로는 못 읽는다)",
+      "sql": "select count(*) from public.worker_companies where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "구성원은 연결을 쓰지 못한다",
+      "sql": "insert into public.worker_companies (company_id, worker_id, via) values ({{company_y}}, {{worker_b}}, 'invite')",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "같은 작업자 · 같은 팩토리는 한 줄",
+      "sql": "insert into public.worker_companies (company_id, worker_id, via) values ({{company_x}}, {{worker_a}}, 'invite')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "한 작업자가 다른 팩토리와도 연결된다",
+      "sql": "insert into public.worker_companies (company_id, worker_id, via) values ({{company_y}}, {{worker_a}}, 'invite')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모르는 상태는 거절",
+      "sql": "update public.worker_companies set status = 'gone' where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 종류는 거절",
+      "sql": "update public.worker_companies set kinds = '{paint}' where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 길(via)은 거절",
+      "sql": "update public.worker_companies set via = 'walkin' where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "사유는 200자까지",
+      "sql": "update public.worker_companies set reason = repeat('가', 201) where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "승인 — 서버는 상태를 고친다",
+      "sql": "with a as (update public.worker_companies set status = 'approved', decided_by = {{x_owner_user}}, decided_at = now() where id = {{link_b}} returning status) select status from a",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "approved"
+      }
+    },
+    {
+      "name": "연결 줄은 서버도 지우지 못한다 (끝은 status ended)",
+      "sql": "delete from public.worker_companies where id = {{link_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "없는 팩토리의 초대는 거절",
+      "sql": "insert into public.worker_invites (token_hash, expires_at, company_id) values ('probe-none', now() + interval '1 day', gen_random_uuid())",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "초대 거두기 — 서버는 거둔 때를 적는다",
+      "sql": "update public.worker_invites set revoked_at = now() where id = {{invite_a}} and revoked_at is null",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "일정 하나에 살아 있는 작업 하나",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, design_id, schedule_id) values ('install', 'probe 겹침', 'draft', {{company_x}}, {{design_x}}, {{sched_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "취소된 작업은 세지 않는다 — 같은 일정에 새 작업",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, design_id, schedule_id) values ('as', 'probe 다시', 'open', {{company_x}}, {{design_x}}, {{sched_y}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "없는 일정은 거절",
+      "sql": "insert into public.work_jobs (kind, title, company_id, schedule_id) values ('install', 'probe 없는 일정', {{company_x}}, gen_random_uuid())",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "일정을 지운다 (다음 칸의 준비)",
+      "sql": "delete from public.design_schedules where id = {{sched_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "일정이 지워지면 작업의 일정 칸이 빈다 (작업은 남는다)",
+      "sql": "select (schedule_id is null)::text from public.work_jobs where id = {{job_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "옮기기 — 다담 공장 연결이 없는 작업자는 이 확인표가 넣은 둘뿐 (그 전 작업자는 모두 옮겨졌다)",
+      "sql": "select count(*) from public.workers w where not exists (select 1 from public.worker_companies c where c.worker_id = w.id and c.company_id = public.hq_company_id())",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "앱 알림 종류 — 23개 (0053 의 20개 + 팩토리용 셋)",
+      "sql": "select count(*) from pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m where c.conname = 'notification_outbox_kind_check' and c.conrelid = 'public.notification_outbox'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "23"
+      }
+    },
+    {
+      "name": "팩토리용 알림은 업체 칸이 있어야 한다",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{w1_user}}, NULL, 'work_link_request', '작업자 연결 신청', '작업자가 연결을 신청했습니다.', '/segan/me.html#workers')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "팩토리용 알림 — 연결 신청 넣어짐",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{w1_user}}, {{company_x}}, 'work_link_request', '작업자 연결 신청', '작업자가 연결을 신청했습니다.', '/segan/me.html#workers')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "팩토리용 알림 — 배정 답 넣어짐",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{w1_user}}, {{company_x}}, 'work_reply', '배정 답', '작업자가 배정에 답했습니다.', '/segan/me.html#p-install')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "팩토리용 알림 — 작업 보고 넣어짐",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{w1_user}}, {{company_x}}, 'work_report', '작업 보고', '작업자가 보고를 남겼습니다.', '/segan/me.html#p-install')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "작업자 알림은 전처럼 업체 없이 넣어진다 (work_invited)",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{w1_user}}, NULL, 'work_invited', '작업 초대', '작업에 초대됐습니다.', '/segan/work.html')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모르는 알림 종류는 거절",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{w1_user}}, {{company_x}}, 'work_probe', 'probe', 'probe', '/segan/me.html')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "이력 — 팩토리 대표 · 실장(member)이 작업자 이력에 남는다",
+      "sql": "insert into public.worker_events (worker_id, actor_user_id, actor_kind, type, to_status) values ({{worker_b}}, {{x_owner_user}}, 'member', 'link_approved', 'approved')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "이력 — member 가 작업 이력에 남는다",
+      "sql": "insert into public.work_job_events (job_id, actor_user_id, actor_kind, type) values ({{job_a}}, {{x_owner_user}}, 'member', 'assignment_offered')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "이력 — 모르는 종류의 사람은 거절",
+      "sql": "insert into public.worker_events (worker_id, actor_kind, type) values ({{worker_b}}, 'guest', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    }
+  ]
+}
