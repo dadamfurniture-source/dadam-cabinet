@@ -54,14 +54,17 @@ describe('0066 — 납품 작업자 · 팩토리의 작업자 메모', () => {
     expect(f).toContain(`ADD CONSTRAINT work_jobs_kind_chk CHECK (kind = ANY (${SEVEN}));`);
   });
 
-  test('서버의 종류 목록(workflow-api work/validate.js)은 이 일곱 안에 있다 — DB 가 모르는 종류를 서버가 쓰지 않는다', () => {
+  test('서버의 종류 목록(workflow-api work/validate.js) · 알림 글의 종류 이름이 이 일곱과 같다', () => {
     const seven = kindsIn(SEVEN);
     const validate = read('workers', 'workflow-api', 'src', 'work', 'validate.js');
     const kinds = [
       .../WORK_KINDS = Object\.freeze\(\[([^\]]*)\]\)/.exec(validate)[1].matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
-    expect(kinds.length).toBeGreaterThanOrEqual(6);
-    for (const k of kinds) expect(seven).toContain(k);
+    expect(kinds).toEqual(seven);
+    const labels = /WORK_KIND_LABELS = Object\.freeze\(\{([^}]*)\}\)/.exec(
+      read('workers', 'workflow-api', 'src', 'push', 'messages.js')
+    )[1];
+    expect([...labels.matchAll(/([a-z_]+):/g)].map((x) => x[1]).sort()).toEqual([...seven].sort());
     expect(validate).toContain('export const WORKER_KINDS = WORK_KINDS;');
   });
 
