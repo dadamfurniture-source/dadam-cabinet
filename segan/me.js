@@ -49,6 +49,7 @@
                         시공사례(#gallery-list — 사이트 관리자, segan/gallery-view.js — 보기 · 찾기만, 올리기 · 지우기는 PC 화면),
                         가전 모델(#appliances — 사이트 관리자, segan/appliance-list.js — 보기 · 찾기만, 고치기는 PC 화면)
          플랫폼        등록 업체(#companies — 본사 대표 · 실장, segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력),
+                        설계 · 학습 점검(#hq-design-check — 본사 대표 · 실장, segan/hq-design-check.js — 플래너 설계가 학습 자료로 모이는 길 · 검토),
                         팩토리 평가(#partner-eval — 사이트 관리자, segan/partner-eval.js — 못 읽으면 PC 화면 줄),
                         완료 보고(#done-reports — 사이트 관리자, segan/done-reports.js — 못 읽으면 PC 화면 줄),
                         A/S 현황(#as-status — 사이트 관리자, segan/as-status.js — 못 읽으면 PC 화면 줄),
@@ -666,6 +667,8 @@
     },
     // 플랫폼 — 등록 업체 (segan/hq-companies.js)
     companies: { title: '등록 업체', section: 'hqCompanies' },
+    // 플랫폼 — 설계 · 학습 점검 (segan/hq-design-check.js)
+    'hq-design-check': { title: '설계 · 학습 점검', section: 'hqDesignCheck' },
     // 플랫폼 — 팩토리 평가 (segan/partner-eval.js)
     'partner-eval': { title: '팩토리 평가', section: 'partnerEval' },
     // 플랫폼 — 완료 보고 (segan/done-reports.js)
@@ -747,6 +750,7 @@
   var AS_OPEN = ['requested', 'received']; // 접수 · 받음 (segan/as-requests.js STATE_LABEL)
   var SECTIONS = [
     'meDash',
+    'hqDesignCheck',
     'hqCompanies',
     'partnerEval',
     'doneReports',
@@ -1564,6 +1568,9 @@
       // 플랫폼 › 등록 업체 — 본사 대표 · 실장 (칸을 연 때만)
       case 'companies':
         return v.platform && available(key);
+      // 플랫폼 › 설계 · 학습 점검 — 본사 대표 · 실장 (칸을 연 때만)
+      case 'hq-design-check':
+        return v.platform && available(key);
       // 플랫폼 › 팩토리 평가 — 사이트 관리자, 읽혔을 때만. 못 읽은 관리자에게는 PC 화면 줄 하나
       case 'partner-eval':
         return roles.admin === true && available(key);
@@ -1795,6 +1802,7 @@
     var Production = window.SeganProduction;
     var Factory = window.SeganFactoryRequests;
     var HqCo = window.SeganHqCompanies;
+    var HqCheck = window.SeganHqDesignCheck;
     var Eval = window.SeganPartnerEval;
     var Done = window.SeganDoneReports;
     var AsStat = window.SeganAsStatus;
@@ -1877,6 +1885,8 @@
           synced(Factory && Factory.load ? Factory.load(auth.sb, auth.session, me) : null),
           // 등록 업체 = 다담 본사 구성원 (segan/hq-companies.js — 서버가 대표 · 실장만)
           synced(HqCo && HqCo.load ? HqCo.load(auth.sb, auth.session, me) : null),
+          // 설계 · 학습 점검 = 다담 본사 구성원 (segan/hq-design-check.js — 서버가 대표 · 실장만)
+          synced(HqCheck && HqCheck.load ? HqCheck.load(auth.sb, auth.session, me) : null),
           // 팩토리 평가 = 사이트 관리자 (segan/partner-eval.js — 플랫폼 › 팩토리 평가 화면)
           synced(
             Eval && Eval.load
