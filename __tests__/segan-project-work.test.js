@@ -657,3 +657,39 @@ describe('누가 무엇을', () => {
     expect(workCalls(calls).pop()[0]).toBe('GET');
   });
 });
+
+// ── 2026-11-13 업무 달력의 작업 줄에서 열기 (SeganPartnerProjects.openWork) ──
+describe('달력에서 열기', () => {
+  const PP = () => window.SeganPartnerProjects;
+
+  test('그 프로젝트의 「작업 배정」 칸을 열고 그 줄로 옮긴다. 이미 열려 있으면 다시 묻지 않는다', async () => {
+    const calls = await load();
+    expect(PP().openWork(P2)).toBe(true);
+    await flush();
+    expect(workCalls(calls)).toEqual([['GET', `/company/projects/${P2}/work`, undefined]]);
+    expect(panel().closest('li').getAttribute('data-project')).toBe(P2);
+    expect(text(workBtn(P2))).toBe('작업 배정 닫기');
+    expect(document.activeElement).toBe(workBtn(P2));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+    // 다시 불러도 같은 칸 — 서버에 또 묻지 않는다
+    expect(PP().openWork(P2)).toBe(true);
+    await flush();
+    expect(workCalls(calls)).toHaveLength(1);
+    // 다른 프로젝트로 옮기면 앞 칸은 닫힌다
+    expect(PP().openWork(P1)).toBe(true);
+    await flush();
+    expect(panel().closest('li').getAttribute('data-project')).toBe(P1);
+    expect(text(workBtn(P2))).toBe('작업 배정');
+  });
+
+  test('열 수 없으면 false — 끝난 프로젝트 · 모르는 id · 인사를 안 쓰는 등급', async () => {
+    const calls = await load();
+    expect(PP().openWork(P3)).toBe(false); // 끝난 프로젝트에는 단추가 없다
+    expect(PP().openWork('nope')).toBe(false);
+    expect(PP().openWork('')).toBe(false);
+    expect(panel()).toBeNull();
+    expect(workCalls(calls)).toEqual([]);
+    await load({ partner: partnerOf('expert') });
+    expect(PP().openWork(P1)).toBe(false);
+  });
+});

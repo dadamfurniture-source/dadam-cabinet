@@ -252,8 +252,7 @@
       : '';
     var canAssign = d.assignee && d.manage;
     // 작업 배정 — 인사를 쓰는 팩토리의 진행 중 프로젝트 (담당자 고르는 보기에서는 뺀다)
-    var PW = window.SeganProjectWork;
-    var canWork = !!PW && PW.canSee(J.me) && !J.view.assign && (p.status === 'active' || !p.status);
+    var canWork = canWorkOn(p);
     var working = canWork && J.workFor === p.id;
     var acts =
       (canAssign && J.assignFor !== p.id
@@ -422,6 +421,42 @@
         : '');
     box.hidden = false;
     mountWork(box);
+  }
+
+  /** 그 프로젝트에 「작업 배정」 단추가 있나 — 인사를 쓰는 팩토리의 진행 중 프로젝트 (담당자 고르는 보기에서는 뺀다) */
+  function canWorkOn(p) {
+    var PW = window.SeganProjectWork;
+    return !!PW && PW.canSee(J.me) && !J.view.assign && (p.status === 'active' || !p.status);
+  }
+
+  /**
+   * 그 프로젝트의 「작업 배정」 칸을 연다 — 업무 달력의 작업 줄에서 부른다 (segan/calendar.js).
+   * 지금 보기에 그 프로젝트 줄이 있고 단추가 있을 때만 — 열었으면(이미 열려 있어도) true, 아니면 false.
+   * 그 줄로 옮기고(움직임 없이) 닫기 단추에 초점을 둔다.
+   */
+  function openWork(id) {
+    var box = $('partnerProjects');
+    if (!box || box.hidden || !J.data || !id) return false;
+    var p = J.data.items.filter(function (x) {
+      return x.id === id && inView(x, J.view);
+    })[0];
+    if (!p || !canWorkOn(p)) return false;
+    if (J.workFor !== id) {
+      window.SeganProjectWork.unmount();
+      J.workFor = id;
+      J.open = false;
+      J.assignFor = '';
+      J.err = '';
+      J.msg = '';
+      render();
+    }
+    var row = Array.prototype.filter.call(box.querySelectorAll('[data-project]'), function (el) {
+      return el.getAttribute('data-project') === id;
+    })[0];
+    if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'start' });
+    var btn = row && row.querySelector('[data-act="work-close"]');
+    if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
+    return true;
   }
 
   /** 펼쳐 둔 「작업 배정」 자리에 칸을 올린다 — 목록을 다시 그릴 때마다 (읽어 둔 것은 그 모듈이 기억한다) */
@@ -730,6 +765,7 @@
     STAGE_LABEL: STAGE_LABEL,
     setView: setView,
     canAssign: canAssign,
+    openWork: openWork,
     load: load,
   };
 })();
