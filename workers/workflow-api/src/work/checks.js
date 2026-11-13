@@ -11,7 +11,7 @@
  *     POST /work/factory/orders/:orderId/checks       체크 한 번
  *     POST /work/factory/orders/:orderId/checks/photo 사진 한 장 (본문 = JPEG · PNG) → photo_path — 체크에 붙인다
  *   설치 · 조립 작업(모집 · 초대로 맡은 일): 내 배정이 확정 이상이고 작업에 주문이 있을 때 (assignments.js loadMyAssignment).
- *     설치 → 시공 지시서 (주소 · 연락처는 열리지 않는다 — reveal.js SITE_NOTE), 조립 → 조립 꾸러미.
+ *     설치 → 시공 지시서 (주소 · 연락처는 수락한 때부터 작업이 끝나고 7일까지만 — reveal.js siteOpenFor), 조립 → 조립 꾸러미.
  *     GET  /work/assignments/:id/pack · GET|POST /work/assignments/:id/checks · POST /work/assignments/:id/checks/photo
  *   본사 · 업체: GET /orders/:orderId/checks — 설계를 볼 수 있는 사람이 역할 전부의 지금 값 (사진은 서명 주소 1시간).
  *
@@ -25,7 +25,7 @@ import { requireFactoryWorker } from './factory.js';
 import { loadMyAssignment } from './assignments.js';
 import { assertOwnHqOrder } from '../production/worker-access.js';
 import { workerOrderLabel, orderLabel } from '../production/redact.js';
-import { COUNTED_STATUSES } from './reveal.js';
+import { COUNTED_STATUSES, siteOpenFor } from './reveal.js';
 import { assertUuid } from './validate.js';
 import { itemsFor, itemApplies, CHECK_ROLES } from './check-items.js';
 import { PACKS_OF_ROLE, docContext, cellsOf, roleChecks, checkRows } from './check-state.js';
@@ -78,7 +78,9 @@ async function assignmentContext(env, user, rawId) {
   if (!job.order_id) throw new NotFoundError('이 작업에는 연결된 주문이 없습니다');
   const order = await loadOrder(env, job.order_id);
   const ctx = await docContext(env, order, role === 'install' ? 'installation_order' : 'work_order');
-  return { ...ctx, worker, order, roles: [role] };
+  // 지시서의 주소 · 연락처도 같은 판정으로 연다 — 그 주문이 작업을 낸 팩토리의 것일 때만
+  const siteOpen = siteOpenFor(job, assignment) && !!job.company_id && order.company_id === job.company_id;
+  return { ...ctx, worker, order, roles: [role], siteOpen };
 }
 
 /** 꾸러미 HTML — 내 역할의 꾸러미만, 작업자 보기 (가린 주문 이름 · 주소 · 연락처 없음). 그림(렌더 · ISO 도면)은 1시간 서명 주소 */
@@ -86,7 +88,7 @@ async function packHtml(env, ctx, rawPack) {
   const allowed = ctx.roles.flatMap((r) => PACKS_OF_ROLE[r] || []);
   if (ctx.roles.includes('install')) {
     const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
-    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, worker: { orderLabel: workerOrderLabel(ctx.order) } });
+    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, worker: { orderLabel: workerOrderLabel(ctx.order), siteOpen: ctx.siteOpen === true } });
   }
   const pack = rawPack ? normalizePack(rawPack) : allowed[0];
   if (!pack || allowed.indexOf(pack) < 0) throw new ForbiddenError('내 공정의 꾸러미만 엽니다', 'not_my_pack');

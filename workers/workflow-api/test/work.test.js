@@ -11,7 +11,9 @@ import { randomUUID } from 'node:crypto';
 import worker from '../src/worker.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { computeJobStatus, pickNextJob } from '../src/work/jobs.js';
-import { effectiveStatus, jobCard, jobDetail, findForbiddenKeys, FORBIDDEN_KEYS, SITE_NOTE } from '../src/work/reveal.js';
+import {
+  effectiveStatus, jobCard, jobDetail, findForbiddenKeys, FORBIDDEN_KEYS, SITE_NOTE, SITE_EMPTY_NOTE, SITE_OPEN_DAYS, siteOpenFor, workerSite,
+} from '../src/work/reveal.js';
 import { buildWorkSlack, notifyWork } from '../src/work/notify.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
 import { hashInviteToken } from '../src/work/invites.js';
@@ -297,7 +299,51 @@ test('마감은 저장하지 않고 읽을 때 — open 이고 apply_deadline �
   assert.equal(effectiveStatus({ status: 'open', apply_deadline: null }, now), 'open');
 });
 
-test('공개 사다리 — 금액은 pay_visible 일 때만, 주문번호 · 가린 이름은 활성 배정일 때만, 현장은 늘 null', () => {
+test('현장 공개 — 수락한 때부터 작업이 끝나고 7일까지만 (2026-11-13 결정 ⑤). 설치 · A/S 만, 취소된 작업은 닫힘', () => {
+  const now = Date.parse('2026-11-20T00:00:00Z');
+  const day = 24 * 3600 * 1000;
+  const job = { id: 'j', kind: 'install', title: 't', slots: 1, status: 'filled' };
+  const asg = (status, extra = {}) => ({ id: 'a', status, ...extra });
+  assert.equal(SITE_OPEN_DAYS, 7);
+  // 초대만 받음 · 거절 · 포기 · 제외 — 닫힘
+  for (const st of ['offered', 'declined', 'released', 'removed']) assert.equal(siteOpenFor(job, asg(st), now), false, st);
+  // 수락 ~ 완료 보고 · 보완요청 — 열림
+  for (const st of ['confirmed', 'started', 'submitted', 'revision']) assert.equal(siteOpenFor(job, asg(st), now), true, st);
+  // 확인됨 — 그때부터 7일
+  assert.equal(siteOpenFor(job, asg('accepted', { accepted_at: new Date(now - 6 * day).toISOString() }), now), true);
+  assert.equal(siteOpenFor(job, asg('accepted', { accepted_at: new Date(now - 7 * day).toISOString() }), now), false);
+  assert.equal(siteOpenFor(job, asg('accepted', { accepted_at: null }), now), false, '확인한 때를 모르면 닫는다');
+  // 배정이 없거나 · 취소된 작업 · 현장이 없는 종류
+  assert.equal(siteOpenFor(job, null, now), false);
+  assert.equal(siteOpenFor({ ...job, status: 'cancelled' }, asg('confirmed'), now), false);
+  assert.equal(siteOpenFor({ ...job, kind: 'assembly' }, asg('started'), now), false);
+  assert.equal(siteOpenFor({ ...job, kind: 'as' }, asg('started'), now), true);
+
+  const row = { address: ' 시험시 시험로 1 ', address_detail: '1동 1호', floor: '3', has_elevator: false, elevator_note: '', access_note: '공동현관 #0000', contact_name: '시험고객', contact_phone: '010-0000-0002', install_order: '내부 메모', notes: '내부 메모', lat: 37.5 };
+  const site = workerSite(row);
+  assert.deepEqual(site, { address: '시험시 시험로 1', address_detail: '1동 1호', floor: '3', has_elevator: false, elevator_note: null, access_note: '공동현관 #0000', contact_name: '시험고객', contact_phone: '010-0000-0002' });
+  assert.equal(workerSite({ address: '', contact_phone: null }), null, '적힌 것이 없으면 없는 것');
+  assert.equal(workerSite(null), null);
+
+  // 상세 — 열렸을 때만 싣는다 (닫혀 있으면 넘겨도 버린다)
+  const open = jobDetail(job, { assignment: asg('confirmed'), site: row, now });
+  assert.deepEqual([open.site, open.site_note], [site, null]);
+  const before = jobDetail(job, { assignment: asg('offered'), site: row, now });
+  assert.deepEqual([before.site, before.site_note], [null, SITE_NOTE]);
+  const late = jobDetail(job, { assignment: asg('accepted', { accepted_at: new Date(now - 8 * day).toISOString() }), site: row, now });
+  assert.deepEqual([late.site, late.site_note], [null, SITE_NOTE]);
+  assert.equal(JSON.stringify([before, late]).includes('시험로'), false);
+  const none = jobDetail(job, { assignment: null, site: row, now });
+  assert.equal(none.site, null);
+  // 공장 조립 — 현장이 없다, 안내도 없다
+  assert.deepEqual([jobDetail({ ...job, kind: 'assembly' }, { assignment: asg('started'), site: row, now }).site_note], [null]);
+  // 금지 키 — address 는 열린 site 아래에서만 허용
+  assert.deepEqual(findForbiddenKeys({ data: open }), ['$.data.site.address']);
+  assert.deepEqual(findForbiddenKeys({ data: open }, { allowSiteAt: ['$.data.site'] }), []);
+  assert.deepEqual(findForbiddenKeys({ data: { ...open, x: { address: 'y' } } }, { allowSiteAt: ['$.data.site'] }), ['$.data.x.address']);
+});
+
+test('공개 사다리 — 금액은 pay_visible 일 때만, 주문번호 · 가린 이름은 활성 배정일 때만, 현장은 넘기지 않으면 null', () => {
   const job = { id: 'j', kind: 'install', title: 't', slots: 1, status: 'open', pay_amount: PAY, pay_unit: 'day', pay_visible: false, detail: 'd', cost: 1, address: 'x' };
   const hidden = jobCard(job);
   assert.equal('pay' in hidden, false);
@@ -307,9 +353,11 @@ test('공개 사다리 — 금액은 pay_visible 일 때만, 주문번호 · 가
   const active = jobDetail(job, { assignment: { id: 'a', status: 'confirmed' }, order });
   assert.equal(active.order_no, 'DD-TEST-1');
   assert.equal(active.customer_masked, '홍*동');
+  // 수락한 배정 — 현장이 열리지만 팩토리가 아직 적지 않았다
   assert.equal(active.site, null);
-  assert.equal(active.site_note, SITE_NOTE);
+  assert.equal(active.site_note, SITE_EMPTY_NOTE);
   const ended = jobDetail(job, { assignment: { id: 'a', status: 'released' }, order });
+  assert.equal(ended.site_note, SITE_NOTE);
   assert.equal('order_no' in ended || 'customer_masked' in ended, false);
   assert.deepEqual(findForbiddenKeys([hidden, active, ended]), []);
   assert.deepEqual(findForbiddenKeys({ worker: { phone: '1' }, x: { phone: '2', note: 'n' } }, { allowPhoneAt: ['$.worker'] }), ['$.x.phone', '$.x.note']);

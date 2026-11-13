@@ -241,6 +241,30 @@ test('설치 — 확정 배정만, 시공 지시서에 주소 · 연락처 · �
   });
 });
 
+test('설치 — 작업을 낸 팩토리의 주문이면 수락한 배정의 시공 지시서에 주소 · 연락처가 열린다 (끝나고 7일 뒤 · 남의 주문은 닫힘)', async () => {
+  const db = makeDb();
+  db.work_jobs[0].company_id = HQ;
+  await withDb(db, async () => {
+    const open = await assignmentPack(ENV, { user: inst, params: { id: A_OK } });
+    ['서울시 시험구 1', '101호', '010-0000-0009'].forEach((s) => assert.ok(open.includes(s), `열린 지시서에 ${s}`));
+    assert.ok(!open.includes(SITE_NOTE));
+    assert.match(open, /홍\*동 \(SO-1\)/, '고객 칸은 그대로 가린 이름');
+    assert.ok(!open.includes('다른기사'));
+
+    // 확인하고 7일이 지난 배정 — 다시 닫힌다
+    const a = db.work_assignments.find((x) => x.id === A_OK);
+    Object.assign(a, { status: 'accepted', accepted_at: new Date(Date.now() - 8 * 86400000).toISOString() });
+    const late = await assignmentPack(ENV, { user: inst, params: { id: A_OK } });
+    assert.ok(late.includes(SITE_NOTE) && !late.includes('서울시 시험구') && !late.includes('010-0000-0009'));
+    Object.assign(a, { status: 'confirmed', accepted_at: null });
+
+    // 작업을 낸 팩토리와 주문의 팩토리가 다르면 열지 않는다
+    db.work_jobs[0].company_id = 'c9000000-0000-4000-8000-000000000009';
+    const other = await assignmentPack(ENV, { user: inst, params: { id: A_OK } });
+    assert.ok(other.includes(SITE_NOTE) && !other.includes('서울시 시험구'));
+  });
+});
+
 test('본사 — 설계를 볼 수 있는 사람이 역할 전부 (작업지시서 판 · 시공 지시서 판)', async () => {
   const db = makeDb({ work_checks: [{ id: 'x', document_id: DOC_WO, role: 'assembly', scope_key: 'module:0:1', item_key: 'asm-module-drawer', checked: true, created_at: '2026-11-04T01:00:00Z' }] });
   await withDb(db, async () => {

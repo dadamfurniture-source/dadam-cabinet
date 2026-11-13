@@ -4,9 +4,11 @@
  * 작업자 응답은 반드시 이 파일의 함수를 거친다. DB 행을 그대로 내보내지 않는다.
  *   - 금액은 pay_visible 일 때만 (원가 · 마진은 어디에도 없다)
  *   - 주문번호 · 가린 고객 이름은 내 배정이 활성일 때만
- *   - 현장 주소 · 연락처는 1주차에 어디에도 없다 (공개 기간 ★7 미정) — site: null + 안내 문구
+ *   - 현장 주소 · 층 · 출입 메모 · 현장 연락처는 **내가 수락한 때부터 작업이 끝나고(확인된 때) 7일까지만** (siteOpenFor —
+ *     2026-11-13 사장님 결정 ⑤ · 처리방침 「5. 제3자 제공」의 시공 작업자 줄). 설치 · A/S 작업만.
+ *     수락 전 · 거절 · 포기 · 제외 · 취소된 작업 · 7일이 지난 작업은 site: null + 안내 문구
  *   - 다른 작업자의 이름 · 신청 · 관리자 메모는 없다
- * 금지 키(FORBIDDEN_KEYS)는 시험이 모든 작업자 응답을 깊이 훑어 고정한다.
+ * 금지 키(FORBIDDEN_KEYS)는 시험이 모든 작업자 응답을 깊이 훑어 고정한다 — address 는 열린 site 아래에서만 허용한다.
  */
 
 import { maskName } from '../share.js';
@@ -14,7 +16,47 @@ import { maskName } from '../share.js';
 /** 작업자 응답에 절대 없는 키. phone 은 작업자 본인 정보(WorkerSelf)에서만 허용 */
 export const FORBIDDEN_KEYS = Object.freeze(['address', 'phone', 'customer_name', 'cost', 'margin', 'note']);
 
-export const SITE_NOTE = '현장 주소·연락처는 공개 기간이 정해지면 열립니다';
+/** 현장이 닫혀 있을 때의 안내 — 언제 열리고 닫히는지 한 줄로 */
+export const SITE_NOTE = '현장 주소·연락처는 배정을 수락한 뒤부터 작업이 끝나고 7일까지 열립니다';
+/** 열렸는데 팩토리가 아직 적지 않았을 때 */
+export const SITE_EMPTY_NOTE = '현장 주소·연락처가 아직 입력되지 않았습니다. 팩토리에 확인해 주세요';
+/** 작업이 끝난(완료 보고를 팩토리가 확인한) 뒤 현장을 여는 날 수 — 사장님 결정 ⑤ */
+export const SITE_OPEN_DAYS = 7;
+/** 현장이 있는 작업 종류 (공장 조립은 현장이 없다) */
+export const SITE_KINDS = Object.freeze(['install', 'as']);
+/** 수락한 뒤 ~ 확인 전 — 이 상태의 배정은 현장을 본다 */
+export const SITE_OPEN_STATUSES = Object.freeze(['confirmed', 'started', 'submitted', 'revision']);
+const DAY_MS = 24 * 3600 * 1000;
+
+/**
+ * 이 배정에 현장을 열어도 되나 (순수).
+ *   수락(confirmed) ~ 완료 보고 · 보완요청 → 열림. 확인됨(accepted) → accepted_at 부터 SITE_OPEN_DAYS 일 동안 열림.
+ *   초대만 받음 · 거절 · 포기 · 제외, 취소된 작업, 현장이 없는 종류 → 닫힘.
+ */
+export function siteOpenFor(job, assignment, now = Date.now()) {
+  if (!job || !assignment || !SITE_KINDS.includes(job.kind) || job.status === 'cancelled') return false;
+  if (SITE_OPEN_STATUSES.includes(assignment.status)) return true;
+  if (assignment.status !== 'accepted') return false;
+  const t = Date.parse(assignment.accepted_at || '');
+  return Number.isFinite(t) && now < t + SITE_OPEN_DAYS * DAY_MS;
+}
+
+/** 현장 정보 줄(design_site_info) → 작업자에게 가는 칸. 적힌 것이 하나도 없으면 null */
+export function workerSite(row) {
+  if (!row) return null;
+  const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const out = {
+    address: text(row.address),
+    address_detail: text(row.address_detail),
+    floor: text(row.floor),
+    has_elevator: row.has_elevator === true ? true : row.has_elevator === false ? false : null,
+    elevator_note: text(row.elevator_note),
+    access_note: text(row.access_note),
+    contact_name: text(row.contact_name),
+    contact_phone: text(row.contact_phone),
+  };
+  return Object.values(out).some((v) => v !== null) ? out : null;
+}
 
 /** 정원에 세는 배정 상태 */
 export const COUNTED_STATUSES = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
@@ -134,13 +176,17 @@ export function jobCard(job, { filled = 0, application = null, assignment = null
 /**
  * 작업 상세. order 는 { order_no, customer_name } (없으면 null) — 내 배정이 활성일 때만 주문번호 · 가린 이름을 싣는다.
  * timeline 은 부르는 쪽이 이미 고른 기록 (visible_to_worker · 내 배정 관련 + 작업 전체 회사 공지).
+ * site 는 부르는 쪽이 읽어 온 현장 정보 줄 — siteOpenFor 가 참일 때만 싣는다 (닫혀 있으면 넘겨도 버린다).
  */
-export function jobDetail(job, { filled = 0, application = null, assignment = null, order = null, timeline = [], now = Date.now(), companyName = null } = {}) {
+export function jobDetail(job, { filled = 0, application = null, assignment = null, order = null, timeline = [], now = Date.now(), companyName = null, site = null } = {}) {
+  const open = siteOpenFor(job, assignment, now);
+  const shown = open ? workerSite(site) : null;
   const out = {
     ...jobCard(job, { filled, application, assignment, now, companyName }),
     detail: job.detail || null,
-    site: null,
-    site_note: SITE_NOTE,
+    site: shown,
+    // 현장이 없는 종류(공장 조립)는 안내도 없다
+    site_note: !SITE_KINDS.includes(job.kind) ? null : shown ? null : open ? SITE_EMPTY_NOTE : SITE_NOTE,
     timeline: (timeline || []).map(workerUpdate),
   };
   if (assignment && ACTIVE_STATUSES.includes(assignment.status) && order) {
@@ -151,17 +197,23 @@ export function jobDetail(job, { filled = 0, application = null, assignment = nu
   return out;
 }
 
-/** 값 안의 금지 키 경로 (시험 · 방어용). allowPhoneAt 는 phone 을 허용하는 경로 접두 */
-export function findForbiddenKeys(value, { allowPhoneAt = [] } = {}, path = '$') {
+/**
+ * 값 안의 금지 키 경로 (시험 · 방어용). allowPhoneAt 는 phone 을 허용하는 경로 접두,
+ * allowSiteAt 는 address 를 허용하는 경로 접두 — 열린 현장(site) 자리만 넘긴다.
+ */
+export function findForbiddenKeys(value, { allowPhoneAt = [], allowSiteAt = [] } = {}, path = '$') {
   const hits = [];
+  const opts = { allowPhoneAt, allowSiteAt };
   if (Array.isArray(value)) {
-    value.forEach((v, i) => hits.push(...findForbiddenKeys(v, { allowPhoneAt }, `${path}[${i}]`)));
+    value.forEach((v, i) => hits.push(...findForbiddenKeys(v, opts, `${path}[${i}]`)));
   } else if (value && typeof value === 'object') {
     for (const [k, v] of Object.entries(value)) {
       const p = `${path}.${k}`;
-      const allowed = k === 'phone' && allowPhoneAt.some((pre) => p === `${pre}.phone`);
+      const allowed =
+        (k === 'phone' && allowPhoneAt.some((pre) => p === `${pre}.phone`)) ||
+        (k === 'address' && allowSiteAt.some((pre) => p === `${pre}.address`));
       if (FORBIDDEN_KEYS.includes(k) && !allowed) hits.push(p);
-      hits.push(...findForbiddenKeys(v, { allowPhoneAt }, p));
+      hits.push(...findForbiddenKeys(v, opts, p));
     }
   }
   return hits;

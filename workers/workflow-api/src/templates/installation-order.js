@@ -70,7 +70,8 @@ function elevatorText(site) {
 
 /**
  * 표지 — 현장 정보가 본문이다.
- * worker (작업자 포털 — work/checks.js): 고객 칸은 가린 주문 이름, 주소 · 연락처는 열리지 않는다 (reveal.js — 공개 기간 ★7 미정).
+ * worker (작업자 포털 — work/checks.js): 고객 칸은 가린 주문 이름. 주소 · 연락처는 worker.siteOpen 일 때만
+ *   (수락한 때부터 작업이 끝나고 7일까지 — reveal.js siteOpenFor), 아니면 안내 문구.
  */
 function coverSheet(doc, snapshot, site, worker) {
   const design = snapshot.design_payload || {};
@@ -105,9 +106,9 @@ function coverSheet(doc, snapshot, site, worker) {
   <h2>현장 정보</h2>
   <table class="meta">
     <tbody>
-      ${tr(['주소', worker ? esc(SITE_NOTE) : orMissing([s.address, s.address_detail].filter(Boolean).join(' '), '주소'), '층', orMissing(s.floor, '층')])}
+      ${tr(['주소', worker && !worker.siteOpen ? esc(SITE_NOTE) : orMissing([s.address, s.address_detail].filter(Boolean).join(' '), '주소'), '층', orMissing(s.floor, '층')])}
       ${tr(['엘리베이터', elevatorText(s), '비고', esc(s.elevator_note || '-')])}
-      ${tr(['연락처', worker ? esc(SITE_NOTE) : orMissing(s.contact_name ? `${s.contact_name} ${s.contact_phone || ''}`.trim() : '', '연락처'), '', ''])}
+      ${tr(['연락처', worker && !worker.siteOpen ? esc(SITE_NOTE) : orMissing(s.contact_name ? `${s.contact_name} ${s.contact_phone || ''}`.trim() : '', '연락처'), '', ''])}
     </tbody>
   </table>
 
