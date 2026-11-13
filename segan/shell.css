@@ -3682,6 +3682,48 @@ button.sm-num[aria-pressed='true'] {
   margin: 12px 0 4px;
 }
 
+/* 확인 안 한 완료 보고 — 인사 › 작업자 맨 위 칸(.cw-wait) · 설치 · A/S 표 위 한 줄(.sm-wait) · 줄 꼬리표(.sm-wait-tag) */
+.cw-wait,
+.sm-wait {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  border-left: 3px solid var(--v5-tan);
+  background: var(--v5-well);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.cw-wait-head {
+  margin: 0;
+}
+
+.cw-wait ul {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cw-wait li span {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sm-wait .cal-link {
+  margin-left: 4px;
+}
+
+.sm-wait-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--v5-tan);
+  color: var(--v5-tan);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
 .cw-label {
   margin: 0 0 8px;
   font-size: 13px;

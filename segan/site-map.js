@@ -118,6 +118,7 @@
         ['today', '오늘'],
         ['week', '이번 주'],
         ['unset', '팀 미정'],
+        ['review', '확인할 보고'],
       ],
       legend: [
         ['info', '예정 · 확정'],
@@ -137,6 +138,7 @@
         ['open', '처리 중'],
         ['done', '끝남'],
         ['unset', '담당 미정'],
+        ['review', '확인할 보고'],
       ],
       legend: [
         ['info', '방문 예정'],
@@ -192,6 +194,12 @@
     wkCancel: '취소',
     wkClose: '작업자 닫기',
     wkLocked: '작업자를 배정한 일정입니다 — 담당은 작업자 이름으로 적힙니다.',
+    waitHead: '확인 안 한 완료 보고',
+    waitUnit: '건',
+    waitNote:
+      '「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 연 현장 주소 · 연락처가 닫힙니다.',
+    waitShow: '확인할 보고만 보기',
+    waitTag: '확인할 보고',
     wkDeclined: '사유',
   };
   var DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -455,6 +463,18 @@
     var v = visitOf(item);
     return v ? v.workers || [] : [];
   }
+  /** 그 줄에서 확인을 기다리는 완료 보고 수 — 배정된 작업자 가운데 「완료 보고」(submitted) */
+  function waitingOn(kind, item) {
+    return workersOn(kind, item).filter(function (w) {
+      return w.status === 'submitted';
+    }).length;
+  }
+  /** 모든 줄의 확인을 기다리는 완료 보고 수 */
+  function waitingCount(kind, items) {
+    return (items || []).reduce(function (n, it) {
+      return n + waitingOn(kind, it);
+    }, 0);
+  }
   /** 작업자를 배정할 수 있는 일정의 id — 설치 줄(납품 아님) · 잡아 둔 A/S 방문. 없으면 '' */
   function workScheduleOf(kind, item) {
     if (kind === 'install') return item.type === 'installation' ? item.schedule_id : '';
@@ -554,6 +574,7 @@
   }
   function tabMatch(kind, tab, item, today) {
     if (tab === 'all') return true;
+    if (tab === 'review') return waitingOn(kind, item) > 0;
     if (kind === 'install') {
       if (tab === 'today') return item.day === today;
       if (tab === 'week') {
@@ -568,17 +589,24 @@
     if (tab === 'unset') return item.state !== 'done' && !teamOf(kind, item);
     return false;
   }
-  /** 거르기 단추 — [{ id, label, n }] (수는 전체 줄에서 센다) */
-  function tabsOf(kind, items, today) {
-    return VIEW[kind].tabs.map(function (t) {
-      return {
-        id: t[0],
-        label: t[1],
-        n: items.filter(function (it) {
-          return tabMatch(kind, t[0], it, today);
-        }).length,
-      };
-    });
+  /**
+   * 거르기 단추 — [{ id, label, n }] (수는 전체 줄에서 센다).
+   * 「확인할 보고」는 인사를 쓰는 팩토리(people)이거나 그런 줄이 있을 때만 보인다.
+   */
+  function tabsOf(kind, items, today, people) {
+    return VIEW[kind].tabs
+      .map(function (t) {
+        return {
+          id: t[0],
+          label: t[1],
+          n: items.filter(function (it) {
+            return tabMatch(kind, t[0], it, today);
+          }).length,
+        };
+      })
+      .filter(function (t) {
+        return t.id !== 'review' || people === true || t.n > 0;
+      });
   }
   /** f = { tab, team, region } */
   function filterItems(kind, items, f, today, memo) {
@@ -940,7 +968,7 @@
 
   function headHtml(v) {
     var d = v.data;
-    var tabs = tabsOf(v.kind, d.items, d.today)
+    var tabs = tabsOf(v.kind, d.items, d.today, S.people)
       .map(function (t) {
         return (
           '<button type="button" class="cal-btn" data-act="tab" data-tab="' +
@@ -1013,6 +1041,20 @@
         esc(TEXT.retry) +
         '</button></p>';
     if (d.truncated) out += '<p class="mk-note">' + esc(TEXT.truncated) + '</p>';
+    // 확인을 기다리는 완료 보고 — 「확인」을 눌러야 작업이 끝나고 현장 정보의 7일 계산이 시작된다
+    var wait = waitingCount(v.kind, d.items);
+    if (wait)
+      out +=
+        '<p class="sm-wait" data-sm="wait"><b>' +
+        esc(TEXT.waitHead + ' ' + wait + TEXT.waitUnit) +
+        '</b> ' +
+        esc(TEXT.waitNote) +
+        (v.tab === 'review'
+          ? ''
+          : ' <button type="button" class="cal-link" data-act="tab" data-tab="review" data-fk="wait">' +
+            esc(TEXT.waitShow) +
+            '</button>') +
+        '</p>';
     if (!d.items.length) out += '<p class="me-empty">' + esc(VIEW[v.kind].empty) + '</p>';
     else if (!rows.length) out += '<p class="me-empty">' + esc(VIEW[v.kind].none) + '</p>';
     return out;
@@ -1054,6 +1096,9 @@
   function tableHtml(v, rows) {
     if (!rows.length) return '';
     var install = v.kind === 'install';
+    var waitTag = function (it) {
+      return waitingOn(v.kind, it) ? ' <span class="sm-wait-tag">' + esc(TEXT.waitTag) + '</span>' : '';
+    };
     var head = install
       ? ['번호', '날짜', '시각', '프로젝트', '지역', '설치팀', '상태']
       : ['번호', '접수일', '방문일', '프로젝트', '지역', '증상', '담당', '상태'];
@@ -1075,6 +1120,7 @@
             (it.assignee_name ? esc(it.assignee_name) : dim(TEXT.unset)) +
             '</td><td>' +
             esc((it.label ? it.label + ' · ' : '') + (SCHEDULE_STATUS[it.status] || it.status)) +
+            waitTag(it) +
             '</td>';
         } else {
           var visit = visitOf(it);
@@ -1095,6 +1141,7 @@
             (visit && visit.assignee_name ? esc(visit.assignee_name) : dim(TEXT.unset)) +
             '</td><td>' +
             esc(it.label) +
+            waitTag(it) +
             '</td>';
         }
         return (
@@ -1570,6 +1617,8 @@
     var active = document.activeElement;
     var fk = active && box.contains(active) ? active.getAttribute('data-fk') : '';
     var typed = v.form ? formValues(box) : null;
+    // 「확인할 보고」로 걸러 둔 채 마지막 보고를 확인해 단추가 사라지면 「전체」로 돌린다
+    if (v.tab === 'review' && !S.people && !waitingCount(v.kind, v.data.items)) v.tab = 'all';
     var rows = rowsOf(v);
     var has = rows.some(function (r) {
       return r.item.key === v.sel;
@@ -1971,6 +2020,8 @@
     visitOf: visitOf,
     ASSIGN_LABEL: ASSIGN_LABEL,
     workersOn: workersOn,
+    waitingOn: waitingOn,
+    waitingCount: waitingCount,
     workScheduleOf: workScheduleOf,
     workersText: workersText,
     panelOf: panelOf,
