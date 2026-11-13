@@ -196,12 +196,12 @@ function before0065(fake) {
 
 // ── 순수 ──────────────────────────────────────────────────────────
 
-test('순수 — 종류 여섯, 프로젝트 줄 차례는 일하는 차례. 현장 일은 확인 · 현장 공개, 공장 일은 완료 보고로 끝', () => {
-  assert.deepEqual([...WORK_KINDS], ['install', 'as', 'assembly', 'cutting', 'edge', 'demolition']);
+test('순수 — 종류 일곱(납품 더함), 프로젝트 줄 차례는 일하는 차례. 현장 일은 확인 · 현장 공개, 공장 일은 완료 보고로 끝', () => {
+  assert.deepEqual([...WORK_KINDS], ['install', 'as', 'assembly', 'cutting', 'edge', 'demolition', 'delivery']);
   assert.deepEqual([...PROJECT_KINDS], ['demolition', 'cutting', 'edge', 'assembly']);
   assert.deepEqual(PROJECT_KINDS.map((k) => KIND_LABEL[k]), ['철거', '재단', '엣지', '조립']);
-  assert.deepEqual(WORK_KINDS.filter((k) => needsReview(k)), ['install', 'as', 'demolition']);
-  assert.deepEqual([...SITE_KINDS], ['install', 'as', 'demolition']);
+  assert.deepEqual(WORK_KINDS.filter((k) => needsReview(k)), ['install', 'as', 'demolition', 'delivery']);
+  assert.deepEqual([...SITE_KINDS], ['install', 'as', 'demolition', 'delivery']);
   // DB 가 새 종류 · 새 칸을 모르면 409 db_pending, 그 밖의 오류는 그대로
   for (const text of ['23514 violates check constraint', '42703 column does not exist', 'PGRST204']) {
     const e = kindsPending(new Error(text));
@@ -213,7 +213,7 @@ test('순수 — 종류 여섯, 프로젝트 줄 차례는 일하는 차례. 현
 
 // ── 읽기 ──────────────────────────────────────────────────────────
 
-test('읽기 — 철거 · 재단 · 엣지 · 조립 줄 + 그 프로젝트의 설치 · A/S 일정 줄. 종류마다 고를 수 있는 작업자', async () => {
+test('읽기 — 철거 · 재단 · 엣지 · 조립 줄 + 그 프로젝트의 납품 · 설치 · A/S 일정 줄. 종류마다 고를 수 있는 작업자', async () => {
   const fake = world();
   const r = await view(fake, 't_owner');
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -225,13 +225,14 @@ test('읽기 — 철거 · 재단 · 엣지 · 조립 줄 + 그 프로젝트의 
     ['kind:cutting', '재단', 'project', null],
     ['kind:edge', '엣지', 'project', null],
     ['kind:assembly', '조립', 'project', null],
+    [`schedule:${S(2)}`, '납품', 'schedule', iso('2026-11-21T14:00:00')],
     [`schedule:${S(1)}`, '설치', 'schedule', iso('2026-11-22T09:00:00')],
     [`schedule:${S(3)}`, 'A/S 방문', 'schedule', iso('2026-11-25T15:00:00')],
   ]);
   // 종류가 맞는 사람만 (3번은 이 팩토리가 조립만 맡김 · 4번은 계정 정지)
   const cands = Object.fromEntries(d.rows.map((x) => [x.kind, x.candidates.map((c) => c.link_id)]));
-  assert.deepEqual(cands, { demolition: [L(1)], cutting: [L(2)], edge: [L(2)], assembly: [L(3)], install: [L(1), L(5)], as: [L(5)] });
-  for (const x of d.rows) assert.deepEqual([x.job, x.workers, x.can_assign], [null, [], true], x.key);
+  assert.deepEqual(cands, { demolition: [L(1)], cutting: [L(2)], edge: [L(2)], assembly: [L(3)], delivery: [], install: [L(1), L(5)], as: [L(5)] });
+  for (const x of d.rows) assert.deepEqual([x.job, x.workers, x.can_assign, x.recruit], [null, [], true, null], x.key);
   const text = JSON.stringify(r.json);
   for (const leak of [W(1), PHONE, U(101), '010-9999', ADDR]) assert.equal(text.includes(leak), false, leak);
 
@@ -437,4 +438,62 @@ test('DB 0065 적용 전 — 프로젝트 작업 경로는 409 db_pending. 일�
   }
   const sched = await post(fake, 't_owner', `/company/schedules/${S(1)}/workers`, { link_ids: [L(1)] });
   assert.equal(sched.status, 200, JSON.stringify(sched.json));
+});
+
+// ── 2026-11-14 모집 게시 — 프로젝트의 종류 줄 (src/work/recruit.js) ─────────────
+
+test('모집 올리기 — 프로젝트의 재단 줄: 작업이 없으면 만들어 공개 모집으로. 그 종류를 맡긴 작업자만 보고 신청한다. 뽑으면 확정', async () => {
+  const fake = world();
+  const up = await post(fake, 't_owner', `/company/projects/${P(1)}/work/recruit`, { kind: 'cutting', people: 1, at: iso('2026-11-18T09:00:00') });
+  assert.equal(up.status, 200, JSON.stringify(up.json));
+  const job = jobOf(fake, 'cutting');
+  assert.deepEqual([job.mode, job.slots, job.status, job.title, job.project_id, job.starts_at], ['open', 1, 'open', '재단', P(1), iso('2026-11-18T09:00:00')]);
+  assert.deepEqual(rowOf(up, 'kind:cutting').recruit, { on: true, state: 'open', slots: 1, filled: 0, deadline: null, applications: [] });
+  assert.equal(rowOf(up, 'kind:edge').recruit, null, '다른 줄은 그대로');
+  // 알림 — 재단을 하는 2번만 (3번은 이 팩토리가 조립만 맡김)
+  assert.deepEqual(outbox(fake, 'work_invited').map((n) => [n.user_id, n.title, n.body]), [[U(102), '작업 모집', '11/18(수) 재단 작업 모집이 올라왔습니다. 작업 탭에서 보고 신청해 주세요.']]);
+  assert.deepEqual((await call(fake, 't_w3', '/work/jobs?tab=open')).json.data.items, []);
+  const open = await call(fake, 't_w2', '/work/jobs?tab=open');
+  assert.deepEqual(open.json.data.items.map((j) => [j.id, j.title, j.company_name]), [[job.id, '재단', '가나 인테리어']]);
+  for (const leak of ['김고객', ADDR, '010-9999']) assert.equal(JSON.stringify(open.json).includes(leak), false, leak);
+
+  const app = await post(fake, 't_w2', `/work/jobs/${job.id}/apply`, { message: '오후 가능' });
+  assert.equal(app.status, 201, JSON.stringify(app.json));
+  assert.deepEqual(outbox(fake, 'work_reply').map((n) => [n.title, n.body, n.url])[0], ['작업 신청', '작업자가 11/18(수) 재단 작업 모집에 신청했습니다. 프로젝트에서 확인해 주세요.', '/segan/me.html#dash-project']);
+  const seen = rowOf(await view(fake, 't_owner'), 'kind:cutting').recruit;
+  assert.deepEqual(seen.applications.map((x) => [x.name, x.message]), [['시험기사2', '오후 가능']]);
+  const ok = await post(fake, 't_owner', `/company/work/applications/${app.json.data.id}/approve`);
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  const after = rowOf(await view(fake, 't_owner'), 'kind:cutting');
+  assert.deepEqual([after.job.status, after.workers.map((w) => [w.name, w.status]), after.recruit.state], ['filled', [['시험기사2', 'confirmed']], 'full']);
+  // 공장 일 — 현장 정보는 없다
+  assert.deepEqual([(await call(fake, 't_w2', `/work/jobs/${job.id}`)).json.data.site, (await call(fake, 't_w2', `/work/jobs/${job.id}`)).json.data.site_note], [null, null]);
+});
+
+test('모집 — 프로젝트 줄: 누가 · 무엇을 못 하나. 내리기는 끝난 프로젝트에서도 된다', async () => {
+  const fake = world();
+  const rec = (token, body, p = P(1)) => post(fake, token, `/company/projects/${p}/work/recruit`, body);
+  const no = async (token, body, status, code, p) => {
+    const r = await rec(token, body, p);
+    assert.equal(r.status, status, `${token} ${JSON.stringify(body)} ${JSON.stringify(r.json)}`);
+    if (code) assert.equal(r.json.code, code);
+  };
+  await no('t_staff', { kind: 'cutting', people: 1 }, 403, 'not_manager');
+  await no('t_expert', { kind: 'cutting', people: 1 }, 403, 'not_people_company', P(3));
+  await no('t_owner', { kind: 'cutting', people: 1 }, 404, null, P(9));
+  await no('t_owner', { kind: 'cutting', people: 1 }, 409, 'closed', P(2));
+  await no('t_owner', { kind: 'install', people: 1 }, 422); // 일정 줄은 일정 경로로
+  await no('t_owner', { kind: 'cutting' }, 422);
+  await no('t_owner', { kind: 'cutting', people: 0 }, 422);
+  assert.equal(fake.db.work_jobs.length, 0);
+
+  // 올린 뒤 프로젝트가 끝나도 내리기는 된다
+  assert.equal((await rec('t_owner', { kind: 'edge', people: 2 })).status, 200);
+  const app = await post(fake, 't_w2', `/work/jobs/${jobOf(fake, 'edge').id}/apply`, {});
+  assert.equal(app.status, 201);
+  fake.db.projects.find((p) => p.id === P(1)).status = 'closed';
+  const down = await rec('t_owner', { kind: 'edge', stop: true });
+  assert.equal(down.status, 200, JSON.stringify(down.json));
+  assert.deepEqual([jobOf(fake, 'edge').mode, fake.db.work_applications[0].status], ['invite', 'rejected']);
+  assert.equal((await rec('t_staff', { kind: 'edge', stop: true })).json.code, 'not_manager');
 });

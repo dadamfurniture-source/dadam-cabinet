@@ -288,10 +288,11 @@ async function linkRow(id, token, over = {}) {
 
 // ── 종류 · 화면 (순수) ───────────────────────────────────────────
 
-test('종류 — 작업 종류 = 작업자 종류 여섯 (2026-11-13 철거 · 재단 · 엣지 작업, DB 0065), 공장 공정은 재단 · 엣지 · 조립', () => {
-  assert.deepEqual([...WORK_KINDS], ['install', 'as', 'assembly', 'cutting', 'edge', 'demolition']);
-  assert.deepEqual([...WORKER_KINDS], [...WORK_KINDS], '작업자 종류와 작업 종류는 같은 여섯');
+test('종류 — 작업 종류 = 작업자 종류 일곱 (2026-11-13 철거 · 재단 · 엣지 DB 0065, 2026-11-14 납품 DB 0066), 공장 공정은 재단 · 엣지 · 조립', () => {
+  assert.deepEqual([...WORK_KINDS], ['install', 'as', 'assembly', 'cutting', 'edge', 'demolition', 'delivery']);
+  assert.deepEqual([...WORKER_KINDS], [...WORK_KINDS], '작업자 종류와 작업 종류는 같은 일곱');
   assert.equal(KIND_LABEL.demolition, '철거');
+  assert.equal(KIND_LABEL.delivery, '납품');
   assert.equal(KIND_LABEL.cutting, '재단');
   assert.equal(KIND_LABEL.edge, '엣지');
   assert.deepEqual(kindsOf(['edge', 'cutting', 'edge']), ['edge', 'cutting']);

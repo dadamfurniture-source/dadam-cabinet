@@ -8,7 +8,7 @@
  *       invites [{ id, kinds_preset, display_name_preset, expires_at, created_at }],
  *       unconfirmed { total, items [{ kind, at, where }] } }
  *     unconfirmed = 확인을 기다리는 완료 보고 (앱에서 배정한 작업의 submitted 배정 — 일정 줄 · 프로젝트 「작업 배정」).
- *       where = install(설치 일정) · as(A/S 방문) · project(프로젝트의 작업 배정), at = 작업 시각. 작업자 · 고객을 가리키는 값은 없다.
+ *       where = install(설치 표의 일정 — 납품 · 설치) · as(A/S 방문) · project(프로젝트의 작업 배정), at = 작업 시각. 작업자 · 고객을 가리키는 값은 없다.
  *       팩토리가 「확인」을 눌러야 작업이 끝나고, 그때부터 7일 뒤 작업자에게 현장 정보가 닫힌다 (work/reveal.js siteOpenFor).
  *     status = 연결 상태(pending 대기 · approved 승인 · suspended 정지 · rejected 반려 · ended 끝),
  *     ended_by = 끝난 연결을 누가 끊었나 (worker 작업자가 스스로 · company 팩토리가) — 끝난 연결에만,
@@ -41,7 +41,7 @@ import { MINE_STATUSES } from './jobs.js';
 import { LINK_STATUSES, LINK_STATUS_LABEL, LINK_TRANSITIONS, linksPending } from './links.js';
 import { later, notifyWorkerLink } from '../push/work-hooks.js';
 import { offerInviteJob } from './invite-job.js';
-import { assertUuid, kindsOf, oneOf, optText } from './validate.js';
+import { assertUuid, kindsOf, kindsPending, oneOf, optText } from './validate.js';
 
 /** 아직 끝나지 않은 작업 상태 — 진행 중 배정 수를 셀 때 */
 const LIVE_JOB_STATUSES = Object.freeze(['draft', 'open', 'filled', 'in_progress', 'review']);
@@ -110,6 +110,7 @@ export function unconfirmedOf(jobs, assignments) {
     if (!a || a.status !== 'submitted') continue;
     const j = byId.get(a.job_id);
     if (!j || !(j.schedule_id || j.project_id)) continue;
+    // 납품 일정 줄은 설치 표에 있다 → where install
     items.push({ kind: j.kind, at: j.starts_at || null, where: !j.schedule_id ? 'project' : j.kind === 'as' ? 'as' : 'install' });
   }
   const ms = (v) => {
@@ -228,7 +229,10 @@ export async function patchCompanyWorker(env, { user, params, body, ctx }) {
     }
     if (!Object.keys(patch).length) return linkOut(link);
 
-    const rows = await updateBy(env, 'worker_companies', { id: `eq.${id}`, company_id: `eq.${company.id}`, status: `eq.${link.status}` }, { ...patch, updated_at: nowIso() });
+    const rows = await updateBy(env, 'worker_companies', { id: `eq.${id}`, company_id: `eq.${company.id}`, status: `eq.${link.status}` }, { ...patch, updated_at: nowIso() }).catch((e) => {
+      // DB 가 아직 모르는 종류(납품 — 0066 전)면 409 db_pending
+      throw kindsPending(e);
+    });
     if (!rows || !rows.length) throw conflict('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
 
     if (patch.status === 'approved' && worker.status !== 'approved') {

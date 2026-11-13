@@ -196,7 +196,7 @@ function consultAssigned({ items = [], gugun = null } = {}) {
 export const WORK_URL = '/segan/work.html';
 
 /** 작업 종류 이름 — work/validate.js WORK_KINDS 와 같은 키 (작업 제목 · 지역은 싣지 않는다 — 고객 이름 · 주소가 섞일 수 있다) */
-export const WORK_KIND_LABELS = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거' });
+export const WORK_KIND_LABELS = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지', demolition: '철거', delivery: '납품' });
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -217,10 +217,14 @@ function workJob({ jobKind, startsAt, jobId } = {}) {
   return { what: `${day ? `${day} ` : ''}${label} 작업`, day, label, url };
 }
 
-/** 작업 초대 — 관리자가 작업에 초대(배정 제안)함. { jobKind, startsAt, jobId } */
+/**
+ * 작업 초대 — 관리자가 작업에 초대(배정 제안)함. { jobKind, startsAt, jobId }
+ * recruit 가 true 면 팩토리가 모집을 올린 것 — 같은 종류(work_invited)로 글만 다르다 (연결된 작업자에게)
+ */
 function workInvited(p) {
   const j = workJob(p);
   if (!j) return null;
+  if (p && p.recruit === true) return { title: '작업 모집', body: `${j.what} 모집이 올라왔습니다. 작업 탭에서 보고 신청해 주세요.`, url: j.url };
   return { title: '작업 초대', body: `${j.what}에 초대받았습니다. 수락하거나 거절해 주세요.`, url: j.url };
 }
 
@@ -279,10 +283,12 @@ export const COMPANY_WORKERS_URL = '/segan/me.html#workers';
 export const COMPANY_INSTALL_URL = '/segan/me.html#p-install';
 export const COMPANY_AS_URL = '/segan/me.html#p-as';
 export const COMPANY_PROJECT_URL = '/segan/me.html#dash-project';
-/** 설치 · A/S 는 그 일정 화면, 철거 · 재단 · 엣지 · 조립은 프로젝트의 「작업 배정」 */
-const companyJobUrl = (jobKind) => (jobKind === 'as' ? COMPANY_AS_URL : jobKind === 'install' ? COMPANY_INSTALL_URL : COMPANY_PROJECT_URL);
+/** 일정 줄에서 생기는 종류 — 납품 · 설치는 설치 화면, A/S 는 A/S 화면 */
+const SCHEDULE_ROW_KINDS = Object.freeze(['install', 'delivery', 'as']);
+/** 납품 · 설치 · A/S 는 그 일정 화면, 철거 · 재단 · 엣지 · 조립은 프로젝트의 「작업 배정」 */
+const companyJobUrl = (jobKind) => (jobKind === 'as' ? COMPANY_AS_URL : SCHEDULE_ROW_KINDS.includes(jobKind) ? COMPANY_INSTALL_URL : COMPANY_PROJECT_URL);
 
-const companyWhere = (jobKind) => (jobKind === 'as' || jobKind === 'install' ? '일정' : '프로젝트');
+const companyWhere = (jobKind) => (SCHEDULE_ROW_KINDS.includes(jobKind) ? '일정' : '프로젝트');
 
 /**
  * 작업자가 연결을 신청함 — 이름 · 전화는 싣지 않는다 (화면에서 본다).
@@ -297,8 +303,15 @@ function workLinkRequest({ left } = {}) {
 
 const WORK_REPLY_TEXT = Object.freeze({ confirmed: '수락했습니다', declined: '거절했습니다', released: '포기했습니다' });
 
-/** 작업자가 배정에 답함. { reply: confirmed | declined | released, jobKind, startsAt } — 작업자 이름 · 사유는 싣지 않는다 */
+/**
+ * 작업자가 배정에 답함. { reply: confirmed | declined | released, jobKind, startsAt } — 작업자 이름 · 사유는 싣지 않는다.
+ * reply 가 applied 면 작업자가 모집에 신청한 것 — 같은 종류(work_reply)로 글만 다르다
+ */
 function workReply({ reply, jobKind, startsAt } = {}) {
+  if (reply === 'applied') {
+    const a = workJob({ jobKind, startsAt });
+    return a ? { title: '작업 신청', body: `작업자가 ${a.what} 모집에 신청했습니다. ${companyWhere(jobKind)}에서 확인해 주세요.`, url: companyJobUrl(jobKind) } : null;
+  }
   const said = Object.prototype.hasOwnProperty.call(WORK_REPLY_TEXT, reply) ? WORK_REPLY_TEXT[reply] : null;
   const j = workJob({ jobKind, startsAt });
   if (!said || !j) return null;

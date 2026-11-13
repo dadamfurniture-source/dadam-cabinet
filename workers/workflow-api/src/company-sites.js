@@ -190,7 +190,8 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
       })
       : [],
     projectTitles(env, co, [...new Set(live.map((s) => (s.designs || {}).project_id).filter(Boolean))]),
-    workersOfSchedules(env, company.id, live.filter((s) => s.type === 'installation').map((s) => s.id)),
+    // 납품 · 설치 줄 모두 — 납품 줄에도 작업자를 배정한다 (2026-11-14, work/schedule-link.js SCHEDULE_JOB_KIND)
+    workersOfSchedules(env, company.id, live.map((s) => s.id)),
   ]);
   const orderNoOf = new Map();
   for (const o of orders) if (!orderNoOf.has(o.design_id)) orderNoOf.set(o.design_id, o.order_no || null);

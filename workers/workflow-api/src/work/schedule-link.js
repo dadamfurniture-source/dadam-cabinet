@@ -1,18 +1,21 @@
 /**
- * 일정 ↔ 작업 잇기 — 설치 · A/S 방문 일정 줄에서 작업자를 배정한다 (마이페이지 프로젝트 관리 › 설치 · A/S).
+ * 일정 ↔ 작업 잇기 — 납품 · 설치 · A/S 방문 일정 줄에서 작업자를 배정한다 (마이페이지 프로젝트 관리 › 설치 · A/S).
  * (2026-11-13 사장님 결정 「작업자 한 길」 ③ 배정은 설치 · A/S 일정 줄에서 ⑥ 배정 → 수락 대기 → 작업자가 수락해야 확정)
  *
  *   GET  /company/schedules/:id/workers                   그 일정의 작업 · 배정 상태 · 고를 수 있는 작업자 (구성원)
  *     { schedule { id, type, label, at, status }, kind, can_manage, can_assign, job { id, status } | null,
  *       workers [{ assignment_id, name, status, label, reason, started_at, submitted_at, accepted_at, revision_count,
  *                  reports [{ kind, by, body, issue_chips, at }] }],
- *       candidates [{ link_id, name, kinds, region }] }
+ *       candidates [{ link_id, name, kinds, region }],
+ *       recruit { on, state, slots, filled, deadline, applications [{ application_id, name, message, at }] } | null }
  *   POST /company/schedules/:id/workers { link_ids[] }    배정 (대표 · 실장) — 작업이 없으면 만들고 작업자마다 수락 대기로 넣는다
+ *   POST /company/schedules/:id/workers/recruit { people, apply_deadline? } | { stop: true }   모집 올리기 · 내리기 (대표 · 실장, work/recruit.js)
  *   POST /company/work/assignments/:id/accept             완료 보고 확인 (대표 · 실장)
  *   POST /company/work/assignments/:id/revision { reason } 보완요청 (대표 · 실장)
  *   POST /company/work/assignments/:id/remove { reason, no_show? }  빼기 (대표 · 실장)
  *
- * 일정 하나에 살아 있는 작업 하나 (DB 0064 uq_work_jobs_schedule_live). 작업은 종류 = 설치 / A/S, 시각 = 일정,
+ * 2026-11-14 납품 줄도 배정한다 — 종류 「납품」(delivery, DB 0066). 0066 전이면 납품 줄만 409 db_pending.
+ * 일정 하나에 살아 있는 작업 하나 (DB 0064 uq_work_jobs_schedule_live). 작업은 종류 = 납품 / 설치 / A/S, 시각 = 일정,
  * 방식 = 지정(invite — 모집 목록에 뜨지 않는다), 제목 = 일정 종류 이름만 (설계 이름 · 고객 이름을 싣지 않는다).
  * 작업자를 가리키는 값은 연결 id(link_id) — 작업자 id 는 팩토리에 내보내지 않는다.
  *
@@ -27,6 +30,7 @@
  */
 
 import { ConflictError, NotFoundError, ValidationError, insertOne, selectMany, selectOne } from '../supabase.js';
+import { closeRecruit, openRecruit, recruitOf } from './recruit.js';
 import { isMissingRelation } from '../work-order-data.js';
 import { SCHEDULE_LABELS } from '../slack.js';
 import { assertAssignable } from './access.js';
@@ -36,14 +40,14 @@ import {
 import { workersCompanyOf } from './company.js';
 import { recordEvent } from './events.js';
 import { computeJobStatus, declineOffersIfEnded, loadJobAssignments, lockJob } from './jobs.js';
-import { linksPending } from './links.js';
+import { kindsFor, linksPending } from './links.js';
 import { ACTIVE_STATUSES } from './reveal.js';
 import { syncAssigneeName } from './schedule-names.js';
 import { later, notifyWorkCancelled, notifyWorkSchedule } from '../push/work-hooks.js';
-import { assertUuid, optBool, reqText } from './validate.js';
+import { assertUuid, kindsPending, optBool, optInt, optIso, reqText } from './validate.js';
 
-/** 작업자를 배정할 수 있는 일정 종류 → 작업 종류 (납품 줄은 2차) */
-export const SCHEDULE_JOB_KIND = Object.freeze({ installation: 'install', as_visit: 'as' });
+/** 작업자를 배정할 수 있는 일정 종류 → 작업 종류 (납품은 2026-11-14 부터 — DB 0066) */
+export const SCHEDULE_JOB_KIND = Object.freeze({ delivery: 'delivery', installation: 'install', as_visit: 'as' });
 /** 한 번에 배정하는 사람 수 */
 export const ASSIGN_MAX = 10;
 /** 팩토리 화면의 배정 상태 이름 */
@@ -110,8 +114,8 @@ export async function liveJobOf(env, scheduleId, companyId) {
   return (await selectOne(env, 'work_jobs', q)) || null;
 }
 
-/** 이 팩토리가 그 작업자에게 맡기는 종류 — 연결에 적은 것, 없으면 작업자가 적은 것 */
-export const kindsFor = (link, worker) => (link.kinds && link.kinds.length ? link.kinds : (worker && worker.kinds) || []);
+/** 이 팩토리가 그 작업자에게 맡기는 종류 — 연결에 적은 것, 없으면 작업자가 적은 것 (work/links.js) */
+export { kindsFor };
 
 /** 현장의 시 · 구 (좌표를 바꾼 그때의 주소가 지금 주소와 같을 때만 — company-sites.js siteOf 와 같은 판정). 없으면 null */
 export async function regionOf(env, designId) {
@@ -166,7 +170,8 @@ export async function createJobFor(env, { user, company, schedule, kind, slots }
   try {
     job = await insertOne(env, 'work_jobs', row);
   } catch (e) {
-    if (!(e instanceof ConflictError)) throw e;
+    // DB 가 아직 모르는 종류(납품 — 0066 전)면 409 db_pending
+    if (!(e instanceof ConflictError)) throw kindsPending(e);
     job = await liveJobOf(env, schedule.id, company.id);
     if (!job) throw e;
     return job;
@@ -315,6 +320,7 @@ async function viewOf(env, ctx, { company, canAct, holds, schedule }) {
     can_manage: canAct,
     can_assign: canAct && holds && !!kind && open && (!job || !['review', ...FINISHED_JOB].includes(job.status)),
     job: job ? { id: job.id, status: job.status } : null,
+    recruit: await recruitOf(env, job, all),
     workers: all.slice().sort((a, b) => active(a) - active(b)).map((a) => workerRow(a, reportsOf(a.id))),
     candidates: (links || [])
       .filter((l) => byId.has(l.worker_id) && !taken.has(l.worker_id) && kindsFor(l, byId.get(l.worker_id)).includes(kind))
@@ -346,7 +352,7 @@ export async function assignScheduleWorkers(env, { user, params, body, ctx }) {
   const { company, canAct, holds } = await workersCompanyOf(env, user, { manage: true, fresh: true });
   const schedule = await loadSchedule(env, company, params.id);
   const kind = SCHEDULE_JOB_KIND[schedule.type];
-  if (!kind) throw conflict('설치 · A/S 방문 일정에만 작업자를 배정할 수 있습니다', 'not_assignable');
+  if (!kind) throw conflict('납품 · 설치 · A/S 방문 일정에만 작업자를 배정할 수 있습니다', 'not_assignable');
   if (ENDED_SCHEDULE.includes(schedule.status)) throw conflict('취소했거나 끝난 일정에는 배정할 수 없습니다', 'closed');
 
   return ready(async () => {
@@ -375,6 +381,45 @@ export async function assignScheduleWorkers(env, { user, params, body, ctx }) {
     if (job.slots < need) job = await lockJob(env, job, { slots: need, status: computeJobStatus({ ...job, slots: need }, all) });
     for (const w of fresh) await inviteWorkerCore(env, { user, job, worker: w, actorKind: 'member', ctx });
     await syncAssigneeName(env, job);
+    return viewOf(env, ctx, { company, canAct, holds, schedule });
+  });
+}
+
+/**
+ * 본문의 모집 칸 — { stop: true } 또는 { people 1 ~ ASSIGN_MAX, apply_deadline? (지금보다 뒤) }.
+ * 모집 인원 · 지원 종료일의 기본값은 정하지 않았다 — 인원은 꼭 적고, 종료일은 비워 둘 수 있다.
+ */
+export function recruitFields(body) {
+  const b = body || {};
+  if (b.stop === true) return { stop: true };
+  const people = optInt(b.people, 1, '모집 인원');
+  if (people === null) throw new ValidationError('모집 인원을 적어 주세요', { field: 'people' });
+  if (people > ASSIGN_MAX) throw new ValidationError(`한 번에 ${ASSIGN_MAX}명까지 모집할 수 있습니다`, { field: 'people' });
+  const deadline = optIso(b.apply_deadline, '지원 종료일');
+  if (deadline && Date.parse(deadline) <= Date.now()) throw new ValidationError('지원 종료일은 지금보다 뒤여야 합니다', { field: 'apply_deadline' });
+  return { stop: false, people, deadline };
+}
+
+/** POST /company/schedules/:id/workers/recruit — 그 일정 줄의 모집 올리기 · 내리기 */
+export async function recruitScheduleWorkers(env, { user, params, body, ctx }) {
+  const f = recruitFields(body);
+  // 내리기는 등급이 내려간 팩토리도 한다 (진행 중인 일을 정리할 수 있게)
+  const { company, canAct, holds } = await workersCompanyOf(env, user, { manage: true, fresh: !f.stop });
+  const schedule = await loadSchedule(env, company, params.id);
+  const kind = SCHEDULE_JOB_KIND[schedule.type];
+  if (!kind) throw conflict('납품 · 설치 · A/S 방문 일정에만 작업자를 모집할 수 있습니다', 'not_assignable');
+
+  return ready(async () => {
+    let job = await liveJobOf(env, schedule.id, company.id);
+    if (f.stop) {
+      if (job && job.mode === 'open') await closeRecruit(env, { user, job });
+      return viewOf(env, ctx, { company, canAct, holds, schedule });
+    }
+    if (ENDED_SCHEDULE.includes(schedule.status)) throw conflict('취소했거나 끝난 일정에는 모집할 수 없습니다', 'closed');
+    if (job) job = (await syncJobWithSchedule(env, ctx, schedule)) || job;
+    if (!job) job = await createJobFor(env, { user, company, schedule, kind, slots: f.people });
+    if (['review', ...FINISHED_JOB].includes(job.status)) throw conflict('끝난 작업에는 모집할 수 없습니다', 'closed');
+    await openRecruit(env, { user, job, people: f.people, deadline: f.deadline, ctx });
     return viewOf(env, ctx, { company, canAct, holds, schedule });
   });
 }

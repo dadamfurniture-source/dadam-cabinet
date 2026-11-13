@@ -3,17 +3,22 @@
  *
  *   applied → approved(편집자 선정 → 배정 confirmed) / rejected / withdrawn(작업자)
  *   한 작업에 한 사람 한 번 (UNIQUE job_id, worker_id) — 중복은 409. 선착순은 없다 (★4).
+ *
+ * 2026-11-14 모집 게시 — 팩토리 대표 · 실장도 자기 팩토리 작업의 신청을 뽑고 반려한다 (work/recruit.js).
+ *   그래서 권한 검사는 밖에 두고 하는 일만 …Core 로 뺐다 (관리자 = admin, 팩토리 = member).
+ *   팩토리가 앱에서 낸 작업(일정 줄 · 프로젝트)에 신청이 오면 그 팩토리 대표 · 실장에게 알린다.
+ *   작업자가 팩토리와의 연결을 끊으면 그 팩토리 작업에 낸 대기 신청은 거둔다 (withdrawApplicationsOnLeave).
  */
 
-import { ConflictError, NotFoundError, insertOne, restDelete, selectOne, updateBy } from '../supabase.js';
+import { ConflictError, NotFoundError, insertOne, restDelete, selectMany, selectOne, updateBy } from '../supabase.js';
 import { assertAssignable, assertMine, requireAdminEditor, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent, recordJobStatusChange } from './events.js';
 import { computeJobStatus, countFilled, loadJob, loadJobAssignments, lockJob } from './jobs.js';
 import { notifyWork } from './notify.js';
-import { later, notifyWorkAssigned } from '../push/work-hooks.js';
+import { later, notifyCompanyWork, notifyWorkAssigned } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, effectiveStatus, workerApplication } from './reveal.js';
 import { assertUuid, optText } from './validate.js';
-import { isLinkedTo } from './links.js';
+import { approvedLinkMap, isLinkedTo, kindsFor } from './links.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -33,9 +38,11 @@ export async function applyToJob(env, { user, params, body, ctx }) {
   const job = await loadJob(env, jobId);
   if (job.status !== 'open' || job.mode !== 'open') throw new ConflictError('모집 중인 작업이 아닙니다');
   if (effectiveStatus(job) !== 'open') throw new ConflictError('지원 종료일이 지났습니다');
-  if (!(worker.kinds || []).includes(job.kind)) throw new ConflictError('내 작업 종류와 맞지 않는 작업입니다');
-  // 연결이 승인된 팩토리의 작업만 — 아니면 있는지도 모르게 (2026-11-13)
-  if (!(await isLinkedTo(env, worker.id, job.company_id))) throw new NotFoundError('작업을 찾을 수 없습니다');
+  // 연결이 승인된 팩토리의 작업만 — 아니면 있는지도 모르게 (2026-11-13). 종류는 그 팩토리가 내게 맡기는 종류로 본다 (2026-11-14)
+  const links = await approvedLinkMap(env, worker.id);
+  const link = links ? links.get(job.company_id) : null;
+  if (links && !link) throw new NotFoundError('작업을 찾을 수 없습니다');
+  if (!(links ? kindsFor(link, worker) : worker.kinds || []).includes(job.kind)) throw new ConflictError('내 작업 종류와 맞지 않는 작업입니다');
   const dup = await selectOne(env, 'work_applications', { job_id: `eq.${jobId}`, worker_id: `eq.${worker.id}`, select: 'id' });
   if (dup) throw new ConflictError('이미 신청한 작업입니다');
 
@@ -51,6 +58,12 @@ export async function applyToJob(env, { user, params, body, ctx }) {
     payload: { worker_id: worker.id, application_id: app.id },
   });
   notifyWork(env, ctx, 'application_created', { job, workerName: worker.display_name });
+  // 팩토리가 앱에서 낸 작업(일정 줄 · 프로젝트 「작업 배정」)이면 그 팩토리 대표 · 실장에게 앱 알림 — 이름 · 남긴 글은 싣지 않는다
+  if (job.schedule_id || job.project_id) {
+    await later(ctx, notifyCompanyWork(env, {
+      companyId: job.company_id, kind: 'work_reply', refId: app.id, params: { reply: 'applied', jobKind: job.kind, startsAt: job.starts_at }, suffix: 'applied',
+    }));
+  }
   return workerApplication(app);
 }
 
@@ -72,7 +85,34 @@ export async function withdrawApplication(env, { user, params, ctx }) {
   return workerApplication(rows[0]);
 }
 
-// ── 관리자 ───────────────────────────────────────────────────────
+/**
+ * 작업자가 팩토리와의 연결을 스스로 끊었다 — 그 팩토리가 낸 작업에 내고 답을 기다리던 신청을 거둔다 (withdrawn).
+ * 하나가 실패해도 나머지는 계속한다. 거둔 신청 수를 돌려준다.
+ */
+export async function withdrawApplicationsOnLeave(env, { user, worker, companyId }) {
+  const applied = (await selectMany(env, 'work_applications', { worker_id: `eq.${worker.id}`, status: 'eq.applied', select: 'id,job_id', limit: '200' })) || [];
+  if (!applied.length) return 0;
+  const jobIds = [...new Set(applied.map((a) => a.job_id))];
+  const jobs = (await selectMany(env, 'work_jobs', { id: `in.(${jobIds.join(',')})`, company_id: `eq.${companyId}`, select: 'id' })) || [];
+  const mine = new Set(jobs.map((j) => j.id));
+  let n = 0;
+  for (const a of applied.filter((x) => mine.has(x.job_id))) {
+    try {
+      const rows = await updateBy(env, 'work_applications', { id: `eq.${a.id}`, status: 'eq.applied' }, { status: 'withdrawn' });
+      if (!rows || !rows.length) continue;
+      await recordEvent(env, {
+        jobId: a.job_id, actorUserId: user.id, actorKind: 'worker', type: 'application_withdrawn', from: 'applied', to: 'withdrawn',
+        payload: { worker_id: worker.id, application_id: a.id, reason: 'link_left' },
+      });
+      n += 1;
+    } catch (e) {
+      console.warn('[work] 연결 끊김 — 신청 거두기 실패:', e && e.message);
+    }
+  }
+  return n;
+}
+
+// ── 관리자 · 팩토리 ──────────────────────────────────────────────────
 
 /**
  * POST /work/admin/applications/:id/approve — 신청 승인 → 배정 confirmed.
@@ -83,10 +123,21 @@ export async function approveApplication(env, { user, params, body, ctx }) {
   const id = assertUuid(params.id, '신청 id');
   const reason = optText(body && body.reason, 200, '사유');
   const app = await loadApplication(env, id);
-  if (app.status !== 'applied') throw new ConflictError('대기 중인 신청만 승인할 수 있습니다');
   const job = await loadJob(env, app.job_id);
+  return approveApplicationCore(env, { user, app, job, reason, actorKind: 'admin', ctx });
+}
+
+/**
+ * 신청 승인 → 배정 confirmed — 권한 검사는 부르는 쪽 (관리자 편집자 | 그 작업을 낸 팩토리의 대표 · 실장).
+ * linked 면 그 팩토리와의 연결이 승인돼 있는 작업자만 뽑는다 (신청한 뒤 연결이 끊긴 사람은 409).
+ * @param {'admin'|'member'} actorKind
+ */
+export async function approveApplicationCore(env, { user, app, job, reason = null, actorKind = 'admin', linked = false, ctx }) {
+  const id = app.id;
+  if (app.status !== 'applied') throw new ConflictError('대기 중인 신청만 승인할 수 있습니다');
   if (!['open', 'filled', 'in_progress'].includes(job.status)) throw new ConflictError('모집 · 진행 중인 작업에서만 승인할 수 있습니다');
   const worker = assertAssignable(await selectOne(env, 'workers', { id: `eq.${app.worker_id}`, select: 'id,status,display_name' }));
+  if (linked && !(await isLinkedTo(env, worker.id, job.company_id))) throw new ConflictError('연결이 승인돼 있지 않은 작업자입니다');
   const all = await loadJobAssignments(env, job.id);
   if (countFilled(all) >= job.slots) throw new ConflictError('정원이 찼습니다');
   if (all.some((a) => a.worker_id === worker.id && ACTIVE_STATUSES.includes(a.status))) throw new ConflictError('이미 배정된 작업자입니다');
@@ -124,11 +175,11 @@ export async function approveApplication(env, { user, params, body, ctx }) {
   }
 
   await recordEvent(env, {
-    jobId: job.id, actorUserId: user.id, actorKind: 'admin', type: 'application_approved', from: 'applied', to: 'approved',
+    jobId: job.id, actorUserId: user.id, actorKind, type: 'application_approved', from: 'applied', to: 'approved',
     note: reason, payload: { worker_id: worker.id, application_id: id },
   });
   await recordEvent(env, {
-    jobId: job.id, assignmentId: assignment.id, actorUserId: user.id, actorKind: 'admin', type: 'assignment_confirmed', to: 'confirmed',
+    jobId: job.id, assignmentId: assignment.id, actorUserId: user.id, actorKind, type: 'assignment_confirmed', to: 'confirmed',
     payload: { worker_id: worker.id, via: 'application' },
   });
   await recordJobStatusChange(env, job, locked);
@@ -142,13 +193,18 @@ export async function rejectApplication(env, { user, params, body }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '신청 id');
   const reason = optText(body && body.reason, 200, '사유');
-  const app = await loadApplication(env, id);
+  return rejectApplicationCore(env, { user, app: await loadApplication(env, id), reason, actorKind: 'admin' });
+}
+
+/** 신청 반려 — 권한 검사는 부르는 쪽 */
+export async function rejectApplicationCore(env, { user, app, reason = null, actorKind = 'admin' }) {
+  const id = app.id;
   if (app.status !== 'applied') throw new ConflictError('대기 중인 신청만 반려할 수 있습니다');
   const rows = await updateBy(env, 'work_applications', { id: `eq.${id}`, status: 'eq.applied' },
     { status: 'rejected', decided_by: user.id, decided_at: nowIso(), decide_reason: reason });
   if (!rows || !rows.length) throw new ConflictError('신청 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요');
   await recordEvent(env, {
-    jobId: app.job_id, actorUserId: user.id, actorKind: 'admin', type: 'application_rejected', from: 'applied', to: 'rejected',
+    jobId: app.job_id, actorUserId: user.id, actorKind, type: 'application_rejected', from: 'applied', to: 'rejected',
     note: reason, payload: { worker_id: app.worker_id, application_id: id },
   });
   return { application: rows[0] };

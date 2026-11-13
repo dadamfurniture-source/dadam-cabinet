@@ -3,6 +3,7 @@
  *
  *   work_registration  작업자 신청 승인 · 반려            → 그 작업자          ref = workers.id (상태로 한 번씩)
  *   work_invited       작업에 초대(배정 제안, offered)    → 초대받은 작업자    ref = work_assignments.id
+ *                      팩토리가 모집을 올림               → 그 팩토리와 연결된, 그 종류를 하는 작업자 (작업마다 한 번) ref = work_jobs.id
  *   work_assigned      신청한 작업에 뽑힘(배정 confirmed) → 뽑힌 작업자        ref = work_assignments.id
  *   work_schedule      작업의 시작 · 끝 시각이 바뀜       → 그 작업의 제안 · 확정 · 진행 중 작업자
  *                                                          ref = work_jobs.id (새 시작 · 끝 시각으로 한 번씩)
@@ -140,6 +141,33 @@ async function notifyAssignment(env, kind, { job, assignment }) {
 /** 관리자가 작업에 초대했다 (offered) */
 export function notifyWorkInvited(env, { job, assignment }) {
   return notifyAssignment(env, 'work_invited', { job, assignment });
+}
+
+/**
+ * 팩토리가 모집을 올렸다 → 받을 작업자 계정들에게 (작업마다 사람마다 한 번 — 내렸다 다시 올려도 다시 보내지 않는다).
+ * 누가 받는지(연결 승인 · 종류)는 부르는 쪽이 고른다 (work/recruit.js recruitAudience).
+ * @param {string[]} userIds 받을 작업자의 계정 id 들
+ */
+export async function notifyWorkRecruit(env, { job, userIds }) {
+  try {
+    if (!job || !isUuid(job.id)) return 0;
+    const message = buildMessage('work_invited', { jobKind: job.kind, startsAt: job.starts_at, jobId: job.id, recruit: true });
+    if (!message) return 0;
+    const ids = [...new Set((userIds || []).filter(isUuid))];
+    let sent = 0;
+    for (let i = 0; i < ids.length; i += 100) {
+      sent += await enqueueNotifications(
+        env,
+        ids.slice(i, i + 100).map((userId) => ({
+          userId, kind: 'work_invited', ...message, refId: job.id, dedupeKey: dedupeKeyOf('work_invited', job.id, userId, 'recruit'),
+        })),
+      );
+    }
+    return sent;
+  } catch (e) {
+    console.warn('[push] work_invited(recruit) failed:', statusOf(e));
+    return 0;
+  }
 }
 
 /** 신청한 작업에 뽑혔다 (confirmed) */

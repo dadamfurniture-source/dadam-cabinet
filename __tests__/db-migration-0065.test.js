@@ -53,8 +53,8 @@ describe('0065 — 작업 종류 넓히기 · 프로젝트의 작업', () => {
     expect(f).toContain(`ADD CONSTRAINT work_jobs_kind_chk CHECK (kind = ANY (${SIX}));`);
   });
 
-  test('서버의 종류 목록(workflow-api work/validate.js) · 알림 글의 종류 이름이 이 여섯과 같다', () => {
-    const six = [...SIX.matchAll(/'([a-z_]+)'::text/g)].map((x) => x[1]);
+  test('서버의 종류 목록(workflow-api work/validate.js) · 알림 글의 종류 이름 — 이 여섯 + 뒤 번호(0066)에서 더한 납품', () => {
+    const six = [...[...SIX.matchAll(/'([a-z_]+)'::text/g)].map((x) => x[1]), 'delivery'];
     const validate = read('workers', 'workflow-api', 'src', 'work', 'validate.js');
     const kinds = /WORK_KINDS = Object\.freeze\(\[([^\]]*)\]\)/.exec(validate)[1];
     expect([...kinds.matchAll(/'([a-z_]+)'/g)].map((x) => x[1])).toEqual(six);
