@@ -34,8 +34,8 @@ const LEDGER_LEVELS = ['full', 'read'];
 const COMPANY_COLS = 'id,kind,name,plan,status,sido,gugun';
 const ROW_LIMIT = '2000';
 
-/** 다담 본사 active 대표 · 실장인가 — 아니면 403 not_platform */
-async function assertPlatformMoney(env, user) {
+/** 다담 본사 active 대표 · 실장인가 — 아니면 403 not_platform (본사 설계 · 학습 점검 hq-design-check.js 도 쓴다) */
+export async function assertPlatformMoney(env, user) {
   const platform = await platformCompanyId(env);
   const ok = (await activeMemberships(env, user)).some(
     (m) => m.company_id === platform && MONEY_ROLES.includes(m.role)

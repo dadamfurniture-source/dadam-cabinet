@@ -190,14 +190,14 @@ describe('0067 — 간편 플래너 설계가 모여 검토되는 길', () => {
     for (const n of ['0065_work_kinds_project_jobs.sql', '0066_work_delivery_company_notes.sql']) {
       expect(read('database', 'migrations', n)).not.toContain('notification_outbox_kind_check');
     }
-    // 서버가 넣는 종류는 모두 이 목록 안에 있다
+    // 서버가 넣는 종류는 이 목록과 같다 (차례만 다름) — 맨 끝이 점검 알림
     const messages = read('workers', 'workflow-api', 'src', 'push', 'messages.js');
     const list = /export const NOTIFICATION_KINDS = Object\.freeze\(\[([^\]]+)\]\)/.exec(
       messages
     )[1];
     const inCode = [...list.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
-    expect(inCode.length).toBeGreaterThanOrEqual(23);
-    for (const k of inCode) expect(after).toContain(k);
+    expect([...inCode].sort()).toEqual([...after].sort());
+    expect(inCode[inCode.length - 1]).toBe('system_check_failed');
   });
 
   test('프로브 — 읽기 · 묶음 지킴이 · 실패 · 신호 · 점검 · 동의 · 등급 · 알림', () => {

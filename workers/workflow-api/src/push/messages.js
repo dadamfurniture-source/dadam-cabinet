@@ -17,7 +17,7 @@
  * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘 · 아침 브리핑 assistant_brief 는 0030,
  * 장부 알림 ledger_notice 는 0033, A/S 접수 as_request 는 0045, 제작 의뢰 셋 production_* 은 0050,
  * 제작 의뢰 거둠 production_cancelled 는 0053, 팩토리 대표 · 실장에게 가는 작업자 알림 셋 work_link_request ·
- * work_reply · work_report 는 0064).
+ * work_reply · work_report 는 0064, 설계 저장 · 학습 길 점검이 막힌 날 system_check_failed 는 0067).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -43,6 +43,7 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'work_link_request',
   'work_reply',
   'work_report',
+  'system_check_failed',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -329,6 +330,8 @@ function workReport({ report, jobKind, startsAt } = {}) {
 
 /** 장부 화면 (내 정보 › 회계 › 장부 — 대표 · 실장은 「확인할 사진」, 직원은 올린 사진 상태) */
 export const LEDGER_URL = '/segan/ledger.html';
+/** 다담 본사 › 설계 · 학습 점검 (segan/hq-design-check.js) */
+export const HQ_DESIGN_CHECK_URL = '/segan/me.html#hq-design-check';
 /** 확인할 사진 수 — 이보다 많으면 「N장 넘게」 */
 export const LEDGER_PENDING_MAX = 999;
 
@@ -442,6 +445,16 @@ function productionAnswered({ answer } = {}) {
   return null;
 }
 
+/** 설계 저장 · 학습 길 점검이 막힌 날 — 다담 본사 대표 · 실장에게 (막힌 걸음 수만, 무엇이 막혔는지는 화면에서) */
+function systemCheckFailed({ failed } = {}) {
+  if (!Number.isInteger(failed) || failed < 1) return null;
+  return {
+    title: '설계 저장 · 학습 점검',
+    body: `오늘 점검에서 막힌 곳이 ${failed}곳 있습니다. 본사 메뉴의 설계 · 학습 점검에서 확인해 주세요.`,
+    url: HQ_DESIGN_CHECK_URL,
+  };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -466,6 +479,7 @@ const BUILDERS = Object.freeze({
   work_link_request: workLinkRequest,
   work_reply: workReply,
   work_report: workReport,
+  system_check_failed: systemCheckFailed,
 });
 
 /**

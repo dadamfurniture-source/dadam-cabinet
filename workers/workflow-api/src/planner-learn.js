@@ -95,6 +95,15 @@ export function bundleOf(body) {
  */
 export async function putLearn(env, { user, params, body }, opts = {}) {
   const { company, canManage } = await plannerCompanyOf(env, user);
+  return putLearnIn(env, { company, canManage, userId: user.id, params, body }, opts);
+}
+
+/**
+ * 묶음 받기의 속 — 업체를 직접 받는다 (본사 점검은 사람 없이 — userId null).
+ * @param {{company: {id: string}, canManage: boolean, userId: string|null, params: object, body: object}} o
+ */
+export async function putLearnIn(env, { company, canManage, userId, params, body }, opts = {}) {
+  const user = { id: userId || null };
   const id = String((params && params.id) || '');
   if (!DRAFT_ID_RE.test(id)) throw new ValidationError('설계 id 형식이 아닙니다', { field: 'id' });
   if (isProbeId(id) && opts.internal !== true) throw new ValidationError('쓸 수 없는 설계 id 입니다', { field: 'id' });
