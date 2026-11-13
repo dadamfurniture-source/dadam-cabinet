@@ -1,0 +1,239 @@
+{
+  "title": "0065 작업 종류 넓히기 · 프로젝트의 작업 — 작업자 종류에 철거(demolition), 작업 종류 여섯, work_jobs.project_id(프로젝트 하나 · 종류 하나에 살아 있는 작업 하나 · 일정에서 생긴 작업은 세지 않는다), worker_invites.job_id (scripts/rls-probe.mjs --migration database/migrations/0065_work_kinds_project_jobs.sql). 0064 가 먼저 적용돼 있어야 한다",
+  "ids": [
+    "company_x",
+    "company_y",
+    "customer_x",
+    "project_x",
+    "project_y",
+    "worker_a",
+    "link_a",
+    "invite_a",
+    "design_x",
+    "sched_x",
+    "job_cut",
+    "job_old",
+    "job_inst"
+  ],
+  "users": [
+    "x_owner_user",
+    "w1_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{customer_x}}, {{company_x}}, 'probe')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_x}}, {{company_x}}, {{customer_x}}, 'probe X'), ({{project_y}}, {{company_x}}, {{customer_x}}, 'probe Y')",
+    "INSERT INTO public.workers (id, user_id, display_name, kinds, status, consent_version) VALUES ({{worker_a}}, {{w1_user}}, 'probe A', '{install}', 'approved', 'probe')",
+    "INSERT INTO public.worker_companies (id, company_id, worker_id, status, kinds, via) VALUES ({{link_a}}, {{company_x}}, {{worker_a}}, 'approved', '{install}', 'invite')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_x}}, {{design_x}}, gen_random_uuid(), 'installation', '설치', timestamptz '2026-11-20 10:00+09')",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id) VALUES ({{job_cut}}, 'cutting', 'probe 재단', 'open', {{company_x}}, {{project_x}}), ({{job_old}}, 'edge', 'probe 엣지 취소', 'cancelled', {{company_x}}, {{project_x}})",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id, schedule_id) VALUES ({{job_inst}}, 'install', 'probe 설치', 'open', {{company_x}}, {{project_x}}, {{sched_x}})",
+    "INSERT INTO public.worker_invites (id, token_hash, kinds_preset, expires_at, company_id, job_id) VALUES ({{invite_a}}, 'probe-' || {{invite_a}}::text, '{cutting}', now() + interval '7 days', {{company_x}}, {{job_cut}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "작업자 종류에 철거 — 작업자",
+      "sql": "update public.workers set kinds = '{install,demolition,cutting,edge,assembly,as}' where id = {{worker_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "작업자 종류에 철거 — 초대",
+      "sql": "update public.worker_invites set kinds_preset = '{demolition}' where id = {{invite_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "작업자 종류에 철거 — 연결",
+      "sql": "update public.worker_companies set kinds = '{demolition,install}' where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "모르는 작업자 종류는 여전히 거절 (작업자)",
+      "sql": "update public.workers set kinds = '{paint}' where id = {{worker_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 작업자 종류는 여전히 거절 (초대)",
+      "sql": "update public.worker_invites set kinds_preset = '{paint}' where id = {{invite_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 작업자 종류는 여전히 거절 (연결)",
+      "sql": "update public.worker_companies set kinds = '{paint}' where id = {{link_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "작업 종류 — 철거",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('demolition', 'probe 철거', 'open', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "작업 종류 — 조립 (프로젝트의 작업)",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('assembly', 'probe 조립', 'open', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모르는 작업 종류는 거절",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('paint', 'probe 도장', 'open', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "프로젝트 하나 · 종류 하나에 살아 있는 작업 하나",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('cutting', 'probe 재단 겹침', 'draft', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "취소된 작업은 세지 않는다 — 같은 종류에 새 작업",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('edge', 'probe 엣지 다시', 'open', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "다른 프로젝트는 따로 센다",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('cutting', 'probe 재단 Y', 'open', {{company_x}}, {{project_y}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "일정에서 생긴 작업은 세지 않는다 — 설치 일정 작업이 있어도 프로젝트 설치 줄은 따로",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('install', 'probe 설치 일정 없이', 'open', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "없는 프로젝트는 거절",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('cutting', 'probe 없는 프로젝트', 'open', {{company_x}}, gen_random_uuid())",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "없는 작업으로 이어지는 초대는 거절",
+      "sql": "insert into public.worker_invites (token_hash, expires_at, company_id, job_id) values ('probe-nojob', now() + interval '1 day', {{company_x}}, gen_random_uuid())",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "초대의 작업 칸 — 서버가 읽는다",
+      "sql": "select (job_id = {{job_cut}})::text from public.worker_invites where id = {{invite_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "남의 업체 프로젝트에는 작업을 잇지 못한다",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('cutting', 'probe 남의 프로젝트', 'open', {{company_y}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "프로젝트가 지워지면 작업의 프로젝트 칸만 비운다 (외래 키 정의)",
+      "sql": "select (pg_get_constraintdef(oid) like '%ON DELETE SET NULL (project_id)%')::text from pg_constraint where conname = 'work_jobs_project_id_fkey' and conrelid = 'public.work_jobs'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "작업이 지워지면 초대의 작업 칸을 비운다 (외래 키 정의)",
+      "sql": "select (pg_get_constraintdef(oid) like '%ON DELETE SET NULL%')::text from pg_constraint where conname = 'worker_invites_job_id_fkey' and conrelid = 'public.worker_invites'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    }
+  ]
+}
