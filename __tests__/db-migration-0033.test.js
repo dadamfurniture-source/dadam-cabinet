@@ -242,7 +242,7 @@ describe('0033 — 장부 사진 확인 · 거래처 기억 · 장부 알림', (
     );
     expect(f).toContain('DROP CONSTRAINT IF EXISTS notification_outbox_kind_check;');
     expect(kindsOf(S, 'notification_outbox_kind_check')).toEqual([...before, 'ledger_notice']);
-    // 서버가 넣는 종류(push/messages.js)는 이 목록에 있거나, 뒤 번호(0045 as_request · 0050 제작 의뢰 셋 · 0053 제작 의뢰 거둠)에서 더한 것이다 (db-migration-0045 · 0050 · 0053 시험이 본다)
+    // 서버가 넣는 종류(push/messages.js)는 이 목록에 있거나, 뒤 번호(0045 as_request · 0050 제작 의뢰 셋 · 0053 제작 의뢰 거둠 · 0064 팩토리용 작업자 알림 셋)에서 더한 것이다 (db-migration-0045 · 0050 · 0053 · 0064 시험이 본다)
     const msg = fs.readFileSync(
       path.join(__dirname, '..', 'workers', 'workflow-api', 'src', 'push', 'messages.js'),
       'utf8'
@@ -253,7 +253,7 @@ describe('0033 — 장부 사진 확인 · 거래처 기억 · 장부 알림', (
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
     const all = kindsOf(S, 'notification_outbox_kind_check');
-    expect(names.filter((k) => !all.includes(k))).toEqual(['as_request', 'production_recommended', 'production_offered', 'production_answered', 'production_cancelled']);
+    expect(names.filter((k) => !all.includes(k))).toEqual(['as_request', 'production_recommended', 'production_offered', 'production_answered', 'production_cancelled', 'work_link_request', 'work_reply', 'work_report']);
     expect(names).toContain('ledger_notice');
   });
 

@@ -67,7 +67,7 @@ describe('0053 — 제작 의뢰 거둠 앱 알림 종류', () => {
     expect(new Set(kinds).size).toBe(kinds.length);
   });
 
-  test('서버가 넣는 종류(workflow-api push/messages.js NOTIFICATION_KINDS)는 모두 이 목록에 있다', () => {
+  test('서버가 넣는 종류(workflow-api push/messages.js NOTIFICATION_KINDS)는 이 목록에 있거나 뒤 번호 0064 가 더한 것이다', () => {
     const msg = read('workers', 'workflow-api', 'src', 'push', 'messages.js');
     const names = [
       .../NOTIFICATION_KINDS = Object\.freeze\(\[([\s\S]*?)\]\)/
@@ -75,7 +75,12 @@ describe('0053 — 제작 의뢰 거둠 앱 알림 종류', () => {
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
     expect(names).toContain('production_cancelled');
-    expect(names.filter((k) => !kindsIn(f).includes(k))).toEqual([]);
+    // 뒤 번호 0064 가 팩토리용 작업자 알림 셋을 더한다 (db-migration-0064 시험이 본다)
+    expect(names.filter((k) => !kindsIn(f).includes(k))).toEqual([
+      'work_link_request',
+      'work_reply',
+      'work_report',
+    ]);
     // 거둠 알림은 제작 의뢰를 거두는 곳에서 넣는다
     expect(read('workers', 'workflow-api', 'src', 'production-requests', 'manager.js')).toContain(
       "kind: 'production_cancelled'"

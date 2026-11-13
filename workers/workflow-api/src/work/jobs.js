@@ -19,6 +19,7 @@ import { recordEvent, recordJobStatusChange } from './events.js';
 import { later, notifyWorkSchedule } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
+import { approvedCompanyIds, companyNames } from './links.js';
 
 export const JOB_STATUSES = Object.freeze(['draft', 'open', 'filled', 'in_progress', 'review', 'done', 'closed', 'cancelled']);
 export const JOB_MODES = Object.freeze(['open', 'invite', 'direct']);
@@ -164,20 +165,27 @@ export function isBrowsable(job, worker, now = Date.now()) {
     && effectiveStatus(job, now) === 'open';
 }
 
-/** 모집중 탭의 작업 (마감은 읽을 때 거른다) */
+/**
+ * 모집중 탭의 작업 (마감은 읽을 때 거른다) — 연결이 승인된 팩토리의 작업만 (2026-11-13 「작업자 한 길」).
+ * 연결 표가 없으면(0064 전) 옛 동작 — 팩토리로 거르지 않는다.
+ */
 export async function openJobsFor(env, worker) {
   const kinds = (worker.kinds || []).filter((k) => WORK_KINDS.includes(k));
   if (!kinds.length) return [];
-  const rows = (await selectMany(env, 'work_jobs', {
+  const linked = await approvedCompanyIds(env, worker.id);
+  if (linked && !linked.size) return [];
+  const q = {
     status: 'eq.open',
     mode: 'eq.open',
     kind: `in.(${kinds.join(',')})`,
     select: '*',
     order: 'starts_at.asc.nullslast,created_at.desc',
     limit: '200',
-  })) || [];
+  };
+  if (linked) q.company_id = `in.(${[...linked].join(',')})`;
+  const rows = (await selectMany(env, 'work_jobs', q)) || [];
   const now = Date.now();
-  return rows.filter((j) => isBrowsable(j, worker, now));
+  return rows.filter((j) => isBrowsable(j, worker, now) && (!linked || linked.has(j.company_id)));
 }
 
 /** 카드 묶음 — 확정 수 · 내 신청 · 내 배정(pool 안에서 고른다) */
@@ -190,12 +198,14 @@ async function cardsFor(env, worker, jobs, pool) {
   ]);
   const mine = pool || (await selectMany(env, 'work_assignments', { worker_id: `eq.${worker.id}`, job_id: `in.(${ids})`, select: '*' })) || [];
   const filled = countBy(counted, 'job_id');
+  const names = await companyNames(env, jobs.map((j) => j.company_id));
   const now = Date.now();
   return jobs.map((job) => jobCard(job, {
     filled: filled.get(job.id) || 0,
     application: (apps || []).find((a) => a.job_id === job.id) || null,
     assignment: pickAssignment(mine.filter((a) => a.job_id === job.id)),
     now,
+    companyName: names.get(job.company_id) || null,
   }));
 }
 
@@ -281,7 +291,11 @@ export async function getJobForWorker(env, { user, params }) {
   ]);
   const myApps = apps || [];
   const myAsg = mine || [];
-  if (!isBrowsable(job, worker) && !myApps.length && !myAsg.length) throw new NotFoundError('작업을 찾을 수 없습니다');
+  if (!myApps.length && !myAsg.length) {
+    // 내 신청 · 배정이 없으면 — 모집 중이고, 연결이 승인된 팩토리의 작업일 때만 (남의 팩토리 작업은 있는지도 모르게)
+    const linked = isBrowsable(job, worker) ? await approvedCompanyIds(env, worker.id) : null;
+    if (!isBrowsable(job, worker) || (linked && !linked.has(job.company_id))) throw new NotFoundError('작업을 찾을 수 없습니다');
+  }
 
   const assignment = pickAssignment(myAsg);
   const all = await loadJobAssignments(env, id);
@@ -292,7 +306,8 @@ export async function getJobForWorker(env, { user, params }) {
     const rows = (await selectMany(env, 'work_updates', { job_id: `eq.${id}`, visible_to_worker: 'is.true', select: '*', order: 'created_at.asc', limit: '500' })) || [];
     timeline = rows.filter((u) => (u.assignment_id && ids.has(u.assignment_id)) || (!u.assignment_id && u.author_role === 'company'));
   }
-  return jobDetail(job, { filled: countFilled(all), application: myApps[0] || null, assignment, order, timeline });
+  const names = await companyNames(env, [job.company_id]);
+  return jobDetail(job, { filled: countFilled(all), application: myApps[0] || null, assignment, order, timeline, companyName: names.get(job.company_id) || null });
 }
 
 // ── 관리자 ───────────────────────────────────────────────────────

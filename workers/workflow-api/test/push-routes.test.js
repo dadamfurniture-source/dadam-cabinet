@@ -134,6 +134,9 @@ test('글 — 종류마다 제목 · 본문 · 열 곳, DB 글자 수 안, /sega
     'production_offered',
     'production_answered',
     'production_cancelled',
+    'work_link_request',
+    'work_reply',
+    'work_report',
   ]);
   // 새 A/S 접수 (2026-11-06) — 주문번호만, 고객 이름 · 내용 없음, 팩토리 A/S함으로
   assert.deepEqual(buildMessage('as_request', { orderNo: 'SO-20261106-AB12' }), { title: 'A/S 접수', body: '수주 SO-20261106-AB12 A/S 접수가 들어왔습니다. A/S함에서 받아 주세요.', url: '/segan/me.html#as' });

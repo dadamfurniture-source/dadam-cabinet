@@ -6,14 +6,15 @@
  *   work_assigned      신청한 작업에 뽑힘(배정 confirmed) → 뽑힌 작업자        ref = work_assignments.id
  *   work_schedule      작업의 시작 · 끝 시각이 바뀜       → 그 작업의 제안 · 확정 · 진행 중 작업자
  *                                                          ref = work_jobs.id (새 시작 · 끝 시각으로 한 번씩)
- * 글은 src/push/messages.js — 작업 종류 · 날짜만 (작업 제목 · 지역 · 고객 정보는 싣지 않는다).
+ *   work_link_request · work_reply · work_report (0064) → 그 팩토리의 대표 · 실장 (업체 칸이 있는 알림, notifyCompanyWork)
+ * 글은 src/push/messages.js — 작업 종류 · 날짜만 (작업 제목 · 지역 · 고객 정보 · 작업자 이름은 싣지 않는다).
  * 받을 사람인지는 보낼 때 다시 본다 (sender.js — 신청 결과는 작업자 행이 있으면, 그 밖은 승인된 작업자만).
  * 넣기는 원래 일을 막지 않는다 — 던지지 않는다. 부르는 쪽은 응답 뒤(waitUntil)에 돌린다 (later).
  */
 
 import { selectMany, selectOne } from '../supabase.js';
 import { buildMessage } from './messages.js';
-import { enqueueNotification, enqueueNotifications, dedupeKeyOf, isUuid } from './outbox.js';
+import { enqueueNotification, enqueueNotifications, dedupeKeyOf, isUuid, notifyRoles } from './outbox.js';
 
 /** 일정 알림을 받는 배정 (work/jobs.js MINE_STATUSES 중 아직 일을 하지 않은 · 하는 중인 것) */
 export const SCHEDULE_ASSIGNMENT_STATUSES = Object.freeze(['offered', 'confirmed', 'started']);
@@ -62,6 +63,48 @@ export async function notifyWorkerStatus(env, { worker, status }) {
     return ok ? 1 : 0;
   } catch (e) {
     console.warn('[push] work_registration failed:', statusOf(e));
+    return 0;
+  }
+}
+
+/**
+ * 팩토리와의 연결 결과 — 그 팩토리의 대표 · 실장이 승인 · 반려했을 때 그 작업자에게.
+ * 종류는 work_registration 그대로 (업체 없는 알림), 연결마다 한 번씩 (dedupe 에 연결 id).
+ */
+export async function notifyWorkerLink(env, { worker, link, status, companyName }) {
+  try {
+    if (!worker || !link || !isUuid(link.id) || !isUuid(worker.user_id)) return 0;
+    const message = buildMessage('work_registration', { status, companyName });
+    if (!message) return 0;
+    const ok = await enqueueNotification(env, {
+      userId: worker.user_id,
+      kind: 'work_registration',
+      ...message,
+      refId: link.id,
+      dedupeKey: dedupeKeyOf('work_registration', link.id, worker.user_id, status),
+    });
+    return ok ? 1 : 0;
+  } catch (e) {
+    console.warn('[push] work_registration(link) failed:', statusOf(e));
+    return 0;
+  }
+}
+
+/**
+ * 팩토리 대표 · 실장에게 — 작업자가 연결을 신청 · 배정에 답 · 보고했을 때 (0064 의 종류 셋).
+ * 0064 적용 전에는 DB 가 종류를 받지 않아 조용히 안 들어간다 (던지지 않는다).
+ * @param {string} kind    work_link_request | work_reply | work_report
+ * @param {string} refId   연결 · 배정 · 기록 id (같은 일을 한 번만)
+ * @param {object} params  글에 쓰는 값 (messages.js)
+ * @param {string} [suffix] 같은 refId 로 다른 일을 가르는 꼬리 (예: 답의 종류)
+ */
+export async function notifyCompanyWork(env, { companyId, kind, refId = null, params = {}, suffix = null }) {
+  try {
+    const message = buildMessage(kind, params);
+    if (!message || !isUuid(companyId)) return 0;
+    return await notifyRoles(env, { companyId, roles: ['owner', 'manager'], kind, ...message, refId, dedupeSuffix: suffix });
+  } catch (e) {
+    console.warn(`[push] ${kind} failed:`, statusOf(e));
     return 0;
   }
 }
