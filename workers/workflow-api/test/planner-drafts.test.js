@@ -26,6 +26,7 @@ import {
   saveMyModule,
   deleteMyModule,
   recommendOf,
+  lineSeqsOf,
   summaryOf,
   sniffPhoto,
   stableJson,
@@ -228,6 +229,17 @@ test('요약 — 벽 · 모듈 수(바닥 + 상부), 라이브러리 모듈은 �
   assert.equal(s.walls, 2);
   assert.equal(s.modules, 4);
   assert.deepEqual(s.libIds, ['LB-D2-900', 'TL-A', 'TT-1', 'TT-2', 'UB-D2-900']);
+  // 줄마다 모듈 차례 — id 만 (자주 쓴 구성의 재료)
+  assert.deepEqual(s.lines, [
+    { k: 'floor', ids: ['LB-D2-900', 'TL-A'] },
+    { k: 'upper', ids: ['UB-D2-900'] },
+    { k: 'floor', ids: ['LB-D2-900'] },
+  ]);
+  assert.deepEqual(
+    lineSeqsOf({ walls: [{ lines: { floor: [{ libId: 'ok-1', W: 900, name: '고객 이름' }, { libId: '../x' }, { libId: 7 }], stack: [{ libId: 'ST-1' }] } }, null] }),
+    [{ k: 'floor', ids: ['ok-1'] }],
+    '모듈 id 만 · 이상한 값은 뺀다 · 바닥 · 상부 줄만'
+  );
   assert.equal(s.orderNo, 'SO-1');
   assert.equal(s.completed, true);
   assert.equal(stableJson({ b: 1, a: [{ d: 2, c: 3 }] }), stableJson({ a: [{ c: 3, d: 2 }], b: 1 }));
@@ -399,6 +411,12 @@ test('추천 — 그 사람이 마지막으로 저장한 그 품목 설계에 �
     assert.equal(r.designs, 2);
     assert.deepEqual(r.used[0], { id: 'LB-D2-900', n: 2 });
     assert.equal(r.used.length, 5);
+    // 자주 쓴 구성 — 줄마다 모듈 차례가 같은 설계 수 (한 설계에 같은 차례가 두 벽에 있어도 한 번, 다른 사람 · 다른 품목은 세지 않는다)
+    assert.deepEqual(r.comps, [
+      { k: 'floor', ids: ['LB-D2-900'], n: 2 },
+      { k: 'floor', ids: ['LB-D2-900', 'TL-A'], n: 1 },
+      { k: 'upper', ids: ['UB-D2-900'], n: 1 },
+    ]);
     await rejects(recommendOf(ENV, { user: u(STAFF), query: {} }), 422);
   });
 });
