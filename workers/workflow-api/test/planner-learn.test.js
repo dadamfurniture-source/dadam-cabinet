@@ -366,7 +366,7 @@ test('점검용 시험 설계(probe-) — 밖에서는 저장 · 묶음을 못 �
   });
 });
 
-test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과 수만 적는다 (글 칸 없음), 한 시간에 정한 수까지만', async () => {
+test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과 수만 적는다 (글 칸 · 사람 없음), 업체마다 한 시간에 정한 수까지만', async () => {
   assert.deepEqual([...SIGNAL_KINDS], ['suggest_shown', 'suggest_accepted', 'suggest_skipped']);
   const cards = [
     { key: '*|@sink|LB-DR3-600|@cooktop', n: 4, name: '김OO 주방 (합성)' },
@@ -377,7 +377,8 @@ test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과
   await withDb(db, async () => {
     assert.deepEqual(await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base, note: '설계 이름 (합성)' } }), { ok: true });
     const shown = db.planner_signals[0];
-    assert.deepEqual([shown.company_id, shown.user_id, shown.draft_id, shown.kind, shown.item], [P1, STAFF, 'd-test-0001', 'suggest_shown', 'sink']);
+    assert.deepEqual([shown.company_id, shown.draft_id, shown.kind, shown.item], [P1, 'd-test-0001', 'suggest_shown', 'sink']);
+    assert.ok(!('user_id' in shown) && !JSON.stringify(shown).includes(STAFF), '누가 눌렀는지는 적지 않는다');
     assert.deepEqual(shown.payload, {
       line: 'floor',
       cards: [
@@ -415,12 +416,14 @@ test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과
     assert.deepEqual(await recordSignal(ENV, { user: u(HQ_STAFF), body: { kind: 'suggest_shown', ...base, draftId: 'probe-selfcheck' } }), { ok: true, dropped: true });
     await rejects(recordSignal(ENV, { user: u(NOBODY), body: { kind: 'suggest_shown', ...base } }), 403, 'not_member');
     assert.equal(db.planner_signals.length, 4);
-    // 한 시간에 정한 수까지만 — 넘으면 받되 적지 않는다, 다른 사람은 따로 센다
+    // 업체마다 한 시간에 정한 수까지만 — 넘으면 받되 적지 않는다 (같은 업체 다른 사람도 같이 센다), 다른 업체는 따로
     for (let i = 4; i < SIGNALS_PER_HOUR; i += 1) await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } });
     assert.equal(db.planner_signals.length, SIGNALS_PER_HOUR);
     assert.deepEqual(await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } }), { ok: true, dropped: true });
-    assert.deepEqual(await recordSignal(ENV, { user: u(OWNER), body: { kind: 'suggest_shown', ...base } }), { ok: true });
+    assert.deepEqual(await recordSignal(ENV, { user: u(OWNER), body: { kind: 'suggest_shown', ...base } }), { ok: true, dropped: true });
+    assert.deepEqual(await recordSignal(ENV, { user: u(HQ_STAFF), body: { kind: 'suggest_shown', ...base } }), { ok: true });
     assert.equal(db.planner_signals.length, SIGNALS_PER_HOUR + 1);
+    assert.equal(db.planner_signals[SIGNALS_PER_HOUR].company_id, HQ);
   });
   // 0067 적용 전
   await withDb(makeDb({ learn: false }), async () => {

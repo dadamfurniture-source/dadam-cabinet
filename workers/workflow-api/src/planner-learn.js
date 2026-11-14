@@ -13,6 +13,7 @@
  *   무엇을 학습 자료로 쓸지(검토 필요 · 사용 범위 · 사진 동의)는 수집하는 쪽(dataset-api)이 정한다. 보낸 값을 믿지 않는다.
  * 실패 기록에는 글을 적지 않는다 (단계 · 코드 · 상태뿐 — 설계 이름 · 고객 정보가 섞이지 않게).
  * 화면 신호(카드를 보임 · 누름 · 지나침)도 글 칸이 없다 — 모듈 구성(조각)과 수뿐이고, 보낸 값을 그대로 넣지 않고 아는 칸만 다시 짓는다.
+ *   누가 눌렀는지는 적지 않는다 (업체까지만 — 어느 구성이 쓰이는지 보는 데 사람은 필요 없다).
  * 사진 제공: 다담 공장 것은 늘 제공, 협력업체는 대표가 켠 뒤에만. 기록은 쌓기만 하고 지금 값은 마지막 줄이다.
  * 0067 적용 전이면 409 db_pending.
  */
@@ -239,7 +240,7 @@ export const SIGNAL_LINES = Object.freeze(['floor', 'upper']);
 export const SIGNAL_SKIP_BY = Object.freeze(['fill', 'manual']);
 export const SIGNAL_CARDS_MAX = 3;
 export const SIGNAL_TOKENS_MAX = 40;
-/** 한 사람이 한 시간에 남길 수 있는 신호 — 넘으면 받되 적지 않는다 */
+/** 한 업체가 한 시간에 남길 수 있는 신호 — 넘으면 받되 적지 않는다 */
 export const SIGNALS_PER_HOUR = 120;
 /** DB 0067 planner_signals_payload_check 와 같다 */
 export const SIGNAL_PAYLOAD_MAX_BYTES = 8192;
@@ -262,7 +263,7 @@ function signalCardOf(c) {
  *   suggest_shown     카드를 보였다          { line, cards }
  *   suggest_accepted  카드를 눌렀다          + pick (몇 번째 카드) · placed (놓은 모듈 수) · missed (자리가 없어 못 놓은 수)
  *   suggest_skipped   카드를 두고 다르게 채움  + by (fill · manual)
- * 누가(업체 · 사람) · 어느 설계(id) · 품목 · 줄 · 카드의 모듈 구성과 설계 수만 적는다. 설계 이름 · 고객 정보 · 치수는 없다.
+ * 어느 업체 · 어느 설계(id) · 품목 · 줄 · 카드의 모듈 구성과 설계 수만 적는다. 설계 이름 · 고객 정보 · 치수는 없고, 사람(user_id)도 적지 않는다.
  */
 export async function recordSignal(env, { user, body }) {
   const b = body || {};
@@ -287,13 +288,13 @@ export async function recordSignal(env, { user, body }) {
     const since = new Date(Date.now() - 3600 * 1000).toISOString();
     const recent =
       (await selectMany(env, 'planner_signals', {
-        user_id: `eq.${user.id}`,
+        company_id: `eq.${company.id}`,
         created_at: `gte.${since}`,
         select: 'id',
         limit: String(SIGNALS_PER_HOUR),
       })) || [];
     if (recent.length >= SIGNALS_PER_HOUR) return { ok: true, dropped: true };
-    await insertOne(env, 'planner_signals', { company_id: company.id, user_id: user.id, draft_id: draftId, kind: b.kind, item: b.item, payload });
+    await insertOne(env, 'planner_signals', { company_id: company.id, draft_id: draftId, kind: b.kind, item: b.item, payload });
     return { ok: true };
   });
 }
