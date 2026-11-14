@@ -163,7 +163,7 @@ jobs:
       # 2026-10-26: 게이트로 올림. 실제로 살아 있는(검증된) 비밀만 실패시킨다.
       #   base 를 주지 않으면 액션이 PR 의 base·head SHA 를 쓴다. 액션은 SHA 로 고정 (2026-10-26 main).
       - name: Check for secrets in code
-        uses: trufflesecurity/trufflehog@291e3f03c3c67e284b62c559b6e9535b1ee6f5e5
+        uses: trufflesecurity/trufflehog@421026a6540c63cf143ef53a5859389d473e88da
         with:
           path: ./
           extra_args: --only-verified
