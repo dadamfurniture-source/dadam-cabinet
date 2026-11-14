@@ -20,6 +20,8 @@ import {
   PHOTO_CONSENT_KIND,
   PHOTO_CONSENT_TERMS,
   REPORTS_PER_HOUR,
+  SIGNALS_PER_HOUR,
+  SIGNAL_KINDS,
   bundleOf,
   bundleSha256,
   getPhotoConsent,
@@ -27,6 +29,7 @@ import {
   noteIssue,
   putLearn,
   putPhotoConsent,
+  recordSignal,
   reportIssue,
 } from '../src/planner-learn.js';
 
@@ -66,6 +69,7 @@ function makeDb({ learn = true } = {}) {
     planner_drafts: [],
     planner_draft_learn: learn ? [] : null,
     planner_save_issues: learn ? [] : null,
+    planner_signals: learn ? [] : null,
     company_consents: learn ? [] : null,
     writes: [],
   };
@@ -362,12 +366,75 @@ test('점검용 시험 설계(probe-) — 밖에서는 저장 · 묶음을 못 �
   });
 });
 
+test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과 수만 적는다 (글 칸 없음), 한 시간에 정한 수까지만', async () => {
+  assert.deepEqual([...SIGNAL_KINDS], ['suggest_shown', 'suggest_accepted', 'suggest_skipped']);
+  const cards = [
+    { key: '*|@sink|LB-DR3-600|@cooktop', n: 4, name: '김OO 주방 (합성)' },
+    { key: 'TL-PANTRY-600|*', n: 2 },
+  ];
+  const base = { item: 'sink', line: 'floor', cards, draftId: 'd-test-0001' };
+  const db = makeDb();
+  await withDb(db, async () => {
+    assert.deepEqual(await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base, note: '설계 이름 (합성)' } }), { ok: true });
+    const shown = db.planner_signals[0];
+    assert.deepEqual([shown.company_id, shown.user_id, shown.draft_id, shown.kind, shown.item], [P1, STAFF, 'd-test-0001', 'suggest_shown', 'sink']);
+    assert.deepEqual(shown.payload, {
+      line: 'floor',
+      cards: [
+        { key: ['*', '@sink', 'LB-DR3-600', '@cooktop'], n: 4 },
+        { key: ['TL-PANTRY-600', '*'], n: 2 },
+      ],
+    });
+    assert.ok(!JSON.stringify(shown).includes('합성'), '보낸 글 칸은 적지 않는다');
+    // 누름 — 몇 번째 카드 · 놓은 수 · 못 놓은 수
+    await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_accepted', ...base, pick: 1, placed: 5, missed: 1 } });
+    assert.deepEqual(
+      [db.planner_signals[1].payload.pick, db.planner_signals[1].payload.placed, db.planner_signals[1].payload.missed],
+      [1, 5, 1]
+    );
+    await rejects(recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_accepted', ...base } }), 422);
+    await rejects(recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_accepted', ...base, pick: 2 } }), 422);
+    // 지나침 — 무엇으로 채웠나 (아는 값만)
+    await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_skipped', ...base, by: 'fill' } });
+    await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_skipped', ...base, by: '손으로 (합성)', draftId: '이름 있는 설계' } });
+    assert.deepEqual([db.planner_signals[2].payload.by, db.planner_signals[3].payload.by, db.planner_signals[3].draft_id], ['fill', null, null]);
+    // 모양이 아닌 것은 받지 않는다 — 조각마다 본다 (모듈 id · @설비 · * 만)
+    const bad = (over) => rejects(recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base, ...over } }), 422);
+    await bad({ kind: 'fill_all' });
+    await bad({ kind: 'clicked' });
+    await bad({ line: 'stack' });
+    await bad({ item: '싱크대' });
+    await bad({ cards: [] });
+    await bad({ cards: [cards[0], cards[0], cards[0], cards[0]] });
+    await bad({ cards: [{ key: 'LB-DR3-600|김OO 주방', n: 1 }] });
+    await bad({ cards: [{ key: '', n: 1 }] });
+    await bad({ cards: [{ key: Array.from({ length: 41 }, () => '*').join('|'), n: 1 }] });
+    await bad({ cards: 'LB-DR3-600' });
+    assert.equal(db.planner_signals.length, 4);
+    // 점검용 시험 설계는 적지 않는다 · 팩토리 구성원이 아니면 거절
+    assert.deepEqual(await recordSignal(ENV, { user: u(HQ_STAFF), body: { kind: 'suggest_shown', ...base, draftId: 'probe-selfcheck' } }), { ok: true, dropped: true });
+    await rejects(recordSignal(ENV, { user: u(NOBODY), body: { kind: 'suggest_shown', ...base } }), 403, 'not_member');
+    assert.equal(db.planner_signals.length, 4);
+    // 한 시간에 정한 수까지만 — 넘으면 받되 적지 않는다, 다른 사람은 따로 센다
+    for (let i = 4; i < SIGNALS_PER_HOUR; i += 1) await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } });
+    assert.equal(db.planner_signals.length, SIGNALS_PER_HOUR);
+    assert.deepEqual(await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } }), { ok: true, dropped: true });
+    assert.deepEqual(await recordSignal(ENV, { user: u(OWNER), body: { kind: 'suggest_shown', ...base } }), { ok: true });
+    assert.equal(db.planner_signals.length, SIGNALS_PER_HOUR + 1);
+  });
+  // 0067 적용 전
+  await withDb(makeDb({ learn: false }), async () => {
+    await rejects(recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } }), 409, 'db_pending');
+  });
+});
+
 test('라우터 — 새 길 넷이 이어져 있고, 저장 · 묶음 실패는 적은 뒤 그대로 던진다', () => {
   const src = fs.readFileSync(new URL('../src/worker.js', import.meta.url), 'utf8');
   for (const line of [
     "{ method: 'POST',   path: '/planner/drafts/report',              auth: 'jwt', handler: workRoute(reportPlannerIssue, 201) },",
     "{ method: 'PUT',    path: '/planner/drafts/:id/learn',           auth: 'jwt', handler: handlePutPlannerLearn },",
     "{ method: 'GET',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(getPhotoConsent) },",
+    "{ method: 'POST',   path: '/planner/signals',                    auth: 'jwt', handler: workRoute(recordPlannerSignal, 201) },",
     "{ method: 'PUT',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(putPhotoConsent) },",
   ]) {
     assert.ok(src.includes(line), line);

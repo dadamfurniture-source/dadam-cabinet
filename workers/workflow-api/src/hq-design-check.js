@@ -145,7 +145,7 @@ export async function designCheckSummary(env, { user }) {
     const since = new Date(Date.now() - 7 * DAY_MS).toISOString();
     const design = { src_table: `eq.${WEB_SRC_TABLE}`, image_url: 'is.null' };
     const pcDesign = { src_table: `eq.${PC_SRC_TABLE}`, image_url: 'is.null' };
-    const [companies, drafts, learn, issues, consents, samples, exportable, checks, state, pcSamples, pcPhotos, pcDone, pcExport] = await Promise.all([
+    const [companies, drafts, learn, issues, consents, samples, exportable, checks, state, pcSamples, pcPhotos, pcDone, pcExport, signals] = await Promise.all([
       selectMany(env, 'companies', { kind: 'in.(hq,partner)', select: 'id,kind,name,plan,status', limit: ROW_LIMIT }),
       selectMany(env, 'planner_drafts', { discarded_at: 'is.null', select: 'company_id,id,updated_at', limit: ROW_LIMIT }),
       selectMany(env, 'planner_draft_learn', { select: 'company_id,draft_id,pending,ingest_error', limit: ROW_LIMIT }),
@@ -159,7 +159,9 @@ export async function designCheckSummary(env, { user }) {
       selectMany(env, 'dataset_samples', { src_table: `eq.${PC_SRC_TABLE}`, image_url: 'not.is.null', select: 'sample_id', limit: ROW_LIMIT }),
       selectMany(env, COMPLETION_TABLE, { select: 'group_key', limit: ROW_LIMIT }),
       selectMany(env, 'dataset_exportable', { ...pcDesign, select: 'sample_id', limit: ROW_LIMIT }),
+      selectMany(env, 'planner_signals', { created_at: `gte.${since}`, select: 'kind', limit: ROW_LIMIT }),
     ]);
+    const signalN = (kind) => (signals || []).filter((x) => x.kind === kind).length;
     const live = (drafts || []).filter((d) => !isProbeId(d.id));
     const bundles = (learn || []).filter((l) => !isProbeId(l.draft_id));
     const consentOf = new Map();
@@ -221,6 +223,8 @@ export async function designCheckSummary(env, { user }) {
           .sort((a, b) => b.n - a.n)
           .slice(0, 6),
       },
+      // 앱 플래너 「자주 쓴 구성」 카드가 쓰였나 — 지난 7일 (보임 · 누름 · 지나침 수만, src/planner-learn.js recordSignal)
+      suggest: { days: 7, shown: signalN('suggest_shown'), accepted: signalN('suggest_accepted'), skipped: signalN('suggest_skipped') },
       checks: (checks || []).map((c) => ({ id: c.id, cause: c.cause, run_date: c.run_date, ok: c.ok === true, steps: Array.isArray(c.steps) ? c.steps : [], created_at: c.created_at })),
       ingest: (state && state[0]) || { last_run: null, last_count: null, last_error: null },
       // PC 플래너 「앱 창고로 올리기」로 올라온 것 (다담 공장) — 설계 줄 · 사진 · 시공 완료 확인 · 등급 · 내보낼 수 있는 것
