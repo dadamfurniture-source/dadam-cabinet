@@ -540,7 +540,14 @@ test('점검 걸음 — 저장이 막히면 읽기 · 묶음은 건너뛰고 나
   });
 });
 
-test('지금 점검 — 기록 한 줄(manual · 누른 사람), 0067 적용 전이면 걸음을 밟지 않고 409 db_pending', async () => {
+test('지금 점검 — 기록 한 줄(manual · 누른 사람), 0067 적용 전이면 걸음을 밟지 않고 409 db_pending', async (t) => {
+  // 시계를 시험 자료 시각(NOW)에 고정한다 — runDesignCheck 는 Date.now() 로 「마지막 수집이 몇 분 전」을 재는데 자료의 last_run 은 NOW 기준이라,
+  //   고정하지 않으면 그 시각에서 INGEST_STALE_MIN 분이 지난 뒤부터 이 시험이 떨어진다 (2026-11-14 모든 PR 의 CI 를 막았다)
+  const realNow = Date.now;
+  Date.now = () => NOW;
+  t.after(() => {
+    Date.now = realNow;
+  });
   const db = makeDb();
   await withDb(db, async () => {
     const r = await runDesignCheck(ENV, { user: u(BOSS) });
