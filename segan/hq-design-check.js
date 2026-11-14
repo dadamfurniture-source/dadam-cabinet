@@ -6,7 +6,7 @@
              못 읽으면(403 not_platform · 404 · 오류 · 끊김) 칸째 감춘다 — 메뉴 줄도 없다.
              DB 준비 전(409 db_pending)이면 칸은 열고 「준비 중」 한 줄.
    서버      workflow-api (본인 토큰 · 응답은 { success, data } — src/hq-design-check.js)
-               GET  /hq/design-check                       한눈에 { companies, funnel, pc, issues, checks, ingest }
+               GET  /hq/design-check                       한눈에 { companies, funnel, pc, suggest, issues, checks, ingest }
                GET  /hq/design-check/reviews?state=&only=  검토 줄 { items }
                POST /hq/design-check/reviews               { group_key, grade, reasons } 검토
                POST /hq/design-check/run                   지금 점검 { ok, steps }
@@ -271,6 +271,7 @@
   function flowHtml() {
     var s = C.sum || {};
     var pc = s.pc || {};
+    var sg = s.suggest; // 앱 플래너 「자주 쓴 구성」 카드가 쓰였나 (수만) — 옛 서버 답에는 없다
     return (
       '<h3 class="me-pt-sub">가는 길 — 앱 플래너</h3>' +
       factsHtml(funnelRows(s.funnel)) +
@@ -280,7 +281,17 @@
         ['시공 완료 확인', num(pc.completed), ''],
         ['검토함', num(pc.graded), ''],
         ['내보낼 수 있는 것', num(pc.exportable), ''],
-      ])
+      ]) +
+      (sg
+        ? '<h3 class="me-pt-sub">자주 쓴 구성 카드 — 지난 ' +
+          num(sg.days) +
+          '일</h3>' +
+          factsHtml([
+            ['보임', num(sg.shown), ''],
+            ['누름', num(sg.accepted), ''],
+            ['지나침', num(sg.skipped), ''],
+          ])
+        : '')
     );
   }
 
