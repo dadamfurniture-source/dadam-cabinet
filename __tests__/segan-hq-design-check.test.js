@@ -115,6 +115,7 @@ const SUMMARY = {
     exportable: 1,
   },
   pc: { designs: 11, photos: 14, completed: 2, graded: 0, exportable: 10 },
+  suggest: { days: 7, shown: 6, accepted: 2, skipped: 3 },
   issues: {
     days: 7,
     total: 3,
@@ -471,6 +472,9 @@ describe('한눈에', () => {
       '검토함0',
       '내보낼 수 있는 것10',
     ]);
+    // 앱 플래너 「자주 쓴 구성」 카드가 쓰였나 — 지난 7일 수만
+    expect(body().textContent).toContain('자주 쓴 구성 카드 — 지난 7일');
+    expect(facts(2)).toEqual(['보임6', '누름2', '지나침3']);
     expect(texts('.me-dc-co')).toEqual([
       '다담 공장설계 3개 · 마지막 저장 11.14 05:34 · 묶음 0개늘 제공',
       '가나 가구설계 5개 · 마지막 저장 11.14 06:00 · 묶음 4개 · 수집 기다림 1 · 수집 오류 1 · 저장 실패 2건사진 제공 끔',
@@ -499,6 +503,8 @@ describe('한눈에', () => {
       T.emptyWaiting + ' 앱 플래너에서 저장한 설계는 10분 안에 여기로 옵니다.'
     );
     expect(body().textContent).toContain('마지막 수집 없음');
+    // 옛 서버 답(suggest 없음)이면 카드 칸을 그리지 않는다
+    expect(body().textContent).not.toContain('자주 쓴 구성 카드');
   });
 });
 
