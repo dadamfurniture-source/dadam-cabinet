@@ -8,7 +8,7 @@
  *   POST /designs/:designId/snapshots   — 설계+BOM 동결 (멱등)
  *   POST /planner/designs               — 간편 플래너 설계 받기 → 앱 설계 찾거나 만들고 동결 (본사 대표 · 실장 · 관리자, src/planner-handoff.js)
  *   GET /planner/access · /planner/drafts(…) · /planner/my-modules(…) · /planner/recommend — 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
- *   PUT /planner/drafts/:id/learn · POST /planner/drafts/report · GET · PUT /planner/photo-consent — 학습 묶음 · 저장 실패 기록 · 사진 제공 동의 (src/planner-learn.js, DB 0067)
+ *   PUT /planner/drafts/:id/learn · POST /planner/drafts/report · GET · PUT /planner/photo-consent · POST /planner/signals — 학습 묶음 · 저장 실패 기록 · 사진 제공 동의 · 구성 카드 쓰임 (src/planner-learn.js, DB 0067)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
  *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
@@ -115,6 +115,7 @@ import {
   noteIssue as notePlannerIssue,
   putLearn as putPlannerLearn,
   putPhotoConsent,
+  recordSignal as recordPlannerSignal,
   reportIssue as reportPlannerIssue,
 } from './planner-learn.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
@@ -1451,6 +1452,7 @@ const router = createRouter([
   // 학습 묶음 · 저장 실패 기록 · 사진 제공 동의 (src/planner-learn.js, DB 0067)
   { method: 'POST',   path: '/planner/drafts/report',              auth: 'jwt', handler: workRoute(reportPlannerIssue, 201) },
   { method: 'PUT',    path: '/planner/drafts/:id/learn',           auth: 'jwt', handler: handlePutPlannerLearn },
+  { method: 'POST',   path: '/planner/signals',                    auth: 'jwt', handler: workRoute(recordPlannerSignal, 201) },
   { method: 'GET',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(getPhotoConsent) },
   // 다담 본사 › 설계 · 학습 점검 (src/hq-design-check.js, DB 0067) — 본사 대표 · 실장
   { method: 'GET',    path: '/hq/design-check',                    auth: 'jwt', handler: workRoute(designCheckSummary) },

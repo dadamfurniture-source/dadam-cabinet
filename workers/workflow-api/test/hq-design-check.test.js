@@ -79,6 +79,7 @@ function makeDb(over = {}) {
     planner_drafts: [],
     planner_draft_learn: [],
     planner_save_issues: [],
+    planner_signals: [],
     company_consents: [],
     dataset_samples: [],
     dataset_exportable: [],
@@ -332,6 +333,14 @@ test('한눈에 — 업체별 저장 · 묶음 · 실패, 가는 길의 수, 사
     dataset_exportable: [designSample(GK1), pcDesign(PCK)],
     planner_completions: [{ group_key: PCK }],
     system_checks: [{ id: 'c1', kind: CHECK_KIND, cause: 'daily', run_date: '2026-11-14', ok: true, steps: [{ key: 'save', ok: true }], created_at: iso(NOW) }],
+    // 구성 카드 쓰임 — 지난 7일 것만 센다 (때는 지금 시각 기준)
+    planner_signals: [
+      { company_id: P1, kind: 'suggest_shown', created_at: iso(Date.now() - 3600e3) },
+      { company_id: P1, kind: 'suggest_shown', created_at: iso(Date.now() - 2 * 3600e3) },
+      { company_id: P1, kind: 'suggest_accepted', created_at: iso(Date.now() - 3600e3) },
+      { company_id: P1, kind: 'suggest_skipped', created_at: iso(Date.now() - 3600e3) },
+      { company_id: P1, kind: 'suggest_accepted', created_at: iso(Date.now() - 9 * 86400e3) },
+    ],
   });
   db.dataset_samples.push(pcDesign(PCK, { attrs: { record: record(), grade: 'good' } }), pcDesign(PCK2), pcPhoto(PCK, 'photo-pc0001.jpg'), pcPhoto(PCK, 'photo-pc0002.jpg'));
   // 실패 기록의 「지난 7일」은 지금 시각 기준이라, 시험 줄의 때를 지금 쪽으로 옮긴다
@@ -345,6 +354,7 @@ test('한눈에 — 업체별 저장 · 묶음 · 실패, 가는 길의 수, 사
     assert.equal(s.companies[1].last_saved, iso(NOW - 60e3));
     assert.deepEqual(s.funnel, { drafts: 2, bundles: 2, pending: 1, failed: 1, samples: 2, waiting: 1, good: 1, normal: 0, exclude: 0, linked: 1, exportable: 1 });
     assert.deepEqual(s.issues, { days: 7, total: 3, by_code: [{ stage: 'save', code: 'conflict', n: 2 }, { stage: 'save', code: 'offline', n: 1 }] });
+    assert.deepEqual(s.suggest, { days: 7, shown: 2, accepted: 1, skipped: 1 });
     assert.deepEqual(s.checks.map((c) => [c.cause, c.run_date, c.ok]), [['daily', '2026-11-14', true]]);
     assert.equal(s.ingest.last_count, 1);
     // PC 플래너 「앱 창고로 올리기」로 올라온 것 — 앱 플래너 수와 섞지 않고 따로

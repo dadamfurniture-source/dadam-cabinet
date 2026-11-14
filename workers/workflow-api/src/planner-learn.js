@@ -7,10 +7,13 @@
  *   POST /planner/drafts/report      { stage, code, status?, draftId?, rev? } → { ok }   화면이 본 실패
  *   GET  /planner/photo-consent      → { granted, fixed, at, can_change, terms }
  *   PUT  /planner/photo-consent      { granted, terms_version } → 같은 모양 (팩토리 대표만)
+ *   POST /planner/signals            { kind, item, line, cards, draftId?, pick?, placed?, missed?, by? } → { ok }   자주 쓴 구성 카드가 쓰였나
  *
  * 묶음은 플래너 server/dataset-export.js designPayload 의 { record, samples } 모양 — 여기서는 크기 · 모양만 보고 그대로 둔다.
  *   무엇을 학습 자료로 쓸지(검토 필요 · 사용 범위 · 사진 동의)는 수집하는 쪽(dataset-api)이 정한다. 보낸 값을 믿지 않는다.
  * 실패 기록에는 글을 적지 않는다 (단계 · 코드 · 상태뿐 — 설계 이름 · 고객 정보가 섞이지 않게).
+ * 화면 신호(카드를 보임 · 누름 · 지나침)도 글 칸이 없다 — 모듈 구성(조각)과 수뿐이고, 보낸 값을 그대로 넣지 않고 아는 칸만 다시 짓는다.
+ *   누가 눌렀는지는 적지 않는다 (업체까지만 — 어느 구성이 쓰이는지 보는 데 사람은 필요 없다).
  * 사진 제공: 다담 공장 것은 늘 제공, 협력업체는 대표가 켠 뒤에만. 기록은 쌓기만 하고 지금 값은 마지막 줄이다.
  * 0067 적용 전이면 409 db_pending.
  */
@@ -224,6 +227,74 @@ export async function reportIssue(env, { user, body }) {
       status: statusOf(b.status),
       rev: revOf(b.rev),
     });
+    return { ok: true };
+  });
+}
+
+// ── 화면 신호 — 자주 쓴 구성 카드 ───────────────────────────
+
+/** 받는 신호 — 카드를 보임 · 누름 · 지나침. DB 0067 이 받는 fill_all 은 쓰지 않는다 (「한 번에 채우기」 단추를 만들지 않았다) */
+export const SIGNAL_KINDS = Object.freeze(['suggest_shown', 'suggest_accepted', 'suggest_skipped']);
+export const SIGNAL_LINES = Object.freeze(['floor', 'upper']);
+/** 지나친 까닭 — 카드 대신 무엇으로 줄을 채웠나 (fill = 빈 폭 채우기 · 자동계산, manual = 모듈을 직접 놓음) */
+export const SIGNAL_SKIP_BY = Object.freeze(['fill', 'manual']);
+export const SIGNAL_CARDS_MAX = 3;
+export const SIGNAL_TOKENS_MAX = 40;
+/** 한 업체가 한 시간에 남길 수 있는 신호 — 넘으면 받되 적지 않는다 */
+export const SIGNALS_PER_HOUR = 120;
+/** DB 0067 planner_signals_payload_check 와 같다 */
+export const SIGNAL_PAYLOAD_MAX_BYTES = 8192;
+const SIGNAL_ITEM_RE = /^[a-z_]{1,40}$/;
+/** 카드 구성의 조각 — 플래너 js/suggest.js compKeyOf 가 내는 것만: 모듈 id · 설비장 자리(@sink) · 보통 도어장 사이(*) */
+const SIGNAL_TOKEN_RE = /^(?:\*|@[a-z]{1,20}|[A-Za-z0-9][A-Za-z0-9-]{1,59})$/;
+
+const countOf = (v, max) => (Number.isInteger(v) && v >= 0 && v <= max ? v : null);
+
+/** 카드 하나 { key: 'a|b|c', n } → { key: [조각…], n }. 모양이 아니면 null — 글을 통째로 적지 않고 조각마다 본다 */
+function signalCardOf(c) {
+  if (!isObject(c) || typeof c.key !== 'string' || !c.key || c.key.length > SIGNAL_TOKENS_MAX * 61) return null;
+  const tokens = c.key.split('|');
+  if (tokens.length > SIGNAL_TOKENS_MAX || !tokens.every((t) => SIGNAL_TOKEN_RE.test(t))) return null;
+  return { key: tokens, n: countOf(c.n, 9999) || 0 };
+}
+
+/**
+ * POST /planner/signals — 자주 쓴 구성 카드가 쓰였나 (2026-11-14 사장님 「카드 쓰임 기록」)
+ *   suggest_shown     카드를 보였다          { line, cards }
+ *   suggest_accepted  카드를 눌렀다          + pick (몇 번째 카드) · placed (놓은 모듈 수) · missed (자리가 없어 못 놓은 수)
+ *   suggest_skipped   카드를 두고 다르게 채움  + by (fill · manual)
+ * 어느 업체 · 어느 설계(id) · 품목 · 줄 · 카드의 모듈 구성과 설계 수만 적는다. 설계 이름 · 고객 정보 · 치수는 없고, 사람(user_id)도 적지 않는다.
+ */
+export async function recordSignal(env, { user, body }) {
+  const b = body || {};
+  if (!SIGNAL_KINDS.includes(b.kind)) throw new ValidationError('kind 가 필요합니다', { field: 'kind' });
+  if (!SIGNAL_LINES.includes(b.line)) throw new ValidationError('line 이 필요합니다', { field: 'line' });
+  if (typeof b.item !== 'string' || !SIGNAL_ITEM_RE.test(b.item)) throw new ValidationError('item 형식이 아닙니다', { field: 'item' });
+  if (!Array.isArray(b.cards) || !b.cards.length || b.cards.length > SIGNAL_CARDS_MAX) throw new ValidationError('cards 가 필요합니다', { field: 'cards' });
+  const cards = b.cards.map(signalCardOf);
+  if (cards.some((c) => !c)) throw new ValidationError('cards 형식이 아닙니다', { field: 'cards' });
+  const payload = { line: b.line, cards };
+  if (b.kind === 'suggest_accepted') {
+    const pick = countOf(b.pick, cards.length - 1);
+    if (pick === null) throw new ValidationError('pick 이 필요합니다', { field: 'pick' });
+    Object.assign(payload, { pick, placed: countOf(b.placed, 999), missed: countOf(b.missed, 999) });
+  }
+  if (b.kind === 'suggest_skipped') payload.by = SIGNAL_SKIP_BY.includes(b.by) ? b.by : null;
+  if (bytesOf(payload) > SIGNAL_PAYLOAD_MAX_BYTES) throw new ValidationError('cards 가 너무 큽니다', { field: 'cards' });
+  const draftId = draftIdOf(b.draftId);
+  if (draftId && isProbeId(draftId)) return { ok: true, dropped: true }; // 점검용 시험 설계는 적지 않는다
+  const { company } = await plannerCompanyOf(env, user);
+  return guard(async () => {
+    const since = new Date(Date.now() - 3600 * 1000).toISOString();
+    const recent =
+      (await selectMany(env, 'planner_signals', {
+        company_id: `eq.${company.id}`,
+        created_at: `gte.${since}`,
+        select: 'id',
+        limit: String(SIGNALS_PER_HOUR),
+      })) || [];
+    if (recent.length >= SIGNALS_PER_HOUR) return { ok: true, dropped: true };
+    await insertOne(env, 'planner_signals', { company_id: company.id, draft_id: draftId, kind: b.kind, item: b.item, payload });
     return { ok: true };
   });
 }
