@@ -141,6 +141,29 @@ export function libIdsOf(project) {
   return [...ids].sort();
 }
 
+/** 줄 구성에 세는 줄 · 한 줄 모듈 수 · 설계 하나의 줄 수 (자주 쓴 구성 — recommendOf comps) */
+const SEQ_KINDS = ['floor', 'upper'];
+const SEQ_MAX_IDS = 40;
+const SEQ_MAX_LINES = 24;
+const LIB_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{1,60}$/;
+
+/**
+ * 설계의 줄마다 모듈 차례 — 라이브러리 모듈 id 만 (폭 · 이름 · 속 없음). 빈 줄은 뺀다.
+ *   「자주 쓴 구성」 카드의 재료 (플래너 server/recommend.js lineSeqsOf 와 같다 — 2026-11-14 사장님 「설계 제안 카드 · 내 설계 먼저」)
+ * @returns {{k: string, ids: string[]}[]}
+ */
+export function lineSeqsOf(project) {
+  const out = [];
+  (Array.isArray(project.walls) ? project.walls : []).forEach((w) =>
+    SEQ_KINDS.forEach((k) => {
+      const list = w && w.lines && Array.isArray(w.lines[k]) ? w.lines[k] : [];
+      const ids = list.map((m) => (m && typeof m.libId === 'string' && LIB_ID_RE.test(m.libId) ? m.libId : null)).filter(Boolean).slice(0, SEQ_MAX_IDS);
+      if (ids.length && out.length < SEQ_MAX_LINES) out.push({ k, ids });
+    })
+  );
+  return out;
+}
+
 /** 목록 칸 — 플래너 design-archive list() 와 같은 셈 (판정 집계는 PC 설계 모음 몫이라 뺀다) */
 export function summaryOf(project) {
   const walls = Array.isArray(project.walls) ? project.walls : [];
@@ -157,6 +180,7 @@ export function summaryOf(project) {
     createdAt: typeof project.createdAt === 'string' ? project.createdAt.slice(0, 40) : null,
     updatedAt: typeof project.updatedAt === 'string' ? project.updatedAt.slice(0, 40) : null,
     libIds: libIdsOf(project).slice(0, 300),
+    lines: lineSeqsOf(project),
   };
 }
 
@@ -585,6 +609,22 @@ export async function recommendOf(env, { user, query }) {
     const count = new Map();
     for (const r of rows) for (const id of (r.summary && Array.isArray(r.summary.libIds) ? r.summary.libIds : [])) count.set(id, (count.get(id) || 0) + 1);
     const used = [...count.entries()].map(([id, n]) => ({ id, n })).sort((a, b) => b.n - a.n || (a.id < b.id ? -1 : 1));
-    return { account: true, designs: rows.length, used };
+    // 자주 쓴 구성 — 줄(바닥 · 상부)마다 모듈 차례가 같은 설계 수. 한 설계에 같은 차례가 여러 벽에 있어도 한 번 (예전에 저장한 설계에는 lines 가 없다 — 다시 저장하면 생긴다)
+    const seqs = new Map();
+    for (const r of rows) {
+      const seen = new Set();
+      for (const ln of r.summary && Array.isArray(r.summary.lines) ? r.summary.lines : []) {
+        if (!ln || !SEQ_KINDS.includes(ln.k) || !Array.isArray(ln.ids) || !ln.ids.length) continue;
+        const ids = ln.ids.filter((x) => typeof x === 'string' && LIB_ID_RE.test(x)).slice(0, SEQ_MAX_IDS);
+        const key = `${ln.k}|${ids.join('|')}`;
+        if (!ids.length || seen.has(key)) continue;
+        seen.add(key);
+        const cur = seqs.get(key) || { k: ln.k, ids, n: 0 };
+        cur.n += 1;
+        seqs.set(key, cur);
+      }
+    }
+    const comps = [...seqs.values()].sort((a, b) => b.n - a.n || b.ids.length - a.ids.length || (a.ids.join('|') < b.ids.join('|') ? -1 : 1)).slice(0, 80);
+    return { account: true, designs: rows.length, used, comps };
   });
 }
