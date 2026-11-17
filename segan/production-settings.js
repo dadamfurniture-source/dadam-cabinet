@@ -15,6 +15,8 @@
                POST /production/settings   { standards, crew, costs, leads, quote, vendors, countertop [, holidays] }
                                            → { settings, saved } — 서버는 보낸 묶음만 남긴다 (과세 설정 tax 만 지킨다)
    화면      묶음 일곱(표준시간 · 인력 · 인건비 · 외주 단가 · 외주 업체 · 상판 · 납기 · 견적) — 칸 이름은 production.html 과 같다.
+             그 아래 「플래너 색 목록」 (2026-11-17 사장님 「팩토리마다 자기 목록」) — 간편 플래너 색상 탭에서 고를
+             몸통 색 · 우라 색 이름을 한 줄에 하나씩 적는다 (settings.colors { body, back }). PC 화면에는 없는 칸이다.
              「설정 저장」은 위 · 아래에 하나씩 (칸이 많다), 결과 글은 단추 옆에.
    저장      production.html 과 같은 꼴로 보낸다 — 빈 숫자 칸은 빼고(서버 기본값으로 돌아간다), 상판 업체는 빈 글도 보낸다.
              이 화면에 칸이 없는 값(공휴일 holidays · 원판 기준 quote.sheetBasis)은 저장돼 있던 그대로 다시 실어 지킨다.
@@ -116,6 +118,10 @@
   var SHEET_BASIS = ['area', 'nested']; // quote.sheetBasis — 이 화면에 칸이 없다 (저장된 값을 지킨다)
   var FIELD_RE = /(standards|crew|costs|leads|quote|vendors|countertop)\.([A-Za-z]+)/;
   var MONEY_ROLES = ['owner', 'manager']; // 원가 설정 — 대표 · 실장 (서버 settingsCompanyOf 와 같다)
+  // 간편 플래너 색 목록 — 묶음 이름은 서버 settings.colors 와 같다 (workflow-api production/service.js COLOR_GROUPS)
+  var COLOR_GROUPS = ['body', 'back'];
+  var COLOR_LABELS = { body: '몸통 색 (PB)', back: '우라 색 (뒷판 MDF 3T)' };
+  var COLOR_RE = /colors\.(body|back)/;
 
   var TEXT = {
     title: '생산 설정',
@@ -130,6 +136,9 @@
     quoteHelp:
       '아래 「견적」 묶음은 상세설계 견적(장당 계산: BOM 수량 × 실제 원가 × (1 + 마진율))에 쓰입니다. 바꾸면 다음 스냅샷부터 반영됩니다.',
     emptyHelp: '숫자 칸을 비우고 저장하면 그 값은 기본값으로 돌아갑니다.',
+    colorsTitle: '플래너 색 목록',
+    colorsHelp:
+      '간편 플래너 색상 탭에서 고르는 이름입니다. 한 줄에 하나씩 적어 주세요 (이름 40자 · 100개까지).',
     hqSaved: '설정을 저장했습니다. 생산 계획에서 「지금 다시 계산」을 누르면 반영됩니다.',
     partnerSaved: '설정을 저장했습니다.',
   };
@@ -182,12 +191,40 @@
     return isFinite(Number(v)) ? String(Number(v)) : '';
   }
 
+  /** 색 목록 칸에 적을 글 — 한 줄에 이름 하나 */
+  function colorsText(group) {
+    var list = obj(obj(J.settings).colors)[group];
+    if (!Array.isArray(list)) return '';
+    return list
+      .filter(function (v) {
+        return typeof v === 'string';
+      })
+      .join('\n');
+  }
+
+  /** 색 목록 칸들 → { body: [이름…], back: [이름…] } — 빈 줄은 빼고 · 앞뒤 빈칸을 떼고 · 같은 이름은 한 번만 (적은 차례 그대로) */
+  function colorsOf(areas) {
+    var out = { body: [], back: [] };
+    Array.prototype.forEach.call(areas || [], function (a) {
+      var g = a.getAttribute('data-colors');
+      if (COLOR_GROUPS.indexOf(g) < 0) return;
+      String(a.value == null ? '' : a.value)
+        .split(/\r?\n/)
+        .forEach(function (line) {
+          var name = line.replace(/\s+/g, ' ').trim();
+          if (name && out[g].indexOf(name) < 0) out[g].push(name);
+        });
+    });
+    return out;
+  }
+
   /**
    * 보낼 묶음 — production.html saveSettings 와 같다:
    * 빈 숫자 칸은 뺀다 · 상판 업체(vendors.top*)는 빈 글도 보낸다 · 그 밖의 업체는 적은 것만.
    * 이 화면에 칸이 없는 공휴일 · 원판 기준은 저장돼 있던 그대로 싣는다 (서버는 보낸 묶음만 남긴다)
+   * 색 목록(colors)은 두 칸이 다 그려져 있을 때만 싣는다 — 싣지 않으면 서버가 저장된 목록을 그대로 둔다
    */
-  function bodyOf(inputs, saved) {
+  function bodyOf(inputs, saved, areas) {
     var body = {
       standards: {},
       crew: {},
@@ -210,13 +247,28 @@
     if (SHEET_BASIS.indexOf(basis) >= 0) body.quote.sheetBasis = basis;
     if (Array.isArray(saved.holidays) && saved.holidays.length)
       body.holidays = saved.holidays.slice();
+    var seen = Array.prototype.map.call(areas || [], function (a) {
+      return a.getAttribute('data-colors');
+    });
+    if (
+      COLOR_GROUPS.every(function (g) {
+        return seen.indexOf(g) >= 0;
+      })
+    )
+      body.colors = colorsOf(areas);
     return body;
   }
 
-  /** 서버 글이 짚은 칸 — { group, key } (없으면 null) */
+  /** 서버 글이 짚은 칸 — { group, key } (없으면 null). 색 목록은 { group: 'colors', key: body | back } */
   function fieldOf(message) {
     var m = FIELD_RE.exec(str(message));
-    return m && own(LABELS[m[1]], m[2]) ? { group: m[1], key: m[2] } : null;
+    if (m && own(LABELS[m[1]], m[2])) return { group: m[1], key: m[2] };
+    var c = COLOR_RE.exec(str(message));
+    return c ? { group: 'colors', key: c[1] } : null;
+  }
+  /** 칸 이름 — 숫자 · 업체 칸은 LABELS, 색 목록은 COLOR_LABELS */
+  function labelOf(f) {
+    return f.group === 'colors' ? COLOR_LABELS[f.key] : LABELS[f.group][f.key];
   }
 
   // ── 서버 ────────────────────────────────────────────
@@ -314,6 +366,33 @@
       '</div></div>'
     );
   }
+  /** 플래너 색 목록 — 몸통 색 · 우라 색, 한 줄에 이름 하나 (묶음 일곱 아래) */
+  function colorsHtml() {
+    return (
+      '<div class="od-sec ps-sec" data-ps-colors><h4 class="od-h">' +
+      esc(TEXT.colorsTitle) +
+      '</h4><p class="mk-note">' +
+      esc(TEXT.colorsHelp) +
+      '</p><div class="ps-grid">' +
+      COLOR_GROUPS.map(function (g) {
+        var id = 'ps-colors-' + g;
+        return (
+          '<label class="mk-input ps-field ps-colors" for="' +
+          id +
+          '"><span>' +
+          esc(COLOR_LABELS[g]) +
+          '</span><textarea id="' +
+          id +
+          '" rows="6" data-colors="' +
+          g +
+          '" autocomplete="off" spellcheck="false">' +
+          esc(colorsText(g)) +
+          '</textarea></label>'
+        );
+      }).join('') +
+      '</div></div>'
+    );
+  }
   /** 저장 줄 — 단추와 결과 글 (위는 알림 줄, 아래는 같은 글을 눈으로만) */
   function barHtml(top) {
     return (
@@ -352,6 +431,7 @@
       '</p>' +
       barHtml(true) +
       GROUPS.map(groupHtml).join('') +
+      colorsHtml() +
       barHtml(false);
     box.hidden = false;
     showSection();
@@ -362,11 +442,16 @@
     var box = $('productionSettings');
     return box ? box.querySelectorAll('input[data-g][data-k]') : [];
   }
+  function colorAreas() {
+    var box = $('productionSettings');
+    return box ? box.querySelectorAll('textarea[data-colors]') : [];
+  }
   /** 짚은 칸의 표시와 그 아래 까닭 글을 지운다 (칸을 주지 않으면 모두) */
   function unflag(el) {
     var box = $('productionSettings');
     if (!box) return;
-    Array.prototype.forEach.call(el ? [el] : inputs(), function (i) {
+    var all = Array.prototype.slice.call(inputs()).concat(Array.prototype.slice.call(colorAreas()));
+    Array.prototype.forEach.call(el ? [el] : all, function (i) {
       i.removeAttribute('aria-invalid');
       i.removeAttribute('aria-describedby');
     });
@@ -387,7 +472,7 @@
     el.setAttribute('aria-invalid', 'true');
     el.setAttribute('aria-describedby', 'ps-err');
     if (el.focus) el.focus();
-    return '「' + LABELS[f.group][f.key] + '」 — ' + message;
+    return '「' + labelOf(f) + '」 — ' + message;
   }
   async function save() {
     if (J.busy || !J.ready) return;
@@ -397,7 +482,7 @@
     unflag();
     say(TEXT.working);
     try {
-      var r = await call('POST', '/production/settings', bodyOf(inputs(), J.saved));
+      var r = await call('POST', '/production/settings', bodyOf(inputs(), J.saved, colorAreas()));
       if (!r.ok) {
         say(flag(errText(r)));
         return;
@@ -465,9 +550,12 @@
     GROUPS: GROUPS,
     GROUP_TITLE: GROUP_TITLE,
     LABELS: LABELS,
+    COLOR_GROUPS: COLOR_GROUPS,
+    COLOR_LABELS: COLOR_LABELS,
     TEXT: TEXT,
     canSee: canSee,
     bodyOf: bodyOf,
+    colorsOf: colorsOf,
     fieldOf: fieldOf,
     state: J,
     load: load,

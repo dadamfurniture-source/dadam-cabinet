@@ -3265,6 +3265,17 @@ button.sm-num[aria-pressed='true'] {
   font-weight: 500;
 }
 
+/* 플래너 색 목록 — 한 줄에 이름 하나 (칸 모양은 .mk-input textarea 그대로) */
+.ps-colors textarea {
+  min-width: 0;
+  line-height: 1.6;
+}
+
+.ps-colors textarea[aria-invalid='true'] {
+  padding: 11px;
+  border: 2px solid var(--v5-tan);
+}
+
 .ps-bar {
   display: flex;
   flex-wrap: wrap;

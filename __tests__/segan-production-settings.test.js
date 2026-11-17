@@ -496,7 +496,9 @@ describe('생산 설정 화면 — 다담 공장', () => {
     expect(bars.length).toBe(2);
     // 위 줄은 묶음들 앞, 아래 줄은 마지막 묶음 뒤
     expect(bars[0].nextElementSibling.getAttribute('data-ps-group')).toBe('standards');
-    expect(bars[1].previousElementSibling.getAttribute('data-ps-group')).toBe('quote');
+    // 마지막 묶음(견적) 다음에 플래너 색 목록, 그 뒤가 아래 저장 줄
+    expect(bars[1].previousElementSibling.hasAttribute('data-ps-colors')).toBe(true);
+    expect(bars[1].previousElementSibling.previousElementSibling.getAttribute('data-ps-group')).toBe('quote');
     const [top, bottom] = bars.map((b) => b.querySelector('[data-ps="msg"]'));
     expect(top.getAttribute('role')).toBe('status');
     expect(top.hasAttribute('aria-hidden')).toBe(false);
@@ -521,6 +523,7 @@ describe('저장', () => {
     expect(sent[0].type).toBe('application/json');
     const body = sent[0].body;
     expect(Object.keys(body).sort()).toEqual([
+      'colors',
       'costs',
       'countertop',
       'crew',
@@ -529,6 +532,7 @@ describe('저장', () => {
       'standards',
       'vendors',
     ]);
+    expect(body.colors).toEqual({ body: [], back: [] }); // 색 목록 칸이 비어 있다
     expect(body.standards.cutPerSheet).toBe(310);
     expect('cutPerJob' in body.standards).toBe(false);
     expect(body.standards.edgePerFace).toBe(102); // 손대지 않은 칸은 받은 값 그대로
@@ -707,6 +711,109 @@ describe('저장', () => {
     });
     expect(box().querySelector('img')).toBeNull();
     expect(field('vendors', 'door').value).toBe('"><img src=x onerror=1>');
+  });
+});
+
+describe('플래너 색 목록 (2026-11-17 — 팩토리마다 자기 목록)', () => {
+  const area = (g) => $(`ps-colors-${g}`);
+  const withColors = (colors) => () => ok({ settings: { ...settings(), colors }, saved: null, hq: true });
+
+  test('묶음 일곱 아래 — 몸통 색 · 우라 색 두 칸, 받은 목록을 한 줄에 하나씩 적는다', async () => {
+    await load({ get: withColors({ body: ['화이트', '오크'], back: ['화이트'] }) });
+    const sec = box().querySelector('[data-ps-colors]');
+    expect(sec).not.toBeNull();
+    expect(text(sec.querySelector('h4.od-h'))).toBe('플래너 색 목록');
+    expect(text(sec.querySelector('p.mk-note'))).toBe(
+      '간편 플래너 색상 탭에서 고르는 이름입니다. 한 줄에 하나씩 적어 주세요 (이름 40자 · 100개까지).'
+    );
+    expect([...sec.querySelectorAll('label > span')].map(text)).toEqual([
+      '몸통 색 (PB)',
+      '우라 색 (뒷판 MDF 3T)',
+    ]);
+    expect(area('body').tagName).toBe('TEXTAREA');
+    expect(area('body').value).toBe('화이트\n오크');
+    expect(area('back').value).toBe('화이트');
+    expect(area('body').closest('label').getAttribute('for')).toBe('ps-colors-body');
+    // 묶음 일곱은 그대로다 (PC 화면과 같은 칸) — 색 목록은 따로 센다
+    expect(groups().length).toBe(7);
+    expect(box().querySelectorAll('textarea[data-colors]').length).toBe(2);
+  });
+
+  test('목록이 없거나 모양이 틀리면 빈 칸', async () => {
+    await load({ get: withColors({ body: 'x', back: [3, '그레이', null] }) });
+    expect(area('body').value).toBe('');
+    expect(area('back').value).toBe('그레이');
+    await load(); // colors 가 아예 없는 답 (옛 서버)
+    expect(area('body').value).toBe('');
+    expect(area('back').value).toBe('');
+  });
+
+  test('저장 — 빈 줄은 빼고 · 앞뒤 빈칸을 떼고 · 같은 이름은 한 번만, 적은 차례 그대로 보낸다', async () => {
+    const calls = await load({ get: withColors({ body: ['화이트'], back: [] }) });
+    type(area('body'), '  화이트 \n\n오크\n화이트\n라이트   그레이\r\n');
+    type(area('back'), '화이트\n');
+    await press(saveBtns()[0]);
+    const body = posts(calls)[0].body;
+    expect(body.colors).toEqual({ body: ['화이트', '오크', '라이트 그레이'], back: ['화이트'] });
+    // 다른 묶음은 예전 그대로 같이 간다
+    expect(body.standards.cutPerSheet).toBe(100);
+  });
+
+  test('저장한 뒤 — 서버가 돌려준 목록으로 다시 그린다', async () => {
+    await load({
+      post: (body) => ok({ settings: { ...settings(body), colors: { body: ['오크'], back: [] } }, saved: body }),
+    });
+    type(area('body'), '오크\n오크');
+    await press(saveBtns()[1]);
+    expect(area('body').value).toBe('오크');
+    expect(msgs()[0]).toMatch(/^설정을 저장했습니다/);
+  });
+
+  test('서버가 색 목록을 짚어 거절 — 칸 이름을 붙여 알리고 그 칸에 표시한다 · 적은 글은 그대로', async () => {
+    await load({
+      post: () => fail(422, 'validation', 'colors.back 의 색 이름은 1~40자여야 합니다'),
+    });
+    type(area('back'), '가'.repeat(41));
+    await press(saveBtns()[0]);
+    expect(msgs()[0]).toBe('「우라 색 (뒷판 MDF 3T)」 — colors.back 의 색 이름은 1~40자여야 합니다');
+    expect(area('back').getAttribute('aria-invalid')).toBe('true');
+    expect(area('back').value).toBe('가'.repeat(41));
+    expect(text(area('back').parentNode.querySelector('.ps-err'))).toBe(
+      'colors.back 의 색 이름은 1~40자여야 합니다'
+    );
+    // 고치기 시작하면 표시를 지운다
+    type(area('back'), '화이트');
+    expect(area('back').hasAttribute('aria-invalid')).toBe(false);
+    expect(box().querySelector('.ps-err')).toBeNull();
+  });
+
+  test('순수 함수 — colorsOf · bodyOf 는 두 칸이 다 있을 때만 색 목록을 싣는다 · fieldOf', () => {
+    const P = names();
+    const ta = (g, value) => ({ value, getAttribute: (n) => (n === 'data-colors' ? g : null) });
+    expect(P.COLOR_GROUPS).toEqual(['body', 'back']);
+    expect(P.colorsOf([ta('body', 'a\n b \n\na'), ta('back', ''), ta('door', 'x')])).toEqual({
+      body: ['a', 'b'],
+      back: [],
+    });
+    expect(P.colorsOf(null)).toEqual({ body: [], back: [] });
+    expect(P.bodyOf([], null, [ta('body', '화이트'), ta('back', '')]).colors).toEqual({
+      body: ['화이트'],
+      back: [],
+    });
+    // 칸이 하나라도 없으면 싣지 않는다 — 서버가 저장된 목록을 그대로 둔다
+    expect('colors' in P.bodyOf([], null, [ta('body', '화이트')])).toBe(false);
+    expect('colors' in P.bodyOf([], null)).toBe(false);
+    expect(P.fieldOf('colors.body 는 100개 이하 이름 목록이어야 합니다')).toEqual({
+      group: 'colors',
+      key: 'body',
+    });
+    expect(P.fieldOf('알 수 없는 설정: colors.door')).toBeNull();
+  });
+
+  test('협력업체 대표에게도 같은 칸이 보인다', async () => {
+    await load({ partner: PARTNER, get: () => ok({ settings: settings(), saved: null, hq: false }) });
+    expect(box().querySelector('[data-ps-colors]')).not.toBeNull();
+    expect(area('body')).not.toBeNull();
   });
 });
 
