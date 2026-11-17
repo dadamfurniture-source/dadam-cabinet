@@ -65,6 +65,24 @@ function freshQuote(saved) {
   return q;
 }
 
+/**
+ * 간편 플래너의 몸통 색 · 우라 색 이름 목록 (2026-11-17 사장님 「팩토리마다 자기 목록」) — 팩토리 대표 · 실장이 적고,
+ * 설계하는 사람이 색상 탭에서 고른다 (planner-prices.js GET /planner/colors). 기본 목록은 없다 — 적은 것만.
+ */
+export const COLOR_GROUPS = Object.freeze(['body', 'back']);
+export const COLOR_NAMES_MAX = 100;
+export const COLOR_NAME_MAX = 40;
+
+/** 저장된 색 목록 → { body: [이름…], back: [이름…] } (글자가 아닌 것 · 빈 글은 버린다) */
+function colorsOf(saved) {
+  const out = {};
+  for (const g of COLOR_GROUPS) {
+    const list = saved && Array.isArray(saved[g]) ? saved[g] : [];
+    out[g] = list.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim());
+  }
+  return out;
+}
+
 export function mergeSettings(saved) {
   const s = saved || {};
   return {
@@ -76,6 +94,7 @@ export function mergeSettings(saved) {
     vendors: known(DEFAULT_VENDORS, s.vendors),
     countertop: known(DEFAULT_COUNTERTOP, s.countertop),
     holidays: Array.isArray(s.holidays) ? s.holidays : [],
+    colors: colorsOf(s.colors),
   };
 }
 
@@ -121,6 +140,21 @@ export function sanitizeSettings(body) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new ValidationError(`공휴일 날짜 형식이 아닙니다: ${h}`);
       return s;
     });
+  }
+  if (body && body.colors !== undefined) {
+    if (typeof body.colors !== 'object' || body.colors === null || Array.isArray(body.colors)) throw new ValidationError('colors 는 객체여야 합니다');
+    out.colors = {};
+    for (const [g, list] of Object.entries(body.colors)) {
+      if (!COLOR_GROUPS.includes(g)) throw new ValidationError(`알 수 없는 설정: colors.${g}`);
+      if (!Array.isArray(list) || list.length > COLOR_NAMES_MAX) throw new ValidationError(`colors.${g} 는 ${COLOR_NAMES_MAX}개 이하 이름 목록이어야 합니다`);
+      const names = [];
+      for (const v of list) {
+        const name = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+        if (!name || name.length > COLOR_NAME_MAX) throw new ValidationError(`colors.${g} 의 색 이름은 1~${COLOR_NAME_MAX}자여야 합니다`);
+        if (!names.includes(name)) names.push(name);   // 같은 이름은 한 번만 — 적은 차례 그대로
+      }
+      out.colors[g] = names;
+    }
   }
   return out;
 }
@@ -197,11 +231,13 @@ export async function assertHqMoney(env, user) {
 /**
  * 업체 설정 저장 — 보낸 묶음만 남긴다 (예전 개인 설정과 같은 방식). 권한은 부르는 쪽이 확인한다.
  * 장부 과세 묶음(tax — src/ledger/settings.js 가 따로 쓴다)은 이 화면이 보내지 않으므로 저장된 것을 그대로 둔다.
+ * 플래너 색 목록(colors)도 보내지 않았으면 그대로 둔다 — 색 칸이 없는 화면(PC production.html · 캐시된 옛 앱 화면)이 저장해도 목록이 지워지지 않게.
  */
 export async function writeCompanySettings(env, { companyId, user, body }) {
   const clean = sanitizeSettings(body);
   const prev = await selectOne(env, 'company_settings', { company_id: `eq.${companyId}`, select: 'settings' });
   if (prev && prev.settings && prev.settings.tax) clean.tax = prev.settings.tax;
+  if (clean.colors === undefined && prev && prev.settings && prev.settings.colors) clean.colors = prev.settings.colors;
   const row = await upsertOne(env, 'company_settings', {
     company_id: companyId,
     settings: clean,

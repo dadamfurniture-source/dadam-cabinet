@@ -56,6 +56,23 @@ export function doorSheets(bom, cutPlan) {
   return area > 0 ? Math.ceil(area / (SHEET_AREA_M2 * FALLBACK_YIELD)) : 0;
 }
 
+/**
+ * 판재 한 줄이 어느 원판 단가(생산 설정 quote 의 키)에 드는가 — 견적이 원판을 가르는 조건 그대로.
+ *   PB → pbSheet · MDF 5T 미만(뒷판) → backSheet · MDF 15T 이상(도어) → doorSheet · 그 밖 → null (단가 없음)
+ * areaSheets 와 간편 플래너 BOM 요약 단가(planner-prices.js)가 같이 쓴다 — 두 곳의 조건이 어긋나지 않게.
+ */
+export function boardPriceKeyOf(material, thickness) {
+  const mat = String(material || '').toUpperCase();
+  const t = num(thickness);
+  if (mat.startsWith('PB')) return 'pbSheet';
+  if (mat === 'MDF' && t > 0 && t < 5) return 'backSheet';
+  if (mat === 'MDF' && t >= 15) return 'doorSheet';
+  return null;
+}
+
+/** 철물 분류(HardwareExtractor) → 단가 키 — 견적이 값을 매기는 다섯. hardwareCounts 와 플래너 BOM 요약 단가가 같이 쓴다 */
+export const HARDWARE_PRICE_KEYS = Object.freeze({ 경첩: 'hinge', 레일: 'rail', 다리발: 'leg', 브라켓: 'shelfPin', 옷봉: 'rod' });
+
 /** 올림 (step 단위). 부동소수 오차로 1.0000001 이 1.1 이 되지 않게 살짝 깎는다. */
 const ceilTo = (x, step) => (x > 0 ? Math.ceil(x / step - 1e-9) * step : 0);
 
@@ -66,10 +83,10 @@ const ceilTo = (x, step) => (x > 0 ? Math.ceil(x / step - 1e-9) * step : 0);
 export function areaSheets(bom, Q) {
   const mats = (bom && bom.materials) || [];
   const area = (pred) => mats.filter(pred).reduce((t, m) => t + (num(m.w) * num(m.h) * num(m.qty)) / 1e6, 0);
-  const mat = (m) => String(m.material || '').toUpperCase();
-  const pbA = area((m) => mat(m).startsWith('PB'));
-  const backA = area((m) => mat(m) === 'MDF' && num(m.thickness) > 0 && num(m.thickness) < 5);
-  const doorA = area((m) => mat(m) === 'MDF' && num(m.thickness) >= 15);
+  const of = (key) => area((m) => boardPriceKeyOf(m.material, m.thickness) === key);
+  const pbA = of('pbSheet');
+  const backA = of('backSheet');
+  const doorA = of('doorSheet');
   const r1 = (x) => Math.round(x * 10) / 10;
   return {
     pb: r1(ceilTo(pbA / (SHEET_AREA_M2 * Q.pbYield), 0.1)),
@@ -90,7 +107,7 @@ export function edgeMeters(bom) {
 export function hardwareCounts(bom) {
   const hw = (bom && bom.hardware) || [];
   const q = (cat) => hw.filter((h) => h && h.category === cat).reduce((s, h) => s + num(h.qty), 0);
-  return { hinge: q('경첩'), rail: q('레일'), leg: q('다리발'), shelfPin: q('브라켓'), rod: q('옷봉') };
+  return Object.fromEntries(Object.entries(HARDWARE_PRICE_KEYS).map(([cat, key]) => [key, q(cat)]));
 }
 
 /**
