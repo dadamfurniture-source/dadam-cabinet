@@ -1915,6 +1915,11 @@ button.sm-num[aria-pressed='true'] {
   margin: 0 0 12px;
 }
 
+.me-dc-seed {
+  justify-self: start;
+  min-height: 36px;
+}
+
 .me-dc-list {
   display: grid;
   gap: 16px;

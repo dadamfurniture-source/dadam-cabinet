@@ -7,6 +7,7 @@
  *   데이터  workflow-api GET /hq/design-check · GET|POST /hq/design-check/reviews · POST /hq/design-check/run (본인 토큰)
  *   화면    점검 걸음 · 가는 길의 수(앱 플래너 · PC 플래너) · 팩토리별 · 지난 7일 저장 실패 · 검토 줄(기다림 · 검토함 · 시공 완료만)
  *           양질은 바로 저장, 보통 · 제외는 까닭을 고른 뒤 저장. DB 준비 전(409 db_pending)이면 「준비 중」
+ *           여러 업체 공통 줄(POST /hq/planner-panel/rebuild) · 씨앗(GET /hq/planner-seeds · PUT|DELETE …/:id) — 다담 공장의 앱 플래너 설계만
  * 사람 · 업체 · 설계는 모두 지어낸 시험 값이다.
  */
 const fs = require('fs');
@@ -23,6 +24,7 @@ const HQ = '11111111-1111-4111-8111-111111111111';
 const A = '11111111-1111-4111-8111-111111111112';
 const WEB_KEY = `planner-web:${A}:design-aaaa-0001`;
 const PC_KEY = 'planner-lite:design:design-pc01-0001';
+const HQ_WEB_KEY = `planner-web:${HQ}:design-hq00-0001`;
 
 const ok = (data, status = 200) => ({ ok: true, status, body: { success: true, data } });
 const fail = (status, code) => ({
@@ -205,7 +207,19 @@ const PC_ITEM = {
   photo_count: 0,
 };
 
-/** me.html 을 올린다. opts.summary() · reviews(url) · post(body) · run() → 응답 */
+/** 다담 공장이 앱 플래너로 저장한 설계 — 씨앗으로 고를 수 있는 줄 */
+const HQ_WEB_ITEM = {
+  ...WEB_ITEM,
+  group_key: HQ_WEB_KEY,
+  company_id: HQ,
+  draft_id: 'design-hq00-0001',
+  company: '다담 공장',
+  company_kind: 'hq',
+  name: '본사 합성 주방',
+};
+const PANEL = { lines: 2, seeds: 1, built_at: '2026-11-17T22:00:01Z' };
+
+/** me.html 을 올린다. opts.summary() · reviews(url) · post(body) · run() · seeds() · rebuild() · seed(method, id) → 응답 */
 async function load(options = {}) {
   const opts = {
     session: SESSION,
@@ -221,6 +235,9 @@ async function load(options = {}) {
         steps: STEPS.map((s) => ({ ...s, ok: true })),
         created_at: '2026-11-13T23:10:00Z',
       }),
+    seeds: () => ok({ seeds: [] }),
+    rebuild: () => ok({ lines: 3, seeds: 2, companies: 5, designs: 14 }),
+    seed: (method, id) => ok({ seed: method === 'PUT', draft_id: id }),
     ...options,
   };
   window.history.replaceState(null, '', opts.url);
@@ -282,6 +299,10 @@ async function load(options = {}) {
     if (url.startsWith(WORK + '/hq/design-check/reviews'))
       return reply(method === 'POST' ? opts.post(JSON.parse(init.body)) : opts.reviews(url));
     if (url === WORK + '/hq/design-check/run') return reply(opts.run());
+    if (url === WORK + '/hq/planner-panel/rebuild') return reply(opts.rebuild());
+    if (url === WORK + '/hq/planner-seeds') return reply(opts.seeds());
+    if (url.startsWith(WORK + '/hq/planner-seeds/'))
+      return reply(opts.seed(method, decodeURIComponent(url.split('/').pop())));
     if (url === WORK + '/hq/companies') return reply(fail(403, 'not_platform'));
     if (url === WORK + '/company/projects') return reply(fail(403, 'not_project_company'));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
@@ -666,5 +687,112 @@ describe('지금 점검', () => {
     expect(body().querySelector('.me-dc-note').textContent).toBe(
       window.SeganHqDesignCheck.TEXT.fail
     );
+  });
+});
+
+describe('여러 업체 공통 줄 · 씨앗', () => {
+  const T = () => window.SeganHqDesignCheck.TEXT;
+  const withPanel = (extra = {}) => ({
+    summary: () => ok({ ...SUMMARY, panel: PANEL }),
+    reviews: () => ok({ state: 'waiting', only: null, items: [WEB_ITEM, HQ_WEB_ITEM, PC_ITEM] }),
+    ...extra,
+  });
+  const seedBtn = (key) => card(key).querySelector('[data-act="seed"]');
+  const seedCalls = (calls) =>
+    calls.fetch
+      .filter((f) => f.url.startsWith(WORK + '/hq/planner-seeds'))
+      .map((f) => [f.method, f.url.slice(WORK.length)]);
+
+  test('옛 서버 답(panel 없음)이면 칸도 씨앗 단추도 없고 씨앗 목록을 읽지 않는다', async () => {
+    const calls = await load({
+      reviews: () => ok({ state: 'waiting', only: null, items: [HQ_WEB_ITEM] }),
+    });
+    expect(body().textContent).not.toContain('여러 업체 공통 줄');
+    expect(body().querySelector('[data-act="rebuild"]')).toBeNull();
+    expect(seedBtn(HQ_WEB_KEY)).toBeNull();
+    expect(seedCalls(calls)).toEqual([]);
+  });
+
+  test('DB 적용 전(panel null)이면 「준비 중」 — 다시 묶기 · 씨앗 단추는 없다', async () => {
+    const calls = await load({
+      summary: () => ok({ ...SUMMARY, panel: null }),
+      reviews: () => ok({ state: 'waiting', only: null, items: [HQ_WEB_ITEM] }),
+    });
+    expect(texts('.me-pt-sub')).toContain('여러 업체 공통 줄 — 자주 쓴 구성 카드');
+    expect(body().textContent).toContain(T().pending);
+    expect(body().querySelector('[data-act="rebuild"]')).toBeNull();
+    expect(seedBtn(HQ_WEB_KEY)).toBeNull();
+    expect(seedCalls(calls)).toEqual([]);
+  });
+
+  test('공통 줄 수 · 씨앗 줄 수 · 묶은 때, 「다시 묶기」는 묶고 한눈에를 다시 읽는다', async () => {
+    const calls = await load(withPanel());
+    expect(facts(3)).toEqual(['공통 줄2 3곳 이상', '씨앗 줄1', '마지막 묶음11.18 07:00']);
+    expect(body().textContent).toContain(T().seedNote);
+    await click(body().querySelector('[data-act="rebuild"]'));
+    const post = calls.fetch.find((f) => f.url === WORK + '/hq/planner-panel/rebuild');
+    expect([post.method, post.auth, post.body]).toEqual(['POST', 'Bearer tok-1', null]);
+    expect(body().querySelector('.me-dc-note').textContent).toBe(
+      '다시 묶었습니다 — 설계 14개 · 팩토리 5곳에서 공통 줄 3개 · 씨앗 줄 2개'
+    );
+    expect(calls.fetch.filter((f) => f.url === WORK + '/hq/design-check').length).toBe(2);
+    expect(body().querySelector('[data-act="rebuild"]').disabled).toBe(false);
+  });
+
+  test('다시 묶기가 안 되면 알린다', async () => {
+    await load(withPanel({ rebuild: () => fail(500, 'error') }));
+    await click(body().querySelector('[data-act="rebuild"]'));
+    expect(body().querySelector('.me-dc-note').textContent).toBe(T().rebuildFail);
+  });
+
+  test('씨앗 단추는 다담 공장의 앱 플래너 설계에만 — 누르면 켜고, 다시 누르면 끈다', async () => {
+    const calls = await load(withPanel());
+    expect(seedBtn(WEB_KEY)).toBeNull(); // 다른 팩토리 설계
+    expect(seedBtn(PC_KEY)).toBeNull(); // PC 플래너에서 올린 설계
+    const btn = seedBtn(HQ_WEB_KEY);
+    expect([btn.textContent, btn.getAttribute('aria-pressed')]).toEqual([T().seed, 'false']);
+    await click(btn);
+    expect(seedBtn(HQ_WEB_KEY).getAttribute('aria-pressed')).toBe('true');
+    expect(body().querySelector('.me-dc-note').textContent).toBe(T().seedSaved);
+    await click(seedBtn(HQ_WEB_KEY));
+    expect(seedBtn(HQ_WEB_KEY).getAttribute('aria-pressed')).toBe('false');
+    expect(seedCalls(calls)).toEqual([
+      ['GET', '/hq/planner-seeds'],
+      ['PUT', '/hq/planner-seeds/design-hq00-0001'],
+      ['DELETE', '/hq/planner-seeds/design-hq00-0001'],
+    ]);
+  });
+
+  test('이미 씨앗인 설계는 켜진 채로 보이고, 지워진 설계에는 단추가 없다', async () => {
+    await load(
+      withPanel({
+        seeds: () => ok({ seeds: ['design-hq00-0001', 7, ''] }),
+        reviews: () =>
+          ok({
+            state: 'waiting',
+            only: null,
+            items: [
+              HQ_WEB_ITEM,
+              {
+                ...HQ_WEB_ITEM,
+                group_key: HQ_WEB_KEY + 'x',
+                draft_id: 'design-hq00-0002',
+                gone: true,
+              },
+            ],
+          }),
+      })
+    );
+    expect(seedBtn(HQ_WEB_KEY).getAttribute('aria-pressed')).toBe('true');
+    expect(seedBtn(HQ_WEB_KEY + 'x')).toBeNull();
+  });
+
+  test('씨앗 목록을 못 읽으면 단추가 없고, 바꾸기가 안 되면 알리고 그대로 둔다', async () => {
+    await load(withPanel({ seeds: () => fail(409, 'db_pending') }));
+    expect(seedBtn(HQ_WEB_KEY)).toBeNull();
+    await load(withPanel({ seed: () => fail(404, 'not_found') }));
+    await click(seedBtn(HQ_WEB_KEY));
+    expect(body().querySelector('.me-dc-note').textContent).toBe(T().seedFail);
+    expect(seedBtn(HQ_WEB_KEY).getAttribute('aria-pressed')).toBe('false');
   });
 });
