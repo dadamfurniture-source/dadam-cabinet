@@ -147,21 +147,38 @@ const SEQ_MAX_IDS = 40;
 const SEQ_MAX_LINES = 24;
 const LIB_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{1,60}$/;
 
+/** 줄 요약에 폭을 같이 둘 수 있는 크기 — 넘으면 폭은 빼고 id 만 (summary 는 DB 에서 16KB 까지라, 폭 때문에 저장이 막히면 안 된다) */
+const SEQ_WS_MAX_BYTES = 6000;
+/** GET /planner/recommend 의 lines — 설계마다 줄 그대로 (원론 카드의 참조 줄), 최근 것부터 이만큼 */
+const REC_LINES_MAX = 200;
+/** 제작 의뢰로 받은 설계 사본 (production-requests/factory.js factoryDraftIdOf — id = pr-<의뢰 id>). 보낸 업체의 구성이라 받은 사람의 「내 설계」로 세지 않는다 */
+export const isRequestCopyId = (id) => typeof id === 'string' && id.startsWith('pr-');
+
 /**
- * 설계의 줄마다 모듈 차례 — 라이브러리 모듈 id 만 (폭 · 이름 · 속 없음). 빈 줄은 뺀다.
+ * 설계의 줄마다 모듈 차례 — 라이브러리 모듈 id 와 놓인 폭 (이름 · 속 없음). 빈 줄은 뺀다.
+ *   폭 ws 는 ids 와 같은 차례 (2026-11-17 — 자주 쓴 구성 카드를 원론대로: 칸 폭이 닮은 내 설계를 더 따라 그린다. 내 설계의 폭이라 본인에게만 돌려준다)
  *   「자주 쓴 구성」 카드의 재료 (플래너 server/recommend.js lineSeqsOf 와 같다 — 2026-11-14 사장님 「설계 제안 카드 · 내 설계 먼저」)
- * @returns {{k: string, ids: string[]}[]}
+ * @returns {{k: string, ids: string[], ws: number[]}[]}
  */
 export function lineSeqsOf(project) {
   const out = [];
   (Array.isArray(project.walls) ? project.walls : []).forEach((w) =>
     SEQ_KINDS.forEach((k) => {
       const list = w && w.lines && Array.isArray(w.lines[k]) ? w.lines[k] : [];
-      const ids = list.map((m) => (m && typeof m.libId === 'string' && LIB_ID_RE.test(m.libId) ? m.libId : null)).filter(Boolean).slice(0, SEQ_MAX_IDS);
-      if (ids.length && out.length < SEQ_MAX_LINES) out.push({ k, ids });
+      const mods = list.filter((m) => m && typeof m.libId === 'string' && LIB_ID_RE.test(m.libId)).slice(0, SEQ_MAX_IDS);
+      if (mods.length && out.length < SEQ_MAX_LINES) {
+        out.push({ k, ids: mods.map((m) => m.libId), ws: mods.map((m) => (Number.isFinite(m.W) && m.W > 0 && m.W < 100000 ? Math.round(m.W) : 0)) });
+      }
     })
   );
   return out;
+}
+
+/** 요약에 둘 줄 — 폭까지 넣으면 너무 커질 때는 id 만 */
+function summaryLinesOf(project) {
+  const lines = lineSeqsOf(project);
+  if (new TextEncoder().encode(JSON.stringify(lines)).length <= SEQ_WS_MAX_BYTES) return lines;
+  return lines.map((l) => ({ k: l.k, ids: l.ids }));
 }
 
 /** 목록 칸 — 플래너 design-archive list() 와 같은 셈 (판정 집계는 PC 설계 모음 몫이라 뺀다) */
@@ -180,7 +197,7 @@ export function summaryOf(project) {
     createdAt: typeof project.createdAt === 'string' ? project.createdAt.slice(0, 40) : null,
     updatedAt: typeof project.updatedAt === 'string' ? project.updatedAt.slice(0, 40) : null,
     libIds: libIdsOf(project).slice(0, 300),
-    lines: lineSeqsOf(project),
+    lines: summaryLinesOf(project),
   };
 }
 
@@ -603,20 +620,27 @@ export async function recommendOf(env, { user, query }) {
         item: `eq.${item}`,
         discarded_at: 'is.null',
         select: 'id,summary',
+        order: 'updated_at.desc',
         limit: '1000',
       })) || []
-    ).filter((r) => !isProbeId(r.id));
+    ).filter((r) => !isProbeId(r.id) && !isRequestCopyId(r.id));
     const count = new Map();
     for (const r of rows) for (const id of (r.summary && Array.isArray(r.summary.libIds) ? r.summary.libIds : [])) count.set(id, (count.get(id) || 0) + 1);
     const used = [...count.entries()].map(([id, n]) => ({ id, n })).sort((a, b) => b.n - a.n || (a.id < b.id ? -1 : 1));
     // 자주 쓴 구성 — 줄(바닥 · 상부)마다 모듈 차례가 같은 설계 수. 한 설계에 같은 차례가 여러 벽에 있어도 한 번 (예전에 저장한 설계에는 lines 가 없다 — 다시 저장하면 생긴다)
     const seqs = new Map();
+    // 설계마다 줄 그대로 — 원론 카드의 참조 줄 (모듈 id · 놓인 폭). 최근 설계부터 REC_LINES_MAX 줄
+    const lines = [];
     for (const r of rows) {
       const seen = new Set();
       for (const ln of r.summary && Array.isArray(r.summary.lines) ? r.summary.lines : []) {
         if (!ln || !SEQ_KINDS.includes(ln.k) || !Array.isArray(ln.ids) || !ln.ids.length) continue;
         const ids = ln.ids.filter((x) => typeof x === 'string' && LIB_ID_RE.test(x)).slice(0, SEQ_MAX_IDS);
         const key = `${ln.k}|${ids.join('|')}`;
+        if (ids.length && ids.length === ln.ids.length && lines.length < REC_LINES_MAX) {
+          const ws = Array.isArray(ln.ws) && ln.ws.length === ids.length && ln.ws.every((w) => Number.isFinite(w) && w >= 0) ? ln.ws.map((w) => Math.round(w)) : null;
+          lines.push(ws ? { k: ln.k, ids, ws } : { k: ln.k, ids });
+        }
         if (!ids.length || seen.has(key)) continue;
         seen.add(key);
         const cur = seqs.get(key) || { k: ln.k, ids, n: 0 };
@@ -625,6 +649,6 @@ export async function recommendOf(env, { user, query }) {
       }
     }
     const comps = [...seqs.values()].sort((a, b) => b.n - a.n || b.ids.length - a.ids.length || (a.ids.join('|') < b.ids.join('|') ? -1 : 1)).slice(0, 80);
-    return { account: true, designs: rows.length, used, comps };
+    return { account: true, designs: rows.length, used, comps, lines };
   });
 }
