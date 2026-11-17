@@ -350,6 +350,12 @@ test('작업자 꾸러미 — 철거 작업 = 철거 지시서(사무실 메모 
     const cut = await pack(A_CUT);
     assert.match(cut, /원장/);
     assert.doesNotMatch(strip(cut), /시험로 1|010-0000-0000/, '공장 일 꾸러미에는 현장이 없다');
+    // 재단 작업은 라벨 꾸러미도 고른다 — 남의 공정 꾸러미는 403
+    const labels = await assignmentPack(ENV, { user: me, params: { id: A_CUT }, query: { pack: 'labels' } });
+    assert.notEqual(labels, cut);
+    await assert.rejects(() => assignmentPack(ENV, { user: me, params: { id: A_CUT }, query: { pack: 'assembly' } }), (e) => e.statusCode === 403 && e.code === 'not_my_pack');
+    // 현장 문서는 pack 을 보지 않는다
+    assert.match(strip(await assignmentPack(ENV, { user: me, params: { id: A_DM }, query: { pack: 'cut' } })), /^철거 지시서 /);
     assert.equal(calls.filter((c) => c.method !== 'GET').length, 0, '읽기만');
   });
 });

@@ -210,9 +210,9 @@ export async function postFactoryCheck(env, { user, params, body }) {
 export async function postFactoryPhoto(env, { user, params, request }) {
   return addPhoto(env, await factoryContext(env, user, params.orderId), request);
 }
-/** GET /work/assignments/:id/pack — HTML */
-export async function assignmentPack(env, { user, params }) {
-  return packHtml(env, await assignmentContext(env, user, params.id), null);
+/** GET /work/assignments/:id/pack?pack= — HTML. pack 은 재단 · 엣지 작업의 꾸러미 고르기 (cut · labels — 없으면 첫 꾸러미), 현장 문서는 하나뿐이라 보지 않는다 */
+export async function assignmentPack(env, { user, params, query }) {
+  return packHtml(env, await assignmentContext(env, user, params.id), (query && query.pack) || null);
 }
 /** GET /work/assignments/:id/checks */
 export async function getAssignmentChecks(env, { user, params }) {
