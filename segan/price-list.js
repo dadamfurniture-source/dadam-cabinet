@@ -18,10 +18,19 @@
   'use strict';
 
   var KINDS = ['body', 'back', 'door', 'edge', 'other']; // workflow-api price-lists.js PRICE_KINDS
+  var BOARD_KINDS = ['body', 'back', 'door']; // 플래너가 색마다 값을 읽는 용도 (workflow-api price-lists.js BOARD_PRICE_KINDS)
   var KIND_LABELS = { body: '몸통', back: '우라', door: '도어', edge: '엣지', other: '그 밖' };
   var XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
   var ITEMS_MAX = 5000; // 한 가격표의 줄 수 (서버 PRICE_ITEMS_MAX)
-  var TEXT_MAX = { supplier: 40, category: 40, product: 60, spec: 60, color_name: 40, code: 40, size_text: 40 };
+  var TEXT_MAX = {
+    supplier: 40,
+    category: 40,
+    product: 60,
+    spec: 60,
+    color_name: 40,
+    code: 40,
+    size_text: 40,
+  };
   var FIND_LIMIT = 50;
   // 칸 이름 — 빈칸 · 가운뎃점을 뺀 글로 견준다
   var HEADS = {
@@ -42,10 +51,12 @@
     file: '가격표 파일 (.xlsx · .csv)',
     reading: '파일을 읽는 중입니다.',
     noTool: '엑셀 읽기 도구를 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 골라 주세요.',
-    noColumns: '가격표 칸을 찾지 못했습니다. 첫 줄에 색상명(또는 코드)과 단가 칸 이름이 있어야 합니다.',
+    noColumns:
+      '가격표 칸을 찾지 못했습니다. 첫 줄에 색상명(또는 코드)과 단가 칸 이름이 있어야 합니다.',
     tooMany: '줄이 너무 많습니다 (' + ITEMS_MAX + '줄까지).',
     needSupplier: '공급처 이름을 적어 주세요.',
-    guess: '용도의 처음 값은 짐작입니다. 제품군마다 확인하고 고쳐 주세요 — 몸통 · 우라 · 도어로 정한 줄만 플래너가 씁니다.',
+    guess:
+      '용도의 처음 값은 짐작입니다. 묶음마다 확인하고 고쳐 주세요 — 몸통 · 우라 · 도어로 정한 줄만 플래너가 씁니다. 같은 색에 값이 둘 이상인 제품군은 사양마다 나눠 보입니다.',
     upload: '가격표 올리기',
     cancel: '취소',
     working: '올리는 중입니다.',
@@ -85,7 +96,9 @@
       .trim();
   }
   function norm(v) {
-    return clean(v).replace(/[\s·ㆍ.]/g, '').toLowerCase();
+    return clean(v)
+      .replace(/[\s·ㆍ.]/g, '')
+      .toLowerCase();
   }
 
   // ── 파일 → 줄 (순수) ───────────────────────────────────
@@ -100,7 +113,8 @@
         if (map[k] === undefined && HEADS[k].indexOf(name) >= 0) map[k] = i;
       });
     });
-    if (map.unit_price === undefined || (map.color_name === undefined && map.code === undefined)) return null;
+    if (map.unit_price === undefined || (map.color_name === undefined && map.code === undefined))
+      return null;
     return map;
   }
 
@@ -197,30 +211,47 @@
     return 'other';
   }
 
-  /** 줄 → 제품군 묶음 [{ key, category, product, n, min, max, thicknesses[], sheet, kind }] (가격표 차례) */
-  function groupsOf(items) {
+  /** 줄의 묶음 키 — 사양마다 나눈 제품군(split)은 사양까지 */
+  function itemKeyOf(it, split) {
+    var base = groupKeyOf(it);
+    return split && split[base] ? base + '|' + it.spec : base;
+  }
+  function kindRow(it, kind) {
+    var out = { kind: kind };
+    Object.keys(it).forEach(function (k) {
+      out[k] = it[k];
+    });
+    return out;
+  }
+  /** 줄을 키마다 묶는다 (가격표 차례) — spec 은 사양마다 나눈 묶음에만 */
+  function collect(items, split) {
     var by = {};
     var out = [];
     (items || []).forEach(function (it) {
-      var key = groupKeyOf(it);
+      var base = groupKeyOf(it);
+      var key = itemKeyOf(it, split);
       var g = by[key];
       if (!g) {
         g = by[key] = {
           key: key,
+          base: base,
           category: it.category,
           product: it.product,
+          spec: key === base ? null : it.spec,
           n: 0,
           min: it.unit_price,
           max: it.unit_price,
           thicknesses: [],
           sheet: true,
           kind: 'other',
+          rows: [],
         };
         out.push(g);
       }
       g.n += 1;
       g.min = Math.min(g.min, it.unit_price);
       g.max = Math.max(g.max, it.unit_price);
+      g.rows.push(it);
       if (it.thickness === null) g.sheet = false;
       else if (g.thicknesses.indexOf(it.thickness) < 0) g.thicknesses.push(it.thickness);
     });
@@ -230,18 +261,37 @@
     return out;
   }
 
+  /**
+   * 줄 → 묶음 [{ key, base, category, product, spec, n, min, max, thicknesses[], sheet, kind }] (가격표 차례).
+   *   묶음은 제품군마다 하나다. 다만 판재(몸통 · 우라 · 도어로 짐작한) 제품군 안에서 같은 색에 값이 둘 이상이면
+   *   (같은 색이 사양마다 값이 다른 가격표) 그 제품군은 사양마다 나눈다 — 한 묶음으로는 쓰는 사양을 고를 수 없다.
+   */
+  function groupsOf(items) {
+    var split = {};
+    collect(items, null).forEach(function (g) {
+      if (BOARD_KINDS.indexOf(g.kind) < 0) return;
+      var rows = g.rows.map(function (it) {
+        return kindRow(it, g.kind);
+      });
+      if (conflictsOf(rows).length) split[g.key] = true;
+    });
+    var out = collect(items, split);
+    out.forEach(function (g) {
+      delete g.rows;
+    });
+    return out;
+  }
+
   /** 묶음의 용도를 줄에 입힌다 — 올릴 줄 [{ kind, … }] */
   function withKinds(items, groups) {
     var kindOf = {};
+    var split = {};
     (groups || []).forEach(function (g) {
       kindOf[g.key] = KINDS.indexOf(g.kind) >= 0 ? g.kind : 'other';
+      if (g.base && g.base !== g.key) split[g.base] = true;
     });
     return (items || []).map(function (it) {
-      var out = { kind: kindOf[groupKeyOf(it)] || 'other' };
-      Object.keys(it).forEach(function (k) {
-        out[k] = it[k];
-      });
-      return out;
+      return kindRow(it, kindOf[itemKeyOf(it, split)] || 'other');
     });
   }
 
@@ -254,7 +304,7 @@
     var by = {};
     var order = [];
     (items || []).forEach(function (it) {
-      if (['body', 'back', 'door'].indexOf(it.kind) < 0) return;
+      if (BOARD_KINDS.indexOf(it.kind) < 0) return;
       var color = it.kind === 'door' ? it.code : [it.color_name, it.code].filter(Boolean).join(' ');
       if (!color) return;
       var t = it.kind === 'back' ? null : it.thickness;
@@ -362,7 +412,9 @@
     try {
       var wb = X.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
       (wb.SheetNames || []).some(function (name) {
-        var r = itemsOfRows(X.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' }));
+        var r = itemsOfRows(
+          X.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' })
+        );
         if (r && r.items.length) got = r;
         return !!got;
       });
@@ -379,7 +431,12 @@
       draw();
       return;
     }
-    P.draft = { fileName: clean(file.name).slice(0, 120), items: got.items, skipped: got.skipped, groups: groupsOf(got.items) };
+    P.draft = {
+      fileName: clean(file.name).slice(0, 120),
+      items: got.items,
+      skipped: got.skipped,
+      groups: groupsOf(got.items),
+    };
     P.msg = '';
     draw();
   }
@@ -398,7 +455,11 @@
     P.msg = TEXT.working;
     draw();
     var items = withKinds(P.draft.items, P.draft.groups);
-    var r = await call('POST', '/planner/price-lists', { supplier: supplier, source_name: P.draft.fileName, items: items });
+    var r = await call('POST', '/planner/price-lists', {
+      supplier: supplier,
+      source_name: P.draft.fileName,
+      items: items,
+    });
     P.busy = false;
     if (!r.ok) {
       P.msg = errText(r);
@@ -415,7 +476,11 @@
 
   async function find() {
     if (P.busy) return;
-    var qs = '?limit=' + FIND_LIMIT + (P.find.q ? '&q=' + encodeURIComponent(P.find.q) : '') + (P.find.kind ? '&kind=' + P.find.kind : '');
+    var qs =
+      '?limit=' +
+      FIND_LIMIT +
+      (P.find.q ? '&q=' + encodeURIComponent(P.find.q) : '') +
+      (P.find.kind ? '&kind=' + P.find.kind : '');
     var r = await call('GET', '/planner/price-lists/items' + qs);
     if (!r.ok) {
       P.msg = errText(r);
@@ -479,6 +544,11 @@
       '</span><input id="pl-file" type="file" accept=".xlsx,.xls,.csv"></label></div>'
     );
   }
+  /** 묶음 이름 — 제품군, 사양마다 나눈 묶음은 「제품군 · 사양」 */
+  function groupName(g) {
+    var spec = g.spec && g.spec !== '-' ? g.spec : '';
+    return g.product + (spec ? ' · ' + spec : '');
+  }
   function draftHtml() {
     var d = P.draft;
     if (!d) return '';
@@ -486,12 +556,20 @@
     var warn = bad.length
       ? '<p class="pl-warn" data-pl="conflicts">같은 색에 값이 둘인 색이 ' +
         bad.length +
-        '개 있습니다 — 플래너가 그 색의 값을 고르지 못합니다. 한쪽 제품군을 「그 밖」으로 바꿔 주세요. 예: ' +
+        '개 있습니다 — 플래너가 그 색의 값을 고르지 못합니다. 쓰지 않는 쪽 묶음을 「그 밖」으로 바꿔 주세요. 예: ' +
         esc(
           bad
             .slice(0, 3)
             .map(function (c) {
-              return KIND_LABELS[c.kind] + ' ' + c.color + (c.thickness === null ? '' : ' ' + c.thickness + 'T') + ' (' + c.prices.map(won).join(' · ') + ')';
+              return (
+                KIND_LABELS[c.kind] +
+                ' ' +
+                c.color +
+                (c.thickness === null ? '' : ' ' + c.thickness + 'T') +
+                ' (' +
+                c.prices.map(won).join(' · ') +
+                ')'
+              );
             })
             .join(', ')
         ) +
@@ -499,7 +577,13 @@
       : '';
     return (
       '<div data-pl="draft"><p class="mk-note">' +
-      esc(d.fileName + ' — ' + d.items.length + '줄' + (d.skipped ? ' (단가나 이름을 읽지 못한 ' + d.skipped + '줄은 뺍니다)' : '')) +
+      esc(
+        d.fileName +
+          ' — ' +
+          d.items.length +
+          '줄' +
+          (d.skipped ? ' (단가나 이름을 읽지 못한 ' + d.skipped + '줄은 뺍니다)' : '')
+      ) +
       '</p><p class="mk-note">' +
       esc(TEXT.guess) +
       '</p>' +
@@ -511,7 +595,7 @@
             '<tr><td>' +
             esc(g.category) +
             '</td><th scope="row">' +
-            esc(g.product) +
+            esc(groupName(g)) +
             '</th><td class="n">' +
             g.n +
             '</td><td class="n">' +
@@ -519,10 +603,18 @@
             '</td><td><select data-pl-kind="' +
             i +
             '" aria-label="' +
-            esc(g.product + ' 용도') +
+            esc(groupName(g) + ' 용도') +
             '">' +
             KINDS.map(function (k) {
-              return '<option value="' + k + '"' + (k === g.kind ? ' selected' : '') + '>' + KIND_LABELS[k] + '</option>';
+              return (
+                '<option value="' +
+                k +
+                '"' +
+                (k === g.kind ? ' selected' : '') +
+                '>' +
+                KIND_LABELS[k] +
+                '</option>'
+              );
             }).join('') +
             '</select></td></tr>'
           );
@@ -546,7 +638,11 @@
     if (rows) {
       result = rows.length
         ? '<p class="mk-note" data-pl="found">' +
-          esc(P.find.total + '줄' + (P.find.total > rows.length ? ' 가운데 앞 ' + rows.length + '줄' : '')) +
+          esc(
+            P.find.total +
+              '줄' +
+              (P.find.total > rows.length ? ' 가운데 앞 ' + rows.length + '줄' : '')
+          ) +
           '</p><div class="pl-scroll"><table class="pl-table" data-pl="items"><thead><tr><th scope="col">용도</th><th scope="col">색상명</th><th scope="col">코드</th><th scope="col">제품군 · 사양</th><th scope="col">규격</th><th scope="col" class="n">단가 (원)</th></tr></thead><tbody>' +
           rows
             .map(function (it) {
@@ -577,7 +673,15 @@
       esc(P.find.q) +
       '"></label><label class="mk-input ps-field" for="pl-fkind"><span>용도</span><select id="pl-fkind"><option value="">전체</option>' +
       KINDS.map(function (k) {
-        return '<option value="' + k + '"' + (k === P.find.kind ? ' selected' : '') + '>' + KIND_LABELS[k] + '</option>';
+        return (
+          '<option value="' +
+          k +
+          '"' +
+          (k === P.find.kind ? ' selected' : '') +
+          '>' +
+          KIND_LABELS[k] +
+          '</option>'
+        );
       }).join('') +
       '</select></label></div><div class="pl-bar"><button type="button" class="mk-btn" data-act="pl-find">' +
       esc(TEXT.find) +
@@ -592,8 +696,14 @@
       el.innerHTML = '';
       return;
     }
-    var keep = document.activeElement && el.contains(document.activeElement) ? document.activeElement : null;
-    var keepSel = keep && keep.id ? '#' + keep.id : keep && keep.getAttribute('data-pl-kind') !== null ? '[data-pl-kind="' + keep.getAttribute('data-pl-kind') + '"]' : '';
+    var keep =
+      document.activeElement && el.contains(document.activeElement) ? document.activeElement : null;
+    var keepSel =
+      keep && keep.id
+        ? '#' + keep.id
+        : keep && keep.getAttribute('data-pl-kind') !== null
+          ? '[data-pl-kind="' + keep.getAttribute('data-pl-kind') + '"]'
+          : '';
     el.innerHTML =
       '<div class="od-sec ps-sec pl" data-pl="box"' +
       (P.busy ? ' aria-busy="true"' : '') +
@@ -630,7 +740,13 @@
       return;
     }
     var i = t.getAttribute && t.getAttribute('data-pl-kind');
-    if (i !== null && i !== undefined && P.draft && P.draft.groups[Number(i)] && KINDS.indexOf(t.value) >= 0) {
+    if (
+      i !== null &&
+      i !== undefined &&
+      P.draft &&
+      P.draft.groups[Number(i)] &&
+      KINDS.indexOf(t.value) >= 0
+    ) {
       P.draft.groups[Number(i)].kind = t.value;
       draw();
     }
