@@ -369,6 +369,76 @@ test('인쇄 — 철거 지시서 ?job= 이면 그 작업 줄의 메모가 같�
   assert.ok([403, 404].includes((await call(fake, 't_other', `/documents/${DOC(1)}/print?job=${id('0c', 1)}`)).status));
 });
 
+// ── 인쇄 화면의 현장 사진 (철거 지시서) ──────────────────────────
+
+test('인쇄 — 철거 지시서에 그 설계의 현장 사진이 실린다 (내 팩토리 플래너 설계의 현장사진만 · 지운 것 빼고), 납품 지시서에는 없다', async () => {
+  const DRAFT = 'kitchen-ab12';
+  const t = tables();
+  Object.assign(t.designs.find((d) => d.id === D(1)), { source: 'planner-lite', source_ref: DRAFT });
+  const photo = (company, file, extra = {}) => ({ company_id: company, draft_id: DRAFT, file, mime: 'image/jpeg', bytes: 1000, width: 4000, height: 3000, deleted_at: null, ...extra });
+  t.planner_drafts = [
+    {
+      company_id: A, id: DRAFT, name: '김고객 주방', discarded_at: null,
+      model: {
+        id: DRAFT, walls: [{ id: 'w1' }],
+        photos: [
+          { id: 'p1', kind: 'site', file: 'photo-aaaa-0001.jpg', note: '현관 비밀번호 같은 글' },
+          { id: 'p2', kind: 'ai', file: 'photo-aaaa-0002.jpg' },
+          { id: 'p3', kind: 'site', file: 'photo-aaaa-0003.jpg' },
+          { id: 'p4', kind: 'complete', file: 'photo-aaaa-0004.jpg' },
+          { id: 'p5', kind: 'site', file: 'photo-aaaa-0005.jpg' },
+        ],
+      },
+    },
+    // 같은 id 의 다른 팩토리 플래너 설계 — 섞이지 않는다
+    { company_id: B, id: DRAFT, name: '남의 설계', discarded_at: null, model: { photos: [{ id: 'x1', kind: 'site', file: 'photo-bbbb-0001.jpg' }] } },
+  ];
+  t.planner_draft_photos = [
+    photo(A, 'photo-aaaa-0001.jpg'), photo(A, 'photo-aaaa-0002.jpg'), photo(A, 'photo-aaaa-0004.jpg'), photo(A, 'photo-aaaa-0005.jpg'),
+    photo(A, 'photo-aaaa-0003.jpg', { deleted_at: iso('2026-11-17T10:00:00') }),
+    photo(B, 'photo-bbbb-0001.jpg'),
+  ];
+  t.design_documents.push(docRow(1, 'demolition_order'), docRow(2, 'delivery_order'));
+  const signs = [];
+  const fake = createFake({
+    tables: t, users: USERS, nowMs: AT,
+    external: async (url, init) => {
+      if (url.origin !== SB || url.pathname !== '/storage/v1/object/sign/planner-photos') return null;
+      const body = JSON.parse(init.body);
+      signs.push(body);
+      return new Response(JSON.stringify(body.paths.map((p) => ({ path: p, signedURL: `/object/sign/planner-photos/${p}?token=T` }))), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  const imgs = (html) => [...html.matchAll(/<img src="([^"]+)" alt="현장 사진 \d+">/g)].map((m) => m[1]);
+  const urlOf = (file) => `${SB}/storage/v1/object/sign/planner-photos/${A}/${DRAFT}/${file}?token=T`;
+
+  const res = await call(fake, 't_owner', `/documents/${DOC(1)}/print`);
+  assert.equal(res.status, 200);
+  assert.deepEqual(imgs(res.text), [urlOf('photo-aaaa-0001.jpg'), urlOf('photo-aaaa-0005.jpg')], '현장사진만 · 지운 것 빼고 · 올린 차례');
+  assert.deepEqual(signs, [{ expiresIn: 3600, paths: [`${A}/${DRAFT}/photo-aaaa-0001.jpg`, `${A}/${DRAFT}/photo-aaaa-0005.jpg`] }]);
+  assert.match(strip(res.text), /현장 사진 2장 — 다음 장/);
+  assert.doesNotMatch(res.text, /현관 비밀번호 같은 글|photo-bbbb/, '사진 글 · 다른 팩토리 사진은 없다');
+  // 플래너 설계는 사진 목록 칸만 읽는다
+  assert.ok(fake.calls.rest.some((c) => c.path === 'planner_drafts' && /select=id,photos:model->photos/.test(c.query)));
+  // 직원도 본다 (설계를 볼 수 있는 사람) · 다른 팩토리는 문서부터 못 연다
+  assert.equal(imgs((await call(fake, 't_staff', `/documents/${DOC(1)}/print`)).text).length, 2);
+  const before = signs.length;
+  assert.ok([403, 404].includes((await call(fake, 't_other', `/documents/${DOC(1)}/print`)).status));
+  // 납품 지시서 — 사진을 읽지 않는다
+  const dv = await call(fake, 't_owner', `/documents/${DOC(2)}/print`);
+  assert.equal(dv.status, 200);
+  assert.deepEqual(imgs(dv.text), []);
+  assert.doesNotMatch(strip(dv.text), /현장 사진/);
+  assert.equal(signs.length, before, '다른 팩토리 · 납품 지시서는 서명 주소를 만들지 않는다');
+
+  // 플래너 설계를 버렸다 → 사진 없이 「없음」
+  fake.db.planner_drafts.find((d) => d.company_id === A).discarded_at = iso('2026-11-17T11:00:00');
+  const gone = await call(fake, 't_owner', `/documents/${DOC(1)}/print`);
+  assert.deepEqual(imgs(gone.text), []);
+  assert.match(strip(gone.text), /현장 사진 없음/);
+  assert.equal(signs.length, before);
+});
+
 // ── 처음 붙이는 프로젝트 ──────────────────────────────────────────
 
 test('프로젝트 잇기 — 프로젝트 없이 수주까지 간 설계도 처음 한 번은 붙는다 (수주도 같은 프로젝트로), 그 뒤로는 못 바꾼다', async () => {

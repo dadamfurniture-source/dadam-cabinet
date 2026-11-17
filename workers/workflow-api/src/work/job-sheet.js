@@ -15,10 +15,17 @@
  *
  * 고객 정보: 이 응답에는 없다 (문서 번호 · 판 · 수뿐). 다른 팩토리의 설계 · 작업은 404.
  * DB 0068 적용 전(work_jobs.sheet_memo 없음)이면 메모 쓰기는 409 db_pending, 읽기는 빈 값.
+ *
+ * 철거 지시서의 현장 사진 (sitePhotosOf — 2026-11-17 사장님 「철거 = … + 현장 사진」 · 처리방침 「5. 제3자 제공」 시공 작업자 줄):
+ *   팩토리가 그 설계에 올려 둔 현장사진(간편 플래너 「현장사진」 칸)을 지시서를 열 때 읽어 넣는다 — 문서에 고정하지 않는다.
+ *   사무실(그 설계를 보는 팩토리 구성원)에게는 늘, 작업자에게는 주소와 같은 때(수락 ~ 끝나고 7일 — reveal.js siteOpenFor)에만.
  */
 
 import { ConflictError, NotFoundError, ValidationError, assertDesignAccess, selectMany, selectOne } from '../supabase.js';
 import { isMissingRelation } from '../work-order-data.js';
+import { createSignedUrls } from '../storage.js';
+import { DRAFT_ID_RE, PHOTO_FILE_RE, PHOTOS_BUCKET } from '../planner-drafts.js';
+import { PLANNER_SOURCE } from '../planner-handoff.js';
 import { checkListOfDoc, itemsFor, CHECK_ROLE_LABEL } from './check-items.js';
 import { DOC_TYPE_OF_ROLE, PACKS_OF_ROLE, ROLE_OF_JOB_KIND, checkRows, roleChecks } from './check-state.js';
 import { workersCompanyOf } from './company.js';
@@ -163,6 +170,54 @@ export async function memoForPrint(env, { doc, jobId }) {
   const k = job ? sheetKindOf(job.kind) : null;
   if (!k || job.design_id !== doc.design_id || k.doc_type !== doc.doc_type) return '';
   return sheetMemoOf(job) || '';
+}
+
+/** 현장 사진을 싣는 문서 — 철거 지시서뿐 (처리방침에 적은 범위) */
+export const SITE_PHOTO_DOC_TYPE = 'demolition_order';
+/** 플래너 사진의 종류 — 현장사진 (dadam-planner-lite js/model.js PHOTO_KINDS) */
+const SITE_PHOTO_KIND = 'site';
+const PHOTO_ROW_LIMIT = '500';
+
+/**
+ * 그 설계의 현장 사진 — 1시간 서명 주소 목록 (플래너에 올린 차례).
+ *   앱 설계(designs.source 'planner-lite' · source_ref = 플래너 설계 id) → 같은 팩토리의 플래너 설계(planner_drafts — 버린 것 제외)
+ *   → model.photos 가운데 kind 'site' 이고 지우지 않은 것(planner_draft_photos.deleted_at 없음) → 비공개 버킷 planner-photos 서명 주소.
+ *   PC 플래너로 보낸 설계는 사진이 그 PC 에 있다 → 빈 목록. 사진 글(note)은 싣지 않는다 — 사진만.
+ *   못 읽으면 빈 목록 (지시서는 사진 없이 그대로 열린다 — resolvePrintAssets 와 같다).
+ * 누구에게 줄지는 부르는 쪽이 정한다 (사무실 인쇄 · 현장이 열린 철거 작업자).
+ * @param {object} env
+ * @param {{design?:object|null, designId?:string|null, companyId?:string|null}} args  design = designs 행 (company_id · source · source_ref).
+ *   companyId 를 주면 그 팩토리의 설계일 때만 (작업자 보기 — 작업을 낸 팩토리).
+ * @returns {Promise<{url:string, w:number|null, h:number|null}[]>}
+ */
+export async function sitePhotosOf(env, { design = null, designId = null, companyId = null } = {}) {
+  try {
+    const d = design || (designId ? await selectOne(env, 'designs', { id: `eq.${designId}`, select: 'id,company_id,source,source_ref' }) : null);
+    if (!d || !d.company_id || d.source !== PLANNER_SOURCE || !DRAFT_ID_RE.test(String(d.source_ref || ''))) return [];
+    if (companyId && d.company_id !== companyId) return [];
+    const draft = await selectOne(env, 'planner_drafts', {
+      company_id: `eq.${d.company_id}`, id: `eq.${d.source_ref}`, discarded_at: 'is.null', select: 'id,photos:model->photos',
+    });
+    const files = [];
+    for (const p of draft && Array.isArray(draft.photos) ? draft.photos : []) {
+      if (p && p.kind === SITE_PHOTO_KIND && PHOTO_FILE_RE.test(String(p.file || '')) && !files.includes(p.file)) files.push(p.file);
+    }
+    if (!files.length) return [];
+    const rows = (await selectMany(env, 'planner_draft_photos', {
+      company_id: `eq.${d.company_id}`, draft_id: `eq.${draft.id}`, deleted_at: 'is.null', select: 'file,width,height', limit: PHOTO_ROW_LIMIT,
+    })) || [];
+    const live = new Map(rows.map((r) => [r.file, r]));
+    const pathOf = (file) => `${d.company_id}/${draft.id}/${file}`;
+    const kept = files.filter((f) => live.has(f));
+    if (!kept.length) return [];
+    const urls = await createSignedUrls(env, PHOTOS_BUCKET, kept.map(pathOf));
+    return kept
+      .map((f) => ({ url: urls.get(pathOf(f)) || '', w: live.get(f).width || null, h: live.get(f).height || null }))
+      .filter((x) => x.url);
+  } catch (e) {
+    console.warn('[job-sheet] 현장 사진을 읽지 못했습니다 — 사진 없이 엽니다:', e && e.message);
+    return [];
+  }
 }
 
 /** GET /designs/:designId/work-sheets — 작업 종류마다 그 설계의 지시서 상태 */
