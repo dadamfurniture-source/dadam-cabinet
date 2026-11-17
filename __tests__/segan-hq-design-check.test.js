@@ -739,6 +739,28 @@ describe('여러 업체 공통 줄 · 씨앗', () => {
     expect(body().querySelector('[data-act="rebuild"]').disabled).toBe(false);
   });
 
+  test('카드 쓰임을 출처별로 — 내 설계 · 여러 업체 · 본사 추천 (옛 서버 답이면 지금 그대로)', async () => {
+    await load({
+      summary: () =>
+        ok({
+          ...SUMMARY,
+          suggest: {
+            ...SUMMARY.suggest,
+            by_src: { own: { shown: 9, accepted: 2 }, pop: { shown: 4, accepted: 0 }, seed: null },
+          },
+        }),
+    });
+    expect(facts(2)).toEqual([
+      '보임6',
+      '누름2',
+      '지나침3',
+      '누름 — 내 설계2 보인 카드 9장',
+      '누름 — 여러 업체0 보인 카드 4장',
+      '누름 — 본사 추천0 보인 카드 0장',
+    ]);
+    expect(window.SeganHqDesignCheck.srcRows(SUMMARY.suggest)).toEqual([]);
+  });
+
   test('다시 묶기가 안 되면 알린다', async () => {
     await load(withPanel({ rebuild: () => fail(500, 'error') }));
     await click(body().querySelector('[data-act="rebuild"]'));
