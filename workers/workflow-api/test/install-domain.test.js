@@ -55,8 +55,8 @@ const SITE = {
   contact_phone: '010-0000-0000',
 };
 
-test('doc_type 3종이 등록돼 있다', () => {
-  assert.deepEqual(DOC_TYPES, ['customer_confirmation', 'work_order', 'installation_order']);
+test('doc_type 5종이 등록돼 있다 (철거 · 납품 지시서는 2026-11-17 — DB 0068)', () => {
+  assert.deepEqual(DOC_TYPES, ['customer_confirmation', 'work_order', 'installation_order', 'demolition_order', 'delivery_order']);
 });
 
 test('renderDocument 가 설치 지시서로 분기한다', () => {

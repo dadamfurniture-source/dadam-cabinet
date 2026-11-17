@@ -35,10 +35,9 @@ test('v1 — 사장님 확정: 엣지 항목은 재단 기사 목록 · 엣지 �
   assert.deepEqual(itemsFor(v1, 'install').filter((x) => x.paper === 'sign').map((x) => x.label), ['설치 담당', '검수', '고객 확인']);
 });
 
-test('v2 — 사장님 확정 (2026-11-06 주문 끝 완료를 따로 둠): v1 + 주문 끝 항목 둘 · 새 문서는 v2', () => {
+test('v2 — 사장님 확정 (2026-11-06 주문 끝 완료를 따로 둠): v1 + 주문 끝 항목 둘', () => {
   const v1 = frozenCheckList('v1');
   const v2 = frozenCheckList('v2');
-  assert.equal(CHECK_LIST_VERSION, 'v2', '새 문서는 v2');
   assert.equal(v2.block, 'must');
   const fin = (l, r) => itemsFor(l, r).filter((x) => x.finish).map((x) => [x.key, x.scope, x.at, x.must]);
   assert.deepEqual(fin(v2, 'cut'), [['cut-order-done', 'order', 'end', false]]);
@@ -46,6 +45,23 @@ test('v2 — 사장님 확정 (2026-11-06 주문 끝 완료를 따로 둠): v1 +
   assert.deepEqual(fin(v2, 'install'), [], '설치는 작업 완료 보고가 주문 끝');
   assert.deepEqual(fin(v1, 'cut'), [], 'v1 문서에는 주문 끝 항목이 없다');
   ['cut', 'edge', 'assembly', 'install'].forEach((r) => assert.deepEqual(itemsFor(v2, r).filter((x) => !x.finish), itemsFor(v1, r), `v2 의 ${r} 나머지 = v1`));
+});
+
+test('v3 — 사장님 확정 (2026-11-17 철거 · 납품 지시서): v2 + 철거 · 납품 역할 · 새 문서는 v3', () => {
+  const v2 = frozenCheckList('v2');
+  const v3 = frozenCheckList('v3');
+  assert.equal(CHECK_LIST_VERSION, 'v3', '새 문서는 v3');
+  assert.equal(v3.block, 'must');
+  // 재단 · 엣지 · 조립 · 설치는 v2 그대로
+  ['cut', 'edge', 'assembly', 'install'].forEach((r) => assert.deepEqual(itemsFor(v3, r), itemsFor(v2, r), `v3 의 ${r} = v2`));
+  // 철거 — 철거 뒤 사진 확인 · 납품 — 수량 + 내린 뒤 사진 (둘 다 필수, 사진 항목은 사진 필수)
+  assert.deepEqual(itemsFor(v3, 'demolition').map((x) => [x.key, x.label, x.scope, x.must, x.photo]), [['demo-order-photo', '철거 후 사진', 'order', true, 'need']]);
+  assert.deepEqual(itemsFor(v3, 'delivery').map((x) => [x.key, x.label, x.scope, x.must, x.photo]), [['dlv-order-count', '납품 수량 확인', 'order', true, 'none'], ['dlv-order-photo', '하차 후 사진', 'order', true, 'need']]);
+  // 앞 판에는 두 역할의 항목이 없고, 문서에 고정하는 모양에도 그 칸이 생기지 않는다 (옛 문서 모양 그대로)
+  assert.deepEqual(itemsFor(v2, 'demolition').concat(itemsFor(v2, 'delivery')), []);
+  assert.deepEqual(Object.keys(v2.roles), ['cut', 'edge', 'assembly', 'install']);
+  assert.deepEqual(Object.keys(v3.roles), [...CHECK_ROLES]);
+  assert.deepEqual([...CHECK_ROLES], ['cut', 'edge', 'assembly', 'install', 'demolition', 'delivery']);
 });
 
 test('v1 조건 — [확인 필요]가 있을 때만 · 콘센트를 넣었을 때만 (동결본)', () => {

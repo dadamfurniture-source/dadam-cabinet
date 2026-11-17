@@ -6,14 +6,22 @@
              못 읽으면(403 not_platform · 404 · 오류 · 끊김) 칸째 감춘다 — 메뉴 줄도 없다.
              DB 준비 전(409 db_pending)이면 칸은 열고 「준비 중」 한 줄.
    서버      workflow-api (본인 토큰 · 응답은 { success, data } — src/hq-design-check.js)
-               GET  /hq/design-check                       한눈에 { companies, funnel, pc, suggest, issues, checks, ingest }
+               GET  /hq/design-check                       한눈에 { companies, funnel, pc, suggest, panel, issues, checks, ingest }
+                                                           (suggest.by_src = 카드 출처마다 보인 카드 수 · 누른 카드 수)
                GET  /hq/design-check/reviews?state=&only=  검토 줄 { items }
                POST /hq/design-check/reviews               { group_key, grade, reasons } 검토
                POST /hq/design-check/run                   지금 점검 { ok, steps }
+               POST /hq/planner-panel/rebuild              여러 업체 공통 줄 다시 묶기 { lines, seeds, companies, designs } (src/planner-panel.js)
+               GET  /hq/planner-seeds                      씨앗으로 고른 설계 { seeds: [설계 id] }
+               PUT|DELETE /hq/planner-seeds/:id            씨앗 표시 켜기 · 끄기 { seed, draft_id }
    화면      점검(마지막 점검 걸음 · 「지금 점검」 · 마지막 수집) → 가는 길의 수(앱 플래너 · PC 플래너) →
+             여러 업체 공통 줄(간편 플래너 「자주 쓴 구성」 카드의 다른 업체 재료 — 줄 수 · 씨앗 줄 수 · 묶은 때 · 「다시 묶기」.
+             한눈에 답에 panel 이 없으면(옛 서버) 안 그리고, null 이면(DB 0069 전) 「준비 중」) →
              팩토리별 → 지난 7일 저장 실패 → 검토 줄(기다림 · 검토함 탭, 「시공 완료만」)
              검토 줄 한 장 = 팩토리 · 출처 · 설계 구성(공간마다 줄 · 모듈 폭) · 장소(시 · 군 · 구) · 사진 · 등급 단추.
              양질은 누르면 바로 저장, 보통 · 제외는 까닭을 고른 뒤 저장한다.
+             다담 공장의 앱 플래너 설계에는 「본사 추천 씨앗」 단추 — 켜면 그 설계의 구성이 모든 팩토리의 카드에
+             「본사 추천」으로 나간다 (다시 묶은 뒤부터). 씨앗 목록을 못 읽으면(DB 0069 전) 단추가 없다.
              설계 이름은 이 화면에만 보인다 (학습 자료에는 들어가지 않는다). 사진 주소는 1시간짜리다 — 다시 열면 새로 받는다.
    ============================================================ */
 /* global window, document, fetch */
@@ -45,6 +53,12 @@
   var LINE_NAME = { floor: '바닥 줄', upper: '상부 줄', stack: '하부장 위', under: '위장 아래' };
   var PHOTOS_NAME = { always: '늘 제공', on: '사진 제공 켬', off: '사진 제공 끔' };
   var STAGE_NAME = { save: '저장', learn: '묶음 보내기', photo: '사진', open: '열기' };
+  // 「자주 쓴 구성」 카드의 출처 — 플래너 카드의 작은 글과 같은 이름 (섞인 카드는 서버가 「여러 업체」 쪽으로 센다)
+  var CARD_SRC = [
+    ['own', '내 설계'],
+    ['pop', '여러 업체'],
+    ['seed', '본사 추천'],
+  ];
 
   var TEXT = {
     lead: '앱 플래너와 PC 플래너의 설계가 학습 자료로 모이는 길을 보고, 모인 설계를 검토합니다.',
@@ -64,6 +78,14 @@
     saved: '검토를 저장했습니다.',
     saveFail: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
     noName: '이름 없는 설계',
+    rebuild: '다시 묶기',
+    rebuilding: '묶는 중',
+    rebuildFail: '다시 묶지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    seed: '본사 추천 씨앗',
+    seedNote:
+      '씨앗으로 고른 다담 공장 설계의 구성은 모든 팩토리의 「자주 쓴 구성」 카드에 「본사 추천」으로 나갑니다.',
+    seedSaved: '씨앗을 바꿨습니다. 「다시 묶기」를 누르거나 매일 아침 점검 때 카드에 반영됩니다.',
+    seedFail: '씨앗을 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요.',
     pcName: 'PC 플래너에서 올린 설계',
   };
 
@@ -77,7 +99,8 @@
     only: false, // 시공 완료만
     items: null, // 검토 줄 (null = 읽는 중)
     pick: {}, // group_key → { grade, reasons[] } (보통 · 제외를 누르고 까닭을 고르는 중)
-    busy: '', // 'run' | group_key (저장 중)
+    busy: '', // 'run' | 'rebuild' | 'seed:' + group_key | group_key (저장 중)
+    seeds: null, // 씨앗으로 고른 설계 id 들 (null = 못 읽음 · DB 0069 전 — 단추를 안 그린다)
     note: '', // 화면 아래 한 줄
   };
 
@@ -268,6 +291,16 @@
     );
   }
 
+  /** 카드 출처별 줄 — 「누름 — 내 설계 2 보인 카드 6장」. 옛 서버 답(by_src 없음)이면 빈 목록 */
+  function srcRows(sg) {
+    var by = sg && sg.by_src;
+    if (!by || typeof by !== 'object') return [];
+    return CARD_SRC.map(function (c) {
+      var v = by[c[0]] || {};
+      return ['누름 — ' + c[1], num(v.accepted), '보인 카드 ' + num(v.shown) + '장'];
+    });
+  }
+
   function flowHtml() {
     var s = C.sum || {};
     var pc = s.pc || {};
@@ -286,12 +319,68 @@
         ? '<h3 class="me-pt-sub">자주 쓴 구성 카드 — 지난 ' +
           num(sg.days) +
           '일</h3>' +
-          factsHtml([
-            ['보임', num(sg.shown), ''],
-            ['누름', num(sg.accepted), ''],
-            ['지나침', num(sg.skipped), ''],
-          ])
+          factsHtml(
+            [
+              ['보임', num(sg.shown), ''],
+              ['누름', num(sg.accepted), ''],
+              ['지나침', num(sg.skipped), ''],
+            ].concat(srcRows(sg))
+          )
         : '')
+    );
+  }
+
+  /** 「다시 묶기」 답 → 한 줄 */
+  function rebuildLine(d) {
+    return (
+      '다시 묶었습니다 — 설계 ' +
+      num(d.designs) +
+      '개 · 팩토리 ' +
+      num(d.companies) +
+      '곳에서 공통 줄 ' +
+      num(d.lines) +
+      '개 · 씨앗 줄 ' +
+      num(d.seeds) +
+      '개'
+    );
+  }
+
+  /** 간편 플래너 「자주 쓴 구성」 카드의 여러 업체 공통 줄 (DB 0069) — 수와 묶은 때 · 「다시 묶기」. 옛 서버 답(panel 없음)이면 안 그린다 */
+  function panelHtml() {
+    var s = C.sum || {};
+    if (s.panel === undefined) return '';
+    var head = '<h3 class="me-pt-sub">여러 업체 공통 줄 — 자주 쓴 구성 카드</h3>';
+    var p = s.panel;
+    if (!p || typeof p !== 'object')
+      return head + '<p class="me-empty">' + esc(TEXT.pending) + '</p>';
+    return (
+      head +
+      factsHtml([
+        ['공통 줄', num(p.lines), '3곳 이상'],
+        ['씨앗 줄', num(p.seeds), ''],
+        ['마지막 묶음', kstTime(p.built_at) || '없음', ''],
+      ]) +
+      '<p class="mk-note">' +
+      esc(TEXT.seedNote) +
+      '</p>' +
+      '<button type="button" class="mk-btn" data-act="rebuild"' +
+      (C.busy === 'rebuild' ? ' disabled' : '') +
+      '>' +
+      esc(C.busy === 'rebuild' ? TEXT.rebuilding : TEXT.rebuild) +
+      '</button>'
+    );
+  }
+
+  /** 씨앗으로 고를 수 있는 줄 — 다담 공장의 앱 플래너 설계 (서버가 다시 본다 — src/planner-panel.js putSeed) */
+  function seedable(it) {
+    return (
+      Array.isArray(C.seeds) &&
+      !!it &&
+      it.source === 'web' &&
+      it.company_kind === 'hq' &&
+      !it.gone &&
+      typeof it.draft_id === 'string' &&
+      it.draft_id !== ''
     );
   }
 
@@ -512,6 +601,15 @@
             ) +
             '</p>'
           : '') +
+      (seedable(it)
+        ? '<button type="button" class="mk-chip me-dc-seed" data-act="seed" aria-pressed="' +
+          (C.seeds.indexOf(it.draft_id) >= 0) +
+          '"' +
+          (C.busy === 'seed:' + key ? ' disabled' : '') +
+          '>' +
+          esc(TEXT.seed) +
+          '</button>'
+        : '') +
       '</li>'
     );
   }
@@ -572,6 +670,7 @@
       '</p>' +
       checkHtml() +
       flowHtml() +
+      panelHtml() +
       companiesHtml() +
       issuesHtml() +
       reviewsHtml() +
@@ -669,6 +768,60 @@
     }
   }
 
+  /** 씨앗 목록 — 못 읽으면(409 db_pending · 옛 서버 404 · 끊김) null: 단추를 안 그린다 */
+  async function loadSeeds() {
+    var r = await call('GET', '/hq/planner-seeds');
+    var d = dataOf(r.body);
+    C.seeds =
+      d && Array.isArray(d.seeds)
+        ? d.seeds.filter(function (x) {
+            return typeof x === 'string' && x !== '';
+          })
+        : null;
+  }
+
+  async function rebuildPanel() {
+    if (C.busy) return;
+    C.busy = 'rebuild';
+    C.note = '';
+    render();
+    var r = await call('POST', '/hq/planner-panel/rebuild');
+    C.busy = '';
+    var d = dataOf(r.body);
+    C.note = d ? rebuildLine(d) : TEXT.rebuildFail;
+    render();
+    if (d) {
+      await loadSummary();
+      render();
+    }
+  }
+
+  /** 씨앗 표시를 켜고 끈다 — 카드에는 다시 묶은 뒤부터 나간다 */
+  async function toggleSeed(key) {
+    if (C.busy || !Array.isArray(C.items)) return;
+    var it = C.items.filter(function (x) {
+      return x.group_key === key;
+    })[0];
+    if (!seedable(it)) return;
+    var id = it.draft_id;
+    var on = C.seeds.indexOf(id) < 0;
+    C.busy = 'seed:' + key;
+    C.note = '';
+    render();
+    var r = await call(on ? 'PUT' : 'DELETE', '/hq/planner-seeds/' + encodeURIComponent(id));
+    C.busy = '';
+    var d = dataOf(r.body);
+    if (!d || !Array.isArray(C.seeds)) C.note = TEXT.seedFail;
+    else {
+      C.seeds = C.seeds.filter(function (x) {
+        return x !== id;
+      });
+      if (d.seed === true) C.seeds.push(id);
+      C.note = TEXT.seedSaved;
+    }
+    render();
+  }
+
   async function saveReview(key, grade, reasons) {
     if (C.busy) return;
     C.busy = key;
@@ -704,6 +857,8 @@
     var card = up('[data-key]');
     var key = card ? card.getAttribute('data-key') : '';
     if (act && act.getAttribute('data-act') === 'run') return runCheck();
+    if (act && act.getAttribute('data-act') === 'rebuild') return rebuildPanel();
+    if (act && act.getAttribute('data-act') === 'seed') return key ? toggleSeed(key) : undefined;
     if (act && act.getAttribute('data-act') === 'only') {
       C.only = !C.only;
       C.pick = {};
@@ -757,12 +912,15 @@
     C.pick = {};
     C.busy = '';
     C.note = '';
+    C.seeds = null;
     if (!C.base || !session || !canSee(me)) return;
     try {
       var r = await loadSummary();
       var code = r.body && r.body.code;
       if (r.status === 409 && code === 'db_pending') C.pending = true;
       else if (!C.sum) return; // 403 not_platform · 404 · 오류 — 칸째 감춘다
+      // 씨앗 목록은 공통 줄 표가 있을 때만 (DB 0069 뒤) — 못 읽어도 화면은 연다
+      if (C.sum && C.sum.panel && typeof C.sum.panel === 'object') await loadSeeds();
       if (!box.getAttribute('data-bound')) {
         box.setAttribute('data-bound', '1');
         box.addEventListener('click', onClick);
@@ -786,6 +944,8 @@
     barWidths: barWidths,
     metaLine: metaLine,
     revLine: revLine,
+    srcRows: srcRows,
+    rebuildLine: rebuildLine,
     load: load,
   };
 })();

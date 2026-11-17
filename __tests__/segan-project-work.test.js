@@ -226,13 +226,16 @@ async function load(options = {}) {
     });
     const reply = (r) => {
       if (r instanceof Error) throw r;
-      return { ok: r.ok, status: r.status, json: async () => r.body };
+      return { ok: r.ok, status: r.status, json: async () => r.body, text: async () => r.html || '' };
     };
+    // 지시서 인쇄 화면 (HTML) — opts.print(url) 이 { ok, status, html | body }
+    if (url.startsWith(WORK + '/documents/')) return reply(opts.print ? await opts.print(url) : fail(404, 'not_found', 'x'));
     if (url === ACC + '/partner/me') return reply(opts.partner);
     if (
       /\/company\/projects\/[^/]+\/work/.test(url) ||
       /\/company\/schedules\/[^/]+\/workers(\/recruit)?$/.test(url) ||
       url.startsWith(WORK + '/company/work/assignments/') ||
+      url.startsWith(WORK + '/company/work/jobs/') ||
       url.startsWith(WORK + '/company/work/applications/')
     )
       return reply(await opts.work(method, body, url));
@@ -865,3 +868,223 @@ describe('납품 줄 · 모집', () => {
     expect(panel().querySelector('[data-wr="box"]')).toBeNull();
   });
 });
+
+describe('지시서 — 줄마다 그 작업의 지시서 · 철거 · 납품 줄의 사무실 메모 (2026-11-17)', () => {
+  const D1 = '77777777-7777-4777-8777-777777777771';
+  const D2 = '77777777-7777-4777-8777-777777777772';
+  const D3 = '77777777-7777-4777-8777-777777777773';
+  const S2 = '55555555-5555-4555-8555-555555555552';
+  const sheet = (docType, label, packs, extra = {}) => ({
+    doc_type: docType,
+    doc_label: label,
+    role: packs[0],
+    packs,
+    state: 'none',
+    document: null,
+    checks: null,
+    ...extra,
+  });
+  const issued = (id, no, checks = null) => ({
+    state: 'issued',
+    document: { id, doc_no: no, rev: 1, created_at: '2026-11-17T00:00:00Z' },
+    checks,
+  });
+  // 철거 = 낸 지시서 + 메모, 재단 = 낸 작업지시서(꾸러미 둘), 엣지 = 아직, 조립 = 설계 없음, 납품(일정) = 낸 지시서 · 작업 있음
+  const VIEW = (extra = {}) => ({
+    project: { id: P1, title: '시험 주방', status: 'active' },
+    can_manage: true,
+    can_assign: true,
+    rows: [
+      row('demolition', '철거', {
+        job: { id: 'j-1', status: 'open' },
+        sheet: sheet('demolition_order', '철거 지시서', ['demolition'], issued(D1, 'DD-20261117-AAAA-DM-r1', { done: 0, total: 1, must_left: 1 })),
+        sheet_memo: '기존 상부장은 <b>남깁니다</b>',
+      }),
+      row('cutting', '재단', {
+        sheet: sheet('work_order', '작업지시서', ['cut', 'labels'], issued(D2, 'DD-20261117-AAAA-WO-r2', { done: 3, total: 12, must_left: 7 })),
+      }),
+      row('edge', '엣지', { sheet: sheet('work_order', '작업지시서', ['cut', 'labels']) }),
+      row('assembly', '조립', { sheet: sheet('work_order', '작업지시서', ['assembly'], { state: 'no_design' }) }),
+      row('delivery', '납품', {
+        key: 'schedule:' + S2,
+        source: 'schedule',
+        schedule_id: S2,
+        schedule_status: 'scheduled',
+        at: '2026-11-21T05:00:00Z',
+        job: { id: 'j-6', status: 'filled' },
+        sheet: sheet('delivery_order', '납품 지시서', ['delivery'], issued(D3, 'DD-20261117-AAAA-DV-r1')),
+        sheet_memo: null,
+      }),
+      row('as', 'A/S', { key: 'schedule:' + S1, source: 'schedule', schedule_id: S1, schedule_status: 'scheduled', at: '2026-11-25T06:00:00Z', sheet: null }),
+    ],
+    ...extra,
+  });
+  const fakeWindow = () => {
+    const win = { html: '', closed: false, document: { open: jest.fn(), write: (h) => (win.html += h), close: jest.fn() }, close: () => (win.closed = true) };
+    return win;
+  };
+  const openPanel = async (options) => {
+    const calls = await load(options);
+    await press(workBtn(P1));
+    return calls;
+  };
+
+  test('순수 — 줄의 지시서 읽기 · 여는 주소 (작업지시서는 꾸러미, 철거 · 납품은 그 작업의 메모)', () => {
+    const M = mod();
+    const d = M.dataOf(VIEW());
+    const by = (kind) => d.rows.filter((r) => r.kind === kind)[0];
+    expect(by('demolition').sheet).toEqual({
+      type: 'demolition_order',
+      label: '철거 지시서',
+      state: 'issued',
+      doc: { id: D1, no: 'DD-20261117-AAAA-DM-r1', rev: 1 },
+      packs: ['demolition'],
+      checks: { done: 0, total: 1, left: 1 },
+    });
+    expect(by('demolition').memo).toBe('기존 상부장은 <b>남깁니다</b>');
+    expect(by('demolition').jobId).toBe('j-1');
+    expect(by('edge').sheet.doc).toBeNull();
+    expect(by('assembly').sheet.state).toBe('no_design');
+    expect(by('as').sheet).toBeNull();
+    expect(M.sheetOf({ doc_label: '작업지시서', state: 'weird' })).toBeNull();
+    expect(M.sheetOf({ doc_label: '작업지시서', state: 'issued', document: { id: 'x y' } }).doc).toBeNull();
+    // 여는 주소
+    expect(M.sheetPath(by('demolition'))).toBe('/documents/' + D1 + '/print?job=j-1');
+    expect(M.sheetPath(by('cutting'))).toBe('/documents/' + D2 + '/print?pack=cut');
+    expect(M.sheetPath(by('cutting'), 'labels')).toBe('/documents/' + D2 + '/print?pack=labels');
+    expect(M.sheetPath(by('cutting'), 'assembly')).toBe('/documents/' + D2 + '/print?pack=cut');
+    expect(M.sheetPath(by('delivery'))).toBe('/documents/' + D3 + '/print?job=j-6');
+    expect(M.sheetPath(by('edge'))).toBe('');
+    expect(M.MEMO_KINDS).toEqual(['demolition', 'delivery']);
+  });
+
+  test('표 — 지시서를 낸 줄에만 「지시서」 단추. 누르면 본인 토큰으로 받아 새 창에 쓴다', async () => {
+    const win = fakeWindow();
+    const print = jest.fn(async () => ({ ok: true, status: 200, html: '<h1>철거 지시서</h1>' }));
+    const calls = await openPanel({ work: () => ok(VIEW()), print });
+    jest.spyOn(window, 'open').mockReturnValue(win);
+    const has = (key) => !!panel().querySelector('[data-pjw-row="' + key + '"] [data-act="pw-sheet"]');
+    expect(['kind:demolition', 'kind:cutting', 'kind:edge', 'kind:assembly', 'schedule:' + S2, 'schedule:' + S1].map(has)).toEqual([true, true, false, false, true, false]);
+    await press(panel().querySelector('[data-pjw-row="kind:demolition"] [data-act="pw-sheet"]'));
+    expect(window.open).toHaveBeenCalledWith('', '_blank');
+    expect(win.html).toBe('<h1>철거 지시서</h1>');
+    const call = calls.fetch.filter((c) => c.url.startsWith(WORK + '/documents/'))[0];
+    expect(call.url).toBe(WORK + '/documents/' + D1 + '/print?job=j-1');
+    expect(call.auth).toBe('Bearer tok-1');
+    expect(call.cache).toBe('no-store');
+    // 재단 줄은 첫 꾸러미
+    await press(panel().querySelector('[data-pjw-row="kind:cutting"] [data-act="pw-sheet"]'));
+    expect(print).toHaveBeenLastCalledWith(WORK + '/documents/' + D2 + '/print?pack=cut');
+  });
+
+  test('펼친 줄 — 문서 번호 · 필수 확인 수 · 꾸러미마다 단추. 아직 안 냈으면 그 글, 설계가 없으면 그 글, A/S 는 칸이 없다', async () => {
+    const win = fakeWindow();
+    const print = jest.fn(async () => ({ ok: true, status: 200, html: 'x' }));
+    await openPanel({ work: () => ok(VIEW()), print });
+    jest.spyOn(window, 'open').mockReturnValue(win);
+    const box = () => panel().querySelector('[data-pjw="sheet"]');
+    await openRow('kind:cutting');
+    expect(text(box().querySelector('.pjw-sheet-doc'))).toBe('작업지시서 DD-20261117-AAAA-WO-r2 · 필수 확인 3 / 12');
+    expect([...box().querySelectorAll('[data-act="pw-sheet"]')].map(text)).toEqual(['재단 지시서', '부재 라벨']);
+    expect(box().querySelector('[name="pw-memo"]')).toBeNull(); // 메모는 철거 · 납품 줄만
+    await press(box().querySelector('[data-act="pw-sheet"][data-pack="labels"]'));
+    expect(print).toHaveBeenLastCalledWith(WORK + '/documents/' + D2 + '/print?pack=labels');
+    await press(act('pw-fold'));
+    await openRow('kind:edge');
+    expect(text(box())).toContain('작업지시서를 아직 내지 않았습니다. 간편 플래너 BOM 창 「작업지시서」에서 냅니다.');
+    expect(box().querySelector('[data-act="pw-sheet"]')).toBeNull();
+    await press(act('pw-fold'));
+    await openRow('kind:assembly');
+    expect(text(box())).toContain('이 프로젝트에 이은 설계가 없습니다.');
+    await press(act('pw-fold'));
+    await openRow('schedule:' + S1);
+    expect(box()).toBeNull();
+  });
+
+  test('메모 — 철거 줄은 종류로 PATCH, 납품 줄은 작업 id 로 PUT. 저장한 뒤에는 서버 값', async () => {
+    let memo = '기존 상부장은 <b>남깁니다</b>';
+    const work = jest.fn(async (method, body, url) => {
+      if (method === 'PATCH' && body && 'sheet_memo' in body) memo = body.sheet_memo;
+      if (method === 'PUT') return ok({ job_id: 'j-6', sheet_memo: body.memo || null });
+      const v = VIEW();
+      v.rows[0].sheet_memo = memo || null;
+      return ok(v);
+    });
+    const calls = await openPanel({ work });
+    await openRow('kind:demolition');
+    const area = () => panel().querySelector('[name="pw-memo"]');
+    expect(area().value).toBe('기존 상부장은 <b>남깁니다</b>');
+    expect(area().getAttribute('maxlength')).toBe('2000');
+    expect(panel().querySelector('.pjw-memo').innerHTML).not.toContain('<b>남깁니다</b>'); // 글자로만
+    area().value = '  오전 9시 전에 끝내 주세요  ';
+    await press(act('pw-memo'));
+    expect(workCalls(calls).filter((c) => c[0] !== 'GET').pop()).toEqual(['PATCH', '/company/projects/' + P1 + '/work/demolition', { sheet_memo: '오전 9시 전에 끝내 주세요' }]);
+    expect(msg()).toBe('메모를 저장했습니다.');
+    expect(area().value).toBe('오전 9시 전에 끝내 주세요');
+    // 적던 글은 다른 일을 해도 남는다 (같은 줄)
+    area().value = '적던 글';
+    await press(panel().querySelector('[data-act="pw-pick"]') || act('pw-date-clear') || act('pw-fold'));
+    // 납품 줄 — 작업 id 로
+    if (panel().querySelector('[data-act="pw-fold"]')) await press(act('pw-fold'));
+    await openRow('schedule:' + S2);
+    expect(area().value).toBe('');
+    area().value = '1층 로비에 내려 주세요';
+    await press(act('pw-memo'));
+    expect(workCalls(calls).filter((c) => c[0] !== 'GET').pop()).toEqual(['PUT', '/company/work/jobs/j-6/sheet-memo', { memo: '1층 로비에 내려 주세요' }]);
+    // 지우기 — 빈 글을 보낸다
+    area().value = '   ';
+    await press(act('pw-memo'));
+    expect(workCalls(calls).filter((c) => c[0] !== 'GET').pop()).toEqual(['PUT', '/company/work/jobs/j-6/sheet-memo', { memo: '' }]);
+  });
+
+  test('메모 — 납품 줄에 작업이 아직 없으면 적을 수 없다는 글, 서버가 막으면 그 글', async () => {
+    const noJob = VIEW();
+    noJob.rows[4].job = null;
+    const calls = await openPanel({ work: (method) => (method === 'GET' ? ok(noJob) : fail(409, 'db_pending', 'DB 0068 적용 전입니다 — 지시서 메모는 적용 뒤에 적을 수 있습니다')) });
+    await openRow('schedule:' + S2);
+    expect(panel().querySelector('[name="pw-memo"]')).toBeNull();
+    expect(text(panel().querySelector('[data-pjw="sheet"]'))).toContain('작업자를 배정한 뒤에 메모를 적을 수 있습니다.');
+    await press(act('pw-fold'));
+    await openRow('kind:demolition');
+    panel().querySelector('[name="pw-memo"]').value = '메모';
+    await press(act('pw-memo'));
+    expect(err()).toBe('DB 0068 적용 전입니다 — 지시서 메모는 적용 뒤에 적을 수 있습니다');
+    expect(workCalls(calls).filter((c) => c[0] === 'PATCH').length).toBe(1);
+  });
+
+  test('직원 — 지시서는 보고, 메모는 글로만 (적는 칸 · 단추 없음)', async () => {
+    const win = fakeWindow();
+    const print = jest.fn(async () => ({ ok: true, status: 200, html: 'x' }));
+    const calls = await openPanel({
+      partner: partnerOf('agent', 'staff'),
+      projects: () => PROJECTS(false),
+      work: () => ok(VIEW({ can_manage: false, can_assign: false })),
+      print,
+    });
+    jest.spyOn(window, 'open').mockReturnValue(win);
+    await openRow('kind:demolition');
+    const box = panel().querySelector('[data-pjw="sheet"]');
+    expect(box.querySelector('[name="pw-memo"]')).toBeNull();
+    expect(box.querySelector('[data-act="pw-memo"]')).toBeNull();
+    expect(text(box.querySelector('.pjw-memo-text'))).toBe('기존 상부장은 <b>남깁니다</b>');
+    await press(box.querySelector('[data-act="pw-sheet"]'));
+    expect(print).toHaveBeenCalledTimes(1);
+    expect(workCalls(calls).filter((c) => c[0] !== 'GET')).toEqual([]);
+  });
+
+  test('못 열면 — 새 창이 막혔으면 그 글, 서버가 거절하면 서버 글 (연 창은 닫는다)', async () => {
+    const print = jest.fn(async () => fail(404, 'not_found', '문서를 찾을 수 없습니다'));
+    await openPanel({ work: () => ok(VIEW()), print });
+    const open = jest.spyOn(window, 'open').mockReturnValue(null);
+    await press(panel().querySelector('[data-pjw-row="kind:demolition"] [data-act="pw-sheet"]'));
+    expect(err()).toBe('새 창이 막혀 지시서를 열지 못했습니다. 팝업을 허용해 주세요.');
+    expect(print).not.toHaveBeenCalled();
+    const win = fakeWindow();
+    open.mockReturnValue(win);
+    await press(panel().querySelector('[data-pjw-row="kind:demolition"] [data-act="pw-sheet"]'));
+    expect(err()).toBe('문서를 찾을 수 없습니다');
+    expect(win.closed).toBe(true);
+    expect(win.html).toBe('');
+  });
+});
+

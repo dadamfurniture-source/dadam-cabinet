@@ -159,9 +159,32 @@ export async function designCheckSummary(env, { user }) {
       selectMany(env, 'dataset_samples', { src_table: `eq.${PC_SRC_TABLE}`, image_url: 'not.is.null', select: 'sample_id', limit: ROW_LIMIT }),
       selectMany(env, COMPLETION_TABLE, { select: 'group_key', limit: ROW_LIMIT }),
       selectMany(env, 'dataset_exportable', { ...pcDesign, select: 'sample_id', limit: ROW_LIMIT }),
-      selectMany(env, 'planner_signals', { created_at: `gte.${since}`, select: 'kind', limit: ROW_LIMIT }),
+      selectMany(env, 'planner_signals', { created_at: `gte.${since}`, select: 'kind,payload', limit: ROW_LIMIT }),
     ]);
     const signalN = (kind) => (signals || []).filter((x) => x.kind === kind).length;
+    // 카드 출처별 — 보인 카드 수 · 누른 카드 수 (src/planner-learn.js SIGNAL_CARD_SRC: 섞인 카드 mix 는 화면 글처럼 「여러 업체」 쪽). 출처가 없는 예전 빈도 카드는 안 센다
+    const bySrc = { own: { shown: 0, accepted: 0 }, pop: { shown: 0, accepted: 0 }, seed: { shown: 0, accepted: 0 } };
+    const srcGroupOf = (card) => ({ own: 'own', pop: 'pop', mix: 'pop', seed: 'seed' })[card && typeof card === 'object' ? card.src : ''] || null;
+    (signals || []).forEach((x) => {
+      const p = x.payload && typeof x.payload === 'object' ? x.payload : {};
+      const cards = Array.isArray(p.cards) ? p.cards : [];
+      if (x.kind === 'suggest_shown')
+        cards.forEach((c) => {
+          const g = srcGroupOf(c);
+          if (g) bySrc[g].shown += 1;
+        });
+      if (x.kind === 'suggest_accepted') {
+        const g = srcGroupOf(Number.isInteger(p.pick) ? cards[p.pick] : null);
+        if (g) bySrc[g].accepted += 1;
+      }
+    });
+    // 간편 플래너 여러 업체 공통 줄 (DB 0069 — src/planner-panel.js). 표가 없으면(0069 적용 전) null — 한눈에의 나머지는 그대로 낸다
+    let panelRows = null;
+    try {
+      panelRows = (await selectMany(env, 'planner_genome_panel', { select: 'seed,built_at', limit: ROW_LIMIT })) || [];
+    } catch (e) {
+      if (!isMissingRelation(e)) throw e;
+    }
     const live = (drafts || []).filter((d) => !isProbeId(d.id));
     const bundles = (learn || []).filter((l) => !isProbeId(l.draft_id));
     const consentOf = new Map();
@@ -224,7 +247,16 @@ export async function designCheckSummary(env, { user }) {
           .slice(0, 6),
       },
       // 앱 플래너 「자주 쓴 구성」 카드가 쓰였나 — 지난 7일 (보임 · 누름 · 지나침 수만, src/planner-learn.js recordSignal)
-      suggest: { days: 7, shown: signalN('suggest_shown'), accepted: signalN('suggest_accepted'), skipped: signalN('suggest_skipped') },
+      suggest: { days: 7, shown: signalN('suggest_shown'), accepted: signalN('suggest_accepted'), skipped: signalN('suggest_skipped'), by_src: bySrc },
+      // 여러 업체 공통 줄 — 3곳 이상이 쓴 줄 수 · 씨앗 줄 수 · 마지막으로 묶은 때 (수만 — 업체는 내지 않는다). 0069 적용 전이면 null
+      panel:
+        panelRows === null
+          ? null
+          : {
+              lines: panelRows.filter((r) => r.seed !== true).length,
+              seeds: panelRows.filter((r) => r.seed === true).length,
+              built_at: panelRows.reduce((m, r) => (r.built_at && (!m || r.built_at > m) ? r.built_at : m), null),
+            },
       checks: (checks || []).map((c) => ({ id: c.id, cause: c.cause, run_date: c.run_date, ok: c.ok === true, steps: Array.isArray(c.steps) ? c.steps : [], created_at: c.created_at })),
       ingest: (state && state[0]) || { last_run: null, last_count: null, last_error: null },
       // PC 플래너 「앱 창고로 올리기」로 올라온 것 (다담 공장) — 설계 줄 · 사진 · 시공 완료 확인 · 등급 · 내보낼 수 있는 것

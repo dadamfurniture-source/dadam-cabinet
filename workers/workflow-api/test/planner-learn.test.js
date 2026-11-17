@@ -21,6 +21,7 @@ import {
   PHOTO_CONSENT_TERMS,
   REPORTS_PER_HOUR,
   SIGNALS_PER_HOUR,
+  SIGNAL_CARD_SRC,
   SIGNAL_KINDS,
   bundleOf,
   bundleSha256,
@@ -373,6 +374,8 @@ test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과
     { key: 'TL-PANTRY-600|*', n: 2 },
   ];
   const base = { item: 'sink', line: 'floor', cards, draftId: 'd-test-0001' };
+  // 카드 출처 (2026-11-17 원론 카드) — 아는 값만 적는다
+  assert.deepEqual([...SIGNAL_CARD_SRC], ['own', 'pop', 'seed', 'mix']);
   const db = makeDb();
   await withDb(db, async () => {
     assert.deepEqual(await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base, note: '설계 이름 (합성)' } }), { ok: true });
@@ -399,6 +402,9 @@ test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과
     await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_skipped', ...base, by: 'fill' } });
     await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_skipped', ...base, by: '손으로 (합성)', draftId: '이름 있는 설계' } });
     assert.deepEqual([db.planner_signals[2].payload.by, db.planner_signals[3].payload.by, db.planner_signals[3].draft_id], ['fill', null, null]);
+    // 카드 출처 — 원론 카드는 출처를 같이 보낸다. 아는 값만 적고 모르는 값은 뺀다
+    await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base, cards: [{ key: 'LB-DR3-600|*', n: 0, src: 'own' }, { key: 'LB-OPEN-450|*', n: 0, src: 'seed' }, { key: '*|LB-DR2-600', n: 0, src: '가나 팩토리' }] } });
+    assert.deepEqual(db.planner_signals[4].payload.cards, [{ key: ['LB-DR3-600', '*'], n: 0, src: 'own' }, { key: ['LB-OPEN-450', '*'], n: 0, src: 'seed' }, { key: ['*', 'LB-DR2-600'], n: 0 }]);
     // 모양이 아닌 것은 받지 않는다 — 조각마다 본다 (모듈 id · @설비 · * 만)
     const bad = (over) => rejects(recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base, ...over } }), 422);
     await bad({ kind: 'fill_all' });
@@ -411,13 +417,13 @@ test('구성 카드 쓰임 — 보임 · 누름 · 지나침을 모듈 구성과
     await bad({ cards: [{ key: '', n: 1 }] });
     await bad({ cards: [{ key: Array.from({ length: 41 }, () => '*').join('|'), n: 1 }] });
     await bad({ cards: 'LB-DR3-600' });
-    assert.equal(db.planner_signals.length, 4);
+    assert.equal(db.planner_signals.length, 5);
     // 점검용 시험 설계는 적지 않는다 · 팩토리 구성원이 아니면 거절
     assert.deepEqual(await recordSignal(ENV, { user: u(HQ_STAFF), body: { kind: 'suggest_shown', ...base, draftId: 'probe-selfcheck' } }), { ok: true, dropped: true });
     await rejects(recordSignal(ENV, { user: u(NOBODY), body: { kind: 'suggest_shown', ...base } }), 403, 'not_member');
-    assert.equal(db.planner_signals.length, 4);
+    assert.equal(db.planner_signals.length, 5);
     // 업체마다 한 시간에 정한 수까지만 — 넘으면 받되 적지 않는다 (같은 업체 다른 사람도 같이 센다), 다른 업체는 따로
-    for (let i = 4; i < SIGNALS_PER_HOUR; i += 1) await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } });
+    for (let i = 5; i < SIGNALS_PER_HOUR; i += 1) await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } });
     assert.equal(db.planner_signals.length, SIGNALS_PER_HOUR);
     assert.deepEqual(await recordSignal(ENV, { user: u(STAFF), body: { kind: 'suggest_shown', ...base } }), { ok: true, dropped: true });
     assert.deepEqual(await recordSignal(ENV, { user: u(OWNER), body: { kind: 'suggest_shown', ...base } }), { ok: true, dropped: true });

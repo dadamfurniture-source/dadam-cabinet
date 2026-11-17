@@ -359,9 +359,12 @@ export async function linkDesignProject(env, { user, designId, body }) {
       throw new ValidationError('expect_project_id 가 올바르지 않습니다', { field: 'expect_project_id' });
     if (current !== expect) throw conflict('그 사이 설계의 프로젝트가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
   }
-  // 수주가 생긴 설계는 프로젝트를 바꾸지 않는다 (수주는 설계의 프로젝트를 그대로 갖는다 — orders.js)
+  // 수주가 생긴 설계는 프로젝트를 바꾸지 않는다 (수주는 설계의 프로젝트를 그대로 갖는다 — orders.js).
+  //   처음 붙이는 것은 된다 (2026-11-17) — 프로젝트 없이 수주까지 간 설계(간편 플래너에서 보낸 설계)도 프로젝트 「작업 배정」에 올릴 수 있게.
+  //   그때 그 설계의 수주 가운데 프로젝트가 빈 것도 같은 프로젝트로 잇는다 (작업 배정이 프로젝트의 수주로 지시서 · 필수 확인을 찾는다).
   const order = await selectOne(env, 'orders', { design_id: `eq.${design.id}`, select: 'id' });
-  if (order) throw conflict('수주가 생긴 설계는 프로젝트를 바꿀 수 없습니다', 'has_order');
+  const firstLink = current === null && target !== null;
+  if (order && !firstLink) throw conflict('수주가 생긴 설계는 프로젝트를 바꿀 수 없습니다', 'has_order');
   if (target !== null) {
     const project = await selectOne(env, 'projects', {
       id: `eq.${target}`,
@@ -376,5 +379,13 @@ export async function linkDesignProject(env, { user, designId, body }) {
     { id: `eq.${design.id}`, company_id: `eq.${design.company_id}`, select: 'id' },
     { project_id: target }
   );
+  if (order && firstLink) {
+    await updateBy(
+      env,
+      'orders',
+      { design_id: `eq.${design.id}`, company_id: `eq.${design.company_id}`, project_id: 'is.null', select: 'id' },
+      { project_id: target }
+    );
+  }
   return { design_id: design.id, project_id: target };
 }

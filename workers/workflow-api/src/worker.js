@@ -36,6 +36,7 @@
  *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
  *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
  *   GET|POST /company/projects/:id/work · PATCH …/work/:kind · POST …/work/invite — 프로젝트의 작업 배정 (src/work/project-work.js)
+ *   GET  /designs/:designId/work-sheets · PUT /company/work/jobs/:id/sheet-memo — 작업 종류마다 지시서 상태 · 작업 줄의 지시서 메모 (src/work/job-sheet.js)
  *   POST /company/projects/:id/work/recruit · POST /company/schedules/:id/workers/recruit — 모집 올리기 · 내리기,
  *     POST /company/work/applications/:id/approve|reject — 신청한 작업자 뽑기 · 반려 (src/work/recruit.js, 2026-11-14)
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
@@ -131,6 +132,7 @@ import {
   resolvePrintAssets,
   openSharedDocument,
   recordDecision,
+  SITE_ORDER_TYPES,
 } from './documents.js';
 import { getSiteInfo, saveSiteInfo } from './site-info.js';
 import {
@@ -206,6 +208,7 @@ import {
   keepAssigneeName, syncJobWithSchedule, recruitScheduleWorkers,
 } from './work/schedule-link.js';
 import { listProjectWork, assignProjectWork, patchProjectWork, inviteProjectWork, recruitProjectWork } from './work/project-work.js';
+import { listDesignWorkSheets, memoForPrint, putSheetMemo } from './work/job-sheet.js';
 import { approveCompanyApplication, rejectCompanyApplication } from './work/recruit.js';
 import {
   listJobsForWorker,
@@ -301,6 +304,7 @@ import {
   recommendOf,
   SAVE_BODY_MAX_BYTES,
 } from './planner-drafts.js';
+import { deleteSeed, listSeeds, panelOf, putSeed, rebuildPanel, runDailyPanelRebuild } from './planner-panel.js';
 import { createRequest, listMyRequests, getMyRequest, chooseFactory, cancelMyRequest } from './production-requests/manager.js';
 import { listRequestsAdmin, reviewRequest, suggestionsFor, recommendFactories } from './production-requests/admin.js';
 import { listFactoryRequests, acceptFactoryRequest, declineFactoryRequest, runProductionOfferExpiry } from './production-requests/factory.js';
@@ -502,7 +506,9 @@ async function handlePrintDocument(request, env, { params, user }) {
   const assets = await resolvePrintAssets(env, doc);
   // 상판 발주 요청서 — 발주 마감(설치 − 4근무일) · 재질별 업체 · 가전 모델 타공은 인쇄 시점에 읽는다
   const top = doc.doc_type === 'work_order' && (pack === 'top' || pack === 'all') ? await loadCountertopContext(env, { doc, snapshot }) : null;
-  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, top, ...assets }));
+  // 철거 · 납품 지시서 — ?job= 이면 그 작업 줄의 사무실 메모를 같이 (그 문서의 설계 · 종류의 작업일 때만 — src/work/job-sheet.js)
+  const memo = SITE_ORDER_TYPES.includes(doc.doc_type) ? await memoForPrint(env, { doc, jobId: new URL(request.url).searchParams.get('job') }) : '';
+  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, top, memo, ...assets }));
 }
 
 async function handleRevokeDocument(request, env, { params, user }) {
@@ -1332,6 +1338,12 @@ async function handleCompanyDesigns(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data: await listCompanyDesigns(env, { user }) }, 200, NO_STORE);
 }
 
+/** 그 설계의 작업 종류마다 지시서 상태 (간편 플래너 「작업지시서」 탭 — src/work/job-sheet.js) */
+async function handleDesignWorkSheets(request, env, { params, user }) {
+  const data = await listDesignWorkSheets(env, { user, designId: params.designId });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 async function handleLinkDesignProject(request, env, { params, user }) {
   const body = await readJson(request);
   const data = await linkDesignProject(env, { user, designId: params.designId, body });
@@ -1461,6 +1473,11 @@ const router = createRouter([
   { method: 'GET',    path: '/hq/design-check/reviews',            auth: 'jwt', handler: workRoute(listDesignReviews) },
   { method: 'POST',   path: '/hq/design-check/reviews',            auth: 'jwt', handler: workRoute(writeDesignReview, 201) },
   { method: 'POST',   path: '/hq/design-check/run',                auth: 'jwt', handler: workRoute(runDesignCheck) },
+  // 간편 플래너 여러 업체 공통 줄 — 지금 다시 묶기 · 씨앗 설계 (src/planner-panel.js, DB 0069)
+  { method: 'POST',   path: '/hq/planner-panel/rebuild',           auth: 'jwt', handler: workRoute(rebuildPanel) },
+  { method: 'GET',    path: '/hq/planner-seeds',                   auth: 'jwt', handler: workRoute(listSeeds) },
+  { method: 'PUT',    path: '/hq/planner-seeds/:id',               auth: 'jwt', handler: workRoute(putSeed) },
+  { method: 'DELETE', path: '/hq/planner-seeds/:id',               auth: 'jwt', handler: workRoute(deleteSeed) },
   { method: 'PUT',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(putPhotoConsent) },
   { method: 'GET',    path: '/planner/drafts/:id',                 auth: 'jwt', handler: workRoute(getDraft) },
   { method: 'POST',   path: '/planner/drafts/:id/discard',         auth: 'jwt', handler: workRoute(discardDraft) },
@@ -1473,6 +1490,7 @@ const router = createRouter([
   { method: 'POST',   path: '/planner/my-modules',                 auth: 'jwt', handler: workRoute(saveMyModule, 201) },
   { method: 'DELETE', path: '/planner/my-modules/:id',             auth: 'jwt', handler: workRoute(deleteMyModule) },
   { method: 'GET',    path: '/planner/recommend',                  auth: 'jwt', handler: workRoute(recommendOf) },
+  { method: 'GET',    path: '/planner/panel',                      auth: 'jwt', handler: workRoute(panelOf) },
   // BOM 요약 단가 (대표 · 실장만 값) · 몸통 / 우라 색 목록 (src/planner-prices.js) — 읽기만
   { method: 'POST',   path: '/planner/prices',                     auth: 'jwt', handler: workRoute(plannerPrices) },
   { method: 'GET',    path: '/planner/colors',                     auth: 'jwt', handler: workRoute(plannerColors) },
@@ -1499,6 +1517,7 @@ const router = createRouter([
   { method: 'GET', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleListSchedules },
   // 설계를 프로젝트에 잇기 · 풀기 (그 업체 대표 · 실장, 협력업체 설계는 만든 사람도)
   { method: 'PUT', path: '/designs/:designId/project', auth: 'jwt', handler: handleLinkDesignProject },
+  { method: 'GET', path: '/designs/:designId/work-sheets', auth: 'jwt', handler: handleDesignWorkSheets },
   { method: 'PATCH', path: '/schedules/:scheduleId', auth: 'jwt', handler: handleUpdateSchedule },
   { method: 'POST', path: '/schedules/batches/:batchId/notify', auth: 'jwt', handler: handleResendSlack },
 
@@ -1570,6 +1589,7 @@ const router = createRouter([
   { method: 'POST',  path: '/company/projects/:id/work/invite',   auth: 'jwt', handler: workRoute(inviteProjectWork, 201) },
   { method: 'POST',  path: '/company/projects/:id/work/recruit',  auth: 'jwt', handler: workRoute(recruitProjectWork) },
   { method: 'PATCH', path: '/company/projects/:id/work/:kind',    auth: 'jwt', handler: workRoute(patchProjectWork) },
+  { method: 'PUT',   path: '/company/work/jobs/:id/sheet-memo',   auth: 'jwt', handler: workRoute(putSheetMemo) },
   { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
   // 업체 견적 목록 — 고객 확인서 모아 읽기 (src/company-quotes.js)
   { method: 'GET',  path: '/company/quotes',                      auth: 'jwt', handler: workRoute((env, a) => listCompanyQuotes(env, a)) },
@@ -1863,6 +1883,8 @@ export default {
       ctx.waitUntil(runMorningBrief(env, { nowMs: event.scheduledTime }));
       // 설계 저장 · 학습 길 매일 점검 — 07:00 한 번, 막힌 날만 본사 대표 · 실장에게 알림 (src/hq-design-check.js, 던지지 않는다)
       if (isDailyCheckTime(event.scheduledTime)) ctx.waitUntil(runDailyDesignCheck(env, { nowMs: event.scheduledTime }));
+      // 간편 플래너 여러 업체 공통 줄 — 같은 때 하루 한 번 다시 묶는다 (src/planner-panel.js, 던지지 않는다)
+      if (isDailyCheckTime(event.scheduledTime)) ctx.waitUntil(runDailyPanelRebuild(env));
       // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),

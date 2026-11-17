@@ -884,7 +884,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
   });
   return `
   <div class="cut-head">
-    <b>시트 #${num(sheet.no)}</b> ${esc(sheet.material || '')} ${num(sheet.thickness)}T · ${esc(sheet.partClass || '')}
+    <b>시트 #${num(sheet.no)}</b> ${esc(sheet.material || '')} ${num(sheet.thickness)}T · ${esc(sheet.partClass || '')}${sheet.color ? ` · ${esc(sheet.color)}` : ''}
     · 원판 ${num(sheet.size && sheet.size.w)} × ${num(sheet.size && sheet.size.h)} · 조각 ${num(parts.length)} · 수율 ${fmtPct(sheet.yield)}${layout}
     <span class="checks">${itemsFor(ctx.checkList, 'cut', 'sheet').map((x) => `${esc(x.short || x.label)} ☐`).join(' ')}</span>
   </div>

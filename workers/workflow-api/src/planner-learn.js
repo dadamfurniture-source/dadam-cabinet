@@ -33,6 +33,7 @@ import {
 } from './supabase.js';
 import { isMissingRelation } from './work-order-data.js';
 import { DRAFT_ID_RE, isProbeId, plannerCompanyOf, stableJson } from './planner-drafts.js';
+import { saveDraftGenome } from './planner-panel.js';
 
 /** 묶음 한 벌 (DB 0067 bundle 상한과 같다) · 설계 레코드 (dataset-api planner.js RECORD_MAX 와 같다) · 사진 표본 수 */
 export const LEARN_MAX_BYTES = 1024 * 1024;
@@ -118,7 +119,7 @@ export async function putLearnIn(env, { company, canManage, userId, params, body
     const draft = await selectOne(env, 'planner_drafts', {
       company_id: `eq.${company.id}`,
       id: `eq.${id}`,
-      select: 'id,rev,created_by,discarded_at',
+      select: 'id,rev,item,created_by,discarded_at',
     });
     if (!draft || draft.discarded_at) throw new NotFoundError('그 설계가 없습니다');
     if (!(canManage || (draft.created_by && draft.created_by === user.id))) {
@@ -126,12 +127,19 @@ export async function putLearnIn(env, { company, canManage, userId, params, body
     }
     if (rev > draft.rev) throw new ValidationError('저장된 설계보다 앞선 rev 입니다', { field: 'rev' });
     if (rev < draft.rev) return { saved: false, stale: true, rev: draft.rev };
+    // 줄 유전체 (2026-11-17 — 여러 업체 공통 줄의 재료, src/planner-panel.js): 묶음과 같이 오면 따로 적는다.
+    //   묶음(record) 안에 넣지 않는다 — 넣으면 본사가 검토한 설계가 다시 「검토 필요」가 된다. 0069 적용 전 · 모양이 아니면 false
+    const genome =
+      body && body.genome !== undefined
+        ? await saveDraftGenome(env, { companyId: company.id, draftId: id, rev, item: draft.item, genome: body.genome })
+        : undefined;
+    const done = (r) => (genome === undefined ? r : { ...r, genome });
     const key = { company_id: `eq.${company.id}`, draft_id: `eq.${id}` };
     let stored = await selectOne(env, 'planner_draft_learn', { ...key, select: 'rev,bundle_sha256' });
     if (!stored) {
       try {
         await insertOne(env, 'planner_draft_learn', { company_id: company.id, draft_id: id, rev, bundle, bundle_sha256: sha, sent_by: user.id });
-        return { saved: true, rev };
+        return done({ saved: true, rev });
       } catch (e) {
         if (!(e instanceof ConflictError)) throw e;
         // 같은 때 다른 요청이 먼저 넣었다 — 그 줄을 보고 아래로
@@ -140,9 +148,9 @@ export async function putLearnIn(env, { company, canManage, userId, params, body
       }
     }
     if (stored.rev > rev) return { saved: false, stale: true, rev: stored.rev };
-    if (stored.rev === rev && stored.bundle_sha256 === sha) return { saved: false, same: true, rev };
+    if (stored.rev === rev && stored.bundle_sha256 === sha) return done({ saved: false, same: true, rev });
     await updateBy(env, 'planner_draft_learn', key, { rev, bundle, bundle_sha256: sha, sent_by: user.id });
-    return { saved: true, rev };
+    return done({ saved: true, rev });
   });
 }
 
@@ -239,6 +247,8 @@ export const SIGNAL_LINES = Object.freeze(['floor', 'upper']);
 /** 지나친 까닭 — 카드 대신 무엇으로 줄을 채웠나 (fill = 빈 폭 채우기 · 자동계산, manual = 모듈을 직접 놓음) */
 export const SIGNAL_SKIP_BY = Object.freeze(['fill', 'manual']);
 export const SIGNAL_CARDS_MAX = 3;
+/** 카드 출처 (2026-11-17 원론 카드 — 플래너 js/suggest-signal.js CARD_SRC): 내 설계 · 여러 업체 공통 줄 · 본사 씨앗 · 섞임. 빈도 카드에는 없다 */
+export const SIGNAL_CARD_SRC = Object.freeze(['own', 'pop', 'seed', 'mix']);
 export const SIGNAL_TOKENS_MAX = 40;
 /** 한 업체가 한 시간에 남길 수 있는 신호 — 넘으면 받되 적지 않는다 */
 export const SIGNALS_PER_HOUR = 120;
@@ -250,12 +260,12 @@ const SIGNAL_TOKEN_RE = /^(?:\*|@[a-z]{1,20}|[A-Za-z0-9][A-Za-z0-9-]{1,59})$/;
 
 const countOf = (v, max) => (Number.isInteger(v) && v >= 0 && v <= max ? v : null);
 
-/** 카드 하나 { key: 'a|b|c', n } → { key: [조각…], n }. 모양이 아니면 null — 글을 통째로 적지 않고 조각마다 본다 */
+/** 카드 하나 { key: 'a|b|c', n, src? } → { key: [조각…], n, src? }. 모양이 아니면 null — 글을 통째로 적지 않고 조각마다 본다 (src 는 아는 값일 때만) */
 function signalCardOf(c) {
   if (!isObject(c) || typeof c.key !== 'string' || !c.key || c.key.length > SIGNAL_TOKENS_MAX * 61) return null;
   const tokens = c.key.split('|');
   if (tokens.length > SIGNAL_TOKENS_MAX || !tokens.every((t) => SIGNAL_TOKEN_RE.test(t))) return null;
-  return { key: tokens, n: countOf(c.n, 9999) || 0 };
+  return { key: tokens, n: countOf(c.n, 9999) || 0, ...(SIGNAL_CARD_SRC.includes(c.src) ? { src: c.src } : {}) };
 }
 
 /**

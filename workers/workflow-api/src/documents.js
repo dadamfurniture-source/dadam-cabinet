@@ -38,6 +38,7 @@ import {
 import { renderCustomerConfirmation } from './templates/customer-confirmation.js';
 import { renderWorkOrder } from './templates/work-order.js';
 import { renderInstallationOrder } from './templates/installation-order.js';
+import { renderSiteOrder } from './templates/site-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
 import { gatherWorkOrderPayload, workOrderTotals, collectRenders } from './work-order-data.js';
 import { frozenCheckList } from './work/check-items.js';
@@ -47,12 +48,18 @@ import { recordDocumentIssued } from './reports/service.js';
 
 // CD-4: 설치 작업지시서 추가. 여기만 고치면 안 된다 —
 // DB 의 design_documents_doc_type_check 와 renderDocument 분기(아래)가 함께 맞아야 한다.
-export const DOC_TYPES = ['customer_confirmation', 'work_order', 'installation_order'];
-const DOC_TYPE_CODE = { customer_confirmation: 'CC', work_order: 'WO', installation_order: 'IO' };
+// 2026-11-17: 철거 지시서 · 납품 지시서 (사장님 「철거 · 납품 지시서를 새로 · 따로 발행」) — DB 0068 이 doc_type 제약에 둘을 더했다.
+//   적용 전의 DB 는 둘을 거절한다 → 발행이 409 db_pending (아래 issueDocument).
+export const DOC_TYPES = ['customer_confirmation', 'work_order', 'installation_order', 'demolition_order', 'delivery_order'];
+const DOC_TYPE_CODE = { customer_confirmation: 'CC', work_order: 'WO', installation_order: 'IO', demolition_order: 'DM', delivery_order: 'DV' };
+/** 현장 문서 — 발행 때 현장 정보 · 일정을 문서 안에 고정한다 (설치 · 철거 · 납품) */
+export const SITE_DOC_TYPES = Object.freeze(['installation_order', 'demolition_order', 'delivery_order']);
+/** 철거 · 납품 지시서 (templates/site-order.js) */
+export const SITE_ORDER_TYPES = Object.freeze(['demolition_order', 'delivery_order']);
 
 /**
  * 문서를 낼 수 있는 협력업체 등급 (companies.plan, 2026-11-08 · DB 0047 — manager < expert < agent).
- *   고객 확인서 Manager 이상 · 작업지시서 · 설치 지시서 Expert 이상 (외주 발주도 Expert 이상 — OUTSOURCE_PLANS).
+ *   고객 확인서 Manager 이상 · 작업지시서 · 설치 · 철거 · 납품 지시서 Expert 이상 (외주 발주도 Expert 이상 — OUTSOURCE_PLANS).
  * 설계 업체가 다담 공장(hq) · 다담 본사(platform)면 등급을 보지 않는다 (관리자는 본사 설계만 연다 — designAccess).
  * ★ 업체 plan 만 본다 — company_members.role 의 manager(실장)는 등급이 아니다.
  * 막는 것은 새로 내기(issueDocument) · 외주 발주 처리뿐 — 이미 낸 문서 보기 · 인쇄 · 회수 · 고객 링크는 그대로.
@@ -61,11 +68,21 @@ export const DOC_PLANS = Object.freeze({
   customer_confirmation: Object.freeze(['manager', 'expert', 'agent']),
   work_order: Object.freeze(['expert', 'agent']),
   installation_order: Object.freeze(['expert', 'agent']),
+  demolition_order: Object.freeze(['expert', 'agent']),
+  delivery_order: Object.freeze(['expert', 'agent']),
 });
 /** 외주 발주(reports/outsource.js) — 작업지시서와 같다 */
 export const OUTSOURCE_PLANS = DOC_PLANS.work_order;
 export const PLAN_REQUIRED_CODE = 'plan_required';
-const DOC_LABELS = { customer_confirmation: '고객 확인서', work_order: '작업지시서', installation_order: '설치 지시서' };
+const DOC_LABELS = { customer_confirmation: '고객 확인서', work_order: '작업지시서', installation_order: '설치 지시서', demolition_order: '철거 지시서', delivery_order: '납품 지시서' };
+
+/** DB 가 새 문서 종류를 아직 모른다 (0068 적용 전 — doc_type 제약 23514) → 409 db_pending. 그 밖의 오류는 그대로 */
+function docTypePending(e, docType) {
+  if (!SITE_ORDER_TYPES.includes(docType) || !/23514/.test(String((e && e.message) || ''))) return e;
+  const err = new ConflictError('DB 0068 적용 전입니다 — 철거 · 납품 지시서는 적용 뒤에 낼 수 있습니다');
+  err.code = 'db_pending';
+  return err;
+}
 const PLAN_LABELS = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
 
 /** 순수 판정 — 업체 행 { kind, plan } 이 plans 등급 안인가. 다담 공장 · 본사는 언제나, 모르는 업체 · 등급은 아니다 */
@@ -196,9 +213,11 @@ export async function issueDocument(env, { user, body }) {
   // 주소가 나중에 바뀌어도 이미 나간 지시서의 내용은 그대로여야 한다.
   // (현장 정보는 설계에 붙어 있고 스냅샷에는 없다 — 주소 수정이 설계 rev 를
   //  올리면 안 되기 때문이다)
-  if (docType === 'installation_order') {
+  if (SITE_DOC_TYPES.includes(docType)) {
     renderPayload.site_info = await getSiteInfo(env, designId);
     renderPayload.schedules = await listSchedulesForDoc(env, designId);
+  }
+  if (docType === 'installation_order') {
     // 정면 렌더도 발행 때 고정 (2026-11-05 사장님 C · E — 설치 지시서에도 그림). 없으면 빈 목록
     const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
     renderPayload.renders = await collectRenders(env, designId, items);
@@ -224,6 +243,8 @@ export async function issueDocument(env, { user, body }) {
     renderPayload.special_notes = notes;
     renderPayload.check_list = withNoteChecks(frozenCheckList(), notes);
   }
+  // 철거 · 납품 지시서 — 필수 확인 목록만 고정한다 (철거 후 사진 · 납품 수량 확인 · 하차 후 사진). 사무실 글은 작업 줄의 메모로 (work_jobs.sheet_memo)
+  if (SITE_ORDER_TYPES.includes(docType)) renderPayload.check_list = frozenCheckList();
 
   const totals = quoteForDoc
     ? {
@@ -268,7 +289,12 @@ export async function issueDocument(env, { user, body }) {
   // 승인 전 작업지시서는 문서를 만들기 전에 기록부터 — 기록 없이 지시서만 나가는 일이 없게
   if (earlyReason) await recordEarlyWorkOrder(env, { design, user, reason: earlyReason });
 
-  const created = await insertOne(env, 'design_documents', row);
+  let created;
+  try {
+    created = await insertOne(env, 'design_documents', row);
+  } catch (e) {
+    throw docTypePending(e, docType);
+  }
 
   // PIN 해시를 실제 id 로 다시 계산
   let finalDoc = created;
@@ -476,6 +502,7 @@ export async function resolvePrintAssets(env, doc) {
 export function renderDocument(doc, snapshot, opts = {}) {
   if (doc.doc_type === 'work_order') return renderWorkOrder(doc, snapshot, opts);
   if (doc.doc_type === 'installation_order') return renderInstallationOrder(doc, snapshot, opts);
+  if (SITE_ORDER_TYPES.includes(doc.doc_type)) return renderSiteOrder(doc, snapshot, opts);
   return renderCustomerConfirmation(doc, snapshot, opts);
 }
 

@@ -6,6 +6,8 @@
  *   GET   /company/projects/:id/work                 그 프로젝트의 종류 줄 · 배정 · 고를 수 있는 작업자 (구성원)
  *     { project { id, title, status }, can_manage, can_assign,
  *       rows [{ key, kind, label, source: 'project' | 'schedule', schedule_id, schedule_status, at, job { id, status } | null,
+ *               sheet { doc_type, doc_label, role, packs, state: 'no_design' | 'none' | 'issued', document { id, doc_no, rev, created_at } | null,
+ *                       checks { done, total, must_left } | null } | null (A/S),  sheet_memo,  (2026-11-17 — work/job-sheet.js)
  *               can_assign, workers [{ assignment_id, name, status, label, reason, …, reports[] }], candidates [{ link_id, name, kinds, region }],
  *               recruit { on, state, slots, filled, deadline, applications [{ application_id, name, message, at }] } | null }] }
  *     줄: 철거 · 재단 · 엣지 · 조립은 늘 한 줄씩(프로젝트에 붙는 작업), 납품 · 설치 · A/S 방문은 그 프로젝트 설계의 일정마다 한 줄.
@@ -14,8 +16,8 @@
  *     납품 · 설치 · A/S 줄은 일정에 붙는다 → POST /company/schedules/:id/workers (work/schedule-link.js).
  *   POST  /company/projects/:id/work/recruit         { kind, people, apply_deadline?, at? } | { kind, stop: true } — 그 종류 줄의 모집 올리기 · 내리기
  *     (대표 · 실장, work/recruit.js). 일정 줄의 모집은 POST /company/schedules/:id/workers/recruit.
- *   PATCH /company/projects/:id/work/:kind           { at } — 그 종류 줄의 날짜 · 시각 (대표 · 실장). 작업이 없으면 빈 작업을 만든다.
- *     시각이 바뀌면 그 작업의 작업자에게 알린다.
+ *   PATCH /company/projects/:id/work/:kind           { at?, sheet_memo? } — 그 종류 줄의 날짜 · 시각 · 지시서 메모 (대표 · 실장). 작업이 없으면 빈 작업을 만든다.
+ *     시각이 바뀌면 그 작업의 작업자에게 알린다. 일정 줄(납품 · 설치)의 메모는 PUT /company/work/jobs/:id/sheet-memo (work/job-sheet.js).
  *   POST  /company/projects/:id/work/invite          { kind, schedule_id?, display_name_preset?, expires_at } — 「이 일로 바로」 초대 (대표 · 실장)
  *     → { id, url, expires_at }. 초대로 온 작업자의 연결을 승인하면 그 작업에 배정 제안이 들어간다 (work/invite-job.js).
  *   확인 · 보완요청 · 빼기는 POST /company/work/assignments/:id/accept | revision | remove (work/schedule-link.js) 그대로.
@@ -35,6 +37,7 @@ import { workersCompanyOf } from './company.js';
 import { recordEvent } from './events.js';
 import { createInviteCore } from './invites.js';
 import { computeJobStatus, loadJobAssignments, lockJob } from './jobs.js';
+import { memoOf, sheetMemoOf, sheetOf, sheetReader, writeSheetMemo } from './job-sheet.js';
 import { closeRecruit, openRecruit, recruitOf } from './recruit.js';
 import { ACTIVE_STATUSES } from './reveal.js';
 import {
@@ -133,6 +136,23 @@ async function createProjectJob(env, { user, company, project, kind, at, slots }
   return job;
 }
 
+/**
+ * 작업의 설계 · 수주 칸을 채운다 — 작업을 만든 뒤에 프로젝트에 설계가 붙거나 수주가 생긴 경우 (지시서 · 필수 확인은 수주로 찾는다).
+ *   비어 있는 칸만 채운다 (이미 이어진 설계 · 수주는 바꾸지 않는다). 실패해도 화면은 그대로 — 원래 작업을 돌려준다.
+ */
+async function fillJobLinks(env, job, { designId, orderId }) {
+  const patch = {};
+  if (!job.design_id && designId) patch.design_id = designId;
+  if (!job.order_id && orderId) patch.order_id = orderId;
+  if (!Object.keys(patch).length) return job;
+  try {
+    return await lockJob(env, job, patch);
+  } catch (e) {
+    console.warn('[project-work] 작업의 설계 · 수주 채우기 실패 — 그대로 둡니다:', e && e.message);
+    return job;
+  }
+}
+
 /** 작업의 날짜 · 시각을 맞춘다 — 바뀌었으면 그 작업의 작업자에게 알린다 */
 async function setJobTime(env, ctx, job, at) {
   if (msOf(job.starts_at) === msOf(at)) return job;
@@ -145,7 +165,8 @@ async function setJobTime(env, ctx, job, at) {
 /** 그 프로젝트의 지금 모습 (GET · 쓰기 뒤 응답) */
 async function viewOf(env, ctx, { company, canAct, holds, project }) {
   const co = `eq.${company.id}`;
-  const { designIds } = await linksOfProject(env, company, project);
+  const { designIds, designId: projectDesignId, orderId: projectOrderId } = await linksOfProject(env, company, project);
+  const reader = sheetReader(env);
   const [links, projectJobs, schedules] = await Promise.all([
     selectMany(env, 'worker_companies', { company_id: co, status: 'eq.approved', select: 'id,worker_id,kinds,created_at', order: 'created_at.asc', limit: '500' }),
     selectMany(env, 'work_jobs', { project_id: `eq.${project.id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', select: '*', order: 'created_at.desc', limit: '50' }),
@@ -179,6 +200,9 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
     return {
       ...base,
       job: job ? { id: job.id, status: job.status } : null,
+      // 지시서 — 그 줄의 설계(작업에 이어진 설계, 없으면 base.design_id)의 지금 문서 · 필수 확인 수. A/S 는 null
+      sheet: await sheetOf(reader, { kind: base.kind, designId: (job && job.design_id) || base.design_id || null }),
+      sheet_memo: sheetMemoOf(job),
       can_assign: mayAssign && rowOpen && (!job || STAFFABLE.includes(job.status)),
       recruit: await recruitOf(env, job, all),
       workers: all.slice().sort((a, b) => active(a) - active(b)).map((a) => workerRow(a, reportsOf(a.id))),
@@ -193,8 +217,9 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
 
   const rows = [];
   for (const kind of PROJECT_KINDS) {
-    const job = (projectJobs || []).find((j) => j.kind === kind) || null;
-    rows.push(await rowOf({ key: `kind:${kind}`, kind, label: KIND_LABEL[kind], source: 'project', schedule_id: null, schedule_status: null, at: job ? job.starts_at || null : null }, job, true));
+    let job = (projectJobs || []).find((j) => j.kind === kind) || null;
+    if (job) job = await fillJobLinks(env, job, { designId: projectDesignId, orderId: projectOrderId });
+    rows.push(await rowOf({ key: `kind:${kind}`, kind, label: KIND_LABEL[kind], source: 'project', schedule_id: null, schedule_status: null, at: job ? job.starts_at || null : null, design_id: projectDesignId }, job, true));
   }
   for (const s of schedules || []) {
     const kind = SCHEDULE_JOB_KIND[s.type];
@@ -202,7 +227,7 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
     if (job) job = (await syncJobWithSchedule(env, ctx, s)) || job;
     if (job && job.status === 'cancelled') job = null;
     rows.push(await rowOf(
-      { key: `schedule:${s.id}`, kind, label: SCHEDULE_LABELS[s.type] || KIND_LABEL[kind], source: 'schedule', schedule_id: s.id, schedule_status: s.status, at: s.scheduled_at },
+      { key: `schedule:${s.id}`, kind, label: SCHEDULE_LABELS[s.type] || KIND_LABEL[kind], source: 'schedule', schedule_id: s.id, schedule_status: s.status, at: s.scheduled_at, design_id: s.design_id },
       job,
       !ENDED_SCHEDULE.includes(s.status),
     ));
@@ -211,7 +236,8 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
     project: { id: project.id, title: project.title || null, status: project.status },
     can_manage: canAct,
     can_assign: mayAssign,
-    rows,
+    // 줄의 design_id 는 지시서를 찾는 데만 쓴다 — 응답에는 싣지 않는다
+    rows: rows.map(({ design_id, ...row }) => row),
   };
 }
 
@@ -305,18 +331,23 @@ export async function recruitProjectWork(env, { user, params, body, ctx }) {
 export async function patchProjectWork(env, { user, params, body, ctx }) {
   const kind = oneOf(params.kind, PROJECT_KINDS, 'kind');
   const b = body || {};
-  if (b.at === undefined) throw new ValidationError('바꿀 칸이 없습니다');
-  const at = optIso(b.at, '날짜');
+  const hasAt = b.at !== undefined;
+  const hasMemo = Object.prototype.hasOwnProperty.call(b, 'sheet_memo');
+  if (!hasAt && !hasMemo) throw new ValidationError('바꿀 칸이 없습니다');
+  const at = hasAt ? optIso(b.at, '날짜') : null;
+  const memo = hasMemo ? memoOf(b.sheet_memo) : null;
   const { company, canAct, holds, project } = await manageScope(env, user, params.id);
   return ready(async () => {
-    const job = await projectJobOf(env, company, project, kind);
+    let job = await projectJobOf(env, company, project, kind);
     if (job) {
-      if (!STAFFABLE.includes(job.status)) throw conflict('끝난 작업의 날짜는 바꿀 수 없습니다', 'closed');
-      await setJobTime(env, ctx, job, at);
-    } else if (at) {
-      // 날짜부터 정해 둔다 — 작업자는 나중에 배정
-      await createProjectJob(env, { user, company, project, kind, at, slots: 1 });
+      if (!STAFFABLE.includes(job.status)) throw conflict(hasAt ? '끝난 작업의 날짜는 바꿀 수 없습니다' : '끝난 작업의 메모는 바꿀 수 없습니다', 'closed');
+      if (hasAt) job = await setJobTime(env, ctx, job, at);
+    } else if ((hasAt && at) || (hasMemo && memo)) {
+      // 날짜 · 메모부터 정해 둔다 — 작업자는 나중에 배정
+      job = await createProjectJob(env, { user, company, project, kind, at: hasAt ? at : null, slots: 1 });
     }
+    // 지시서 메모 — 철거 · 재단 · 엣지 · 조립 줄 (0068 전이면 409 db_pending)
+    if (hasMemo && job) await writeSheetMemo(env, { user, job, memo });
     return viewOf(env, ctx, { company, canAct, holds, project });
   });
 }
