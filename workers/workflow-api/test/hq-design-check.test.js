@@ -80,6 +80,7 @@ function makeDb(over = {}) {
     planner_draft_learn: [],
     planner_save_issues: [],
     planner_signals: [],
+    planner_genome_panel: null, // DB 0069 적용 전 (표 없음)
     company_consents: [],
     dataset_samples: [],
     dataset_exportable: [],
@@ -355,6 +356,16 @@ test('한눈에 — 업체별 저장 · 묶음 · 실패, 가는 길의 수, 사
     assert.deepEqual(s.funnel, { drafts: 2, bundles: 2, pending: 1, failed: 1, samples: 2, waiting: 1, good: 1, normal: 0, exclude: 0, linked: 1, exportable: 1 });
     assert.deepEqual(s.issues, { days: 7, total: 3, by_code: [{ stage: 'save', code: 'conflict', n: 2 }, { stage: 'save', code: 'offline', n: 1 }] });
     assert.deepEqual(s.suggest, { days: 7, shown: 2, accepted: 1, skipped: 1 });
+    // 여러 업체 공통 줄 — 0069 적용 전이면 null (한눈에의 나머지는 그대로), 적용 뒤에는 수와 묶은 때만 (업체는 내지 않는다)
+    assert.equal(s.panel, null);
+    db.planner_genome_panel = [
+      { item: 'sink', kind: 'floor', line_key: 'a', seed: false, n: 3, company_ids: [P1], built_at: '2026-11-17T22:00:00.000Z' },
+      { item: 'sink', kind: 'floor', line_key: 'b', seed: false, n: 4, company_ids: [P1], built_at: '2026-11-17T22:00:00.000Z' },
+      { item: 'sink', kind: 'upper', line_key: 'seed:c', seed: true, n: 1, company_ids: [HQ], built_at: '2026-11-17T22:00:01.000Z' },
+    ];
+    const s2 = await designCheckSummary(ENV, { user: u(BOSS) });
+    assert.deepEqual(s2.panel, { lines: 2, seeds: 1, built_at: '2026-11-17T22:00:01.000Z' });
+    assert.doesNotMatch(JSON.stringify(s2.panel), /company/);
     assert.deepEqual(s.checks.map((c) => [c.cause, c.run_date, c.ok]), [['daily', '2026-11-14', true]]);
     assert.equal(s.ingest.last_count, 1);
     // PC 플래너 「앱 창고로 올리기」로 올라온 것 — 앱 플래너 수와 섞지 않고 따로
