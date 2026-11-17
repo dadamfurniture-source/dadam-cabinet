@@ -1040,6 +1040,26 @@ describe('공장 (순수)', () => {
     expect(P.checksHtml(null)).toContain('불러오지 못했습니다');
   });
 
+  test('내 작업 상세 — 재단 · 엣지 · 철거 · 납품 작업도 확정 뒤에 그 지시서 · 필수 확인 단추 (2026-11-17)', () => {
+    const my = { assignment_id: A1, assignment_status: 'confirmed' };
+    const html = (kind) => P.jobDetailHtml(detail({ my, kind }), NOW, 'mine');
+    const packs = (kind) => {
+      document.body.innerHTML = '<div id="pk">' + html(kind) + '</div>';
+      return [...document.querySelectorAll('#pk [data-act="as-pack"]')].map((b) => [b.getAttribute('data-pack') || '', b.textContent]);
+    };
+    expect(packs('demolition')).toEqual([['', '철거 지시서']]);
+    expect(packs('delivery')).toEqual([['', '납품 지시서']]);
+    expect(packs('cutting')).toEqual([['cut', '재단 지시서'], ['labels', '부재 라벨']]);
+    expect(packs('edge')).toEqual([['cut', '재단 지시서'], ['labels', '부재 라벨']]);
+    expect(packs('install')).toEqual([['', '시공 지시서']]);
+    expect(packs('assembly')).toEqual([['', '조립 지시서']]);
+    expect(packs('as')).toEqual([]);
+    ['demolition', 'delivery', 'cutting', 'edge'].forEach((k) => expect(html(k)).toContain('data-act="as-checks"'));
+    expect(P.jobDetailHtml(detail({ my: { assignment_id: A1, assignment_status: 'offered' }, kind: 'demolition' }), NOW, 'mine')).not.toContain('data-act="as-pack"');
+    // 꾸러미를 고른 단추는 그 꾸러미로 연다
+    expect(fs.readFileSync(path.join(ROOT, 'js/worker-portal.js'), 'utf8')).toContain("openPack(`/work/assignments/${id}/pack${pack ? `?pack=${encodeURIComponent(pack)}` : ''}`)");
+  });
+
   test('내 작업 상세 — 설치 · 조립 작업은 확정 뒤에 지시서 · 필수 확인 단추', () => {
     const my = { assignment_id: A1, assignment_status: 'confirmed' };
     expect(P.jobDetailHtml(detail({ my, kind: 'install' }), NOW, 'mine')).toContain('data-act="as-pack"');
