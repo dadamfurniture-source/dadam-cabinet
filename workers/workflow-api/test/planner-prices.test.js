@@ -11,9 +11,10 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { ForbiddenError, ValidationError, clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
-import { PRICE_LINES_MAX, SETTINGS_EDGE_T, SETTINGS_TOP_MATERIAL, plannerColors, plannerPrices, priceLines, stockPricesOf } from '../src/planner-prices.js';
+import fs from 'node:fs';
+import { PRICE_LINES_MAX, SETTINGS_EDGE_T, SETTINGS_TOP_MATERIAL, plannerColors, plannerCut, plannerPrices, priceLines, stockPricesOf } from '../src/planner-prices.js';
 import { COLOR_NAMES_MAX, COLOR_NAME_MAX, mergeSettings, sanitizeSettings, writeCompanySettings } from '../src/production/service.js';
-import { DEFAULT_QUOTE } from '../src/production/standards.js';
+import { CUT_LIMITS, DEFAULT_CUT, DEFAULT_QUOTE } from '../src/production/standards.js';
 import { HARDWARE_PRICE_KEYS, areaSheets, boardPriceKeyOf, hardwareCounts } from '../src/quote-sheet.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -284,8 +285,44 @@ test('색 목록 검증 — 아는 묶음(body · back)만, 이름 1 ~ 40자, 10
   assert.equal(sanitizeSettings({ colors: { back: Array.from({ length: COLOR_NAMES_MAX }, (_, i) => `색${i}`) } }).colors.back.length, COLOR_NAMES_MAX);
 });
 
+test('재단기 설정 — 대표 · 실장이 생산 설정에 적고, 플래너 구성원 누구나 읽는다 (없으면 재단 엔진 기본값)', async () => {
+  const db = makeDb();
+  await withDb(db, async () => {
+    assert.deepEqual(await plannerCut(ENV, { user: u(STAFF) }), { company: { id: P1, name: '가나 팩토리' }, kerf: 4, trim: 10, updated_at: null });
+    await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { cut: { kerf: 4.4 } } });
+    let r = await plannerCut(ENV, { user: u(STAFF) });
+    assert.deepEqual([r.kerf, r.trim], [4.4, 10], '안 적은 칸은 기본값');
+    // 재단기 칸이 없는 화면이 저장해도 그대로다 · 한 칸만 보내면 다른 칸은 저장된 값 그대로
+    await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { quote: { pbSheet: 31000 } } });
+    await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { cut: { trim: 12 } } });
+    r = await plannerCut(ENV, { user: u(MANAGER) });
+    assert.deepEqual([r.kerf, r.trim], [4.4, 12]);
+    assert.ok(r.updated_at);
+    // 다른 팩토리 값은 섞이지 않는다 · 플래너를 쓰지 않는 사람은 못 읽는다
+    assert.deepEqual([(await plannerCut(ENV, { user: u(OTHER_OWNER) })).kerf, (await plannerCut(ENV, { user: u(OTHER_OWNER) })).trim], [4, 10]);
+    await assert.rejects(() => plannerCut(ENV, { user: u(NOBODY) }), ForbiddenError);
+  });
+});
+
+test('재단기 설정 검증 — 아는 칸(kerf · trim)만, 범위 안 숫자만, 0.1 단위. 기본값은 재단 엔진과 같다', () => {
+  assert.deepEqual({ ...DEFAULT_CUT }, { kerf: 4, trim: 10 });
+  assert.deepEqual(sanitizeSettings({ cut: { kerf: '4.44', trim: 0 } }), { cut: { kerf: 4.4, trim: 0 } });
+  assert.deepEqual(sanitizeSettings({ cut: {} }), { cut: {} });
+  assert.deepEqual(mergeSettings(null).cut, { kerf: 4, trim: 10 });
+  assert.deepEqual(mergeSettings({ cut: { kerf: 4.4, trim: 'x', blade: 3 } }).cut, { kerf: 4.4, trim: 10 }, '숫자가 아닌 칸 · 모르는 칸은 버린다');
+  assert.deepEqual(mergeSettings({ cut: { kerf: 99, trim: -1 } }).cut, { kerf: 4, trim: 10 }, '범위를 벗어난 저장값은 기본값');
+  assert.throws(() => sanitizeSettings({ cut: { blade: 1 } }), /알 수 없는 설정: cut.blade/);
+  for (const bad of [[4], 'x', null, { kerf: -0.1 }, { kerf: CUT_LIMITS.kerf[1] + 0.1 }, { trim: CUT_LIMITS.trim[1] + 1 }, { kerf: '' }, { kerf: null }, { kerf: true }, { trim: 'abc' }]) {
+    assert.throws(() => sanitizeSettings({ cut: bad }), ValidationError, JSON.stringify(bad));
+  }
+  const engine = fs.readFileSync(new URL('../../../js/detaildesign/nesting-engine.js', import.meta.url), 'utf8');
+  assert.match(engine, new RegExp('const DEFAULT_KERF = ' + DEFAULT_CUT.kerf + ';'));
+  assert.match(engine, new RegExp('const DEFAULT_TRIM = ' + DEFAULT_CUT.trim + ';'));
+});
+
 test('라우트 — POST /planner/prices · GET /planner/colors 는 로그인이 있어야 한다', async () => {
   const a = await worker.fetch(new Request('https://w.example/planner/prices', { method: 'POST', body: '{}' }), ENV, { waitUntil() {} });
   const b = await worker.fetch(new Request('https://w.example/planner/colors'), ENV, { waitUntil() {} });
-  assert.deepEqual([a.status, b.status], [401, 401]);
+  const c = await worker.fetch(new Request('https://w.example/planner/cut'), ENV, { waitUntil() {} });
+  assert.deepEqual([a.status, b.status, c.status], [401, 401, 401]);
 });

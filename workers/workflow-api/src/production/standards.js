@@ -90,6 +90,18 @@ export const DEFAULT_LEADS = Object.freeze({
  * 장당 견적 원가 기준 (원, 부가세 별도). 2026-10-13 대표 확정값 + 거래명세서 실적.
  * 고객 견적 = BOM 수량으로 계산한 실제 원가 × (1 + marginRate).
  */
+/**
+ * 재단기 설정 (2026-11-18 사장님 「CNC 설정 정보는 내가 넣는다」) — 간편 플래너가 재단 배치를 셈할 때 쓰는
+ * 톱날 두께 · 원장 가장자리 여백 (mm). 팩토리마다 자기 재단기 값을 「생산 설정」에 적는다.
+ * 기본값은 재단 엔진의 기본값과 같다 (js/detaildesign/nesting-engine.js DEFAULT_KERF · DEFAULT_TRIM) — 적지 않으면 지금과 같은 배치다.
+ */
+export const DEFAULT_CUT = Object.freeze({
+  kerf: 4, // 톱날 두께
+  trim: 10, // 원장 네 변의 가장자리 여백
+});
+/** 받는 범위 (mm) — 0.1 단위로 적는다 */
+export const CUT_LIMITS = Object.freeze({ kerf: [0, 10], trim: [0, 100] });
+
 export const DEFAULT_QUOTE = Object.freeze({
   pbSheet: 32000, // 몸통 PB 15T
   backSheet: 19500, // 뒷판 MDF 2.7T PVC
