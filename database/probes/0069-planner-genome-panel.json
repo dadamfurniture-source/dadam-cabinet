@@ -49,7 +49,7 @@
       "name": "줄 유전체 — 다시 보내면 서버가 고친다",
       "sql": "update public.planner_draft_genome set rev = 2, lines = '[]'::jsonb where company_id = {{company_x}} and draft_id = 'd-probe-a'",
       "roles": ["service_role"],
-      "expect": { "service_role": "ok" }
+      "expect": { "service_role": "rows:1" }
     },
     {
       "name": "줄 유전체 지우기는 서버도 못 한다",
@@ -79,7 +79,7 @@
       "name": "공통 줄 — 다시 묶을 때 서버가 지운다",
       "sql": "delete from public.planner_genome_panel where line_key like 'probe-key-%'",
       "roles": ["service_role"],
-      "expect": { "service_role": "ok" }
+      "expect": { "service_role": "rows:2" }
     },
     {
       "name": "공통 줄 — 구성원은 넣지 못한다",
@@ -97,7 +97,7 @@
       "name": "씨앗 — 표시를 빼는 것은 서버가 한다",
       "sql": "delete from public.planner_genome_seeds where company_id = {{company_x}} and draft_id = 'd-probe-a'",
       "roles": ["service_role"],
-      "expect": { "service_role": "ok" }
+      "expect": { "service_role": "rows:1" }
     },
     {
       "name": "씨앗 — 고치기는 서버도 못 한다",
