@@ -33,6 +33,7 @@ import {
 } from './supabase.js';
 import { isMissingRelation } from './work-order-data.js';
 import { DRAFT_ID_RE, isProbeId, plannerCompanyOf, stableJson } from './planner-drafts.js';
+import { saveDraftGenome } from './planner-panel.js';
 
 /** 묶음 한 벌 (DB 0067 bundle 상한과 같다) · 설계 레코드 (dataset-api planner.js RECORD_MAX 와 같다) · 사진 표본 수 */
 export const LEARN_MAX_BYTES = 1024 * 1024;
@@ -118,7 +119,7 @@ export async function putLearnIn(env, { company, canManage, userId, params, body
     const draft = await selectOne(env, 'planner_drafts', {
       company_id: `eq.${company.id}`,
       id: `eq.${id}`,
-      select: 'id,rev,created_by,discarded_at',
+      select: 'id,rev,item,created_by,discarded_at',
     });
     if (!draft || draft.discarded_at) throw new NotFoundError('그 설계가 없습니다');
     if (!(canManage || (draft.created_by && draft.created_by === user.id))) {
@@ -126,12 +127,19 @@ export async function putLearnIn(env, { company, canManage, userId, params, body
     }
     if (rev > draft.rev) throw new ValidationError('저장된 설계보다 앞선 rev 입니다', { field: 'rev' });
     if (rev < draft.rev) return { saved: false, stale: true, rev: draft.rev };
+    // 줄 유전체 (2026-11-17 — 여러 업체 공통 줄의 재료, src/planner-panel.js): 묶음과 같이 오면 따로 적는다.
+    //   묶음(record) 안에 넣지 않는다 — 넣으면 본사가 검토한 설계가 다시 「검토 필요」가 된다. 0069 적용 전 · 모양이 아니면 false
+    const genome =
+      body && body.genome !== undefined
+        ? await saveDraftGenome(env, { companyId: company.id, draftId: id, rev, item: draft.item, genome: body.genome })
+        : undefined;
+    const done = (r) => (genome === undefined ? r : { ...r, genome });
     const key = { company_id: `eq.${company.id}`, draft_id: `eq.${id}` };
     let stored = await selectOne(env, 'planner_draft_learn', { ...key, select: 'rev,bundle_sha256' });
     if (!stored) {
       try {
         await insertOne(env, 'planner_draft_learn', { company_id: company.id, draft_id: id, rev, bundle, bundle_sha256: sha, sent_by: user.id });
-        return { saved: true, rev };
+        return done({ saved: true, rev });
       } catch (e) {
         if (!(e instanceof ConflictError)) throw e;
         // 같은 때 다른 요청이 먼저 넣었다 — 그 줄을 보고 아래로
@@ -140,9 +148,9 @@ export async function putLearnIn(env, { company, canManage, userId, params, body
       }
     }
     if (stored.rev > rev) return { saved: false, stale: true, rev: stored.rev };
-    if (stored.rev === rev && stored.bundle_sha256 === sha) return { saved: false, same: true, rev };
+    if (stored.rev === rev && stored.bundle_sha256 === sha) return done({ saved: false, same: true, rev });
     await updateBy(env, 'planner_draft_learn', key, { rev, bundle, bundle_sha256: sha, sent_by: user.id });
-    return { saved: true, rev };
+    return done({ saved: true, rev });
   });
 }
 

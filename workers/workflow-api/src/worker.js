@@ -301,6 +301,7 @@ import {
   recommendOf,
   SAVE_BODY_MAX_BYTES,
 } from './planner-drafts.js';
+import { deleteSeed, listSeeds, panelOf, putSeed, rebuildPanel, runDailyPanelRebuild } from './planner-panel.js';
 import { createRequest, listMyRequests, getMyRequest, chooseFactory, cancelMyRequest } from './production-requests/manager.js';
 import { listRequestsAdmin, reviewRequest, suggestionsFor, recommendFactories } from './production-requests/admin.js';
 import { listFactoryRequests, acceptFactoryRequest, declineFactoryRequest, runProductionOfferExpiry } from './production-requests/factory.js';
@@ -1461,6 +1462,11 @@ const router = createRouter([
   { method: 'GET',    path: '/hq/design-check/reviews',            auth: 'jwt', handler: workRoute(listDesignReviews) },
   { method: 'POST',   path: '/hq/design-check/reviews',            auth: 'jwt', handler: workRoute(writeDesignReview, 201) },
   { method: 'POST',   path: '/hq/design-check/run',                auth: 'jwt', handler: workRoute(runDesignCheck) },
+  // 간편 플래너 여러 업체 공통 줄 — 지금 다시 묶기 · 씨앗 설계 (src/planner-panel.js, DB 0069)
+  { method: 'POST',   path: '/hq/planner-panel/rebuild',           auth: 'jwt', handler: workRoute(rebuildPanel) },
+  { method: 'GET',    path: '/hq/planner-seeds',                   auth: 'jwt', handler: workRoute(listSeeds) },
+  { method: 'PUT',    path: '/hq/planner-seeds/:id',               auth: 'jwt', handler: workRoute(putSeed) },
+  { method: 'DELETE', path: '/hq/planner-seeds/:id',               auth: 'jwt', handler: workRoute(deleteSeed) },
   { method: 'PUT',    path: '/planner/photo-consent',              auth: 'jwt', handler: workRoute(putPhotoConsent) },
   { method: 'GET',    path: '/planner/drafts/:id',                 auth: 'jwt', handler: workRoute(getDraft) },
   { method: 'POST',   path: '/planner/drafts/:id/discard',         auth: 'jwt', handler: workRoute(discardDraft) },
@@ -1473,6 +1479,7 @@ const router = createRouter([
   { method: 'POST',   path: '/planner/my-modules',                 auth: 'jwt', handler: workRoute(saveMyModule, 201) },
   { method: 'DELETE', path: '/planner/my-modules/:id',             auth: 'jwt', handler: workRoute(deleteMyModule) },
   { method: 'GET',    path: '/planner/recommend',                  auth: 'jwt', handler: workRoute(recommendOf) },
+  { method: 'GET',    path: '/planner/panel',                      auth: 'jwt', handler: workRoute(panelOf) },
   // BOM 요약 단가 (대표 · 실장만 값) · 몸통 / 우라 색 목록 (src/planner-prices.js) — 읽기만
   { method: 'POST',   path: '/planner/prices',                     auth: 'jwt', handler: workRoute(plannerPrices) },
   { method: 'GET',    path: '/planner/colors',                     auth: 'jwt', handler: workRoute(plannerColors) },
@@ -1863,6 +1870,8 @@ export default {
       ctx.waitUntil(runMorningBrief(env, { nowMs: event.scheduledTime }));
       // 설계 저장 · 학습 길 매일 점검 — 07:00 한 번, 막힌 날만 본사 대표 · 실장에게 알림 (src/hq-design-check.js, 던지지 않는다)
       if (isDailyCheckTime(event.scheduledTime)) ctx.waitUntil(runDailyDesignCheck(env, { nowMs: event.scheduledTime }));
+      // 간편 플래너 여러 업체 공통 줄 — 같은 때 하루 한 번 다시 묶는다 (src/planner-panel.js, 던지지 않는다)
+      if (isDailyCheckTime(event.scheduledTime)) ctx.waitUntil(runDailyPanelRebuild(env));
       // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),
