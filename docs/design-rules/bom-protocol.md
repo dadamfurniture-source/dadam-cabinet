@@ -493,7 +493,8 @@ BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이 플래�
 
 `js/detaildesign/nesting-engine.js` `NestingEngine.plan(materials, opts)` 의 출력이다. CNC 탭(`ai-design-report.js`)이 그리는 것과
 스냅샷 동결 시 `workflow-client.js` 가 POST 본문 `cutPlan` 으로 싣는 것이 **같은 함수·같은 입력**이라 같은 값이다.
-같은 `materials` 면 입력 순서와 무관하게 같은 JSON 이 나온다(결정적). 알고리즘·옵션은 `docs/02-design/features/nesting-engine.md`.
+같은 `materials` 와 같은 옵션이면 입력 순서와 무관하게 같은 JSON 이 나온다(결정적). 알고리즘·옵션은 `docs/02-design/features/nesting-engine.md`.
+옵션 없이 부르면 아래 모양 그대로다. 재단 방식(`opts.strategy`) · 색(`opts.colorOf`)을 주면 그 아래 「재단 방식 · 색으로 붙는 칸」이 더 붙는다 (간편 플래너가 그렇게 부른다 — 2026-11-17).
 
 ```
 cutPlan = {
@@ -528,10 +529,28 @@ cutPlan = {
 | `parts[].fromRemainder` | 스트립 1차 배치가 끝난 뒤 남는 자리에 넣은 더 작은 부재 |
 | `offcuts[].free` | 스트립 잔여는 스트립 방향(H 면 w), 원판 잔여는 스트립을 쌓는 방향(H 면 h). 60~70 = 자투리(밴드), 70 초과 = 잔재(소부품 추출·재활용) |
 
+**재단 방식 · 색으로 붙는 칸** (2026-11-17 사장님 「재단은 총 3가지 중 선택」 — `version` 은 1 그대로, 위 칸은 바뀌지 않는다):
+
+| 칸 | 언제 | 뜻 |
+|------|------|-----|
+| `strategy` · `summary.strategy` | `opts.strategy` | `standard`(표준) · `material`(부재 최적화) · `cuts`(최소 재단) |
+| `sheets[].cuts` | `opts.strategy` | 그 원판의 배치를 자르는 횟수. 겹친 원판(같은 `layout.no`)은 같은 값 — 한 번에 자른다 |
+| `groups[].cutCount` · `layoutCount` | `opts.strategy` | 그 묶음의 자르는 횟수(배치마다 한 번) · 배치 종류 수 |
+| `groups[].standard {sheetCount, cutCount}` | `opts.strategy` | 그 묶음을 표준으로 놓았을 때의 원판 수 · 자르는 횟수 (어느 방식으로 불러도 같은 값) |
+| `groups[].searched` | `opts.strategy` | 만들어 본 후보 배치 수 |
+| `summary.cutCount` · `layoutCount` | `opts.strategy` | 묶음 합 |
+| `sheets[].color` · `groups[].color` · `smallParts[].color` · `unallocated[].color` | `opts.colorOf` | 그 판의 색 이름 (없으면 빈 글). 색이 다르면 다른 묶음이다 — `groups[].key` 는 `자재\|두께\|구분\|색` |
+| `summary.sheetsByColor [{material, thickness, color, sheetCount}]` | `opts.colorOf` | 자재 · 두께 · 색마다 원판 수 (구분은 합친다) |
+
+- **자르는 횟수** (2026-11-17 사장님 「겹쳐 자르면 한 번, 여백 재단은 빼고」): 배치 하나마다 `스트립 수 + Σ(스트립의 조각 수 − 1) + Σ(스트립마다 fromRemainder 조각의 서로 다른 폭 수)`. 앞 두 항은 CNC 탭 셈(`ai-design-report.js sheetCutCount`)과 같고, 셋째 항이 「더 좁은 부재를 한 번 더 켜는」 수다. 겹친 원판은 배치 하나로 한 번, 가장자리 트림 재단은 세지 않는다. `NestingEngine.cutCount(sheet)` 가 같은 셈을 낸 원판에서 다시 센다.
+- **`summary.sheetsByMaterial` 의 키는 색이 있어도 `자재_두께` 그대로다** — 재고(`workers/workflow-api/src/stock-needs.js boardNeeds`) · 견적(`quote-sheet.js doorSheets`) · 생산 부하(`production/workload.js`)가 이 키를 `_` 로 잘라 읽는다. 색별 장수는 `sheetsByColor` 에서 읽는다.
+- 색으로 나뉜 묶음이 자재 · 두께 · 구분이 같으면 `layout.no` 를 이어 매긴다 — 그 셋 + 번호로 겹침을 묶는 곳(CNC 탭 · 작업지시서)이 색을 섞지 않는다.
+
 워커(`workers/workflow-api/src/snapshots.js` `validateCutPlan`)는 배치를 **다시 계산하지 않고** 검증만 한다: `version === 1`, 시트 `no` 고유·`size` 양수·`material` 비지 않음,
 모든 `partId` 의 기본 partId 가 `bom.materials` 에 있고 행별 배치 개수 ≤ `qty`, `rot` 을 반영한 발자국이 원판 안, 같은 시트에서 겹침 없음.
 통과하면 `cut_plan_payload` 에 그대로, `sheet_count = sheets.length` 로 저장한다 (`database/workflow-cut-plan.sql`). `cutPlan` 이 없으면 둘 다 NULL.
 `content_hash` 는 design+bom 만으로 계산하므로 배치는 rev 판정에 영향이 없다 — 같은 BOM 이면 같은 배치가 나온다.
+(재단 방식을 고르면 같은 BOM 에서도 배치가 달라진다 — 워커가 재단 방식이 실린 배치를 rev 판정에 넣는 일은 Workflow 도메인 후속 PR [확인 필요: 병합 전에는 재단 방식만 바꿔 다시 보내면 옛 동결본이 돌아온다].)
 
 ### 7-3b. 모듈 키 · 경첩 보링 (B4, 2026-10-13 — 작업지시서 PR 4)
 
