@@ -27,6 +27,7 @@ import {
   deleteMyModule,
   recommendOf,
   lineSeqsOf,
+  isRequestCopyId,
   summaryOf,
   sniffPhoto,
   stableJson,
@@ -229,16 +230,16 @@ test('요약 — 벽 · 모듈 수(바닥 + 상부), 라이브러리 모듈은 �
   assert.equal(s.walls, 2);
   assert.equal(s.modules, 4);
   assert.deepEqual(s.libIds, ['LB-D2-900', 'TL-A', 'TT-1', 'TT-2', 'UB-D2-900']);
-  // 줄마다 모듈 차례 — id 만 (자주 쓴 구성의 재료)
+  // 줄마다 모듈 차례 — id 와 놓인 폭 (자주 쓴 구성의 재료. 폭이 없으면 0)
   assert.deepEqual(s.lines, [
-    { k: 'floor', ids: ['LB-D2-900', 'TL-A'] },
-    { k: 'upper', ids: ['UB-D2-900'] },
-    { k: 'floor', ids: ['LB-D2-900'] },
+    { k: 'floor', ids: ['LB-D2-900', 'TL-A'], ws: [0, 0] },
+    { k: 'upper', ids: ['UB-D2-900'], ws: [0] },
+    { k: 'floor', ids: ['LB-D2-900'], ws: [0] },
   ]);
   assert.deepEqual(
     lineSeqsOf({ walls: [{ lines: { floor: [{ libId: 'ok-1', W: 900, name: '고객 이름' }, { libId: '../x' }, { libId: 7 }], stack: [{ libId: 'ST-1' }] } }, null] }),
-    [{ k: 'floor', ids: ['ok-1'] }],
-    '모듈 id 만 · 이상한 값은 뺀다 · 바닥 · 상부 줄만'
+    [{ k: 'floor', ids: ['ok-1'], ws: [900] }],
+    '모듈 id 와 놓인 폭만 (이름은 없다) · 이상한 값은 뺀다 · 바닥 · 상부 줄만'
   );
   assert.equal(s.orderNo, 'SO-1');
   assert.equal(s.completed, true);
@@ -417,6 +418,18 @@ test('추천 — 그 사람이 마지막으로 저장한 그 품목 설계에 �
       { k: 'floor', ids: ['LB-D2-900', 'TL-A'], n: 1 },
       { k: 'upper', ids: ['UB-D2-900'], n: 1 },
     ]);
+    // 설계마다 줄 그대로 (원론 카드의 참조 줄 — 모듈 id · 놓인 폭). 다른 사람 · 다른 품목은 없다
+    assert.equal(r.lines.length, 4);
+    assert.ok(r.lines.every((l) => ['floor', 'upper'].includes(l.k) && l.ids.length === l.ws.length));
+    assert.deepEqual(r.lines.map((l) => l.ids.join('+')).sort(), ['LB-D2-900', 'LB-D2-900', 'LB-D2-900+TL-A', 'UB-D2-900']);
+    // 제작 의뢰로 받은 설계 사본(pr-…)은 보낸 업체의 구성이다 — 받은 사람의 「내 설계」로 세지 않는다
+    await saveDraft(ENV, { user: u(STAFF), body: { project: project({ id: 'pr-0a1b2c3d', walls: [{ lines: { floor: [{ libId: 'OTHER-CO-1', W: 600 }] } }] }) } });
+    const r2 = await recommendOf(ENV, { user: u(STAFF), query: { item: 'sink' } });
+    assert.equal(r2.designs, 2);
+    assert.equal(r2.used.some((x) => x.id === 'OTHER-CO-1'), false);
+    assert.equal(r2.lines.some((l) => l.ids.includes('OTHER-CO-1')), false);
+    assert.equal(isRequestCopyId('pr-0a1b2c3d'), true);
+    assert.equal(isRequestCopyId('d-test-0001'), false);
     await rejects(recommendOf(ENV, { user: u(STAFF), query: {} }), 422);
   });
 });
