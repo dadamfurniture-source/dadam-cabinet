@@ -494,9 +494,17 @@
       GROUPS.map(groupHtml).join('') +
       cutHtml() +
       colorsHtml() +
-      barHtml(false);
+      barHtml(false) +
+      '<div data-ps-pricelist></div>';
     box.hidden = false;
     showSection();
+    mountPriceList(box);
+  }
+  /** 자재 가격표 (segan/price-list.js) — 아래 저장 줄 밑에. 「설정 저장」과 따로 올리는 칸이라 이 화면은 자리만 준다 */
+  function mountPriceList(box) {
+    var PL = window.SeganPriceList;
+    var slot = box.querySelector('[data-ps-pricelist]');
+    if (PL && typeof PL.mount === 'function' && slot) PL.mount(slot, { base: J.base, token: token });
   }
 
   // ── 누른 일 ─────────────────────────────────────────

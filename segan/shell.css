@@ -3281,6 +3281,72 @@ button.sm-num[aria-pressed='true'] {
   border: 2px solid var(--v5-tan);
 }
 
+/* 생산 설정 아래 — 자재 가격표 (segan/price-list.js): 지금 가격표 · 제품군마다 용도 · 찾은 줄.
+   표는 좁은 화면에서 표만 옆으로 민다 (.pl-scroll) — 화면 전체는 밀리지 않는다 */
+.pl-scroll {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.pl-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-table th,
+.pl-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.pl-table thead th {
+  color: var(--v5-ink-2);
+  font-size: 12px;
+}
+
+.pl-table tbody th {
+  font-weight: 500;
+}
+
+.pl-table .n {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pl-table select {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+}
+
+.pl-warn {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 2px solid var(--v5-tan);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pl-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pl-msg:empty {
+  display: none;
+}
+
 .ps-bar {
   display: flex;
   flex-wrap: wrap;
