@@ -1,0 +1,317 @@
+{
+  "title": "0070 자재 가격표 — price_lists · price_list_items 는 서버만, 가격표는 상태만 loading → ready 로 한 번, 줄은 넣기만 · 같은 팩토리의 가격표에만 (scripts/rls-probe.mjs --migration database/migrations/0070_price_lists.sql). 칸은 하나씩 되돌린다 — 칸에서는 한 번 쓰거나 읽기만 한다",
+  "ids": [
+    "company_x",
+    "company_y",
+    "list_a",
+    "list_r",
+    "list_y"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.price_lists (id, company_id, supplier, source_name, row_count, created_by) VALUES ({{list_a}}, {{company_x}}, 'probe 공급처', 'a.xlsx', 2, {{x_owner_user}})",
+    "INSERT INTO public.price_lists (id, company_id, supplier, source_name, row_count, state, created_by) VALUES ({{list_r}}, {{company_x}}, 'probe 공급처', 'b.xlsx', 1, 'ready', {{x_owner_user}}), ({{list_y}}, {{company_y}}, 'probe 공급처', '', 1, 'ready', NULL)",
+    "INSERT INTO public.price_list_items (list_id, seq, company_id, kind, category, product, spec, color_name, code, size_text, thickness, unit_price) VALUES ({{list_a}}, 1, {{company_x}}, 'body', '보드', 'PB', '15T', 'probe 화이트', 'PR-01', '15*1220*2440', 15, 32000), ({{list_a}}, 2, {{company_x}}, 'door', '보드', '도어', 'PET', 'probe 매트', 'PR-02', '18*1220*2440', 18, 69000)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 price_lists — 서버만 (대표 계정의 브라우저도 못 읽는다)",
+      "sql": "select count(*) from public.price_lists where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "읽기 price_list_items — 서버만",
+      "sql": "select count(*) from public.price_list_items where list_id = {{list_a}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "넣기 price_lists — 서버만",
+      "sql": "insert into public.price_lists (company_id, supplier, row_count) values ({{company_x}}, 'probe 새 공급처', 10)",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "넣기 price_list_items — 서버만",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, unit_price) values ({{list_a}}, 3, {{company_x}}, 'back', 'probe 우라', 19500)",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "새 가격표는 loading 으로 시작한다",
+      "sql": "select state from public.price_lists where id = {{list_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "loading"
+      }
+    },
+    {
+      "name": "상태 — loading → ready 는 된다",
+      "sql": "update public.price_lists set state = 'ready' where id = {{list_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "상태 — ready → loading 은 거절",
+      "sql": "update public.price_lists set state = 'loading' where id = {{list_r}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "가격표 내용은 바꿀 수 없다 — 공급처",
+      "sql": "update public.price_lists set supplier = 'probe 다른 곳' where id = {{list_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "가격표 내용은 바꿀 수 없다 — 줄 수",
+      "sql": "update public.price_lists set row_count = 3 where id = {{list_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "가격표 내용은 바꿀 수 없다 — 팩토리",
+      "sql": "update public.price_lists set company_id = {{company_y}} where id = {{list_r}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "지우기 price_lists — 서버도 지우지 못한다",
+      "sql": "delete from public.price_lists where id = {{list_y}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "모르는 상태는 거절",
+      "sql": "insert into public.price_lists (company_id, supplier, row_count, state) values ({{company_x}}, 'probe', 1, 'done')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "공급처 이름이 빈 글이면 거절",
+      "sql": "insert into public.price_lists (company_id, supplier, row_count) values ({{company_x}}, '   ', 1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 수 0 은 거절",
+      "sql": "insert into public.price_lists (company_id, supplier, row_count) values ({{company_x}}, 'probe', 0)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 수 5001 은 거절",
+      "sql": "insert into public.price_lists (company_id, supplier, row_count) values ({{company_x}}, 'probe', 5001)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "없는 팩토리의 가격표는 거절",
+      "sql": "insert into public.price_lists (company_id, supplier, row_count) values (gen_random_uuid(), 'probe', 1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "줄 — 모르는 용도는 거절",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, unit_price) values ({{list_a}}, 4, {{company_x}}, 'top', 'probe', 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 — 음수 단가는 거절",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, unit_price) values ({{list_a}}, 4, {{company_x}}, 'body', 'probe', -1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 — 색상명 · 코드가 둘 다 빈 글이면 거절",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, code, unit_price) values ({{list_a}}, 4, {{company_x}}, 'body', ' ', '', 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 — 코드만 있어도 된다",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, code, unit_price) values ({{list_a}}, 4, {{company_x}}, 'other', 'PR-09', 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "줄 — 두께 0 은 거절",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, thickness, unit_price) values ({{list_a}}, 4, {{company_x}}, 'body', 'probe', 0, 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 — 차례 0 은 거절",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, unit_price) values ({{list_a}}, 0, {{company_x}}, 'body', 'probe', 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 — 같은 가격표의 같은 차례는 한 번만",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, unit_price) values ({{list_a}}, 1, {{company_x}}, 'body', 'probe 겹침', 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "줄 — 다른 팩토리의 가격표에는 붙지 않는다",
+      "sql": "insert into public.price_list_items (list_id, seq, company_id, kind, color_name, unit_price) values ({{list_y}}, 9, {{company_x}}, 'body', 'probe 남의 표', 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "고치기 price_list_items — 서버도 고치지 못한다 (넣기만)",
+      "sql": "update public.price_list_items set unit_price = 1 where list_id = {{list_a}} and seq = 1",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "지우기 price_list_items — 서버도 지우지 못한다 (넣기만)",
+      "sql": "delete from public.price_list_items where list_id = {{list_a}} and seq = 1",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "RLS — price_lists 켜져 있다",
+      "sql": "select relrowsecurity from pg_class where oid = 'public.price_lists'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "RLS — price_list_items 켜져 있다",
+      "sql": "select relrowsecurity from pg_class where oid = 'public.price_list_items'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "정책이 없다 (브라우저로 여는 길이 없다)",
+      "sql": "select count(*) from pg_policies where schemaname = 'public' and tablename in ('price_lists', 'price_list_items')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    }
+  ]
+}
