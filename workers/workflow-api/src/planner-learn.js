@@ -247,6 +247,8 @@ export const SIGNAL_LINES = Object.freeze(['floor', 'upper']);
 /** 지나친 까닭 — 카드 대신 무엇으로 줄을 채웠나 (fill = 빈 폭 채우기 · 자동계산, manual = 모듈을 직접 놓음) */
 export const SIGNAL_SKIP_BY = Object.freeze(['fill', 'manual']);
 export const SIGNAL_CARDS_MAX = 3;
+/** 카드 출처 (2026-11-17 원론 카드 — 플래너 js/suggest-signal.js CARD_SRC): 내 설계 · 여러 업체 공통 줄 · 본사 씨앗 · 섞임. 빈도 카드에는 없다 */
+export const SIGNAL_CARD_SRC = Object.freeze(['own', 'pop', 'seed', 'mix']);
 export const SIGNAL_TOKENS_MAX = 40;
 /** 한 업체가 한 시간에 남길 수 있는 신호 — 넘으면 받되 적지 않는다 */
 export const SIGNALS_PER_HOUR = 120;
@@ -258,12 +260,12 @@ const SIGNAL_TOKEN_RE = /^(?:\*|@[a-z]{1,20}|[A-Za-z0-9][A-Za-z0-9-]{1,59})$/;
 
 const countOf = (v, max) => (Number.isInteger(v) && v >= 0 && v <= max ? v : null);
 
-/** 카드 하나 { key: 'a|b|c', n } → { key: [조각…], n }. 모양이 아니면 null — 글을 통째로 적지 않고 조각마다 본다 */
+/** 카드 하나 { key: 'a|b|c', n, src? } → { key: [조각…], n, src? }. 모양이 아니면 null — 글을 통째로 적지 않고 조각마다 본다 (src 는 아는 값일 때만) */
 function signalCardOf(c) {
   if (!isObject(c) || typeof c.key !== 'string' || !c.key || c.key.length > SIGNAL_TOKENS_MAX * 61) return null;
   const tokens = c.key.split('|');
   if (tokens.length > SIGNAL_TOKENS_MAX || !tokens.every((t) => SIGNAL_TOKEN_RE.test(t))) return null;
-  return { key: tokens, n: countOf(c.n, 9999) || 0 };
+  return { key: tokens, n: countOf(c.n, 9999) || 0, ...(SIGNAL_CARD_SRC.includes(c.src) ? { src: c.src } : {}) };
 }
 
 /**
