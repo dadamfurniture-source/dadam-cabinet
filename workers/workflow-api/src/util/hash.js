@@ -93,12 +93,42 @@ export async function sha256Hex(text) {
 }
 
 /**
+ * 재단 배치의 판정용 요약 — **재단 방식을 고른 배치만** (cutPlan.strategy 가 있을 때).
+ *
+ * 재단 방식이 없는 배치는 같은 BOM 이면 늘 같은 배치라 판정에 넣지 않았다 (bom-protocol §7-3).
+ * 재단 방식을 고르면(간편 플래너 — 표준 · 부재 최적화 · 최소 재단) 같은 BOM 에서도 배치가 달라진다.
+ * 그 배치로 작업지시서의 재단 꾸러미가 나가므로, 방식이나 배치가 바뀌면 새 리비전이어야 한다.
+ *
+ * 넣는 것은 재단 결과를 정하는 값뿐이다: 방식, 원판마다 번호 · 자재 · 두께 · 색 · 크기, 조각마다 partId · 자리 · 치수 · 눕힘.
+ * 수율 · 자르는 횟수 · 후보 수 같은 셈값은 넣지 않는다 (같은 배치에서 파생된다).
+ * 재단 방식이 없으면 null — 그때 snapshotHash 는 예전과 같은 값을 낸다.
+ */
+export function cutDigestOf(cutPlan) {
+  if (!cutPlan || typeof cutPlan !== 'object' || typeof cutPlan.strategy !== 'string' || !cutPlan.strategy) return null;
+  const sheets = Array.isArray(cutPlan.sheets) ? cutPlan.sheets : [];
+  return {
+    strategy: cutPlan.strategy,
+    sheets: sheets.map((s) => ({
+      no: s.no,
+      material: s.material,
+      thickness: s.thickness,
+      color: s.color == null ? '' : s.color,
+      size: s.size ? { w: s.size.w, h: s.size.h } : null,
+      parts: (Array.isArray(s.parts) ? s.parts : []).map((p) => ({ partId: p.partId, x: p.x, y: p.y, w: p.w, h: p.h, rot: Boolean(p.rot) })),
+    })),
+  };
+}
+
+/**
  * 스냅샷 content_hash.
  * 설계와 BOM 을 함께 해싱한다 — BOM 산출 로직이 바뀌면 같은 설계라도
  * 다른 자재 목록이 나오므로 새 리비전이어야 한다.
+ * cutDigest (cutDigestOf — 재단 방식을 고른 배치) 가 있으면 그것도 함께. 없으면 예전과 같은 값이다.
  */
-export async function snapshotHash(designPayload, bomPayload) {
-  return sha256Hex(canonicalJson({ design: designPayload, bom: bomPayload }));
+export async function snapshotHash(designPayload, bomPayload, cutDigest = null) {
+  const body = { design: designPayload, bom: bomPayload };
+  if (cutDigest) body.cut = cutDigest;
+  return sha256Hex(canonicalJson(body));
 }
 
 /**

@@ -550,7 +550,7 @@ cutPlan = {
 모든 `partId` 의 기본 partId 가 `bom.materials` 에 있고 행별 배치 개수 ≤ `qty`, `rot` 을 반영한 발자국이 원판 안, 같은 시트에서 겹침 없음.
 통과하면 `cut_plan_payload` 에 그대로, `sheet_count = sheets.length` 로 저장한다 (`database/workflow-cut-plan.sql`). `cutPlan` 이 없으면 둘 다 NULL.
 `content_hash` 는 design+bom 만으로 계산하므로 배치는 rev 판정에 영향이 없다 — 같은 BOM 이면 같은 배치가 나온다.
-(재단 방식을 고르면 같은 BOM 에서도 배치가 달라진다 — 워커가 재단 방식이 실린 배치를 rev 판정에 넣는 일은 Workflow 도메인 후속 PR [확인 필요: 병합 전에는 재단 방식만 바꿔 다시 보내면 옛 동결본이 돌아온다].)
+**재단 방식이 실린 배치(`cutPlan.strategy`)는 예외다** — 같은 BOM 에서도 방식에 따라 배치가 달라지고 그 배치로 재단 꾸러미가 나가므로, 워커는 방식 · 원판(번호 · 자재 · 두께 · 색 · 크기) · 조각(partId · 자리 · 치수 · 눕힘)을 `content_hash` 에 넣는다 (`workers/workflow-api/src/util/hash.js cutDigestOf`). 재단 방식만 바꿔 다시 보내도 새 rev 다. 수율 · 자르는 횟수 같은 셈값은 넣지 않는다. `strategy` 는 짧은 이름 꼴(`^[a-z0-9][a-z0-9_-]{0,39}$`)만 받는다 — 어떤 방식이 있는지는 엔진이 안다.
 
 ### 7-3b. 모듈 키 · 경첩 보링 (B4, 2026-10-13 — 작업지시서 PR 4)
 

@@ -123,6 +123,38 @@ test('처음 보내면 앱 설계를 만든다 — 출처 planner-lite · 플래
     assert.equal(f.snapshotPosts.length, 1);
     assert.equal(f.snapshotPosts[0].design_id, 'D-NEW');
     assert.equal(f.snapshotPosts[0].bom_payload.materials.length, 2, 'BOM 은 플래너가 보낸 그대로');
+    assert.equal(r.cut_strategy, null, '재단 배치를 보내지 않았다');
+  } finally { f.restore(); }
+});
+
+test('재단 방식을 고른 배치 — 동결본에 그대로 실리고 답에 방식이 나온다, 방식이 다르면 해시가 다르다 (2026-11-17)', async () => {
+  const plan = (strategy) => ({
+    version: 1,
+    strategy,
+    sheets: [{
+      no: 1, material: 'PB', thickness: 15, partClass: '본체', size: { w: 1220, h: 2440 }, cuts: 2,
+      layout: { no: 1, stack: 1, index: 1, dir: 'V', rotated: false },
+      parts: [
+        { partId: 'w1/floor/m1|0-lower-0-body:side-0#0', w: 550, h: 708, x: 10, y: 10, rot: false },
+        { partId: 'w1/floor/m1|0-lower-0-body:side-0#1', w: 550, h: 708, x: 10, y: 722, rot: false },
+        { partId: 'w1/floor/m2|0-lower-0-body:side-0#0', w: 550, h: 708, x: 564, y: 10, rot: false },
+        { partId: 'w1/floor/m2|0-lower-0-body:side-0#1', w: 550, h: 708, x: 564, y: 722, rot: false },
+      ],
+    }],
+    summary: { sheetsByMaterial: { PB_15: 1 }, sheetCount: 1, cutCount: 2 },
+  });
+  const f = fakeSupabase();
+  try {
+    const a = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ cutPlan: plan('standard') }) });
+    const b = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ cutPlan: plan('cuts') }) });
+    assert.deepEqual([a.cut_strategy, b.cut_strategy], ['standard', 'cuts']);
+    assert.equal(f.snapshotPosts.length, 2);
+    assert.equal(f.snapshotPosts[0].cut_plan_payload.strategy, 'standard');
+    assert.equal(f.snapshotPosts[0].sheet_count, 1);
+    assert.notEqual(f.snapshotPosts[0].content_hash, f.snapshotPosts[1].content_hash, '설계 · BOM 이 같아도 재단 방식이 다르면 다른 동결본');
+    // 꼴이 틀린 방식은 동결 전에 422
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ cutPlan: plan('표준') }) }), ValidationError);
+    assert.equal(f.snapshotPosts.length, 2);
   } finally { f.restore(); }
 });
 

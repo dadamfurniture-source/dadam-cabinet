@@ -210,5 +210,8 @@ export async function receivePlannerDesign(env, { user, body }) {
     body: { design: b.design, bom: b.bom, hardware: b.hardware, cutPlan: b.cutPlan, title: name, grade: b.grade },
   });
   const rendersSaved = renders.length ? await saveRenders(env, design.id, renders) : 0;
-  return { design_id: design.id, created, snapshot_id: snapshot.id, rev: snapshot.rev, reused: !!reused, renders_saved: rendersSaved };
+  // 동결본에 실린 재단 방식 (플래너가 고른 것 — 없으면 null). 방식이나 배치가 바뀌면 새 판이다 (snapshots.js)
+  const cutPlan = snapshot.cut_plan_payload;
+  const cutStrategy = cutPlan && typeof cutPlan.strategy === 'string' ? cutPlan.strategy : null;
+  return { design_id: design.id, created, snapshot_id: snapshot.id, rev: snapshot.rev, reused: !!reused, renders_saved: rendersSaved, cut_strategy: cutStrategy };
 }
