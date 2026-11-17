@@ -1,0 +1,236 @@
+{
+  "title": "0068 작업마다 작업지시서 — 문서 종류에 철거 · 납품 지시서(demolition_order · delivery_order), 필수 확인 역할에 철거 · 납품(demolition · delivery), work_jobs.sheet_memo(지시서 메모 1 ~ 2000자) (scripts/rls-probe.mjs --migration database/migrations/0068_work_sheet_docs.sql). 0035 · 0065 · 0066 이 먼저 적용돼 있어야 한다. 칸은 하나씩 되돌린다 — 칸에서는 넣기 · 고치기 한 번이거나 읽기 한 번만 한다",
+  "ids": [
+    "company_x",
+    "customer_x",
+    "project_x",
+    "design_x",
+    "snap_x",
+    "doc_w",
+    "doc_n",
+    "order_x",
+    "job_x",
+    "job_memo"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{customer_x}}, {{company_x}}, 'probe')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_x}}, {{company_x}}, {{customer_x}}, 'probe X')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_w}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_w}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_w}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) VALUES ({{company_x}}, {{order_x}}, {{doc_w}}, 'cut', 'sheet:1', 'cut-sheet-cut', 'v2', true)",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id) VALUES ({{job_x}}, 'demolition', 'probe 철거', 'open', {{company_x}}, {{project_x}})",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id, sheet_memo) VALUES ({{job_memo}}, 'cutting', 'probe 재단', 'open', {{company_x}}, {{project_x}}, 'probe 지시서 메모')"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "문서 종류 — 철거 지시서",
+      "sql": "insert into public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) values ({{doc_n}}, {{design_x}}, {{snap_x}}, 'demolition_order', 1, 'probe-n-' || {{doc_n}}::text, 'probe', '{}', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "문서 종류 — 납품 지시서",
+      "sql": "insert into public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) values ({{doc_n}}, {{design_x}}, {{snap_x}}, 'delivery_order', 1, 'probe-n-' || {{doc_n}}::text, 'probe', '{}', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "문서 종류 — 전에 있던 것은 그대로 (시공 지시서)",
+      "sql": "insert into public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) values ({{doc_n}}, {{design_x}}, {{snap_x}}, 'installation_order', 1, 'probe-n-' || {{doc_n}}::text, 'probe', '{}', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모르는 문서 종류는 거절 (A/S 지시서는 없다)",
+      "sql": "insert into public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) values ({{doc_n}}, {{design_x}}, {{snap_x}}, 'as_order', 1, 'probe-n-' || {{doc_n}}::text, 'probe', '{}', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "문서 종류 제약 — 다섯 가지가 적혀 있다",
+      "sql": "select (pg_get_constraintdef(oid) like '%customer_confirmation%work_order%installation_order%demolition_order%delivery_order%')::text from pg_constraint where conname = 'design_documents_doc_type_check' and conrelid = 'public.design_documents'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "필수 확인 역할 — 철거 (철거 뒤 사진)",
+      "sql": "insert into public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{order_x}}, {{doc_w}}, 'demolition', '', 'demo-order-photo', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "필수 확인 역할 — 납품 (납품 확인)",
+      "sql": "insert into public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{order_x}}, {{doc_w}}, 'delivery', '', 'dlv-order-confirm', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "필수 확인 역할 — 전에 있던 것은 그대로 (설치)",
+      "sql": "insert into public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{order_x}}, {{doc_w}}, 'install', '', 'probe-item', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모르는 역할은 거절 (A/S 는 필수 확인이 없다)",
+      "sql": "insert into public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{order_x}}, {{doc_w}}, 'as', '', 'probe-item', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "읽기 work_checks — 여전히 서버만",
+      "sql": "select count(*) from public.work_checks where order_id = {{order_x}}",
+      "expect": {
+        "service_role": 1,
+        "*": "deny"
+      }
+    },
+    {
+      "name": "고치기 work_checks — 여전히 아무도 고치지 못한다 (쌓기만)",
+      "sql": "update public.work_checks set checked = false where order_id = {{order_x}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "지우기 work_checks — 여전히 아무도 지우지 못한다 (쌓기만)",
+      "sql": "delete from public.work_checks where order_id = {{order_x}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "지시서 메모 — 서버가 적는다",
+      "sql": "update public.work_jobs set sheet_memo = 'probe 철거 지시서 메모' where id = {{job_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "지시서 메모 — 2000자까지",
+      "sql": "update public.work_jobs set sheet_memo = repeat('가', 2000) where id = {{job_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "지시서 메모 — 2001자는 거절",
+      "sql": "update public.work_jobs set sheet_memo = repeat('가', 2001) where id = {{job_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "지시서 메모 — 빈 글은 거절 (없애려면 비운다)",
+      "sql": "update public.work_jobs set sheet_memo = '' where id = {{job_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "지시서 메모 — 비우기",
+      "sql": "update public.work_jobs set sheet_memo = null where id = {{job_memo}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "지시서 메모 읽기 — 서버만 (대표 계정의 브라우저에는 그 줄이 보이지 않고, 로그인 안 한 쪽은 권한이 없다)",
+      "sql": "select count(*) from public.work_jobs where id = {{job_memo}} and sheet_memo is not null",
+      "expect": {
+        "service_role": 1,
+        "x_owner": 0,
+        "anon": "deny"
+      }
+    },
+    {
+      "name": "지시서 메모는 작업 설명(detail)과 따로다 — 메모가 있는 작업의 설명은 비어 있다",
+      "sql": "select count(*) from public.work_jobs where id = {{job_memo}} and sheet_memo = 'probe 지시서 메모' and detail is null",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": 1
+      }
+    },
+    {
+      "name": "작업 표 RLS — 켜져 있다 (새 칸을 더해도 그대로)",
+      "sql": "select relrowsecurity::text from pg_class where oid = 'public.work_jobs'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    }
+  ]
+}
