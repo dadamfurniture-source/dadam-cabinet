@@ -6,7 +6,8 @@
              못 읽으면(403 not_platform · 404 · 오류 · 끊김) 칸째 감춘다 — 메뉴 줄도 없다.
              DB 준비 전(409 db_pending)이면 칸은 열고 「준비 중」 한 줄.
    서버      workflow-api (본인 토큰 · 응답은 { success, data } — src/hq-design-check.js)
-               GET  /hq/design-check                       한눈에 { companies, funnel, pc, suggest, issues, checks, ingest }
+               GET  /hq/design-check                       한눈에 { companies, funnel, pc, suggest, panel, issues, checks, ingest }
+                                                           (suggest.by_src = 카드 출처마다 보인 카드 수 · 누른 카드 수)
                GET  /hq/design-check/reviews?state=&only=  검토 줄 { items }
                POST /hq/design-check/reviews               { group_key, grade, reasons } 검토
                POST /hq/design-check/run                   지금 점검 { ok, steps }
@@ -52,6 +53,12 @@
   var LINE_NAME = { floor: '바닥 줄', upper: '상부 줄', stack: '하부장 위', under: '위장 아래' };
   var PHOTOS_NAME = { always: '늘 제공', on: '사진 제공 켬', off: '사진 제공 끔' };
   var STAGE_NAME = { save: '저장', learn: '묶음 보내기', photo: '사진', open: '열기' };
+  // 「자주 쓴 구성」 카드의 출처 — 플래너 카드의 작은 글과 같은 이름 (섞인 카드는 서버가 「여러 업체」 쪽으로 센다)
+  var CARD_SRC = [
+    ['own', '내 설계'],
+    ['pop', '여러 업체'],
+    ['seed', '본사 추천'],
+  ];
 
   var TEXT = {
     lead: '앱 플래너와 PC 플래너의 설계가 학습 자료로 모이는 길을 보고, 모인 설계를 검토합니다.',
@@ -284,6 +291,16 @@
     );
   }
 
+  /** 카드 출처별 줄 — 「누름 — 내 설계 2 보인 카드 6장」. 옛 서버 답(by_src 없음)이면 빈 목록 */
+  function srcRows(sg) {
+    var by = sg && sg.by_src;
+    if (!by || typeof by !== 'object') return [];
+    return CARD_SRC.map(function (c) {
+      var v = by[c[0]] || {};
+      return ['누름 — ' + c[1], num(v.accepted), '보인 카드 ' + num(v.shown) + '장'];
+    });
+  }
+
   function flowHtml() {
     var s = C.sum || {};
     var pc = s.pc || {};
@@ -302,11 +319,13 @@
         ? '<h3 class="me-pt-sub">자주 쓴 구성 카드 — 지난 ' +
           num(sg.days) +
           '일</h3>' +
-          factsHtml([
-            ['보임', num(sg.shown), ''],
-            ['누름', num(sg.accepted), ''],
-            ['지나침', num(sg.skipped), ''],
-          ])
+          factsHtml(
+            [
+              ['보임', num(sg.shown), ''],
+              ['누름', num(sg.accepted), ''],
+              ['지나침', num(sg.skipped), ''],
+            ].concat(srcRows(sg))
+          )
         : '')
     );
   }
@@ -925,6 +944,7 @@
     barWidths: barWidths,
     metaLine: metaLine,
     revLine: revLine,
+    srcRows: srcRows,
     rebuildLine: rebuildLine,
     load: load,
   };
