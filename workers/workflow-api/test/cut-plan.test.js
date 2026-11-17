@@ -268,3 +268,84 @@ test('createSnapshot — 컬럼 미적용 DB(PGRST204)면 배치만 빼고 저�
     console.warn = warn;
   }
 });
+
+// ── 재단 방식을 고른 배치 (간편 플래너 — cutPlan.strategy) ─────────────────────────────
+
+test('재단 방식 — 짧은 이름 꼴이면 통과, 꼴이 틀리면 422 (어떤 방식이 있는지는 엔진이 안다)', () => {
+  for (const s of ['standard', 'material', 'cuts', 'v2_fast-1']) {
+    const p = goodPlan();
+    p.strategy = s;
+    assert.equal(validateCutPlan(p, bom()).cutPlan.strategy, s);
+  }
+  for (const s of ['Standard', '표준', 'a b', '', '-x', 5, {}, 'x'.repeat(41)]) {
+    const p = goodPlan();
+    p.strategy = s;
+    assert.throws(() => validateCutPlan(p, bom()), ValidationError, String(s));
+  }
+  // 없거나 null 이면 재단 방식을 고르지 않은 배치 — 예전 그대로 통과
+  const none = goodPlan();
+  none.strategy = null;
+  assert.equal(validateCutPlan(none, bom()).sheetCount, 2);
+});
+
+test('createSnapshot — 재단 방식이 없으면 해시는 설계 · BOM 만으로 (예전과 같다)', async () => {
+  const { snapshotHash } = await import('../src/util/hash.js');
+  await withFakeSupabase(async (posts) => {
+    const body = snapshotBody(goodPlan());
+    await createSnapshot(ENV, { designId: 'D1', user: USER, body });
+    await createSnapshot(ENV, { designId: 'D1', user: USER, body: snapshotBody(undefined) });
+    const want = await snapshotHash(body.design, body.bom);
+    assert.deepEqual(posts.map((p) => p.content_hash), [want, want], '배치가 있든 없든 같은 해시');
+  });
+});
+
+test('createSnapshot — 재단 방식을 고른 배치는 해시에 든다: 방식만 바꿔 다시 보내도 새 판', async () => {
+  const { snapshotHash } = await import('../src/util/hash.js');
+  await withFakeSupabase(async (posts) => {
+    const withStrategy = (s) => { const p = goodPlan(); p.strategy = s; return p; };
+    const body = snapshotBody(withStrategy('standard'));
+    await createSnapshot(ENV, { designId: 'D1', user: USER, body });
+    await createSnapshot(ENV, { designId: 'D1', user: USER, body: snapshotBody(withStrategy('standard')) });
+    await createSnapshot(ENV, { designId: 'D1', user: USER, body: snapshotBody(withStrategy('cuts')) });
+    const moved = withStrategy('standard');
+    moved.sheets[0].parts[2].y = 800;
+    await createSnapshot(ENV, { designId: 'D1', user: USER, body: snapshotBody(moved) });
+    const [a, b, c, d] = posts.map((p) => p.content_hash);
+    assert.equal(a, b, '같은 방식 · 같은 배치면 같은 해시');
+    assert.notEqual(a, c, '방식이 다르면 다른 해시');
+    assert.notEqual(a, d, '같은 방식이어도 배치가 다르면 다른 해시');
+    assert.notEqual(a, await snapshotHash(body.design, body.bom), '재단 방식이 없는 해시와 다르다');
+    assert.equal(posts[2].cut_plan_payload.strategy, 'cuts', '배치는 보낸 그대로 저장');
+  });
+});
+
+test('createSnapshot — 같은 재단 방식 · 같은 배치를 다시 보내면 있던 동결본을 돌려준다', async () => {
+  const { snapshotHash, cutDigestOf } = await import('../src/util/hash.js');
+  const plan = goodPlan();
+  plan.strategy = 'material';
+  const body = snapshotBody(plan);
+  const hash = await snapshotHash(body.design, body.bom, cutDigestOf(plan));
+  const original = globalThis.fetch;
+  const asked = [];
+  let posted = 0;
+  const json = (rows, status = 200) => ({ ok: true, status, headers: { get: () => 'application/json' }, json: async () => rows, text: async () => JSON.stringify(rows) });
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    if ((init.method || 'GET') === 'POST') { posted += 1; throw new Error('INSERT 가 나가면 안 된다'); }
+    if (companyRoute(u)) return companyRoute(u);
+    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계', company_id: HQ }]);
+    if (/\/design_snapshots\?/.test(u)) {
+      const want = new URL(u).searchParams.get('content_hash');
+      asked.push(want);
+      return json(want === `eq.${hash}` ? [{ id: 'S-OLD', rev: 3, content_hash: hash, cut_plan_payload: plan }] : []);
+    }
+    throw new Error('unexpected fetch ' + u);
+  };
+  try {
+    const { snapshot, reused } = await createSnapshot(ENV, { designId: 'D1', user: USER, body });
+    assert.deepEqual([snapshot.id, reused, posted], ['S-OLD', true, 0]);
+    assert.ok(asked.includes(`eq.${hash}`), '재단 방식이 든 해시로 찾는다');
+  } finally {
+    globalThis.fetch = original;
+  }
+});

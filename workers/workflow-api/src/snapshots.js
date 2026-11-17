@@ -27,7 +27,7 @@ import {
   selectOne,
   selectMany,
 } from './supabase.js';
-import { snapshotHash } from './util/hash.js';
+import { snapshotHash, cutDigestOf } from './util/hash.js';
 import { getActivePricebook, getPricebookById } from './pricing.js';
 import { calculateSheetQuote } from './quote-sheet.js';
 import { companySettings, mergeSettings } from './production/service.js';
@@ -192,8 +192,11 @@ function footprintOf(p) {
  *   - 모양: version, sheets[], offcuts[] · 시트마다 no(고유)·material·size(양수)·parts[]
  *   - 조각마다 partId 가 bom.materials 에 있고, 행별 배치 개수 ≤ qty
  *   - 조각이 원판 안에 있고(rot 반영) 같은 시트의 조각끼리 겹치지 않는다
+ *   - 재단 방식(strategy — 간편 플래너가 고른 것)이 있으면 짧은 이름 꼴. 방식이 실린 배치는 content_hash 에 든다 (util/hash.js cutDigestOf)
  * 통과하면 { cutPlan, sheetCount } 를 돌려준다. sheetCount = sheets.length (겹침 재단도 낱장으로 센다).
  */
+const CUT_STRATEGY_RE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+
 export function validateCutPlan(cutPlan, bom) {
   if (cutPlan === undefined || cutPlan === null) return null;
   if (typeof cutPlan !== 'object' || Array.isArray(cutPlan)) {
@@ -205,6 +208,11 @@ export function validateCutPlan(cutPlan, bom) {
   if (!Array.isArray(cutPlan.sheets)) throw new ValidationError('cutPlan.sheets 배열이 필요합니다');
   if (cutPlan.offcuts !== undefined && !Array.isArray(cutPlan.offcuts)) {
     throw new ValidationError('cutPlan.offcuts 는 배열이어야 합니다');
+  }
+  // 재단 방식 — 있으면 짧은 이름 꼴만 (어떤 방식이 있는지는 엔진 NestingEngine.STRATEGIES 가 안다 — 여기서 고르지 않는다)
+  if (cutPlan.strategy !== undefined && cutPlan.strategy !== null
+    && (typeof cutPlan.strategy !== 'string' || !CUT_STRATEGY_RE.test(cutPlan.strategy))) {
+    throw new ValidationError('cutPlan.strategy 모양이 올바르지 않습니다 (영문 소문자 · 숫자 · _ - 40자까지)');
   }
 
   // 자재 행 partId → qty. partId 가 없는 행은 엔진이 `row-<index>` 로 부른다.
@@ -505,7 +513,9 @@ export async function createSnapshot(env, { designId, user, body }) {
   // PR10: 조립 명세 — 선택 사항. 있으면 BOM 과 맞는지 본다. bom_payload 에 그대로 실려 content_hash 에 든다.
   validateAssembly(bom.assembly, bom);
 
-  const contentHash = await snapshotHash(designPayload, bom);
+  // 재단 방식을 고른 배치(cutPlan.strategy)는 판정에 넣는다 — 같은 설계 · BOM 이어도 방식이나 배치가 바뀌면 새 리비전.
+  //   재단 방식이 없는 배치(상세설계 CNC 탭)는 예전처럼 설계 · BOM 만으로 판정한다
+  const contentHash = await snapshotHash(designPayload, bom, cut ? cutDigestOf(cut.cutPlan) : null);
 
   // 이미 같은 내용의 스냅샷이 있으면 재사용
   const existing = await findByHash(env, designId, contentHash);
