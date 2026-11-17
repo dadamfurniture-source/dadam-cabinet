@@ -48,6 +48,9 @@ function makeDb({ stock = true, price = true } = {}) {
       { user_id: M_OWNER, company_id: PM, role: 'owner', status: 'active' },
     ],
     admin_roles: [],
+    // 자재 가격표 표가 아직 없는 DB (0070 전) — 가격표 없이 예전처럼 돈다 (가격표가 있을 때는 test/price-lists.test.js)
+    price_lists: null,
+    price_list_items: null,
     company_settings: [],
     stock_links: stock ? [
       { company_id: P1, match_key: 'B|PB|15', kind: 'board', item_id: 'it-pb15', ignored: false },
@@ -255,7 +258,7 @@ test('priceLines — 생산 설정 단가는 견적이 가르는 조건 그대�
 test('색 목록 — 대표 · 실장이 생산 설정에 적고, 플래너 구성원 누구나 읽는다 (없으면 빈 목록)', async () => {
   const db = makeDb();
   await withDb(db, async () => {
-    assert.deepEqual(await plannerColors(ENV, { user: u(STAFF) }), { company: { id: P1, name: '가나 팩토리' }, body: [], back: [], updated_at: null });
+    assert.deepEqual(await plannerColors(ENV, { user: u(STAFF) }), { company: { id: P1, name: '가나 팩토리' }, body: [], back: [], door: [], updated_at: null });
     await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { colors: { body: ['화이트', ' 오크 ', '화이트', '라이트  그레이'], back: ['화이트'] } } });
     const r = await plannerColors(ENV, { user: u(STAFF) });
     assert.deepEqual([r.body, r.back], [['화이트', '오크', '라이트 그레이'], ['화이트']], '앞뒤 빈칸 · 겹친 이름 · 겹친 빈칸은 정리한다');

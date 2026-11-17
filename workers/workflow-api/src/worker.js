@@ -10,6 +10,7 @@
  *   GET /planner/access · /planner/drafts(…) · /planner/my-modules(…) · /planner/recommend — 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
  *   POST /planner/prices · GET /planner/colors — 플래너 BOM 요약의 품목 단가(대표 · 실장만) · 몸통 / 우라 색 목록 (src/planner-prices.js)
  *   GET /planner/cut — 재단기 설정 (톱날 두께 · 가장자리 여백 — 플래너가 재단 배치를 셈할 때)
+ *   POST /planner/price-lists · GET /planner/price-lists · GET /planner/price-lists/items — 자재 가격표 올리기 · 지금 가격표 · 줄 (대표 · 실장, src/price-lists.js — DB 0070)
  *   PUT /planner/drafts/:id/learn · POST /planner/drafts/report · GET · PUT /planner/photo-consent · POST /planner/signals — 학습 묶음 · 저장 실패 기록 · 사진 제공 동의 · 구성 카드 쓰임 (src/planner-learn.js, DB 0067)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
@@ -122,6 +123,7 @@ import {
   reportIssue as reportPlannerIssue,
 } from './planner-learn.js';
 import { plannerPrices, plannerColors, plannerCut } from './planner-prices.js';
+import { uploadPriceList, listPriceLists, listPriceItems, PRICE_LIST_BODY_MAX_BYTES } from './price-lists.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
@@ -1397,6 +1399,22 @@ function workRoute(fn, status = 200) {
   };
 }
 
+/** 자재 가격표 올리기 — 본문을 상한까지만 읽는다 (5000줄 · 2MB) */
+async function handleUploadPriceList(request, env, { user }) {
+  const declared = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declared) && declared > PRICE_LIST_BODY_MAX_BYTES) throw new TooLargeError('가격표가 너무 큽니다');
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > PRICE_LIST_BODY_MAX_BYTES) throw new TooLargeError('가격표가 너무 큽니다');
+  let body = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = null;
+  }
+  const data = await uploadPriceList(env, { user, body });
+  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
+}
+
 /** 간편 플래너 설계 저장 — 본문을 상한까지만 읽는다 (설계 5MB) */
 async function handleSavePlannerDraft(request, env, { user }) {
   const declared = Number(request.headers.get('Content-Length'));
@@ -1498,6 +1516,9 @@ const router = createRouter([
   { method: 'POST',   path: '/planner/prices',                     auth: 'jwt', handler: workRoute(plannerPrices) },
   { method: 'GET',    path: '/planner/colors',                     auth: 'jwt', handler: workRoute(plannerColors) },
   { method: 'GET',    path: '/planner/cut',                        auth: 'jwt', handler: workRoute(plannerCut) },
+  { method: 'POST',   path: '/planner/price-lists',                auth: 'jwt', handler: handleUploadPriceList },
+  { method: 'GET',    path: '/planner/price-lists',                auth: 'jwt', handler: workRoute(listPriceLists) },
+  { method: 'GET',    path: '/planner/price-lists/items',          auth: 'jwt', handler: workRoute(listPriceItems) },
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
   { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
