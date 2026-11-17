@@ -498,7 +498,10 @@ describe('생산 설정 화면 — 다담 공장', () => {
     expect(bars[0].nextElementSibling.getAttribute('data-ps-group')).toBe('standards');
     // 마지막 묶음(견적) 다음에 플래너 색 목록, 그 뒤가 아래 저장 줄
     expect(bars[1].previousElementSibling.hasAttribute('data-ps-colors')).toBe(true);
-    expect(bars[1].previousElementSibling.previousElementSibling.getAttribute('data-ps-group')).toBe('quote');
+    // 색 목록 앞은 재단기 설정, 그 앞이 마지막 묶음(견적)
+    const cut = bars[1].previousElementSibling.previousElementSibling;
+    expect(cut.hasAttribute('data-ps-cut')).toBe(true);
+    expect(cut.previousElementSibling.getAttribute('data-ps-group')).toBe('quote');
     const [top, bottom] = bars.map((b) => b.querySelector('[data-ps="msg"]'));
     expect(top.getAttribute('role')).toBe('status');
     expect(top.hasAttribute('aria-hidden')).toBe(false);
@@ -527,12 +530,14 @@ describe('저장', () => {
       'costs',
       'countertop',
       'crew',
+      'cut',
       'leads',
       'quote',
       'standards',
       'vendors',
     ]);
     expect(body.colors).toEqual({ body: [], back: [] }); // 색 목록 칸이 비어 있다
+    expect(body.cut).toEqual({}); // 재단기 설정 칸이 비어 있다 — 서버가 저장된 값을 그대로 둔다
     expect(body.standards.cutPerSheet).toBe(310);
     expect('cutPerJob' in body.standards).toBe(false);
     expect(body.standards.edgePerFace).toBe(102); // 손대지 않은 칸은 받은 값 그대로
@@ -814,6 +819,100 @@ describe('플래너 색 목록 (2026-11-17 — 팩토리마다 자기 목록)', 
     await load({ partner: PARTNER, get: () => ok({ settings: settings(), saved: null, hq: false }) });
     expect(box().querySelector('[data-ps-colors]')).not.toBeNull();
     expect(area('body')).not.toBeNull();
+  });
+});
+
+describe('재단기 설정 (2026-11-18 — 톱날 두께 · 원장 가장자리 여백)', () => {
+  const cutField = (k) => $(`ps-cut-${k}`);
+  const withCut = (cut) => () => ok({ settings: { ...settings(), cut }, saved: null, hq: true });
+
+  test('묶음 일곱 아래 · 색 목록 위 — 숫자 칸 둘, 받은 값을 적는다', async () => {
+    await load({ get: withCut({ kerf: 4.4, trim: 10 }) });
+    const sec = box().querySelector('[data-ps-cut]');
+    expect(sec).not.toBeNull();
+    expect(text(sec.querySelector('h4.od-h'))).toBe('재단기 설정');
+    expect(text(sec.querySelector('p.mk-note'))).toBe(
+      '간편 플래너가 재단 배치를 셈하고 CNC 파일을 만들 때 쓰는 값입니다 (mm, 0.1 단위). 칸을 비우고 저장하면 그 칸은 저장된 값 그대로 둡니다.'
+    );
+    expect([...sec.querySelectorAll('label > span')].map(text)).toEqual([
+      '톱날 두께 (mm)',
+      '원장 가장자리 여백 (mm)',
+    ]);
+    expect(cutField('kerf').type).toBe('number');
+    expect(cutField('kerf').getAttribute('step')).toBe('0.1');
+    expect(cutField('kerf').value).toBe('4.4');
+    expect(cutField('trim').value).toBe('10');
+    expect(cutField('kerf').closest('label').getAttribute('for')).toBe('ps-cut-kerf');
+    expect(sec.nextElementSibling.hasAttribute('data-ps-colors')).toBe(true);
+    // 묶음 일곱은 그대로다 (PC 화면과 같은 칸) — 재단기 설정은 따로 센다
+    expect(groups().length).toBe(7);
+    expect(box().querySelectorAll('input[data-g][data-k][data-cut]').length).toBe(0);
+  });
+
+  test('값이 없거나 숫자가 아니면 빈 칸', async () => {
+    await load({ get: withCut({ kerf: 'x', trim: null }) });
+    expect(cutField('kerf').value).toBe('');
+    expect(cutField('trim').value).toBe('');
+    await load(); // cut 이 아예 없는 답 (옛 서버)
+    expect(cutField('kerf').value).toBe('');
+  });
+
+  test('저장 — 적은 칸만 숫자로 보낸다 · 다른 묶음은 예전 그대로', async () => {
+    const calls = await load({ get: withCut({ kerf: 4, trim: 10 }) });
+    type(cutField('kerf'), '4.4');
+    type(cutField('trim'), '');
+    await press(saveBtns()[0]);
+    const body = posts(calls)[0].body;
+    expect(body.cut).toEqual({ kerf: 4.4 });
+    expect(body.standards.cutPerSheet).toBe(100);
+    expect(body.colors).toEqual({ body: [], back: [] });
+  });
+
+  test('저장한 뒤 — 서버가 돌려준 값으로 다시 그린다', async () => {
+    await load({
+      post: (body) => ok({ settings: { ...settings(body), cut: { kerf: 4.4, trim: 12 } }, saved: body }),
+    });
+    type(cutField('kerf'), '4.44');
+    await press(saveBtns()[1]);
+    expect(cutField('kerf').value).toBe('4.4');
+    expect(cutField('trim').value).toBe('12');
+    expect(msgs()[0]).toMatch(/^설정을 저장했습니다/);
+  });
+
+  test('서버가 재단기 칸을 짚어 거절 — 칸 이름을 붙여 알리고 그 칸에 표시한다', async () => {
+    await load({
+      post: () => fail(422, 'validation', 'cut.kerf 는 0 ~ 10 사이 숫자여야 합니다'),
+    });
+    type(cutField('kerf'), '44');
+    await press(saveBtns()[0]);
+    expect(msgs()[0]).toBe('「톱날 두께 (mm)」 — cut.kerf 는 0 ~ 10 사이 숫자여야 합니다');
+    expect(cutField('kerf').getAttribute('aria-invalid')).toBe('true');
+    expect(cutField('kerf').value).toBe('44');
+    // 고치기 시작하면 표시를 지운다
+    type(cutField('kerf'), '4.4');
+    expect(cutField('kerf').hasAttribute('aria-invalid')).toBe(false);
+    expect(box().querySelector('.ps-err')).toBeNull();
+  });
+
+  test('순수 함수 — cutOf · bodyOf 는 칸이 있을 때만 재단기 설정을 싣는다 · fieldOf', () => {
+    const P = names();
+    const inp = (k, value) => ({ value, getAttribute: (n) => (n === 'data-cut' ? k : null) });
+    expect(P.CUT_KEYS).toEqual(['kerf', 'trim']);
+    expect(P.cutOf([inp('kerf', '4.4'), inp('trim', ''), inp('blade', '3')])).toEqual({ kerf: 4.4 });
+    expect(P.cutOf(null)).toEqual({});
+    expect(P.bodyOf([], null, [], [inp('kerf', '4.4'), inp('trim', '12')]).cut).toEqual({ kerf: 4.4, trim: 12 });
+    expect(P.bodyOf([], null, [], [inp('kerf', ''), inp('trim', '')]).cut).toEqual({});
+    // 칸이 없으면 싣지 않는다 — 서버가 저장된 값을 그대로 둔다
+    expect('cut' in P.bodyOf([], null, [])).toBe(false);
+    expect('cut' in P.bodyOf([], null, [], [inp('blade', '3')])).toBe(false);
+    expect(P.fieldOf('cut.trim 는 0 ~ 100 사이 숫자여야 합니다')).toEqual({ group: 'cut', key: 'trim' });
+    expect(P.fieldOf('알 수 없는 설정: cut.blade')).toBeNull();
+  });
+
+  test('협력업체 대표에게도 같은 칸이 보인다', async () => {
+    await load({ partner: PARTNER, get: () => ok({ settings: settings(), saved: null, hq: false }) });
+    expect(box().querySelector('[data-ps-cut]')).not.toBeNull();
+    expect(cutField('kerf')).not.toBeNull();
   });
 });
 
