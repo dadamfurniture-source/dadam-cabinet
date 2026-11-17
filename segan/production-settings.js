@@ -122,6 +122,10 @@
   var COLOR_GROUPS = ['body', 'back'];
   var COLOR_LABELS = { body: '몸통 색 (PB)', back: '우라 색 (뒷판 MDF 3T)' };
   var COLOR_RE = /colors\.(body|back)/;
+  // 재단기 설정 — 칸 이름은 서버 settings.cut 과 같다 (workflow-api production/standards.js DEFAULT_CUT)
+  var CUT_KEYS = ['kerf', 'trim'];
+  var CUT_LABELS = { kerf: '톱날 두께 (mm)', trim: '원장 가장자리 여백 (mm)' };
+  var CUT_RE = /cut\.(kerf|trim)/;
 
   var TEXT = {
     title: '생산 설정',
@@ -136,6 +140,9 @@
     quoteHelp:
       '아래 「견적」 묶음은 상세설계 견적(장당 계산: BOM 수량 × 실제 원가 × (1 + 마진율))에 쓰입니다. 바꾸면 다음 스냅샷부터 반영됩니다.',
     emptyHelp: '숫자 칸을 비우고 저장하면 그 값은 기본값으로 돌아갑니다.',
+    cutTitle: '재단기 설정',
+    cutHelp:
+      '간편 플래너가 재단 배치를 셈하고 CNC 파일을 만들 때 쓰는 값입니다 (mm, 0.1 단위). 칸을 비우고 저장하면 그 칸은 저장된 값 그대로 둡니다.',
     colorsTitle: '플래너 색 목록',
     colorsHelp:
       '간편 플래너 색상 탭에서 고르는 이름입니다. 한 줄에 하나씩 적어 주세요 (이름 40자 · 100개까지).',
@@ -202,6 +209,24 @@
       .join('\n');
   }
 
+  /** 재단기 설정 칸에 적을 값 — 숫자가 아니면 빈 글 */
+  function cutValue(key) {
+    var v = obj(obj(J.settings).cut)[key];
+    return typeof v === 'number' && isFinite(v) ? String(v) : '';
+  }
+
+  /** 재단기 설정 칸들 → { kerf, trim } — 빈 칸은 뺀다 (서버가 저장된 값을 그대로 둔다) */
+  function cutOf(cutInputs) {
+    var out = {};
+    Array.prototype.forEach.call(cutInputs || [], function (i) {
+      var k = i.getAttribute('data-cut');
+      if (CUT_KEYS.indexOf(k) < 0) return;
+      var v = String(i.value == null ? '' : i.value).trim();
+      if (v !== '') out[k] = Number(v);
+    });
+    return out;
+  }
+
   /** 색 목록 칸들 → { body: [이름…], back: [이름…] } — 빈 줄은 빼고 · 앞뒤 빈칸을 떼고 · 같은 이름은 한 번만 (적은 차례 그대로) */
   function colorsOf(areas) {
     var out = { body: [], back: [] };
@@ -223,8 +248,9 @@
    * 빈 숫자 칸은 뺀다 · 상판 업체(vendors.top*)는 빈 글도 보낸다 · 그 밖의 업체는 적은 것만.
    * 이 화면에 칸이 없는 공휴일 · 원판 기준은 저장돼 있던 그대로 싣는다 (서버는 보낸 묶음만 남긴다)
    * 색 목록(colors)은 두 칸이 다 그려져 있을 때만 싣는다 — 싣지 않으면 서버가 저장된 목록을 그대로 둔다
+   * 재단기 설정(cut)은 칸이 그려져 있을 때만 싣는다 (적은 칸만) — 싣지 않으면 서버가 저장된 값을 그대로 둔다
    */
-  function bodyOf(inputs, saved, areas) {
+  function bodyOf(inputs, saved, areas, cutInputs) {
     var body = {
       standards: {},
       crew: {},
@@ -256,6 +282,10 @@
       })
     )
       body.colors = colorsOf(areas);
+    var hasCut = Array.prototype.some.call(cutInputs || [], function (i) {
+      return CUT_KEYS.indexOf(i.getAttribute('data-cut')) >= 0;
+    });
+    if (hasCut) body.cut = cutOf(cutInputs);
     return body;
   }
 
@@ -264,11 +294,15 @@
     var m = FIELD_RE.exec(str(message));
     if (m && own(LABELS[m[1]], m[2])) return { group: m[1], key: m[2] };
     var c = COLOR_RE.exec(str(message));
-    return c ? { group: 'colors', key: c[1] } : null;
+    if (c) return { group: 'colors', key: c[1] };
+    var k = CUT_RE.exec(str(message));
+    return k ? { group: 'cut', key: k[1] } : null;
   }
-  /** 칸 이름 — 숫자 · 업체 칸은 LABELS, 색 목록은 COLOR_LABELS */
+  /** 칸 이름 — 숫자 · 업체 칸은 LABELS, 색 목록은 COLOR_LABELS, 재단기 설정은 CUT_LABELS */
   function labelOf(f) {
-    return f.group === 'colors' ? COLOR_LABELS[f.key] : LABELS[f.group][f.key];
+    if (f.group === 'colors') return COLOR_LABELS[f.key];
+    if (f.group === 'cut') return CUT_LABELS[f.key];
+    return LABELS[f.group][f.key];
   }
 
   // ── 서버 ────────────────────────────────────────────
@@ -366,6 +400,33 @@
       '</div></div>'
     );
   }
+  /** 재단기 설정 — 톱날 두께 · 원장 가장자리 여백 (묶음 일곱 아래, 색 목록 위) */
+  function cutHtml() {
+    return (
+      '<div class="od-sec ps-sec" data-ps-cut><h4 class="od-h">' +
+      esc(TEXT.cutTitle) +
+      '</h4><p class="mk-note">' +
+      esc(TEXT.cutHelp) +
+      '</p><div class="ps-grid">' +
+      CUT_KEYS.map(function (k) {
+        var id = 'ps-cut-' + k;
+        return (
+          '<label class="mk-input ps-field" for="' +
+          id +
+          '"><span>' +
+          esc(CUT_LABELS[k]) +
+          '</span><input id="' +
+          id +
+          '" type="number" step="0.1" min="0" inputmode="decimal" data-cut="' +
+          k +
+          '" value="' +
+          esc(cutValue(k)) +
+          '"></label>'
+        );
+      }).join('') +
+      '</div></div>'
+    );
+  }
   /** 플래너 색 목록 — 몸통 색 · 우라 색, 한 줄에 이름 하나 (묶음 일곱 아래) */
   function colorsHtml() {
     return (
@@ -431,6 +492,7 @@
       '</p>' +
       barHtml(true) +
       GROUPS.map(groupHtml).join('') +
+      cutHtml() +
       colorsHtml() +
       barHtml(false);
     box.hidden = false;
@@ -446,11 +508,17 @@
     var box = $('productionSettings');
     return box ? box.querySelectorAll('textarea[data-colors]') : [];
   }
+  function cutInputs() {
+    var box = $('productionSettings');
+    return box ? box.querySelectorAll('input[data-cut]') : [];
+  }
   /** 짚은 칸의 표시와 그 아래 까닭 글을 지운다 (칸을 주지 않으면 모두) */
   function unflag(el) {
     var box = $('productionSettings');
     if (!box) return;
-    var all = Array.prototype.slice.call(inputs()).concat(Array.prototype.slice.call(colorAreas()));
+    var all = Array.prototype.slice
+      .call(inputs())
+      .concat(Array.prototype.slice.call(colorAreas()), Array.prototype.slice.call(cutInputs()));
     Array.prototype.forEach.call(el ? [el] : all, function (i) {
       i.removeAttribute('aria-invalid');
       i.removeAttribute('aria-describedby');
@@ -482,7 +550,7 @@
     unflag();
     say(TEXT.working);
     try {
-      var r = await call('POST', '/production/settings', bodyOf(inputs(), J.saved, colorAreas()));
+      var r = await call('POST', '/production/settings', bodyOf(inputs(), J.saved, colorAreas(), cutInputs()));
       if (!r.ok) {
         say(flag(errText(r)));
         return;
@@ -552,10 +620,13 @@
     LABELS: LABELS,
     COLOR_GROUPS: COLOR_GROUPS,
     COLOR_LABELS: COLOR_LABELS,
+    CUT_KEYS: CUT_KEYS,
+    CUT_LABELS: CUT_LABELS,
     TEXT: TEXT,
     canSee: canSee,
     bodyOf: bodyOf,
     colorsOf: colorsOf,
+    cutOf: cutOf,
     fieldOf: fieldOf,
     state: J,
     load: load,
