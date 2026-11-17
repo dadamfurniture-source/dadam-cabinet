@@ -25,6 +25,7 @@ const cutPlan = NestingEngine.plan(materials, opts);
 - `materials`: `bom.materials` 행 (`{partId, part, material, thickness, w, h, qty, edge, itemLabel, grain?}`). B1 이후 모든 행에 `partId` 가 있다.
 - 전역 스크립트(`detaildesign.html`, `data-constants.js` 뒤 · `ai-design-report.js` 앞)와 CommonJS(`require`) 이중 노출. DOM·전역 상태를 건드리지 않는다.
 - 보조: `NestingEngine.partClassOf(partName)` (본체/도어/뒷판), `basePartId('x#3') → 'x'`, `rotatableOf(row)`, `DEFAULTS`, `NO_ROTATE_MATERIALS`.
+- 재단 방식 (2026-11-17): `NestingEngine.STRATEGIES` (`[{id, label}]` — 표준 · 부재 최적화 · 최소 재단), `NestingEngine.compare(materials, opts)` (세 방식을 한 번에 — `{plans, rows}`), `NestingEngine.cutCount(sheet)` (낸 원판 한 장을 자르는 횟수). §3-1.
 
 ### 옵션
 
@@ -36,6 +37,11 @@ const cutPlan = NestingEngine.plan(materials, opts);
 | `trim` | 10 | 네 변 가장자리 트림. 배치 가능 영역 = `(w-2·trim) × (h-2·trim)`, 좌표는 원판 좌상단 기준 절대값 |
 | `noRotateMaterials [RegExp\|string]` | 무늬목 · 우드 · wood · 결 PET · PET(우드/결) | 자재 이름으로 회전 금지 |
 | `partClass fn(partName)` | `partClassOf` | 원판을 섞지 않는 그룹을 가르는 부재 구분 |
+| `strategy` | — (지금 방식 그대로) | 재단 방식 `standard` · `material` · `cuts` (§3-1). 모르는 값은 `RangeError` |
+| `colorOf fn(row)` | — (색을 보지 않는다) | 판의 색 이름. 색이 다른 판을 한 원판에 섞지 않는다 (묶음 키에 색) |
+| `searchBudget` | 묶음 크기에 따라 12 ~ 198 | 묶음마다 만들어 볼 후보 배치 수 (`strategy` 가 있을 때만) |
+
+`strategy` 도 `colorOf` 도 주지 않으면 §3 의 알고리즘 그대로이고 결과 JSON 이 한 글자도 바뀌지 않는다 — CNC 탭(`ai-design-report.js`)과 스냅샷(`workflow-client.js`)이 그렇게 부른다.
 
 행 단위 회전 금지: `grain` 이 있고 `'none'` 이 아니거나 `rotatable === false`. 결 부재는 `parts[].grain` 에 그 값이, 회전 가능한 부재는 `'none'` 이 적힌다.
 
@@ -49,6 +55,28 @@ const cutPlan = NestingEngine.plan(materials, opts);
 6. **혼합 배치** — 남은 need 로 H(가로→세로)·V(세로→가로) × 정방향/회전 네 후보를 만들고 `실제 생산량(배치×예상 겹침) → 배치 수 → 잔재에서 뽑는 소부품 수 → 60~70 자투리 길이 → 활용 면적 → 스트립 수↓` 로 고른다. 회전 후보에서도 회전 금지 need 는 제자리 치수를 유지한다.
 7. **스트립** — 첫 need 의 h(H)/w(V) 로 스트립 크기를 정하고 같은 치수를 먼저 채운 뒤(1차) 남는 자리에 더 작은 need 를 넣는다(2차, `fromRemainder`).
 8. **전개** — 배치 한 종을 `stack` 장의 시트로 늘어놓고, 스트립·조각 순서대로 큐에서 `partId#k` 를 꺼내 절대 좌표를 적는다. 스트립 잔여(≥60)와 원판 잔여(≥60)를 `offcuts` 로 낸다.
+
+### 3-1. 재단 방식 (2026-11-17 사장님 「재단은 총 3가지 중 선택」)
+
+`opts.strategy` 를 주면 §3 의 5 · 6 단계(원판마다 그때 가장 많이 놓이는 배치를 고른다) 대신, **묶음 하나를 여러 방식으로 끝까지 놓아 보고(후보) 그 가운데서 고른다**. 1 ~ 4 · 8 단계는 그대로다.
+
+| 방식 | 사장님 말 | 고르는 차례 |
+|------|-----------|-------------|
+| `standard` 표준 | 「1220 이 먼저 잘리고, 회전해서 2440 이 다음에」 — 그림으로 확인: **첫 톱질이 2440 변과 나란하다** (1220 폭을 긴 띠로 켠 뒤 띠를 돌려 토막). 「그렇게 했을 때 부재에 따른 최소 원장 갯수」 | 첫 톱질이 원판 긴 변과 나란한 후보만 → 못 놓은 수 → **원판 수** → 자르는 횟수 → 다시 쓸 자투리 넓이 |
+| `material` 부재 최적화 | 「잘리는 횟수에 관계없이 원장의 넓이가 최대로 많이 남도록」 | 모든 후보 + 지금 방식 → 못 놓은 수 → **원판 수** → 다시 쓸 자투리 넓이 → 가장 큰 자투리 → 자르는 횟수 |
+| `cuts` 최소 재단 | 「재단 횟수가 최소」 · 「(표준보다) 한 장까지는 더 써도 됨」 | 원판 수 ≤ 표준 + 1 인 후보 → **자르는 횟수** → 원판 수 → 다시 쓸 자투리 넓이 |
+
+- **후보는 모두 띠 재단이다** — 끝에서 끝까지 직선으로 켜는 톱으로 자를 수 있는 배치만 (부재 최적화도). 후보 방식은 다섯 가지를 곱한 198가지(`VARIANTS`): 첫 톱질 방향(긴 변 먼저 · 짧은 변 먼저 · 원판마다 더 넓게 쓰는 쪽) × 부재 돌리기(부재마다 · 그린 대로 · 돌릴 수 있는 것은 모두) × 다음 띠 폭(들어가는 가장 넓은 것 · 가장 꽉 차는 것 · 가장 넓게 쓰는 것) × 좁은 부재 같이 놓기(함 · 안 함) × 되풀이(같은 배치를 겹칠 만큼 · 원판마다 새로 · 같은 부재로 꽉 차는 원판 먼저 · 띠를 다 만든 뒤 넓은 것부터 원판에). 0번 후보는 §3 의 지금 방식 그대로다.
+- **표준의 띠 안 좁은 부재** — 띠를 토막 낸 뒤 폭이 더 좁은 부재는 한 번 더 켠다 (`fromRemainder`). 2026-11-17 사장님 「허락」 (금지하면 시험 계산에서 원판이 약 10 % 더 든다).
+- **긴 변 먼저** — 원판이 세로로 길면(1220 × 2440) 세로 띠 `V`, 가로로 길면 `H`. 결 · 회전 금지 규칙은 방식과 상관없이 그대로다.
+- **다시 쓸 자투리** — 긴 변 600 · 짧은 변 400 이상 (재고 자투리 화면의 「쓸 수 있는 것」 — `workers/workflow-api/src/stock-needs.js CANDIDATE_MIN`).
+- **자르는 횟수** — bom-protocol §7-3. 겹친 원판(최대 5장)은 한 번, 가장자리 트림 재단은 세지 않는다.
+- **묶음마다 지켜지는 것** — 표준으로 고른 후보가 다른 두 모음에도 들어 있어서: 부재 최적화 원판 ≤ 표준 · 최소 재단 원판 ≤ 표준 + 1 · 최소 재단 횟수 ≤ 표준. 부재 최적화 원판 ≤ 지금 방식(0번 후보). 표준은 지금 방식보다 원판이 늘 수 있다 (지금 방식은 가로 · 세로 띠를 섞는다 — 골든 9벌 × 수량 1 · 2, 묶음 62개 가운데 1개).
+- **「가장 적은」은 만들어 본 후보 가운데서다** — 증명된 최소가 아니다. 화면 · 문서에 「최소 보장」 · 「최적」이라 적지 않는다.
+- **후보 수 한도** — `clamp(⌊400000 ÷ (치수 종류 × 조각 수)⌋, 12, 198)`, `opts.searchBudget` 을 주면 그 수. 개수로만 줄인다 (시간으로 끊으면 같은 입력에서 다른 결과가 나온다). 앞 12개는 한도가 가장 작을 때도 세 방식이 모두 고를 것이 있게 정해 둔 차례다. [확인 필요: 400000 · 12 는 골든 9벌에서 걸린 시간(BOM 하나 7 ~ 24 ms)을 보고 잡은 값이다 — 사장님 값이 아니다]
+- **색** — `opts.colorOf(row)` 를 주면 묶음 키가 `자재|두께|구분|색`. 색이 없는 줄은 빈 글 묶음으로 따로다. 색이 다른 판은 한 원판에 섞이지 않는다.
+
+시험 계산 (골든 9벌 × 수량 1 · 2, 2026-11-17): 지금 279장 · 1440회 → 표준 252장 · 1391회 · 부재 최적화 239장 · 1489회 · 최소 재단 268장 · 1264회.
 
 ### 옛 코드와 다른 점
 
@@ -68,10 +96,12 @@ const cutPlan = NestingEngine.plan(materials, opts);
 | `workflow-client.js` `createSnapshot` | 동결 직전 `NestingEngine.plan(report.materials.materials)` 을 POST 본문 `cutPlan` 으로. `_reportData` 는 `ui-step1.js` 소유라 손대지 않는다 |
 | `workers/workflow-api/src/snapshots.js` | `validateCutPlan` → `cut_plan_payload` · `sheet_count`. 컬럼이 없는 DB(PGRST204/42703)면 배치만 빼고 저장·목록 |
 | `database/workflow-cut-plan.sql` | `ADD COLUMN IF NOT EXISTS cut_plan_payload JSONB`, `sheet_count INT` |
+| 간편 플래너 (`dadam-planner-lite server/nesting.js` — 엔진을 서브모듈로 읽는다) | BOM 창 재단 탭 · 「앱으로 보내기」의 `cutPlan`. 2026-11-17 부터 `strategy` · `colorOf` 를 준다 — 플래너에서 온 스냅샷의 `cut_plan_payload` 에는 §7-3 의 「재단 방식 · 색으로 붙는 칸」이 들어 있을 수 있다 |
 
 ## 5. 시험
 
 - `__tests__/nesting-engine.test.js` — 골든 5벌: 결정성(순서 뒤집어도 같은 JSON), 수량 보존(`partId#k` 정확히 한 번, 미배치 포함), 겹침 없음·트림 안쪽·커프 간격, 겹침 재단 시트의 배치 동일성, offcuts 정합, 옵션(결·회전 금지·원판 크기·트림·커프), `detaildesign.html` 스크립트 순서.
+- 같은 파일, 재단 방식: 옵션이 없으면 결과가 그대로(고정 입력 지문 · 새 칸 없음), 방식마다 골든 9벌에서 보존 · 기하 · 결정성 · 겹침 · 자르는 횟수(`sheets[].cuts` = `cutCount`), 표준은 모든 원판이 긴 변 먼저, 묶음마다 지켜지는 것 셋, `compare` = `plan` 세 번, 후보 수를 하나로 줄여도 같은 약속, 색이 섞이지 않음 · `sheetsByMaterial` 키 그대로.
 - `workers/workflow-api/test/cut-plan.test.js` — `validateCutPlan` 각 규칙, `createSnapshot` INSERT 행(`cut_plan_payload`·`sheet_count`·NULL), 컬럼 미적용 DB 폴백.
 - `__tests__/workflow-cut-plan-sql.test.js` — SQL 멱등·파괴 문장 없음·적용 안내.
 

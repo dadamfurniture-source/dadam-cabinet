@@ -8,6 +8,12 @@
  *   - 옵션: 결 부재·회전 금지 자재는 rot=false, 자재별 원판 크기·트림·커프가 적용된다
  *   - 요약: sheetsByMaterial·sheetCount·totalYield 가 sheets 와 맞는다
  * 배치의 "좋고 나쁨"(장수·수율)은 여기서 보지 않는다 — 알고리즘이 바뀌면 값이 바뀌는 것이 정상이다.
+ *
+ * 재단 방식 (2026-11-17 사장님 — opts.strategy · opts.colorOf):
+ *   - 옵션이 없으면 결과가 그대로다 (고정 입력 지문 · 새 칸 없음)
+ *   - 방식마다 보존 · 기하 · 결정성, 자르는 횟수 = cutCount, 표준은 모든 원판이 긴 변 먼저
+ *   - 묶음마다: 부재 최적화 원판 ≤ 표준 · 최소 재단 원판 ≤ 표준 + 1 · 최소 재단 횟수 ≤ 표준
+ *   - 색이 다른 판은 한 원판에 섞이지 않고, summary.sheetsByMaterial 키는 `자재_두께` 그대로다
  */
 const fs = require('fs');
 const path = require('path');
@@ -300,6 +306,289 @@ describe('NestingEngine.plan — 옵션', () => {
     expect(NestingEngine.partClassOf('뒷판', 18)).toBe('본체');
     expect(NestingEngine.partClassOf('뒷판', 15)).toBe('본체');
     expect(NestingEngine.partClassOf('도어', 18)).toBe('도어');
+  });
+});
+
+// ── 재단 방식 (2026-11-17 사장님 「재단은 총 3가지 중 선택」) ─────────────────────
+
+const ALL_GOLDENS = ['sink15', 'sink18', 'sinkCorner', 'wardrobe', 'fridge', 'shoerack', 'storage', 'vanity', 'warehouse'];
+const STRATEGY_IDS = NestingEngine.STRATEGIES.map((s) => s.id);
+const sha = (o) => require('crypto').createHash('sha256').update(JSON.stringify(o)).digest('hex');
+/** 겹침 묶음 열쇠 — 자재 · 두께 · 구분 · 배치 번호 */
+const layoutKey = (s) => `${s.material}|${s.thickness}|${s.partClass}|${s.layout.no}`;
+
+/** 고정 입력 — 골든(BOM 규칙이 바뀌면 같이 바뀐다)과 따로 둔다 */
+const FIXTURE = [
+  { partId: 's1', part: '측판', material: 'PB', thickness: 15, w: 560, h: 720, qty: 8 },
+  { partId: 's2', part: '지판', material: 'PB', thickness: 15, w: 870, h: 560, qty: 4 },
+  { partId: 's3', part: '선반', material: 'PB', thickness: 15, w: 866, h: 520, qty: 6 },
+  { partId: 's4', part: '밴드', material: 'PB', thickness: 15, w: 870, h: 80, qty: 8 },
+  { partId: 's5', part: '보강목', material: 'PB', thickness: 15, w: 870, h: 60, qty: 4 },
+  { partId: 's6', part: '칸막이', material: 'PB', thickness: 15, w: 450, h: 690, qty: 3 },
+  { partId: 'd1', part: '도어', material: 'MDF', thickness: 18, w: 446, h: 716, qty: 6 },
+  { partId: 'd2', part: '서랍도어', material: 'MDF', thickness: 18, w: 596, h: 236, qty: 3 },
+  { partId: 'd3', part: '걸레받이', material: 'MDF', thickness: 18, w: 2390, h: 150, qty: 1 },
+  { partId: 'b1', part: '뒷판', material: 'MDF', thickness: 3, w: 880, h: 705, qty: 4 },
+  { partId: 'b2', part: '서랍밑판', material: 'MDF', thickness: 3, w: 540, h: 480, qty: 3 },
+  { partId: 't1', slot: 'top', part: '상판', material: '인조대리석', thickness: 12, w: 2700, h: 600, qty: 1 },
+];
+const NEW_SHEET_KEYS = ['cuts', 'color'];
+const NEW_GROUP_KEYS = ['color', 'cutCount', 'layoutCount', 'standard', 'searched'];
+const OLD_SUMMARY_KEYS = ['sheetsByMaterial', 'sheetCount', 'totalYield', 'partsTotal', 'partsPlaced', 'smallCount', 'unallocatedCount', 'skippedCount'];
+
+describe('재단 방식 — 옵션이 없으면 지금 결과 그대로', () => {
+  test('고정 입력의 기본 호출 지문 — 재단 방식을 더하기 전 엔진과 같다', () => {
+    // 2026-11-17 재단 방식을 더하기 전 엔진(origin/main 43b7bfa)으로 낸 값. 기본 알고리즘을 일부러 바꿀 때만 고친다
+    expect(sha(NestingEngine.plan(FIXTURE))).toBe('1e7d649d525572d09574e29e3752787c9325df068fddc74df1db983435ea62b1');
+  });
+
+  test.each(ALL_GOLDENS)('%s — 새 칸(strategy · cuts · color · sheetsByColor …)이 붙지 않는다', (name) => {
+    const plan = NestingEngine.plan(golden(name));
+    expect(plan).not.toHaveProperty('strategy');
+    expect(Object.keys(plan.summary)).toEqual(OLD_SUMMARY_KEYS);
+    plan.sheets.forEach((s) => NEW_SHEET_KEYS.forEach((k) => expect(s).not.toHaveProperty(k)));
+    plan.groups.forEach((g) => NEW_GROUP_KEYS.forEach((k) => expect(g).not.toHaveProperty(k)));
+    // strategy 를 비워 넘겨도 기본 호출과 같다
+    expect(JSON.stringify(NestingEngine.plan(golden(name), { strategy: undefined, colorOf: null }))).toBe(JSON.stringify(plan));
+  });
+
+  test('STRATEGIES — 표준 · 부재 최적화 · 최소 재단, 모르는 방식은 오류', () => {
+    expect(NestingEngine.STRATEGIES.map((s) => [s.id, s.label])).toEqual([['standard', '표준'], ['material', '부재 최적화'], ['cuts', '최소 재단']]);
+    expect(() => NestingEngine.plan(FIXTURE, { strategy: 'fastest' })).toThrow(RangeError);
+  });
+});
+
+describe.each(STRATEGY_IDS)('재단 방식 %s — 보존 · 기하 · 결정성 · 자르는 횟수', (strategy) => {
+  test.each(ALL_GOLDENS)('%s', (name) => {
+    const mats = golden(name);
+    const plan = NestingEngine.plan(mats, { strategy });
+    expect(plan.version).toBe(1);
+    expect(plan.strategy).toBe(strategy);
+    expect(plan.summary.strategy).toBe(strategy);
+    expect(placedInstances(plan)).toEqual(expectedInstances(mats));
+    checkGeometry(plan);
+    // 놓을 수 있는 것은 다 놓는다 — 못 놓은 것은 지금 방식과 같이 원판보다 큰 것뿐
+    expect(plan.summary.unallocatedCount).toBe(NestingEngine.plan(mats).summary.unallocatedCount);
+    // 결정성 — 두 번, 순서를 뒤집어도
+    const json = JSON.stringify(plan);
+    expect(JSON.stringify(NestingEngine.plan(mats, { strategy }))).toBe(json);
+    expect(JSON.stringify(NestingEngine.plan([...mats].reverse(), { strategy }))).toBe(json);
+
+    // 겹침 — 같은 배치 번호의 원판은 배치가 같고 장수가 stack 과 같다
+    const byLayout = new Map();
+    plan.sheets.forEach((s) => {
+      expect(s.cuts).toBe(NestingEngine.cutCount(s));
+      if (!byLayout.has(layoutKey(s))) byLayout.set(layoutKey(s), []);
+      byLayout.get(layoutKey(s)).push(s);
+    });
+    const geom = (s) => s.parts.map((p) => [p.x, p.y, p.w, p.h, p.rot].join(',')).join(';');
+    let cuts = 0;
+    byLayout.forEach((list) => {
+      expect(list.length).toBe(list[0].layout.stack);
+      expect(list.length).toBeLessThanOrEqual(NestingEngine.DEFAULTS.MAX_STACK);
+      list.forEach((s) => { expect(geom(s)).toBe(geom(list[0])); expect(s.cuts).toBe(list[0].cuts); });
+      cuts += list[0].cuts;   // 겹친 원판은 한 번에 자른다
+    });
+    expect(plan.summary.cutCount).toBe(cuts);
+    expect(plan.summary.layoutCount).toBe(byLayout.size);
+    expect(plan.groups.reduce((n, g) => n + g.cutCount, 0)).toBe(cuts);
+    plan.groups.forEach((g) => {
+      expect(g.searched).toBeGreaterThan(1);
+      expect(g.searched).toBeLessThanOrEqual(199);   // 지금 방식 1 + 후보 198
+    });
+
+    // 요약 · 잔재는 예전 규칙 그대로
+    expect(Object.values(plan.summary.sheetsByMaterial).reduce((s, n) => s + n, 0)).toBe(plan.sheets.length);
+    const bySheet = new Map(plan.sheets.map((s) => [s.no, s]));
+    plan.offcuts.forEach((o) => {
+      const s = bySheet.get(o.sheetNo);
+      expect(o.free).toBeGreaterThanOrEqual(60);
+      expect(o.x + o.w).toBeLessThanOrEqual(s.size.w - s.trim + 1e-6);
+      expect(o.y + o.h).toBeLessThanOrEqual(s.size.h - s.trim + 1e-6);
+      s.parts.forEach((p) => expect(overlaps(o, { x: p.x, y: p.y, ...foot(p) })).toBe(false));
+    });
+  });
+});
+
+describe('재단 방식 — 표준은 첫 톱질이 긴 변(2440)과 나란하다', () => {
+  test.each(ALL_GOLDENS)('%s — 모든 원판이 세로 띠(V)이고, 띠마다 조각이 그 띠 폭 안에 있다', (name) => {
+    const plan = NestingEngine.plan(golden(name), { strategy: 'standard' });
+    plan.sheets.forEach((s) => {
+      expect(s.size.h).toBeGreaterThanOrEqual(s.size.w);
+      expect(s.layout.dir).toBe('V');
+      // 띠는 x 로 나뉜다 — 띠 사이는 톱날만큼 떨어지고 원판 높이 전체를 지난다
+      const strips = [...s.strips].sort((a, b) => a.offset - b.offset);
+      strips.forEach((st, i) => {
+        if (i > 0) expect(st.offset).toBeGreaterThanOrEqual(strips[i - 1].offset + strips[i - 1].size + plan.kerf);
+        s.parts.filter((p) => p.strip === st.no).forEach((p) => {
+          expect(p.x).toBe(st.offset);
+          expect(p.x + foot(p).w).toBeLessThanOrEqual(st.offset + st.size);
+          // 띠 폭보다 좁은 조각은 「한 번 더 켜는」 조각뿐이다
+          if (foot(p).w < st.size) expect(p.fromRemainder).toBe(true);
+        });
+      });
+    });
+  });
+
+  test('가로가 더 긴 원판이면 표준은 가로 띠(H)다 — 긴 변 먼저', () => {
+    const plan = NestingEngine.plan(FIXTURE, { strategy: 'standard', sheetSize: { w: 2440, h: 1220 } });
+    expect(plan.sheets.length).toBeGreaterThan(0);
+    plan.sheets.forEach((s) => expect(s.layout.dir).toBe('H'));
+    checkGeometry(plan);
+  });
+});
+
+describe('재단 방식 — 묶음마다 지켜지는 것 · compare', () => {
+  test.each(ALL_GOLDENS)('%s', (name) => {
+    const mats = golden(name);
+    const cmp = NestingEngine.compare(mats);
+    // compare 는 plan 세 번과 같다
+    STRATEGY_IDS.forEach((id) => expect(cmp.plans[id]).toEqual(NestingEngine.plan(mats, { strategy: id })));
+    expect(cmp.rows.map((r) => [r.strategy, r.sheetCount, r.cutCount])).toEqual(STRATEGY_IDS.map((id) => [id, cmp.plans[id].summary.sheetCount, cmp.plans[id].summary.cutCount]));
+    const groupOf = (id) => new Map(cmp.plans[id].groups.map((g) => [g.key, g]));
+    const std = groupOf('standard'), mat = groupOf('material'), cut = groupOf('cuts');
+    expect([...mat.keys()]).toEqual([...std.keys()]);
+    expect([...cut.keys()]).toEqual([...std.keys()]);
+    std.forEach((g, key) => {
+      // 어느 방식으로 놓아도 그 묶음의 「표준」 칸은 표준으로 놓은 결과다
+      [g, mat.get(key), cut.get(key)].forEach((x) => expect(x.standard).toEqual({ sheetCount: g.sheetCount, cutCount: g.cutCount }));
+      expect(mat.get(key).sheetCount).toBeLessThanOrEqual(g.sheetCount);        // 부재 최적화 — 원판이 표준보다 늘지 않는다
+      expect(cut.get(key).sheetCount).toBeLessThanOrEqual(g.sheetCount + 1);    // 최소 재단 — 표준보다 한 장까지
+      expect(cut.get(key).cutCount).toBeLessThanOrEqual(g.cutCount);            // 최소 재단 — 횟수가 표준보다 늘지 않는다
+    });
+    // 부재 최적화는 지금 방식보다 원판이 늘지 않는다 (지금 배치가 후보에 들어 있다)
+    const now = new Map(NestingEngine.plan(mats).groups.map((g) => [g.key, g]));
+    mat.forEach((g, key) => expect(g.sheetCount).toBeLessThanOrEqual(now.get(key).sheetCount));
+  });
+
+  test('후보 수를 하나로 줄여도(searchBudget 1) 보존 · 기하 · 묶음 약속이 지켜진다', () => {
+    const mats = golden('sink15');
+    const cmp = NestingEngine.compare(mats, { searchBudget: 1 });
+    STRATEGY_IDS.forEach((id) => {
+      const plan = cmp.plans[id];
+      expect(placedInstances(plan)).toEqual(expectedInstances(mats));
+      checkGeometry(plan);
+      plan.groups.forEach((g) => expect(g.searched).toBe(2));   // 지금 방식 + 후보 하나
+    });
+    cmp.plans.standard.sheets.forEach((s) => expect(s.layout.dir).toBe('V'));
+    const std = new Map(cmp.plans.standard.groups.map((g) => [g.key, g]));
+    cmp.plans.material.groups.forEach((g) => expect(g.sheetCount).toBeLessThanOrEqual(std.get(g.key).sheetCount));
+    cmp.plans.cuts.groups.forEach((g) => {
+      expect(g.sheetCount).toBeLessThanOrEqual(std.get(g.key).sheetCount + 1);
+      expect(g.cutCount).toBeLessThanOrEqual(std.get(g.key).cutCount);
+    });
+  });
+
+  test('cutCount — 띠 수 + 띠마다 (조각 − 1) + 더 좁은 폭을 한 번 더 켜는 수', () => {
+    const sheet = {
+      layout: { dir: 'V' },
+      strips: [{ no: 1 }, { no: 2 }],
+      parts: [
+        { strip: 1, w: 600, h: 1000, rot: false }, { strip: 1, w: 600, h: 1000, rot: false },
+        { strip: 1, w: 450, h: 300, rot: false, fromRemainder: true },
+        { strip: 1, w: 300, h: 450, rot: true, fromRemainder: true },   // 돌린 조각 — 원판 위 폭은 450
+        { strip: 2, w: 500, h: 800, rot: false },
+      ],
+    };
+    // 띠 2 + (4 − 1) + 좁은 폭 한 가지(450) + (1 − 1) = 6
+    expect(NestingEngine.cutCount(sheet)).toBe(6);
+    // 가로 띠면 좁은 쪽은 원판 위 높이다 — 두 조각 모두 300 (돌린 조각의 발자국은 450 × 300) 이라 한 가지
+    expect(NestingEngine.cutCount({ ...sheet, layout: { dir: 'H' } })).toBe(6);
+    // 좁은 높이가 두 가지면 두 번 더 켠다
+    const two = { layout: { dir: 'H' }, strips: [{ no: 1 }], parts: [
+      { strip: 1, w: 800, h: 600, rot: false },
+      { strip: 1, w: 300, h: 450, rot: false, fromRemainder: true },
+      { strip: 1, w: 300, h: 200, rot: false, fromRemainder: true },
+    ] };
+    expect(NestingEngine.cutCount(two)).toBe(1 + 2 + 2);
+    expect(NestingEngine.cutCount(null)).toBe(0);
+    // 조각 하나짜리 원판 — 띠 하나
+    const one = NestingEngine.plan([{ partId: 'x', part: '측판', material: 'PB', thickness: 15, w: 1000, h: 2000, qty: 1 }], { strategy: 'standard' });
+    expect(one.summary.cutCount).toBe(1);
+    // 재단 방식 없이 낸 원판에도 쓸 수 있다
+    NestingEngine.plan(FIXTURE).sheets.forEach((s) => expect(NestingEngine.cutCount(s)).toBeGreaterThan(0));
+  });
+});
+
+describe('재단 방식 — 옵션 · 결 · 큰 부재 · 석재 상판은 방식마다 그대로', () => {
+  const rows = [
+    { partId: 'a', part: '측판', material: 'PB', thickness: 15, w: 500, h: 700, qty: 3 },
+    { partId: 'b', part: '도어', material: '무늬목', thickness: 18, w: 400, h: 900, qty: 2 },
+    { partId: 'c', part: '선반', material: 'PB', thickness: 15, w: 500, h: 300, qty: 2, grain: 'v' },
+  ];
+
+  test.each(STRATEGY_IDS)('%s', (strategy) => {
+    // 결 부재 · 회전 금지 자재는 돌리지 않는다
+    NestingEngine.plan(rows, { strategy }).sheets.forEach((s) => s.parts.forEach((p) => {
+      if (['b', 'c'].includes(NestingEngine.basePartId(p.partId))) expect(p.rot).toBe(false);
+    }));
+    const fixed = NestingEngine.plan(rows, { strategy, noRotateMaterials: [/./] });
+    expect(fixed.sheets.flatMap((s) => s.parts).length).toBe(7);
+    fixed.sheets.forEach((s) => s.parts.forEach((p) => expect(p.rot).toBe(false)));
+    // 원판 크기 · 여백 · 톱날
+    const sized = NestingEngine.plan(rows, { strategy, sheetSizes: { 무늬목_18: { w: 1000, h: 2000 }, PB: { w: 1250, h: 2500 } }, trim: 30, kerf: 6 });
+    sized.sheets.forEach((s) => expect(s.size).toEqual(s.material === 'PB' ? { w: 1250, h: 2500 } : { w: 1000, h: 2000 }));
+    expect(Math.min(...sized.sheets.flatMap((s) => s.parts.map((p) => Math.min(p.x, p.y))))).toBe(30);
+    checkGeometry(sized);
+    // 원판보다 큰 부재는 못 놓음, 석재 상판은 재단에서 뺀다
+    const big = NestingEngine.plan([
+      { partId: 'big', part: '상판', material: 'MDF', thickness: 18, w: 4000, h: 600, qty: 1 },
+      { partId: 'top', slot: 'top', part: '상판', material: '인조대리석', thickness: 12, w: 1000, h: 650, qty: 1 },
+    ], { strategy });
+    expect(big.sheets).toEqual([]);
+    expect(big.unallocated).toEqual([expect.objectContaining({ partIds: ['big#0'], qty: 1 })]);
+    expect(big.skipped.map((s) => s.partId)).toEqual(['top']);
+    expect(big.summary.cutCount).toBe(0);
+  });
+});
+
+describe('재단 방식 — 색 (colorOf)', () => {
+  // 몸통 PB 는 두 색, 뒷판은 한 색, 도어는 색 없음
+  const colored = FIXTURE.map((m, i) => ({ ...m, color: m.material === 'PB' ? (i % 2 ? '오크' : '화이트') : m.thickness === 3 ? '화이트' : undefined }));
+  const colorOf = (m) => m.color;
+  const wantColor = new Map(colored.map((m) => [m.partId, m.color || '']));
+
+  test.each([null, ...STRATEGY_IDS])('방식 %s — 색이 다른 판은 한 원판에 섞이지 않는다', (strategy) => {
+    const plan = NestingEngine.plan(colored, { strategy, colorOf });
+    expect(placedInstances(plan)).toEqual(expectedInstances(colored));
+    checkGeometry(plan);
+    plan.sheets.forEach((s) => s.parts.forEach((p) => expect(wantColor.get(NestingEngine.basePartId(p.partId))).toBe(s.color)));
+    plan.smallParts.forEach((p) => expect(p.color).toBe(wantColor.get(p.partId)));
+    // 묶음 — 자재 · 두께 · 구분 · 색. 색이 없는 줄은 색 있는 줄과 다른 묶음이다
+    expect(plan.groups.map((g) => g.key)).toEqual(['MDF|3|뒷판|화이트', 'MDF|18|도어|', 'PB|15|본체|오크', 'PB|15|본체|화이트']);
+    plan.groups.forEach((g) => expect(g.key.endsWith(`|${g.color}`)).toBe(true));
+    // 색별 장수 — 합이 전체 원판 수와 같고, 묶음 장수와 맞는다
+    expect(plan.summary.sheetsByColor.map((c) => [c.material, c.thickness, c.color])).toEqual([['MDF', 3, '화이트'], ['MDF', 18, ''], ['PB', 15, '오크'], ['PB', 15, '화이트']]);
+    expect(plan.summary.sheetsByColor.reduce((n, c) => n + c.sheetCount, 0)).toBe(plan.summary.sheetCount);
+    plan.summary.sheetsByColor.forEach((c) => {
+      const n = plan.groups.filter((g) => g.material === c.material && g.thickness === c.thickness && g.color === c.color).reduce((s, g) => s + g.sheetCount, 0);
+      expect(c.sheetCount).toBe(n);
+    });
+    // 자재별 장수 키는 색이 있어도 `자재_두께` — 재고 · 견적이 이 키로 읽는다
+    expect(Object.keys(plan.summary.sheetsByMaterial).sort()).toEqual(['MDF_18', 'MDF_3', 'PB_15']);
+    expect(plan.summary.sheetsByMaterial.PB_15).toBe(plan.sheets.filter((s) => s.material === 'PB').length);
+    // 배치 번호는 색 묶음 사이에 이어진다 — 자재 · 두께 · 구분 · 번호로 겹침을 묶어도 색이 섞이지 않는다
+    const colorByLayout = new Map();
+    plan.sheets.forEach((s) => {
+      if (colorByLayout.has(layoutKey(s))) expect(colorByLayout.get(layoutKey(s))).toBe(s.color);
+      colorByLayout.set(layoutKey(s), s.color);
+    });
+    // 결정성
+    expect(JSON.stringify(NestingEngine.plan([...colored].reverse(), { strategy, colorOf }))).toBe(JSON.stringify(plan));
+    // 색만 줬을 때는 재단 방식 칸이 붙지 않는다
+    if (!strategy) {
+      expect(plan).not.toHaveProperty('strategy');
+      plan.sheets.forEach((s) => expect(s).not.toHaveProperty('cuts'));
+    }
+  });
+
+  test('색이 모두 같으면 색 없이 놓은 것과 배치가 같다', () => {
+    const a = NestingEngine.plan(FIXTURE);
+    const b = NestingEngine.plan(FIXTURE, { colorOf: () => 'X' });
+    const geom = (p) => p.sheets.map((s) => [s.no, s.material, s.thickness, s.partClass, s.layout.no, s.layout.stack, s.parts.map((x) => [x.partId, x.x, x.y, x.rot].join(',')).join(';')].join('|'));
+    expect(geom(b)).toEqual(geom(a));
+    b.sheets.forEach((s) => expect(s.color).toBe('X'));
+    expect(b.summary.sheetsByMaterial).toEqual(a.summary.sheetsByMaterial);
   });
 });
 
