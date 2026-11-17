@@ -30,7 +30,7 @@ export const SITE_ORDERS = Object.freeze({
 const SITE_ORDER_CSS =
   SITE_CSS +
   `
-      .site-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6pt; margin: 4pt 0 8pt; }
+      .site-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6pt; margin: 4pt 0 8pt; align-items: start; }
       .site-photos figure { margin: 0; border: 0.4pt solid #000; padding: 4pt; text-align: center; font-size: 8.5pt; break-inside: avoid; }
       .site-photos img { display: block; max-width: 100%; max-height: 100mm; object-fit: contain; margin: 0 auto 2pt; }
     `;
