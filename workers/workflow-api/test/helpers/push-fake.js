@@ -99,6 +99,13 @@ export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushSt
         out[inner[1]] = found ? project(inner[1], found, inner[2]) : null;
         continue;
       }
+      // 이름:칸->키 — jsonb 칸의 한 키만 (예: photos:model->photos)
+      const arrow = item.match(/^(\w+):(\w+)->(\w+)$/);
+      if (arrow) {
+        const v = row[arrow[2]];
+        out[arrow[1]] = v && typeof v === 'object' && v[arrow[3]] !== undefined ? v[arrow[3]] : null;
+        continue;
+      }
       const m = item.match(/^(\w+):(\w+)\((.*)\)$/);
       if (m) {
         const [, alias, target, cols] = m;

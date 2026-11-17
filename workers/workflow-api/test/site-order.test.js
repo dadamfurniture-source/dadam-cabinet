@@ -167,6 +167,44 @@ test('작업자 보기 — 가린 주문 이름, 주소 · 연락처는 열렸�
   assert.throws(() => renderSiteOrder({ ...siteDoc('demolition_order'), doc_type: 'work_order' }, SNAPSHOT), /현장 지시서가 아닌/);
 });
 
+// ── 철거 지시서의 현장 사진 (틀) ─────────────────────────────────
+
+const DRAFT = 'kitchen-ab12';
+const SIGNED = (file) => `https://x.supabase.co/storage/v1/object/sign/planner-photos/${HQ}/${DRAFT}/${file}?token=T`;
+const imgs = (html) => [...html.matchAll(/<img src="([^"]+)" alt="현장 사진 \d+">/g)].map((m) => m[1]);
+const sheetCount = (html) => html.split('<div class="sheet">').length - 1;
+
+test('철거 지시서 — 현장 사진: 있으면 다음 장에 싣고 없으면 표지에 「없음」 한 줄, 납품 지시서에는 없다', () => {
+  const photos = [{ url: `${SIGNED('photo-aaaa-0001.jpg')}&n=1`, w: 4000, h: 3000 }, { url: SIGNED('photo-aaaa-0002.png') }, { url: '' }, null];
+  const html = renderDocument(siteDoc('demolition_order'), SNAPSHOT, { toolbar: false, sitePhotos: photos });
+  assert.deepEqual(imgs(html), [`${SIGNED('photo-aaaa-0001.jpg')}&amp;n=1`, SIGNED('photo-aaaa-0002.png')], '주소는 글자로 (& 는 바꿔 싣는다)');
+  assert.match(strip(html), /특기 사항 주말 작업 불가 현장 사진 2장 — 다음 장 품목 /);
+  assert.match(strip(html), /현장 사진 철거할 자리 — 팩토리가 설계에 올려 둔 사진 현장 사진 1 현장 사진 2 /);
+  const none = renderDocument(siteDoc('demolition_order'), SNAPSHOT, { toolbar: false, sitePhotos: [] });
+  assert.equal(sheetCount(html), sheetCount(none) + 1, '사진 장은 사진이 있을 때만');
+  assert.match(strip(none), /현장 사진 없음 품목 /);
+  assert.deepEqual(imgs(none), []);
+  // 사진을 넘기지 않아도 (못 읽었을 때) 같은 「없음」
+  assert.equal(renderDocument(siteDoc('demolition_order'), SNAPSHOT, { toolbar: false }), none);
+  // 납품 지시서는 사진을 넘겨도 싣지 않는다 (처리방침에 적은 것은 철거 작업자뿐)
+  const dv = renderDocument(siteDoc('delivery_order'), SNAPSHOT, { toolbar: false, sitePhotos: photos });
+  assert.equal(dv, renderDocument(siteDoc('delivery_order'), SNAPSHOT, { toolbar: false }));
+  assert.doesNotMatch(strip(dv), /현장 사진/);
+});
+
+test('철거 지시서 — 작업자 보기: 현장 사진은 주소와 같은 때에만 (닫혀 있으면 사진도 「없음」 글도 없다)', () => {
+  const photos = [{ url: SIGNED('photo-aaaa-0001.jpg') }];
+  const view = (siteOpen) => renderSiteOrder(siteDoc('demolition_order'), SNAPSHOT, { toolbar: false, sitePhotos: photos, worker: { orderLabel: '홍*동 · SO-1', siteOpen } });
+  const closed = view(false);
+  assert.deepEqual(imgs(closed), []);
+  assert.doesNotMatch(closed, /planner-photos/);
+  assert.doesNotMatch(strip(closed), /현장 사진/);
+  assert.equal(closed, renderSiteOrder(siteDoc('demolition_order'), SNAPSHOT, { toolbar: false, worker: { orderLabel: '홍*동 · SO-1', siteOpen: false } }), '닫힌 보기는 사진이 있든 없든 같다');
+  const open = view(true);
+  assert.deepEqual(imgs(open), [SIGNED('photo-aaaa-0001.jpg')]);
+  assert.match(strip(open), /현장 사진 1장 — 다음 장/);
+});
+
 // ── 발행 ─────────────────────────────────────────────────────────
 
 /** 발행 가짜 DB — 본사 설계. reject = DB 가 새 문서 종류를 거절한다 (0068 적용 전) */
@@ -304,6 +342,11 @@ async function withDb(db, fn, { rejectRole = false } = {}) {
     calls.push({ url: u, method, body });
     const hit = companyRoute(u, { members: MEMBERS }) || (u.includes('/admin_roles?') ? json([]) : null);
     if (hit) return hit;
+    // 비공개 버킷 서명 주소 (현장 사진) — signFail 이면 저장소가 거절한다
+    if (method === 'POST' && u === `${ENV.SUPABASE_URL}/storage/v1/object/sign/planner-photos`) {
+      if (db.signFail) return json({ message: 'boom' }, 500);
+      return json(body.paths.map((p) => ({ path: p, signedURL: `/object/sign/planner-photos/${p}?token=T` })));
+    }
     const m = /\/rest\/v1\/([a-z_]+)(?:\?(.*))?$/.exec(u);
     if (!m || !db[m[1]]) throw new Error(`unexpected fetch ${method} ${u}`);
     const [, table, qs = ''] = m;
@@ -378,6 +421,81 @@ test('작업자 꾸러미 — 수락 전 · A/S · 끝나고 7일 뒤', async ()
   await withDb(makeDb({ work_jobs: [{ id: 'J-DM', kind: 'demolition', order_id: null, design_id: 'D1', company_id: HQ, status: 'open', slots: 1 }] }), async () => {
     await assert.rejects(() => pack(A_DM), (e) => e.statusCode === 404 && /연결된 주문이 없습니다/.test(e.message));
   });
+});
+
+// ── 작업자 꾸러미의 현장 사진 ────────────────────────────────────
+
+/** 간편 플래너로 보낸 설계 + 그 플래너 설계의 사진 (가짜 DB 는 select 를 보지 않아 photos 를 바로 둔다 — 실제는 model->photos) */
+function plannerDb(over = {}) {
+  const photo = (file, extra = {}) => ({ company_id: HQ, draft_id: DRAFT, file, width: 4000, height: 3000, deleted_at: null, ...extra });
+  return makeDb({
+    designs: [{ id: 'D1', user_id: HQ_OWNER, company_id: HQ, source: 'planner-lite', source_ref: DRAFT }],
+    planner_drafts: [{
+      company_id: HQ, id: DRAFT, discarded_at: null,
+      photos: [
+        { id: 'p1', kind: 'site', file: 'photo-aaaa-0001.jpg', note: '고객 메모가 섞일 수 있는 글' },
+        { id: 'p2', kind: 'ai', file: 'photo-aaaa-0002.png' },
+        { id: 'p3', kind: 'site', file: 'photo-aaaa-0003.webp' },
+        { id: 'p4', kind: 'complete', file: 'photo-aaaa-0004.jpg' },
+        { id: 'p5', kind: 'site', file: '../other/photo-aaaa-0005.jpg' },
+        { id: 'p6', kind: 'site', file: 'photo-aaaa-0006.jpg' },
+        { id: 'p1b', kind: 'site', file: 'photo-aaaa-0001.jpg' },
+      ],
+    }],
+    planner_draft_photos: [
+      photo('photo-aaaa-0001.jpg'), photo('photo-aaaa-0002.png'), photo('photo-aaaa-0004.jpg'), photo('photo-aaaa-0006.jpg', { width: null, height: null }),
+      photo('photo-aaaa-0003.webp', { deleted_at: '2026-11-17T00:00:00.000Z' }),   // 플래너에서 지운 사진
+    ],
+    ...over,
+  });
+}
+const photoCalls = (calls) => calls.filter((c) => /planner_drafts|planner_draft_photos|\/storage\//.test(c.url));
+
+test('작업자 꾸러미 — 철거 지시서의 현장 사진: 현장사진만 · 지운 것 빼고, 주소와 같은 때에만 읽는다', async () => {
+  await withDb(plannerDb(), async (calls) => {
+    const dm = await pack(A_DM);
+    assert.deepEqual(imgs(dm), [SIGNED('photo-aaaa-0001.jpg'), SIGNED('photo-aaaa-0006.jpg')], '플래너에 올린 차례 · 같은 파일은 한 번');
+    assert.doesNotMatch(dm, /고객 메모가 섞일 수 있는 글/, '사진 글은 싣지 않는다');
+    const sign = calls.filter((c) => /\/storage\//.test(c.url));
+    assert.equal(sign.length, 1);
+    assert.deepEqual(sign[0].body, { expiresIn: 3600, paths: [`${HQ}/${DRAFT}/photo-aaaa-0001.jpg`, `${HQ}/${DRAFT}/photo-aaaa-0006.jpg`] });
+    // 플래너 설계는 사진 목록 칸만 읽는다 (설계 본문 전체를 읽지 않는다)
+    assert.match(calls.find((c) => /\/planner_drafts\?/.test(c.url)).url, /select=id,photos:model->photos/);
+    // 끝나고 7일이 지난 배정 — 사진을 읽지도 않는다
+    let mark = calls.length;
+    const old = await pack(A_OLD);
+    assert.deepEqual(imgs(old), []);
+    assert.doesNotMatch(strip(old), /현장 사진/);
+    assert.deepEqual(photoCalls(calls.slice(mark)), []);
+    // 납품 지시서에는 없다
+    mark = calls.length;
+    assert.deepEqual(imgs(await pack(A_DV)), []);
+    assert.deepEqual(photoCalls(calls.slice(mark)), []);
+    assert.equal(calls.filter((c) => c.method !== 'GET' && !/\/storage\//.test(c.url)).length, 0, '읽기만');
+  });
+});
+
+test('작업자 꾸러미 — 현장 사진이 없는 경우: PC 플래너 설계 · 버린 플래너 설계 · 다른 팩토리의 플래너 설계 · 서명 실패 → 사진 없이 열린다', async () => {
+  const none = async (db, why) => {
+    await withDb(db, async (calls) => {
+      const html = await pack(A_DM);
+      assert.deepEqual(imgs(html), [], why);
+      assert.match(strip(html), /^철거 지시서 .*현장 사진 없음 /, why);
+      assert.match(strip(html), /주소 서울시 시험구 시험로 1/, why);
+      assert.equal(calls.filter((c) => /\/storage\//.test(c.url)).length, db.signFail ? 1 : 0, why);
+    });
+  };
+  // 상세설계 화면에서 만든 설계 (플래너 설계가 아니다) — 플래너 표를 읽지 않는다
+  await withDb(plannerDb({ designs: [{ id: 'D1', user_id: HQ_OWNER, company_id: HQ }] }), async (calls) => {
+    assert.deepEqual(imgs(await pack(A_DM)), []);
+    assert.deepEqual(photoCalls(calls), []);
+  });
+  await none(plannerDb({ planner_drafts: [] }), 'PC 플래너 — 앱에 플래너 설계가 없다');
+  await none(plannerDb({ planner_drafts: [{ company_id: HQ, id: DRAFT, discarded_at: '2026-11-17T00:00:00.000Z', photos: [{ kind: 'site', file: 'photo-aaaa-0001.jpg' }] }] }), '버린 플래너 설계');
+  const other = 'f0000000-0000-4000-8000-000000000009';
+  await none(plannerDb({ planner_drafts: [{ company_id: other, id: DRAFT, discarded_at: null, photos: [{ kind: 'site', file: 'photo-aaaa-0001.jpg' }] }] }), '같은 id 의 다른 팩토리 플래너 설계');
+  await none(plannerDb({ planner_draft_photos: [] }), '사진 줄이 없다 (모두 지웠다)');
+  await none(plannerDb({ signFail: true }), '서명 주소를 못 만들었다');
 });
 
 test('필수 확인 — 철거: 「철거 후 사진」은 사진을 붙여야 체크, 납품: 수량 확인 · 하차 후 사진', async () => {

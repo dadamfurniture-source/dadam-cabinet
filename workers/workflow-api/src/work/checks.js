@@ -35,6 +35,7 @@ import { resolvePrintAssets } from '../documents.js';
 import { renderWorkOrder, normalizePack } from '../templates/work-order.js';
 import { renderInstallationOrder } from '../templates/installation-order.js';
 import { renderSiteOrder } from '../templates/site-order.js';
+import { sitePhotosOf } from './job-sheet.js';
 import { isMissingRelation } from '../work-order-data.js';
 import { uploadObject, createSignedUrls } from '../storage.js';
 import { readBodyCapped } from '../ledger/documents.js';
@@ -99,7 +100,10 @@ async function packHtml(env, ctx, rawPack) {
   }
   // 철거 · 납품 지시서 — 현장 정보는 설치 지시서와 같은 판정, 사무실 메모는 그 작업 줄의 것
   if (ctx.roles.includes('demolition') || ctx.roles.includes('delivery')) {
-    return renderSiteOrder(ctx.doc, ctx.snapshot, { toolbar: true, memo: ctx.memo || '', worker: { orderLabel: workerOrderLabel(ctx.order), siteOpen: ctx.siteOpen === true } });
+    // 철거 — 팩토리가 그 설계에 올려 둔 현장 사진. 주소와 같은 때에만 읽는다 (닫혀 있으면 서명 주소도 만들지 않는다)
+    const sitePhotos =
+      ctx.roles.includes('demolition') && ctx.siteOpen === true ? await sitePhotosOf(env, { designId: ctx.order.design_id, companyId: ctx.order.company_id }) : null;
+    return renderSiteOrder(ctx.doc, ctx.snapshot, { toolbar: true, memo: ctx.memo || '', sitePhotos, worker: { orderLabel: workerOrderLabel(ctx.order), siteOpen: ctx.siteOpen === true } });
   }
   const pack = rawPack ? normalizePack(rawPack) : allowed[0];
   if (!pack || allowed.indexOf(pack) < 0) throw new ForbiddenError('내 공정의 꾸러미만 엽니다', 'not_my_pack');

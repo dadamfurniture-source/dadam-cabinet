@@ -208,7 +208,7 @@ import {
   keepAssigneeName, syncJobWithSchedule, recruitScheduleWorkers,
 } from './work/schedule-link.js';
 import { listProjectWork, assignProjectWork, patchProjectWork, inviteProjectWork, recruitProjectWork } from './work/project-work.js';
-import { listDesignWorkSheets, memoForPrint, putSheetMemo } from './work/job-sheet.js';
+import { listDesignWorkSheets, memoForPrint, putSheetMemo, sitePhotosOf, SITE_PHOTO_DOC_TYPE } from './work/job-sheet.js';
 import { approveCompanyApplication, rejectCompanyApplication } from './work/recruit.js';
 import {
   listJobsForWorker,
@@ -493,7 +493,7 @@ async function getDocumentForPrint(env, { documentId, user }) {
 }
 
 async function handlePrintDocument(request, env, { params, user }) {
-  const { doc, snapshot } = await getDocumentForPrint(env, {
+  const { doc, snapshot, design } = await getDocumentForPrint(env, {
     documentId: params.documentId,
     user,
   });
@@ -508,7 +508,9 @@ async function handlePrintDocument(request, env, { params, user }) {
   const top = doc.doc_type === 'work_order' && (pack === 'top' || pack === 'all') ? await loadCountertopContext(env, { doc, snapshot }) : null;
   // 철거 · 납품 지시서 — ?job= 이면 그 작업 줄의 사무실 메모를 같이 (그 문서의 설계 · 종류의 작업일 때만 — src/work/job-sheet.js)
   const memo = SITE_ORDER_TYPES.includes(doc.doc_type) ? await memoForPrint(env, { doc, jobId: new URL(request.url).searchParams.get('job') }) : '';
-  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, top, memo, ...assets }));
+  // 철거 지시서 — 팩토리가 그 설계에 올려 둔 현장 사진 (열 때 읽는 1시간 서명 주소 — src/work/job-sheet.js sitePhotosOf)
+  const sitePhotos = doc.doc_type === SITE_PHOTO_DOC_TYPE ? await sitePhotosOf(env, { design }) : null;
+  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, top, memo, sitePhotos, ...assets }));
 }
 
 async function handleRevokeDocument(request, env, { params, user }) {
