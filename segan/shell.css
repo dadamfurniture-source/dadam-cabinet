@@ -4094,6 +4094,34 @@ button.sm-num[aria-pressed='true'] {
   margin-top: 0;
 }
 
+/* 지시서 칸 (2026-11-17) — 펼친 줄 안: 문서 번호 · 필수 확인 수 · 「지시서 보기」 · 철거 · 납품 줄의 사무실 메모 */
+.pjw-sheet {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--v5-line-18);
+}
+.pjw-sheet-doc {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.pjw-memo textarea {
+  width: 100%;
+  min-height: 4.5em;
+  resize: vertical;
+  font: inherit;
+}
+.pjw-memo-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pjw-table .pw-act .od-open + .od-open {
+  margin-left: 10px;
+}
+
 .pjw-invite {
   padding-top: 12px;
   border-top: 1px solid var(--v5-line-18);
