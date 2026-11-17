@@ -10,8 +10,10 @@
  *     GET  /work/factory/orders/:orderId/checks       내 역할 항목 · 칸 · 지금 값
  *     POST /work/factory/orders/:orderId/checks       체크 한 번
  *     POST /work/factory/orders/:orderId/checks/photo 사진 한 장 (본문 = JPEG · PNG) → photo_path — 체크에 붙인다
- *   설치 · 조립 작업(모집 · 초대로 맡은 일): 내 배정이 확정 이상이고 작업에 주문이 있을 때 (assignments.js loadMyAssignment).
- *     설치 → 시공 지시서 (주소 · 연락처는 수락한 때부터 작업이 끝나고 7일까지만 — reveal.js siteOpenFor), 조립 → 조립 꾸러미.
+ *   배정받은 작업(모집 · 초대 · 프로젝트 「작업 배정」으로 맡은 일): 내 배정이 확정 이상이고 작업에 주문이 있을 때 (assignments.js loadMyAssignment).
+ *     설치 → 시공 지시서 · 철거 → 철거 지시서 · 납품 → 납품 지시서 (주소 · 연락처는 수락한 때부터 작업이 끝나고 7일까지만 — reveal.js siteOpenFor),
+ *     재단 · 엣지 → 재단 꾸러미 · 라벨, 조립 → 조립 꾸러미. A/S 는 지시서가 없다 (2026-11-17 사장님 「각 작업에 작업지시서」).
+ *     철거 · 납품 지시서에는 그 작업 줄의 사무실 메모(work_jobs.sheet_memo)가 같이 나온다.
  *     GET  /work/assignments/:id/pack · GET|POST /work/assignments/:id/checks · POST /work/assignments/:id/checks/photo
  *   본사 · 업체: GET /orders/:orderId/checks — 설계를 볼 수 있는 사람이 역할 전부의 지금 값 (사진은 서명 주소 1시간).
  *
@@ -28,10 +30,11 @@ import { workerOrderLabel, orderLabel } from '../production/redact.js';
 import { COUNTED_STATUSES, siteOpenFor } from './reveal.js';
 import { assertUuid } from './validate.js';
 import { itemsFor, itemApplies, CHECK_ROLES } from './check-items.js';
-import { PACKS_OF_ROLE, docContext, cellsOf, roleChecks, checkRows } from './check-state.js';
+import { PACKS_OF_ROLE, DOC_TYPE_OF_ROLE, ROLE_OF_JOB_KIND, docContext, cellsOf, roleChecks, checkRows } from './check-state.js';
 import { resolvePrintAssets } from '../documents.js';
 import { renderWorkOrder, normalizePack } from '../templates/work-order.js';
 import { renderInstallationOrder } from '../templates/installation-order.js';
+import { renderSiteOrder } from '../templates/site-order.js';
 import { isMissingRelation } from '../work-order-data.js';
 import { uploadObject, createSignedUrls } from '../storage.js';
 import { readBodyCapped } from '../ledger/documents.js';
@@ -47,6 +50,8 @@ const MEMO_MAX = 300;
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 
 const dbPending = (what) => new ConflictError(`DB ${what} 적용 전입니다 — 필수 확인 ${what === '0037' ? '사진' : '기록'}은 적용 뒤에 됩니다`, { code: 'db_pending' });
+/** 현장 문서를 쓰는 역할 — 설치 · 철거 · 납품 */
+const SITE_ROLES = Object.freeze(['install', 'demolition', 'delivery']);
 
 async function loadOrder(env, orderId) {
   const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: 'id,order_no,customer_name,design_id,company_id' });
@@ -69,18 +74,20 @@ async function factoryContext(env, user, rawOrderId) {
   return { ...ctx, worker, order, roles: roles.map((r) => CHECK_ROLE_OF_FACTORY[r]).filter(Boolean) };
 }
 
-/** 설치 · 조립 작업의 내 배정 + 주문 + 지금 문서 */
+/** 배정받은 작업의 내 배정 + 주문 + 지금 문서 — 작업 종류마다 그 지시서 (A/S 는 없다) */
 async function assignmentContext(env, user, rawId) {
   const { worker, assignment, job } = await loadMyAssignment(env, user, rawId);
   if (!COUNTED_STATUSES.includes(assignment.status)) throw new ForbiddenError('확정된 배정에서만 지시서를 엽니다', 'not_confirmed');
-  const role = job.kind === 'install' ? 'install' : job.kind === 'assembly' ? 'assembly' : null;
+  const role = ROLE_OF_JOB_KIND[job.kind] || null;
   if (!role) throw new NotFoundError('이 작업에는 작업지시서가 없습니다');
   if (!job.order_id) throw new NotFoundError('이 작업에는 연결된 주문이 없습니다');
   const order = await loadOrder(env, job.order_id);
-  const ctx = await docContext(env, order, role === 'install' ? 'installation_order' : 'work_order');
+  const ctx = await docContext(env, order, DOC_TYPE_OF_ROLE[role]);
   // 지시서의 주소 · 연락처도 같은 판정으로 연다 — 그 주문이 작업을 낸 팩토리의 것일 때만
   const siteOpen = siteOpenFor(job, assignment) && !!job.company_id && order.company_id === job.company_id;
-  return { ...ctx, worker, order, roles: [role], siteOpen };
+  // 사무실 메모 — 그 작업 줄에 적어 둔 글 (0068 전에는 칸이 없다 → 빈 글)
+  const memo = typeof job.sheet_memo === 'string' ? job.sheet_memo : '';
+  return { ...ctx, worker, order, roles: [role], siteOpen, memo };
 }
 
 /** 꾸러미 HTML — 내 역할의 꾸러미만, 작업자 보기 (가린 주문 이름 · 주소 · 연락처 없음). 그림(렌더 · ISO 도면)은 1시간 서명 주소 */
@@ -89,6 +96,10 @@ async function packHtml(env, ctx, rawPack) {
   if (ctx.roles.includes('install')) {
     const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
     return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, worker: { orderLabel: workerOrderLabel(ctx.order), siteOpen: ctx.siteOpen === true } });
+  }
+  // 철거 · 납품 지시서 — 현장 정보는 설치 지시서와 같은 판정, 사무실 메모는 그 작업 줄의 것
+  if (ctx.roles.includes('demolition') || ctx.roles.includes('delivery')) {
+    return renderSiteOrder(ctx.doc, ctx.snapshot, { toolbar: true, memo: ctx.memo || '', worker: { orderLabel: workerOrderLabel(ctx.order), siteOpen: ctx.siteOpen === true } });
   }
   const pack = rawPack ? normalizePack(rawPack) : allowed[0];
   if (!pack || allowed.indexOf(pack) < 0) throw new ForbiddenError('내 공정의 꾸러미만 엽니다', 'not_my_pack');
@@ -153,6 +164,8 @@ async function addCheck(env, ctx, user, body) {
     });
   } catch (e) {
     if (isMissingRelation(e)) throw dbPending('0035');
+    // 철거 · 납품 역할은 DB 0068 부터 (work_checks.role 제약 23514)
+    if (SITE_ROLES.includes(b.role) && b.role !== 'install' && /23514/.test(String((e && e.message) || ''))) throw dbPending('0068');
     throw e;
   }
   return { role: b.role, scope_key: scopeKey, item_key: item.key, checked: b.checked, has_photo: !!(b.checked && photoPath) };
@@ -214,12 +227,12 @@ export async function postAssignmentCheck(env, { user, params, body }) {
 export async function postAssignmentPhoto(env, { user, params, request }) {
   return addPhoto(env, await assignmentContext(env, user, params.id), request);
 }
-/** GET /orders/:orderId/checks — 본사 · 업체: 설계를 볼 수 있는 사람이 역할 전부 (작업지시서 판 기준, 설치는 시공 지시서 판), 사진은 서명 주소 */
+/** GET /orders/:orderId/checks — 본사 · 업체: 설계를 볼 수 있는 사람이 역할 전부 (작업지시서 판 기준, 설치 · 철거 · 납품은 그 지시서 판), 사진은 서명 주소 */
 export async function getOrderChecks(env, { user, params }) {
   const order = await loadOrder(env, assertUuid(params.orderId, '주문 id'));
   await assertDesignAccess(env, order.design_id, user);
   const out = { order_label: orderLabel(order), roles: [] };
-  for (const [docType, roles] of [['work_order', CHECK_ROLES.filter((r) => r !== 'install')], ['installation_order', ['install']]]) {
+  for (const [docType, roles] of [['work_order', CHECK_ROLES.filter((r) => DOC_TYPE_OF_ROLE[r] === 'work_order')], ['installation_order', ['install']], ['demolition_order', ['demolition']], ['delivery_order', ['delivery']]]) {
     let ctx;
     try {
       ctx = { ...(await docContext(env, order, docType)), order, roles };

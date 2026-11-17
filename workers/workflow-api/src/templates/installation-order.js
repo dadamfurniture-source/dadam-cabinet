@@ -47,7 +47,7 @@ const SCHEDULE_TYPES = {
   as_visit: 'A/S방문',
 };
 
-function itemLabel(item, index) {
+export function itemLabel(item, index) {
   return (
     item.labelName ||
     CATEGORY_NAMES[item.categoryId || item.category] ||
@@ -66,6 +66,25 @@ function elevatorText(site) {
   if (site.has_elevator === true) return '있음';
   if (site.has_elevator === false) return '<b>없음 — 사다리차 검토</b>';
   return '<span class="missing">미확인</span>';
+}
+
+/**
+ * 현장 정보 · 반입 경로 칸 — 설치 지시서 표지와 철거 · 납품 지시서(templates/site-order.js)가 같이 쓴다.
+ *   주소 · 연락처를 여는 판정이 한 곳에만 있게 한다 — worker (작업자 보기)면 worker.siteOpen 일 때만, 아니면 안내 문구.
+ *   글자 · 빈칸은 설치 지시서 표지에 있던 그대로다 (출력이 바뀌면 안 된다 — test/site-order.test.js 지문).
+ */
+export function siteBlock(s, worker) {
+  return `<h2>현장 정보</h2>
+  <table class="meta">
+    <tbody>
+      ${tr(['주소', worker && !worker.siteOpen ? esc(SITE_NOTE) : orMissing([s.address, s.address_detail].filter(Boolean).join(' '), '주소'), '층', orMissing(s.floor, '층')])}
+      ${tr(['엘리베이터', elevatorText(s), '비고', esc(s.elevator_note || '-')])}
+      ${tr(['연락처', worker && !worker.siteOpen ? esc(SITE_NOTE) : orMissing(s.contact_name ? `${s.contact_name} ${s.contact_phone || ''}`.trim() : '', '연락처'), '', ''])}
+    </tbody>
+  </table>
+
+  <h2>반입 경로</h2>
+  <div class="freetext">${s.access_note ? esc(s.access_note) : '<span class="missing">반입 경로 미입력 — 현장 확인 필요</span>'}</div>`;
 }
 
 /**
@@ -103,17 +122,7 @@ function coverSheet(doc, snapshot, site, worker) {
 
   ${specialNotesBox(specialNotesOfDoc(doc), ['install'])}
 
-  <h2>현장 정보</h2>
-  <table class="meta">
-    <tbody>
-      ${tr(['주소', worker && !worker.siteOpen ? esc(SITE_NOTE) : orMissing([s.address, s.address_detail].filter(Boolean).join(' '), '주소'), '층', orMissing(s.floor, '층')])}
-      ${tr(['엘리베이터', elevatorText(s), '비고', esc(s.elevator_note || '-')])}
-      ${tr(['연락처', worker && !worker.siteOpen ? esc(SITE_NOTE) : orMissing(s.contact_name ? `${s.contact_name} ${s.contact_phone || ''}`.trim() : '', '연락처'), '', ''])}
-    </tbody>
-  </table>
-
-  <h2>반입 경로</h2>
-  <div class="freetext">${s.access_note ? esc(s.access_note) : '<span class="missing">반입 경로 미입력 — 현장 확인 필요</span>'}</div>
+  ${siteBlock(s, worker)}
 
   <h2>시공 순서</h2>
   <div class="freetext">${s.install_order ? esc(s.install_order) : '<span class="missing">시공 순서 미입력</span>'}</div>
@@ -143,7 +152,7 @@ function installChecks(doc, snapshot) {
 }
 
 /** 설치할 모듈 목록 — 자재가 아니라 "다는 것" 기준. */
-function moduleSheet(snapshot) {
+export function moduleSheet(snapshot) {
   const design = snapshot.design_payload || {};
   const items = Array.isArray(design.items) ? design.items : [];
   const rows = [];
@@ -183,7 +192,7 @@ function moduleSheet(snapshot) {
 }
 
 /** 줄 부재 행 — 품목 단위 (엔진 moduleKey `…-ep`, 간편 플래너 「줄 부재」) */
-const isLineRow = (m) => (m.moduleKey && /-ep$/.test(String(m.moduleKey))) || String(m.module || '') === '줄 부재';
+export const isLineRow = (m) => (m.moduleKey && /-ep$/.test(String(m.moduleKey))) || String(m.module || '') === '줄 부재';
 
 /**
  * 정면도 · 정면 렌더 · 줄 부재 (2026-11-05 사장님 E 「설치 지시서에 정면도 · 모듈 목록 · 상판 · 줄 부재」 · 메모 「작업 지시서 내에서는 무조건 그림」).
@@ -212,7 +221,7 @@ function drawingSheet(doc, snapshot, renderUrls) {
 }
 
 /** 일정 — 설치 팀이 알아야 할 앞뒤 공정. 작업자 보기는 장소를 열지 않는다 (주소일 수 있다). */
-function scheduleSheet(schedules, worker) {
+export function scheduleSheet(schedules, worker) {
   const list = Array.isArray(schedules) ? schedules : [];
   if (list.length === 0) return '';
 
@@ -238,6 +247,13 @@ function scheduleSheet(schedules, worker) {
 </div>`;
 }
 
+/** 현장 문서(설치 · 철거 · 납품 지시서)의 인쇄 모양 — 빈칸 경고 · 글 상자 · 작은 글 */
+export const SITE_CSS = PRINT_CSS + `
+      .missing { color: #c62828; font-weight: 700; }
+      .freetext { white-space: pre-wrap; border: 1px solid #ddd; padding: 8px 10px; border-radius: 4px; min-height: 32px; }
+      .hint { font-size: 11px; color: #666; margin: 2px 0 6px; }
+    `;
+
 export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null, renderUrls = new Map() } = {}) {
   const w = worker && worker.orderLabel ? worker : null;
   const body = [
@@ -252,11 +268,7 @@ export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = 
 
   return documentShell({
     title: `설치 작업지시서 ${doc.doc_no}`,
-    css: PRINT_CSS + `
-      .missing { color: #c62828; font-weight: 700; }
-      .freetext { white-space: pre-wrap; border: 1px solid #ddd; padding: 8px 10px; border-radius: 4px; min-height: 32px; }
-      .hint { font-size: 11px; color: #666; margin: 2px 0 6px; }
-    `,
+    css: SITE_CSS,
     body,
   });
 }

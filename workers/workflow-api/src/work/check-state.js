@@ -14,9 +14,13 @@ import { itemLabel } from '../templates/work-order.js';
 import { isMissingRelation } from '../work-order-data.js';
 
 /** 역할 → 여는 꾸러미 (작업지시서 ?pack=, 설치는 시공 지시서) */
-export const PACKS_OF_ROLE = Object.freeze({ cut: ['cut', 'labels'], edge: ['cut', 'labels'], assembly: ['assembly'], install: ['install'] });
+export const PACKS_OF_ROLE = Object.freeze({ cut: ['cut', 'labels'], edge: ['cut', 'labels'], assembly: ['assembly'], install: ['install'], demolition: ['demolition'], delivery: ['delivery'] });
 /** 역할 → 문서 종류 */
-export const DOC_TYPE_OF_ROLE = Object.freeze({ cut: 'work_order', edge: 'work_order', assembly: 'work_order', install: 'installation_order' });
+export const DOC_TYPE_OF_ROLE = Object.freeze({ cut: 'work_order', edge: 'work_order', assembly: 'work_order', install: 'installation_order', demolition: 'demolition_order', delivery: 'delivery_order' });
+/** 작업 종류(work_jobs.kind) → 확인 역할. A/S 는 지시서가 없다 (2026-11-17) */
+export const ROLE_OF_JOB_KIND = Object.freeze({ cutting: 'cut', edge: 'edge', assembly: 'assembly', install: 'install', demolition: 'demolition', delivery: 'delivery' });
+/** 문서 종류 이름 — 「아직 없습니다」 글 */
+const DOC_NAME = Object.freeze({ work_order: '작업지시서', installation_order: '시공 지시서', demolition_order: '철거 지시서', delivery_order: '납품 지시서' });
 
 /** 설계의 지금 문서 */
 export async function currentDoc(env, designId, docType) {
@@ -33,7 +37,7 @@ export async function currentDoc(env, designId, docType) {
 /** 주문 → 지금 문서 + 동결본 + 고정 목록 (없으면 NotFound) */
 export async function docContext(env, order, docType) {
   const doc = order.design_id ? await currentDoc(env, order.design_id, docType) : null;
-  if (!doc) throw new NotFoundError(docType === 'installation_order' ? '이 주문의 시공 지시서가 아직 없습니다' : '이 주문의 작업지시서가 아직 없습니다');
+  if (!doc) throw new NotFoundError(`이 주문의 ${DOC_NAME[docType] || DOC_NAME.work_order}가 아직 없습니다`);
   const snapshot = await selectOne(env, 'design_snapshots', { id: `eq.${doc.snapshot_id}`, select: '*' });
   if (!snapshot) throw new NotFoundError('문서가 참조하는 스냅샷이 없습니다');
   return { doc, snapshot, list: checkListOfDoc(doc) };
@@ -107,7 +111,7 @@ export async function checkRows(env, documentId, roles) {
 
 /**
  * 완료 막기 — 그 주문 · 역할의 필수가 남았으면 409 checks_left (목록 판이 block 'must' 일 때만).
- * @param {{orderId:string, role:string}} o role = cut | edge | assembly | install
+ * @param {{orderId:string, role:string}} o role = cut | edge | assembly | install | demolition | delivery
  */
 export async function assertChecksDone(env, { orderId, role }) {
   const docType = DOC_TYPE_OF_ROLE[role];

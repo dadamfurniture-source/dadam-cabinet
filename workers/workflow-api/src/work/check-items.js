@@ -13,6 +13,9 @@
  *   v2 = 2026-11-06 사장님 확정 (작업지시서 마무리 「여러 날 걸리는 주문」 → 주문 끝 「완료」를 따로 둠): v1 + 주문 끝 항목 둘
  *        (재단 「이 주문 재단 · 엣지 끝」 · 조립 「이 주문 조립 끝」, finish). 공장 하루 기록은 막지 않고, 필수가 남으면
  *        주문 끝 항목 체크와 설치 · 조립 작업 완료 보고를 막는다.
+ *   v3 = 2026-11-17 사장님 확정 (「각 작업자에게 보낼 작업지시서 … 철거 · 납품 지시서를 새로」 — 철거 = 「철거 뒤 사진 확인」 · 납품 = 「납품 확인(수량 + 내린 뒤 사진)」):
+ *        v2 + 역할 둘 — 철거(demolition) 「철거 후 사진」 · 납품(delivery) 「납품 수량 확인」 · 「하차 후 사진」. 재단 · 조립 · 설치 항목은 v2 그대로.
+ *        필수가 남으면 철거 · 납품 작업 완료 보고도 막는다 (work/updates.js). DB 0068 이 work_checks.role 에 두 역할을 더했다.
  *   범위 scope: sheet (원장마다 — 재단 배치 원장 no) · module (모듈마다 — 품목 i · 모듈 j) · order (주문에 한 번).
  *   when: door (도어 있는 모듈만) · drawer (서랍 있는 모듈만) — 종이의 「—」 칸과 같다.
  *         confirm (지시서 BOM 에 [확인 필요]가 있을 때만) · outlet (콘센트를 넣은 하부장이 있을 때만 — 부자재 「전기」).
@@ -23,12 +26,13 @@
  * 항목 키는 DB 0035 work_checks.item_key 모양(소문자 · 숫자 · -)을 따른다.
  */
 
-export const CHECK_ROLES = Object.freeze(['cut', 'edge', 'assembly', 'install']);
+export const CHECK_ROLES = Object.freeze(['cut', 'edge', 'assembly', 'install', 'demolition', 'delivery']);
 export const CHECK_SCOPES = Object.freeze(['sheet', 'module', 'order']);
-export const CHECK_ROLE_LABEL = Object.freeze({ cut: '재단', edge: '엣지', assembly: '조립', install: '설치' });
+export const CHECK_ROLE_LABEL = Object.freeze({ cut: '재단', edge: '엣지', assembly: '조립', install: '설치', demolition: '철거', delivery: '납품' });
 
 const item = (key, label, scope, extra) => Object.freeze(Object.assign({ key, label, short: label, scope, must: true, photo: 'none' }, extra || {}));
-const list = (block, roles) => Object.freeze(Object.assign({ block }, Object.fromEntries(Object.entries(roles).map(([r, xs]) => [r, Object.freeze(xs)]))));
+/** 판 하나 — 역할마다 항목. 그 판에 없는 역할(옛 판의 철거 · 납품)은 빈 목록 */
+const list = (block, roles) => Object.freeze(Object.assign({ block }, Object.fromEntries(CHECK_ROLES.map((r) => [r, Object.freeze(roles[r] || [])]))));
 
 /** v1 항목 — v2 가 이어 쓴다 */
 const V1 = {
@@ -98,16 +102,30 @@ export const CHECK_LISTS = Object.freeze({
     cut: V1.cut.concat([item('cut-order-done', '이 주문 재단 · 엣지 끝', 'order', { at: 'end', must: false, finish: true, short: '재단 끝' })]),
     assembly: V1.assembly.concat([item('asm-order-done', '이 주문 조립 끝', 'order', { at: 'end', must: false, finish: true, short: '조립 끝' })]),
   })),
+  v3: list('must', Object.assign({}, V1, {
+    cut: V1.cut.concat([item('cut-order-done', '이 주문 재단 · 엣지 끝', 'order', { at: 'end', must: false, finish: true, short: '재단 끝' })]),
+    assembly: V1.assembly.concat([item('asm-order-done', '이 주문 조립 끝', 'order', { at: 'end', must: false, finish: true, short: '조립 끝' })]),
+    demolition: [item('demo-order-photo', '철거 후 사진', 'order', { photo: 'need' })],
+    delivery: [
+      item('dlv-order-count', '납품 수량 확인', 'order'),
+      item('dlv-order-photo', '하차 후 사진', 'order', { photo: 'need' }),
+    ],
+  })),
 });
 
+/** v2 까지의 역할 넷 — 문서에 고정하는 모양에 늘 있던 칸 (항목이 없어도 빈 목록으로 — 엣지) */
+const LEGACY_ROLES = Object.freeze(['cut', 'edge', 'assembly', 'install']);
+
 /** 새로 발행하는 문서에 고정하는 판 */
-export const CHECK_LIST_VERSION = 'v2';
+export const CHECK_LIST_VERSION = 'v3';
 
 /** 문서에 고정하는 모양 — { version, block, roles: { cut: [...], … } } (얕은 복사, 판 자체는 얼어 있다) */
 export function frozenCheckList(version = CHECK_LIST_VERSION) {
   const roles = CHECK_LISTS[version];
   if (!roles) throw new Error(`모르는 확인 목록 판: ${version}`);
-  return { version, block: roles.block, roles: Object.fromEntries(CHECK_ROLES.map((r) => [r, roles[r].map((x) => ({ ...x }))])) };
+  // 그 판에 항목이 있는 역할만 담는다 — 옛 판(v0 ~ v2)의 고정 모양이 그대로다 (철거 · 납품 칸이 생기지 않는다)
+  const has = (r) => roles[r].length > 0 || LEGACY_ROLES.includes(r);
+  return { version, block: roles.block, roles: Object.fromEntries(CHECK_ROLES.filter(has).map((r) => [r, roles[r].map((x) => ({ ...x }))])) };
 }
 
 /** 문서가 고정한 목록 — 없으면(옛 문서) v0 */

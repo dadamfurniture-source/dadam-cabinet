@@ -153,7 +153,7 @@ function deepKeys(x, out = new Set()) {
 beforeEach(() => { clearHqCompanyCache(); clearAdminCache(); });
 
 test('역할 → 꾸러미 · 칸 (원장 = 고정된 재단 배치, 모듈 = 동결 설계, 주문 = 하나)', () => {
-  assert.deepEqual(PACKS_OF_ROLE, { cut: ['cut', 'labels'], edge: ['cut', 'labels'], assembly: ['assembly'], install: ['install'] });
+  assert.deepEqual(PACKS_OF_ROLE, { cut: ['cut', 'labels'], edge: ['cut', 'labels'], assembly: ['assembly'], install: ['install'], demolition: ['demolition'], delivery: ['delivery'] });
   const db = makeDb();
   const doc = db.design_documents[1];
   const snap = db.design_snapshots[0];
