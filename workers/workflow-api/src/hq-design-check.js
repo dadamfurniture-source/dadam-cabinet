@@ -159,9 +159,25 @@ export async function designCheckSummary(env, { user }) {
       selectMany(env, 'dataset_samples', { src_table: `eq.${PC_SRC_TABLE}`, image_url: 'not.is.null', select: 'sample_id', limit: ROW_LIMIT }),
       selectMany(env, COMPLETION_TABLE, { select: 'group_key', limit: ROW_LIMIT }),
       selectMany(env, 'dataset_exportable', { ...pcDesign, select: 'sample_id', limit: ROW_LIMIT }),
-      selectMany(env, 'planner_signals', { created_at: `gte.${since}`, select: 'kind', limit: ROW_LIMIT }),
+      selectMany(env, 'planner_signals', { created_at: `gte.${since}`, select: 'kind,payload', limit: ROW_LIMIT }),
     ]);
     const signalN = (kind) => (signals || []).filter((x) => x.kind === kind).length;
+    // 카드 출처별 — 보인 카드 수 · 누른 카드 수 (src/planner-learn.js SIGNAL_CARD_SRC: 섞인 카드 mix 는 화면 글처럼 「여러 업체」 쪽). 출처가 없는 예전 빈도 카드는 안 센다
+    const bySrc = { own: { shown: 0, accepted: 0 }, pop: { shown: 0, accepted: 0 }, seed: { shown: 0, accepted: 0 } };
+    const srcGroupOf = (card) => ({ own: 'own', pop: 'pop', mix: 'pop', seed: 'seed' })[card && typeof card === 'object' ? card.src : ''] || null;
+    (signals || []).forEach((x) => {
+      const p = x.payload && typeof x.payload === 'object' ? x.payload : {};
+      const cards = Array.isArray(p.cards) ? p.cards : [];
+      if (x.kind === 'suggest_shown')
+        cards.forEach((c) => {
+          const g = srcGroupOf(c);
+          if (g) bySrc[g].shown += 1;
+        });
+      if (x.kind === 'suggest_accepted') {
+        const g = srcGroupOf(Number.isInteger(p.pick) ? cards[p.pick] : null);
+        if (g) bySrc[g].accepted += 1;
+      }
+    });
     // 간편 플래너 여러 업체 공통 줄 (DB 0069 — src/planner-panel.js). 표가 없으면(0069 적용 전) null — 한눈에의 나머지는 그대로 낸다
     let panelRows = null;
     try {
@@ -231,7 +247,7 @@ export async function designCheckSummary(env, { user }) {
           .slice(0, 6),
       },
       // 앱 플래너 「자주 쓴 구성」 카드가 쓰였나 — 지난 7일 (보임 · 누름 · 지나침 수만, src/planner-learn.js recordSignal)
-      suggest: { days: 7, shown: signalN('suggest_shown'), accepted: signalN('suggest_accepted'), skipped: signalN('suggest_skipped') },
+      suggest: { days: 7, shown: signalN('suggest_shown'), accepted: signalN('suggest_accepted'), skipped: signalN('suggest_skipped'), by_src: bySrc },
       // 여러 업체 공통 줄 — 3곳 이상이 쓴 줄 수 · 씨앗 줄 수 · 마지막으로 묶은 때 (수만 — 업체는 내지 않는다). 0069 적용 전이면 null
       panel:
         panelRows === null
