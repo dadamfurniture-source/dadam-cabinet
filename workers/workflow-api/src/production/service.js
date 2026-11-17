@@ -20,7 +20,7 @@ import { listOwnHqOrders, listHqOrdersOfMonth, tierOf } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
-import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS, DEFAULT_COUNTERTOP } from './standards.js';
+import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS, DEFAULT_COUNTERTOP, DEFAULT_CUT, CUT_LIMITS } from './standards.js';
 import { orderLabel, workerOrderLabel } from './redact.js';
 import { hasCountertop } from '../countertop.js';
 import { safeRecord, safeSyncStatus } from '../reports/service.js';
@@ -95,7 +95,19 @@ export function mergeSettings(saved) {
     countertop: known(DEFAULT_COUNTERTOP, s.countertop),
     holidays: Array.isArray(s.holidays) ? s.holidays : [],
     colors: colorsOf(s.colors),
+    cut: cutOf(s.cut),
   };
+}
+
+/** 저장된 재단기 설정 → { kerf, trim } — 숫자가 아니거나 범위를 벗어난 칸은 기본값 */
+function cutOf(saved) {
+  const out = { ...DEFAULT_CUT };
+  for (const k of Object.keys(DEFAULT_CUT)) {
+    const v = saved ? saved[k] : undefined;
+    const [lo, hi] = CUT_LIMITS[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi) out[k] = v;
+  }
+  return out;
 }
 
 /** 저장 전 검증 — 아는 키만, 숫자만, 범위 안만. */
@@ -154,6 +166,17 @@ export function sanitizeSettings(body) {
         if (!names.includes(name)) names.push(name);   // 같은 이름은 한 번만 — 적은 차례 그대로
       }
       out.colors[g] = names;
+    }
+  }
+  if (body && body.cut !== undefined) {
+    if (typeof body.cut !== 'object' || body.cut === null || Array.isArray(body.cut)) throw new ValidationError('cut 은 객체여야 합니다');
+    out.cut = {};
+    for (const [k, v] of Object.entries(body.cut)) {
+      if (!(k in DEFAULT_CUT)) throw new ValidationError(`알 수 없는 설정: cut.${k}`);
+      const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+      const [lo, hi] = CUT_LIMITS[k];
+      if (!Number.isFinite(n) || n < lo || n > hi) throw new ValidationError(`cut.${k} 는 ${lo} ~ ${hi} 사이 숫자여야 합니다`);
+      out.cut[k] = Math.round(n * 10) / 10;   // 0.1mm 단위
     }
   }
   return out;
@@ -232,12 +255,15 @@ export async function assertHqMoney(env, user) {
  * 업체 설정 저장 — 보낸 묶음만 남긴다 (예전 개인 설정과 같은 방식). 권한은 부르는 쪽이 확인한다.
  * 장부 과세 묶음(tax — src/ledger/settings.js 가 따로 쓴다)은 이 화면이 보내지 않으므로 저장된 것을 그대로 둔다.
  * 플래너 색 목록(colors)도 보내지 않았으면 그대로 둔다 — 색 칸이 없는 화면(PC production.html · 캐시된 옛 앱 화면)이 저장해도 목록이 지워지지 않게.
+ * 재단기 설정(cut)도 같다 — 보내지 않았으면 그대로, 한 칸만 보냈으면 다른 칸은 저장된 값을 둔다.
  */
 export async function writeCompanySettings(env, { companyId, user, body }) {
   const clean = sanitizeSettings(body);
   const prev = await selectOne(env, 'company_settings', { company_id: `eq.${companyId}`, select: 'settings' });
   if (prev && prev.settings && prev.settings.tax) clean.tax = prev.settings.tax;
   if (clean.colors === undefined && prev && prev.settings && prev.settings.colors) clean.colors = prev.settings.colors;
+  const prevCut = prev && prev.settings && typeof prev.settings.cut === 'object' && prev.settings.cut ? prev.settings.cut : null;
+  if (prevCut) clean.cut = { ...prevCut, ...(clean.cut || {}) };
   const row = await upsertOne(env, 'company_settings', {
     company_id: companyId,
     settings: clean,

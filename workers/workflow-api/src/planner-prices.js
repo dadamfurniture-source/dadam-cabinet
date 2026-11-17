@@ -152,3 +152,14 @@ export async function plannerColors(env, { user }) {
   const colors = s.settings.colors;
   return { company: { id: company.id, name: company.name }, body: colors.body, back: colors.back, updated_at: s.updated_at };
 }
+
+/**
+ * GET /planner/cut — 내 팩토리의 재단기 설정 (톱날 두께 · 원장 가장자리 여백 mm). 플래너 구성원 누구나 — 재단 배치를 셈할 때 쓴다.
+ *   팩토리 대표 · 실장이 「생산 설정」에 적는다 (production/service.js settings.cut). 적지 않았으면 재단 엔진 기본값.
+ */
+export async function plannerCut(env, { user }) {
+  const { company } = await plannerCompanyOf(env, user);
+  const s = await companySettings(env, company.id);
+  const cut = s.settings.cut;
+  return { company: { id: company.id, name: company.name }, kerf: cut.kerf, trim: cut.trim, updated_at: s.updated_at };
+}
