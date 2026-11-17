@@ -113,8 +113,20 @@
   /** 공정 → 여는 작업지시서 꾸러미 (서버 work/checks.js PACKS_OF_ROLE 와 같다 — 재단 · 엣지 → 재단 · 라벨, 조립 → 조립) */
   const FACTORY_PACKS = Object.freeze({ cutter: ['cut', 'labels'], edge: ['cut', 'labels'], asm: ['assembly'] });
   const PACK_LABEL = Object.freeze({ cut: '재단 지시서', labels: '부재 라벨', assembly: '조립 지시서' });
-  /** 작업지시서 · 필수 확인을 여는 작업(모집 · 초대) — 설치는 시공 지시서, 조립은 조립 꾸러미 */
-  const DOC_JOB_KINDS = Object.freeze(['install', 'assembly']);
+  /**
+   * 작업지시서 · 필수 확인을 여는 작업(모집 · 초대 · 프로젝트 「작업 배정」) — 종류마다 그 지시서 [꾸러미, 단추 이름]
+   *   (2026-11-17 「각 작업자에게 보낼 작업지시서 각 작업에」 — 서버 work/check-state.js ROLE_OF_JOB_KIND · PACKS_OF_ROLE).
+   *   설치 = 시공 지시서 · 조립 = 조립 꾸러미 · 재단 · 엣지 = 재단 꾸러미 · 부재 라벨 · 철거 = 철거 지시서 · 납품 = 납품 지시서. A/S 는 없다
+   */
+  const DOC_JOB_PACKS = Object.freeze({
+    install: Object.freeze([['', '시공 지시서']]),
+    assembly: Object.freeze([['', '조립 지시서']]),
+    cutting: Object.freeze([['cut', '재단 지시서'], ['labels', '부재 라벨']]),
+    edge: Object.freeze([['cut', '재단 지시서'], ['labels', '부재 라벨']]),
+    demolition: Object.freeze([['', '철거 지시서']]),
+    delivery: Object.freeze([['', '납품 지시서']]),
+  });
+  const DOC_JOB_KINDS = Object.freeze(Object.keys(DOC_JOB_PACKS));
   const DOC_ASSIGNMENT_STATUSES = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
   /** 이 기기의 생산 링크 토큰 — production-worker.html 이 localStorage 에 둔다. 있으면 「내 계정에 잇기」 */
   const LINK_TOKEN_KEY = 'dadamWorkerToken';
@@ -569,7 +581,7 @@
     }
     if (act.start) parts.push(`<button type="button" class="big go" data-act="start" data-id="${esc(my.assignment_id)}">작업 시작</button>`);
     if (DOC_JOB_KINDS.includes(d.kind) && isUuid(my.assignment_id) && DOC_ASSIGNMENT_STATUSES.includes(my.assignment_status)) {
-      parts.push(`<div class="btns"><button type="button" class="big" data-act="as-pack" data-id="${esc(my.assignment_id)}">${d.kind === 'install' ? '시공 지시서' : '조립 지시서'}</button>` +
+      parts.push(`<div class="btns">${DOC_JOB_PACKS[d.kind].map(([pack, label]) => `<button type="button" class="big" data-act="as-pack" data-id="${esc(my.assignment_id)}"${pack ? ` data-pack="${esc(pack)}"` : ''}>${esc(label)}</button>`).join('')}` +
         `<button type="button" class="big" data-act="as-checks" data-id="${esc(my.assignment_id)}">필수 확인</button></div>`);
     }
     if (act.reports.length) parts.push(reportFormHtml(d, act.reports));
@@ -1617,7 +1629,9 @@
         return;
       }
       if (what === 'as-pack') {
-        openPack(`/work/assignments/${id}/pack`);
+        // 재단 · 엣지 작업은 꾸러미를 고른다 (재단 지시서 · 부재 라벨) — 그 밖은 문서가 하나다
+        const pack = b.getAttribute('data-pack') || '';
+        openPack(`/work/assignments/${id}/pack${pack ? `?pack=${encodeURIComponent(pack)}` : ''}`);
         return;
       }
       if (what === 'as-checks') {
