@@ -1,0 +1,115 @@
+{
+  "title": "0069 간편 플래너 여러 업체 공통 줄 — 줄 유전체 · 공통 줄(3곳 이상 · 씨앗) · 씨앗 설계, 셋 다 서버만",
+  "ids": ["company_x", "company_y", "company_z"],
+  "users": ["x_owner_user", "hq_user"],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active'), ({{company_z}}, 'partner', 'probe Z', 'manager', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.planner_drafts (company_id, id, model, created_by) VALUES ({{company_x}}, 'd-probe-a', '{\"walls\":[]}'::jsonb, {{x_owner_user}}), ({{company_x}}, 'd-probe-b', '{\"walls\":[]}'::jsonb, {{x_owner_user}})",
+    "INSERT INTO public.planner_draft_genome (company_id, draft_id, rev, item, lines) VALUES ({{company_x}}, 'd-probe-a', 1, 'sink', '[{\"k\":\"floor\",\"fx\":[\"sink\"],\"cells\":[{\"l\":[],\"r\":[\"LB-DR3-600\"],\"w\":900},{\"l\":[],\"r\":[],\"w\":600}]}]'::jsonb)",
+    "INSERT INTO public.planner_genome_panel (item, kind, line_key, line, company_ids, n, seed) VALUES ('sink', 'floor', 'probe-key-3', '{\"fx\":[\"sink\"],\"cells\":[]}'::jsonb, ARRAY[{{company_x}}, {{company_y}}, {{company_z}}]::uuid[], 3, false), ('sink', 'floor', 'probe-key-seed', '{\"fx\":[],\"cells\":[]}'::jsonb, ARRAY[{{company_x}}]::uuid[], 1, true)",
+    "INSERT INTO public.planner_genome_seeds (company_id, draft_id, marked_by) VALUES ({{company_x}}, 'd-probe-a', {{hq_user}})"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "x_owner": { "role": "authenticated", "user": "x_owner_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "줄 유전체 · 공통 줄 · 씨앗 읽기 — 서버만 (익명 · 구성원 deny)",
+      "sql": "select (select count(*) from public.planner_draft_genome where company_id = {{company_x}}) + (select count(*) from public.planner_genome_panel where line_key like 'probe-key-%') + (select count(*) from public.planner_genome_seeds where company_id = {{company_x}})",
+      "expect": { "anon": "deny", "x_owner": "deny", "service_role": "4" }
+    },
+    {
+      "name": "구성원은 줄 유전체를 쓰지 못한다",
+      "sql": "insert into public.planner_draft_genome (company_id, draft_id, rev, item, lines) values ({{company_x}}, 'd-probe-b', 1, 'sink', '[]'::jsonb)",
+      "roles": ["x_owner"],
+      "expect": { "x_owner": "deny" }
+    },
+    {
+      "name": "서버는 줄 유전체를 넣는다",
+      "sql": "insert into public.planner_draft_genome (company_id, draft_id, rev, item, lines) values ({{company_x}}, 'd-probe-b', 1, 'sink', '[]'::jsonb)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "남의 업체 설계에는 줄 유전체를 붙이지 못한다",
+      "sql": "insert into public.planner_draft_genome (company_id, draft_id, rev, item, lines) values ({{company_y}}, 'd-probe-a', 1, 'sink', '[]'::jsonb)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23503" }
+    },
+    {
+      "name": "줄 유전체 — 배열이 아니면 거절",
+      "sql": "insert into public.planner_draft_genome (company_id, draft_id, rev, item, lines) values ({{company_x}}, 'd-probe-b', 1, 'sink', '{}'::jsonb)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "줄 유전체 — 다시 보내면 서버가 고친다",
+      "sql": "update public.planner_draft_genome set rev = 2, lines = '[]'::jsonb where company_id = {{company_x}} and draft_id = 'd-probe-a'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "줄 유전체 지우기는 서버도 못 한다",
+      "sql": "delete from public.planner_draft_genome where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "deny" }
+    },
+    {
+      "name": "공통 줄 — 3곳 미만은 씨앗이 아니면 넣지 못한다",
+      "sql": "insert into public.planner_genome_panel (item, kind, line_key, line, company_ids, n, seed) values ('sink', 'floor', 'probe-key-2', '{}'::jsonb, ARRAY[{{company_x}}, {{company_y}}]::uuid[], 2, false)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "공통 줄 — 업체 수가 업체 목록과 다르면 거절",
+      "sql": "insert into public.planner_genome_panel (item, kind, line_key, line, company_ids, n, seed) values ('sink', 'floor', 'probe-key-n', '{}'::jsonb, ARRAY[{{company_x}}, {{company_y}}, {{company_z}}]::uuid[], 5, false)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "공통 줄 — 모르는 줄 종류는 거절",
+      "sql": "insert into public.planner_genome_panel (item, kind, line_key, line, company_ids, n, seed) values ('sink', 'stack', 'probe-key-k', '{}'::jsonb, ARRAY[{{company_x}}, {{company_y}}, {{company_z}}]::uuid[], 3, false)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "공통 줄 — 다시 묶을 때 서버가 지운다",
+      "sql": "delete from public.planner_genome_panel where line_key like 'probe-key-%'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "공통 줄 — 구성원은 넣지 못한다",
+      "sql": "insert into public.planner_genome_panel (item, kind, line_key, line, company_ids, n, seed) values ('sink', 'floor', 'probe-key-m', '{}'::jsonb, ARRAY[{{company_x}}]::uuid[], 1, true)",
+      "roles": ["x_owner"],
+      "expect": { "x_owner": "deny" }
+    },
+    {
+      "name": "씨앗 — 없는 설계는 고르지 못한다",
+      "sql": "insert into public.planner_genome_seeds (company_id, draft_id) values ({{company_x}}, 'd-probe-none')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23503" }
+    },
+    {
+      "name": "씨앗 — 표시를 빼는 것은 서버가 한다",
+      "sql": "delete from public.planner_genome_seeds where company_id = {{company_x}} and draft_id = 'd-probe-a'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "씨앗 — 고치기는 서버도 못 한다",
+      "sql": "update public.planner_genome_seeds set marked_by = null where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "deny" }
+    },
+    {
+      "name": "씨앗 — 구성원은 고르지 못한다",
+      "sql": "insert into public.planner_genome_seeds (company_id, draft_id) values ({{company_x}}, 'd-probe-b')",
+      "roles": ["x_owner"],
+      "expect": { "x_owner": "deny" }
+    }
+  ]
+}
