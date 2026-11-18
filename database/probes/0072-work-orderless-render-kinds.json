@@ -1,0 +1,247 @@
+{
+  "title": "0072 수주 없는 작업의 필수 확인(work_checks.order_id 비울 수 있음 · job_id) · 지시서 그림 종류 둘(design_renders.kind layout · inside) (scripts/rls-probe.mjs --migration database/migrations/0072_work_orderless_render_kinds.sql). 0035 · 0064 · 0068 이 먼저 적용돼 있어야 한다. 칸은 하나씩 되돌린다 — 칸에서는 넣기 · 고치기 한 번이거나 읽기 한 번만 한다",
+  "ids": [
+    "company_x",
+    "customer_x",
+    "project_x",
+    "design_x",
+    "snap_x",
+    "doc_w",
+    "order_x",
+    "job_x",
+    "job_gone"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{customer_x}}, {{company_x}}, 'probe')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_x}}, {{company_x}}, {{customer_x}}, 'probe X')",
+    "INSERT INTO public.designs (id, user_id, name, company_id, project_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}}, {{project_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_w}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_w}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_w}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id, design_id) VALUES ({{job_x}}, 'cutting', 'probe 재단', 'open', {{company_x}}, {{project_x}}, {{design_x}})",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id, design_id) VALUES ({{job_gone}}, 'demolition', 'probe 철거', 'open', {{company_x}}, {{project_x}}, {{design_x}})",
+    "INSERT INTO public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) VALUES ({{company_x}}, {{order_x}}, {{doc_w}}, 'cut', 'sheet:1', 'probe-with-order', 'v3', true)",
+    "INSERT INTO public.work_checks (company_id, job_id, document_id, role, scope_key, item_key, list_version, checked) VALUES ({{company_x}}, {{job_x}}, {{doc_w}}, 'cut', 'sheet:1', 'probe-orderless', 'v3', true)",
+    "INSERT INTO public.work_checks (company_id, job_id, document_id, role, scope_key, item_key, list_version, checked) VALUES ({{company_x}}, {{job_gone}}, {{doc_w}}, 'demolition', '', 'probe-gone', 'v3', true)",
+    "DELETE FROM public.work_jobs WHERE id = {{job_gone}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "넣기 — 수주 없는 체크 (작업만 적는다) · 서버만",
+      "sql": "insert into public.work_checks (company_id, job_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{job_x}}, {{doc_w}}, 'cut', 'sheet:2', 'probe-item', 'v3', true)",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "넣기 — 전에 있던 모양은 그대로 (수주만 적는다)",
+      "sql": "insert into public.work_checks (company_id, order_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{order_x}}, {{doc_w}}, 'cut', 'sheet:2', 'probe-item', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "넣기 — 수주와 작업을 같이 적는다",
+      "sql": "insert into public.work_checks (company_id, order_id, job_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{order_x}}, {{job_x}}, {{doc_w}}, 'cut', 'sheet:2', 'probe-item', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "없는 작업 id 는 거절",
+      "sql": "insert into public.work_checks (company_id, job_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, '00000000-0000-4000-8000-000000000072'::uuid, {{doc_w}}, 'cut', 'sheet:2', 'probe-item', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "문서 없는 체크는 여전히 거절",
+      "sql": "insert into public.work_checks (company_id, job_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{job_x}}, null, 'cut', 'sheet:2', 'probe-item', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23502"
+      }
+    },
+    {
+      "name": "모르는 역할은 여전히 거절 (A/S 는 필수 확인이 없다)",
+      "sql": "insert into public.work_checks (company_id, job_id, document_id, role, scope_key, item_key, list_version, checked) values ({{company_x}}, {{job_x}}, {{doc_w}}, 'as', '', 'probe-item', 'v3', true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "읽기 — 수주 없는 줄 · 여전히 서버만",
+      "sql": "select count(*) from public.work_checks where job_id = {{job_x}} and order_id is null and item_key = 'probe-orderless'",
+      "expect": {
+        "service_role": 1,
+        "*": "deny"
+      }
+    },
+    {
+      "name": "읽기 — 수주가 있는 줄은 그대로 (작업 칸은 비어 있다)",
+      "sql": "select count(*) from public.work_checks where order_id = {{order_x}} and job_id is null and item_key = 'probe-with-order'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": 1
+      }
+    },
+    {
+      "name": "작업을 지워도 체크 줄은 남고 작업 칸만 빈다",
+      "sql": "select count(*) from public.work_checks where document_id = {{doc_w}} and item_key = 'probe-gone' and job_id is null and order_id is null",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": 1
+      }
+    },
+    {
+      "name": "고치기 work_checks — 여전히 아무도 고치지 못한다 (쌓기만)",
+      "sql": "update public.work_checks set checked = false where document_id = {{doc_w}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "지우기 work_checks — 여전히 아무도 지우지 못한다 (쌓기만)",
+      "sql": "delete from public.work_checks where document_id = {{doc_w}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "수주 칸 — 비울 수 있다",
+      "sql": "select (not attnotnull)::text from pg_attribute where attrelid = 'public.work_checks'::regclass and attname = 'order_id'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "문서 칸 — 여전히 비울 수 없다",
+      "sql": "select attnotnull::text from pg_attribute where attrelid = 'public.work_checks'::regclass and attname = 'document_id'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "작업 칸 제약 — 작업 표를 가리키고 작업이 지워지면 비운다",
+      "sql": "select (pg_get_constraintdef(oid) like '%work_jobs(id) ON DELETE SET NULL%')::text from pg_constraint where conname = 'work_checks_job_id_fkey' and conrelid = 'public.work_checks'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "필수 확인 표 RLS — 켜져 있다 (칸을 더해도 그대로)",
+      "sql": "select relrowsecurity::text from pg_class where oid = 'public.work_checks'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "그림 종류 — 배치 평면 (layout)",
+      "sql": "insert into public.design_renders (design_id, item_unique_id, kind, path) values ({{design_x}}, 1, 'layout', 'probe/layout.svg')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "그림 종류 — 속 구조 정면도 (inside) · 모듈 상자 자리는 camera 칸에",
+      "sql": "insert into public.design_renders (design_id, item_unique_id, kind, path, camera) values ({{design_x}}, 1, 'inside', 'probe/inside.svg', '{\"view\":{\"w\":900,\"h\":400},\"boxes\":[{\"nos\":[1],\"x\":10,\"y\":20,\"w\":100,\"h\":200}]}'::jsonb)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "그림 종류 — 전에 있던 것은 그대로 (ISO 도면)",
+      "sql": "insert into public.design_renders (design_id, item_unique_id, kind, path) values ({{design_x}}, 1, 'iso', 'probe/iso.svg')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모르는 그림 종류는 거절",
+      "sql": "insert into public.design_renders (design_id, item_unique_id, kind, path) values ({{design_x}}, 1, 'section', 'probe/section.svg')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "그림 종류 제약 — 여섯 가지가 적혀 있다",
+      "sql": "select (pg_get_constraintdef(oid) like '%front%iso%plan%module%layout%inside%')::text from pg_constraint where conname = 'design_renders_kind_check' and conrelid = 'public.design_renders'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "그림 표 RLS — 켜져 있다 (종류를 더해도 그대로)",
+      "sql": "select relrowsecurity::text from pg_class where oid = 'public.design_renders'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    }
+  ]
+}
