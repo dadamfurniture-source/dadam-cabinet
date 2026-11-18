@@ -56,8 +56,9 @@ function known(def, saved) {
  * 예전 기본값이 그대로 저장된 칸 — 설정 화면은 모든 칸을 함께 저장하므로, 한 번이라도 저장한 설정에는
  * 그때의 기본값이 박혀 있다. 대표가 나중에 값을 확정하면 그 옛 기본값은 새 기본값으로 읽는다.
  *   상판 125,000 → 133,333 (고객가 m당 16만, 2026-10-19 대표 확정)
+ *   엣지 1롤 길이 200 → 100 m · 고정비 회수 32,800 → 31,500 (2026-11-18 대표 확정 — 둘을 같이 읽어야 표준 싱크대 견적이 그대로다)
  */
-const STALE_QUOTE_DEFAULTS = Object.freeze({ countertopPerMeter: [125000] });
+const STALE_QUOTE_DEFAULTS = Object.freeze({ countertopPerMeter: [125000], edgeRollMeters: [200], fixedPerPbSheet: [32800] });
 
 function freshQuote(saved) {
   const q = { ...(saved || {}) };

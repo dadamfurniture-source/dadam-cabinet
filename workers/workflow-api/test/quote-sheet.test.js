@@ -54,7 +54,9 @@ test('견적 줄: 단가 × 수량 = 금액, 공급가 ≈ 최종 지출비용 �
   assert.deepEqual(q.items.slice(0, 5).map((i) => i.quantity), ['6장', '3장', '2장', '2개', '7.6m']);
   for (const i of q.items) assert.equal(i.total, Math.round(i.unit_price * parseFloat(i.quantity)));
   // 최종 지출비용(캐비닛 + 상판·설비·철거) × 1.2 — 단가를 100원 단위로 반올림한 차이만 허용
-  assert.equal(q.cost.total, q.cost.cabinet + q.cost.drawerBox + Object.values(q.cost.extras).reduce((s, v) => s + v, 0));
+  // 원가 합계 = 캐비닛 + 서랍 박스 + 상판 · 설비 · 철거 — 칸마다 따로 반올림한 1원 단위 차이만 허용
+  const costParts = [q.cost.cabinet, q.cost.drawerBox, ...Object.values(q.cost.extras)];
+  assert.ok(Math.abs(q.cost.total - costParts.reduce((s, v) => s + v, 0)) <= costParts.length / 2, `${q.cost.total} vs ${costParts.join(' + ')}`);
   assert.equal(q.cost.priced_total, q.subtotal);
   assert.ok(Math.abs(q.subtotal - q.cost.total * 1.2) <= 100 * 20, `${q.subtotal} vs ${q.cost.total * 1.2}`);
   assert.equal(q.subtotal, q.items.reduce((s, i) => s + i.total, 0));
@@ -153,19 +155,19 @@ test('원판 장수 기본은 면적 기준 — PB·뒷판 0.1장, 도어 0.5장
   assert.ok(lowYield.pb > a.pb);
 });
 
-test('고정비 회수: 몸통 PB 1장마다 32,800원을 원가에 더하고 마진도 같이 붙는다 (캐비닛 · 시공 m당 20만 원에 맞춘 값)', () => {
-  assert.equal(DEFAULT_QUOTE.fixedPerPbSheet, 32800);
+test('고정비 회수: 몸통 PB 1장마다 31,500원을 원가에 더하고 마진도 같이 붙는다 (캐비닛 · 시공 m당 20만 원에 맞춘 값)', () => {
+  assert.equal(DEFAULT_QUOTE.fixedPerPbSheet, 31500);
   const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
   const off = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { fixedPerPbSheet: 0 } } });
   const pb = q.cost.quantities.sheetsPB;
-  assert.equal(q.cost.body.fixed, Math.round(pb * 32800));
+  assert.equal(q.cost.body.fixed, Math.round(pb * 31500));
   assert.equal(q.cost.fixed_recovery, q.cost.body.fixed);
   assert.equal(off.cost.fixed_recovery, 0);
-  // 몸통 줄 단가가 장당 32,800 × 1.2 = 39,360 오른다 (100원 단위 반올림 차이만)
+  // 몸통 줄 단가가 장당 31,500 × 1.2 = 37,800 오른다 (100원 단위 반올림 차이만)
   const body = (x) => x.items.find((i) => i.name.startsWith('몸통'));
-  assert.ok(Math.abs(body(q).unit_price - body(off).unit_price - 32800 * 1.2) <= 100, `${body(q).unit_price} - ${body(off).unit_price}`);
+  assert.ok(Math.abs(body(q).unit_price - body(off).unit_price - 31500 * 1.2) <= 100, `${body(q).unit_price} - ${body(off).unit_price}`);
   const pbody = (x) => x.partner.items.find((i) => i.name.startsWith('몸통'));
-  assert.ok(Math.abs(pbody(q).unit_price - pbody(off).unit_price - 32800 * 1.08) <= 100);
+  assert.ok(Math.abs(pbody(q).unit_price - pbody(off).unit_price - 31500 * 1.08) <= 100);
 });
 
 // ── 기본값 — 캐비닛 · 시공 m당 20만 원, 업체 = 소비자 × 0.9, 서랍 박스 ──
@@ -181,6 +183,26 @@ test('표준 싱크대(sink15) 기본 설정 — 몸통 소비자 123,900 · 업
   const cabinet = cabinetLines(q.items).reduce((s, i) => s + i.total, 0);
   assert.equal(cabinet, 1381320);
   assert.equal(Math.round((cabinet * 1.1) / 7.6), 199928);
+  assert.equal(q.subtotal, 2538120);
+  assert.equal(q.partner.subtotal, 2284020);
+});
+
+test('엣지 1롤 100m · 고정비 회수 31,500 — 예전 기본(200m · 32,800)과 표준 싱크대 견적이 같다', () => {
+  assert.equal(DEFAULT_QUOTE.edgeRollMeters, 100);
+  const now = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
+  const old = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { edgeRollMeters: 200, fixedPerPbSheet: 32800 } } });
+  assert.deepEqual(now.items, old.items);
+  assert.deepEqual(now.partner.items, old.partner.items);
+  assert.equal(now.subtotal, old.subtotal);
+  // 엣지 원가는 두 배 (m당 82.5 → 165원), 고정비 회수가 그만큼 준다
+  assert.ok(Math.abs(now.cost.body.edge - old.cost.body.edge * 2) <= 1, `${now.cost.body.edge} vs ${old.cost.body.edge}`);
+  assert.ok(now.cost.body.fixed < old.cost.body.fixed);
+  // 저장돼 있던 옛 기본값은 새 기본값으로 읽는다 — 엣지 길이만 100 으로 고쳐 둔 설정도 같은 견적
+  const saved = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: mergeSettings({ quote: { edgeRollMeters: 200, fixedPerPbSheet: 32800 } }) });
+  const half = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: mergeSettings({ quote: { edgeRollMeters: 100, fixedPerPbSheet: 32800 } }) });
+  assert.deepEqual(saved.items, now.items);
+  assert.deepEqual(half.items, now.items);
+  assert.equal(saved.cost.total, now.cost.total);
 });
 
 test('서랍 박스 — 레일 수만큼 한 줄 (도어 다음), 소비자 50,000 · 업체 45,000, 원가는 cost.drawerBox 로 합계에 든다', () => {
