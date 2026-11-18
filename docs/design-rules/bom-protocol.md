@@ -539,18 +539,21 @@ cutPlan = {
 | `groups[].standard {sheetCount, cutCount}` | `opts.strategy` | 그 묶음을 표준으로 놓았을 때의 원판 수 · 자르는 횟수 (어느 방식으로 불러도 같은 값) |
 | `groups[].searched` | `opts.strategy` | 만들어 본 후보 배치 수 |
 | `summary.cutCount` · `layoutCount` | `opts.strategy` | 묶음 합 |
+| `sheets[].unusedArea` | `opts.strategy` | 그 원판에서 부재가 놓이지 않은 넓이 (mm² 정수) = `size.w × size.h − usedArea`. 가장자리 트림 · 톱날 몫까지 든 값이다 — `yield` 의 나머지. `offcuts[]`(60mm 이상 네모)의 넓이 합이 아니다 |
+| `groups[].unusedArea` · `summary.unusedArea` | `opts.strategy` | 그 묶음 · 전체 원판의 `unusedArea` 합 |
 | `sheets[].color` · `groups[].color` · `smallParts[].color` · `unallocated[].color` | `opts.colorOf` | 그 판의 색 이름 (없으면 빈 글). 색이 다르면 다른 묶음이다 — `groups[].key` 는 `자재\|두께\|구분\|색` |
 | `summary.sheetsByColor [{material, thickness, color, sheetCount}]` | `opts.colorOf` | 자재 · 두께 · 색마다 원판 수 (구분은 합친다) |
 
 - **자르는 횟수** (2026-11-17 사장님 「겹쳐 자르면 한 번, 여백 재단은 빼고」): 배치 하나마다 `스트립 수 + Σ(스트립의 조각 수 − 1) + Σ(스트립마다 fromRemainder 조각의 서로 다른 폭 수)`. 앞 두 항은 CNC 탭 셈(`ai-design-report.js sheetCutCount`)과 같고, 셋째 항이 「더 좁은 부재를 한 번 더 켜는」 수다. 겹친 원판은 배치 하나로 한 번, 가장자리 트림 재단은 세지 않는다. `NestingEngine.cutCount(sheet)` 가 같은 셈을 낸 원판에서 다시 센다.
 - **`summary.sheetsByMaterial` 의 키는 색이 있어도 `자재_두께` 그대로다** — 재고(`workers/workflow-api/src/stock-needs.js boardNeeds`) · 견적(`quote-sheet.js doorSheets`) · 생산 부하(`production/workload.js`)가 이 키를 `_` 로 잘라 읽는다. 색별 장수는 `sheetsByColor` 에서 읽는다.
+- **묶음 안 원판은 꽉 찬 것부터 낸다** (2026-11-19 사장님 「앞 장부터 꽉」 — `opts.strategy` 가 있을 때): `sheets[].no` · `layout.no` 가 놓인 넓이가 큰 차례이고 겹친 원판은 붙어 있다. 남는 넓이는 묶음의 마지막 원판에 모인다. 고르는 기준은 `docs/02-design/features/nesting-engine.md` §3-1.
 - 색으로 나뉜 묶음이 자재 · 두께 · 구분이 같으면 `layout.no` 를 이어 매긴다 — 그 셋 + 번호로 겹침을 묶는 곳(CNC 탭 · 작업지시서)이 색을 섞지 않는다.
 
 워커(`workers/workflow-api/src/snapshots.js` `validateCutPlan`)는 배치를 **다시 계산하지 않고** 검증만 한다: `version === 1`, 시트 `no` 고유·`size` 양수·`material` 비지 않음,
 모든 `partId` 의 기본 partId 가 `bom.materials` 에 있고 행별 배치 개수 ≤ `qty`, `rot` 을 반영한 발자국이 원판 안, 같은 시트에서 겹침 없음.
 통과하면 `cut_plan_payload` 에 그대로, `sheet_count = sheets.length` 로 저장한다 (`database/workflow-cut-plan.sql`). `cutPlan` 이 없으면 둘 다 NULL.
 `content_hash` 는 design+bom 만으로 계산하므로 배치는 rev 판정에 영향이 없다 — 같은 BOM 이면 같은 배치가 나온다.
-**재단 방식이 실린 배치(`cutPlan.strategy`)는 예외다** — 같은 BOM 에서도 방식에 따라 배치가 달라지고 그 배치로 재단 꾸러미가 나가므로, 워커는 방식 · 원판(번호 · 자재 · 두께 · 색 · 크기) · 조각(partId · 자리 · 치수 · 눕힘)을 `content_hash` 에 넣는다 (`workers/workflow-api/src/util/hash.js cutDigestOf`). 재단 방식만 바꿔 다시 보내도 새 rev 다. 수율 · 자르는 횟수 같은 셈값은 넣지 않는다. `strategy` 는 짧은 이름 꼴(`^[a-z0-9][a-z0-9_-]{0,39}$`)만 받는다 — 어떤 방식이 있는지는 엔진이 안다.
+**재단 방식이 실린 배치(`cutPlan.strategy`)는 예외다** — 같은 BOM 에서도 방식에 따라 배치가 달라지고 그 배치로 재단 꾸러미가 나가므로, 워커는 방식 · 원판(번호 · 자재 · 두께 · 색 · 크기) · 조각(partId · 자리 · 치수 · 눕힘)을 `content_hash` 에 넣는다 (`workers/workflow-api/src/util/hash.js cutDigestOf`). 재단 방식만 바꿔 다시 보내도 새 rev 다. 엔진의 고르는 기준이 바뀌어 같은 BOM · 같은 방식의 배치가 달라진 경우도 같다 — 다시 보내면 새 rev 다. 수율 · 자르는 횟수 같은 셈값은 넣지 않는다. `strategy` 는 짧은 이름 꼴(`^[a-z0-9][a-z0-9_-]{0,39}$`)만 받는다 — 어떤 방식이 있는지는 엔진이 안다.
 
 ### 7-3b. 모듈 키 · 경첩 보링 (B4, 2026-10-13 — 작업지시서 PR 4)
 

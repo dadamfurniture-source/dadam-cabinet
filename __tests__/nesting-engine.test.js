@@ -14,6 +14,10 @@
  *   - 방식마다 보존 · 기하 · 결정성, 자르는 횟수 = cutCount, 표준은 모든 원판이 긴 변 먼저
  *   - 묶음마다: 부재 최적화 원판 ≤ 표준 · 최소 재단 원판 ≤ 표준 + 1 · 최소 재단 횟수 ≤ 표준
  *   - 색이 다른 판은 한 원판에 섞이지 않고, summary.sheetsByMaterial 키는 `자재_두께` 그대로다
+ *
+ * 앞 장부터 꽉 (2026-11-19 사장님 「원장 한 장에서 나오는 자투리 자재가 최대한 적게」 · 「톱질 방향은 그대로 · 앞 장부터 꽉」):
+ *   - 묶음 안 원판은 꽉 찬 것부터 나오고, 원판마다 unusedArea(놓이지 않은 넓이)가 붙는다
+ *   - 원판 수가 같으면: 부재 최적화의 앞 장 채움 ≥ 표준, 후보를 늘려도 표준의 앞 장 채움이 줄지 않는다
  */
 const fs = require('fs');
 const path = require('path');
@@ -332,8 +336,8 @@ const FIXTURE = [
   { partId: 'b2', part: '서랍밑판', material: 'MDF', thickness: 3, w: 540, h: 480, qty: 3 },
   { partId: 't1', slot: 'top', part: '상판', material: '인조대리석', thickness: 12, w: 2700, h: 600, qty: 1 },
 ];
-const NEW_SHEET_KEYS = ['cuts', 'color'];
-const NEW_GROUP_KEYS = ['color', 'cutCount', 'layoutCount', 'standard', 'searched'];
+const NEW_SHEET_KEYS = ['cuts', 'color', 'unusedArea'];
+const NEW_GROUP_KEYS = ['color', 'cutCount', 'layoutCount', 'standard', 'searched', 'unusedArea'];
 const OLD_SUMMARY_KEYS = ['sheetsByMaterial', 'sheetCount', 'totalYield', 'partsTotal', 'partsPlaced', 'smallCount', 'unallocatedCount', 'skippedCount'];
 
 describe('재단 방식 — 옵션이 없으면 지금 결과 그대로', () => {
@@ -394,7 +398,7 @@ describe.each(STRATEGY_IDS)('재단 방식 %s — 보존 · 기하 · 결정성 
     expect(plan.groups.reduce((n, g) => n + g.cutCount, 0)).toBe(cuts);
     plan.groups.forEach((g) => {
       expect(g.searched).toBeGreaterThan(1);
-      expect(g.searched).toBeLessThanOrEqual(199);   // 지금 방식 1 + 후보 198
+      expect(g.searched).toBeLessThanOrEqual(205);   // 지금 방식 1 + 후보 204 (앞 장부터 꽉 6 + 198)
     });
 
     // 요약 · 잔재는 예전 규칙 그대로
@@ -507,6 +511,107 @@ describe('재단 방식 — 묶음마다 지켜지는 것 · compare', () => {
     expect(one.summary.cutCount).toBe(1);
     // 재단 방식 없이 낸 원판에도 쓸 수 있다
     NestingEngine.plan(FIXTURE).sheets.forEach((s) => expect(NestingEngine.cutCount(s)).toBeGreaterThan(0));
+  });
+});
+
+describe('재단 방식 — 앞 장부터 꽉 (원판 수가 같으면 앞 원판을 꽉 채운 배치)', () => {
+  const groupKeyOf = (s) => [s.material, s.thickness, s.partClass].join('|');
+  /** 묶음의 「앞 장부터 꽉」 값 — 원판마다 놓인 넓이를 큰 것부터 세워 앞에서부터 쌓은 합의 합 (엔진 frontOf 와 같은 셈) */
+  const frontOf = (sheets) => {
+    const used = sheets.map((s) => Math.round(s.usedArea)).sort((a, b) => b - a);
+    let acc = 0;
+    let total = 0;
+    used.forEach((u) => { acc += u; total += acc; });
+    return total;
+  };
+  const sheetsByGroup = (plan) => {
+    const map = new Map();
+    plan.sheets.forEach((s) => { if (!map.has(groupKeyOf(s))) map.set(groupKeyOf(s), []); map.get(groupKeyOf(s)).push(s); });
+    return map;
+  };
+
+  describe.each(STRATEGY_IDS)('%s', (strategy) => {
+    test.each(ALL_GOLDENS)('%s — 묶음 안 원판은 꽉 찬 것부터 · unusedArea = 원판 넓이 − 놓인 넓이', (name) => {
+      const plan = NestingEngine.plan(golden(name), { strategy });
+      const groups = sheetsByGroup(plan);
+      plan.groups.forEach((g) => {
+        const list = groups.get(g.key) || [];
+        expect(list.length).toBe(g.sheetCount);
+        list.forEach((s, i) => {
+          if (i > 0) {
+            expect(s.no).toBe(list[i - 1].no + 1);
+            expect(Math.round(s.usedArea)).toBeLessThanOrEqual(Math.round(list[i - 1].usedArea));
+            // 겹친 원판은 붙어 있다 — 배치 번호가 바뀌면 앞의 번호로 돌아가지 않는다
+            expect(s.layout.no).toBeGreaterThanOrEqual(list[i - 1].layout.no);
+          }
+          expect(s.unusedArea).toBe(Math.round(s.size.w * s.size.h - s.usedArea));
+        });
+        expect(g.unusedArea).toBe(list.reduce((n, s) => n + s.unusedArea, 0));
+      });
+      expect(plan.summary.unusedArea).toBe(plan.sheets.reduce((n, s) => n + s.unusedArea, 0));
+    });
+  });
+
+  test.each(ALL_GOLDENS)('%s — 원판 수가 같은 묶음에서 부재 최적화의 앞 장 채움은 표준보다 작지 않다', (name) => {
+    const cmp = NestingEngine.compare(golden(name));
+    const std = sheetsByGroup(cmp.plans.standard);
+    const mat = sheetsByGroup(cmp.plans.material);
+    const placed = (plan) => new Map(plan.groups.map((g) => [g.key, g.placed]));
+    const stdPlaced = placed(cmp.plans.standard), matPlaced = placed(cmp.plans.material);
+    std.forEach((list, key) => {
+      const other = mat.get(key) || [];
+      if (other.length !== list.length || stdPlaced.get(key) !== matPlaced.get(key)) return;
+      expect(frontOf(other)).toBeGreaterThanOrEqual(frontOf(list));
+    });
+  });
+
+  test.each(ALL_GOLDENS)('%s — 후보를 늘려도(1 → 14 → 모두) 표준은 원판이 늘지 않고, 원판 수가 같으면 앞 장 채움이 줄지 않는다', (name) => {
+    const mats = golden(name);
+    const plans = [1, 14, undefined].map((searchBudget) => NestingEngine.plan(mats, { strategy: 'standard', searchBudget }));
+    for (let i = 1; i < plans.length; i++) {
+      const before = sheetsByGroup(plans[i - 1]), after = sheetsByGroup(plans[i]);
+      const placedBefore = new Map(plans[i - 1].groups.map((g) => [g.key, g.placed]));
+      plans[i].groups.forEach((g) => {
+        expect(g.placed).toBeGreaterThanOrEqual(placedBefore.get(g.key));
+        if (g.placed !== placedBefore.get(g.key)) return;
+        const a = before.get(g.key) || [], b = after.get(g.key) || [];
+        expect(b.length).toBeLessThanOrEqual(a.length);
+        if (b.length === a.length) expect(frontOf(b)).toBeGreaterThanOrEqual(frontOf(a));
+      });
+    }
+  });
+
+  test('고정 입력 (몸통 PB 15T 한 묶음) — 표준이 원판 3장에서 앞 두 장을 꽉 채우고 남는 넓이를 마지막 장에 모은다', () => {
+    const rows = [[550, 708, 6], [870, 550, 2], [870, 535, 2], [570, 550, 1], [528, 102, 6], [490, 120, 6], [295, 720, 2], [870, 277, 2], [870, 261, 2]]
+      .map(([w, h, qty], i) => ({ partId: `p${i + 1}`, part: '측판', material: 'PB', thickness: 15, w, h, qty }));
+    const plan = NestingEngine.plan(rows, { strategy: 'standard' });
+    expect(placedInstances(plan)).toEqual(expectedInstances(rows));
+    checkGeometry(plan);
+    expect(plan.sheets.length).toBe(3);
+    plan.sheets.forEach((s) => expect(s.layout.dir).toBe('V'));
+    expect(plan.sheets[0].yield).toBeGreaterThanOrEqual(0.85);
+    expect(plan.sheets[1].yield).toBeGreaterThanOrEqual(0.8);
+    expect(plan.sheets[2].yield).toBeLessThanOrEqual(0.55);
+    // 최소 재단은 같은 횟수 안에서만 앞 장을 채운다 — 횟수가 표준보다 늘지 않는다
+    const cuts = NestingEngine.plan(rows, { strategy: 'cuts' });
+    expect(cuts.summary.cutCount).toBeLessThanOrEqual(plan.summary.cutCount);
+    expect(cuts.sheets.length).toBeLessThanOrEqual(4);
+  });
+
+  test('띠 길이 조합 — 긴 것부터 채우면 세 장인 부재가 길이를 맞춰 놓으면 두 장(같은 배치를 겹쳐 한 번에)', () => {
+    // 폭 1200 · 돌리지 않음: 996 + 796 + 620 + 톱날 둘 = 2420 (원판 2440 − 여백 20)
+    const rows = [[1200, 996, 2], [1200, 796, 2], [1200, 620, 2]]
+      .map(([w, h, qty], i) => ({ partId: `l${i + 1}`, part: '측판', material: 'PB', thickness: 15, w, h, qty, rotatable: false }));
+    STRATEGY_IDS.forEach((strategy) => {
+      const plan = NestingEngine.plan(rows, { strategy });
+      expect(placedInstances(plan)).toEqual(expectedInstances(rows));
+      checkGeometry(plan);
+      expect(plan.sheets.length).toBe(2);
+      plan.sheets.forEach((s) => { expect(s.layout.stack).toBe(2); expect(s.layout.no).toBe(1); expect(s.cuts).toBe(3); });
+      expect(plan.summary.cutCount).toBe(3);
+    });
+    // 옵션 없는 호출은 지금 방식 그대로 — 세 장
+    expect(NestingEngine.plan(rows).sheets.length).toBe(3);
   });
 });
 
