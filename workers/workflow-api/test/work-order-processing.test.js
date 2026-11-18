@@ -168,3 +168,52 @@ test('재단기 파일 — 받을 때 모양을 본다 (이름 꼴 · 있는 원
   assert.deepEqual({ ...b, cnc: undefined }, { ...a, cnc: undefined });
   assert.equal(cutDigestOf({ ...fx.cutPlan(), cnc: CNC }), null, '재단 방식이 없는 배치는 판정에 넣지 않는다');
 });
+
+// ── 엣지 그림 쪽 · 조립 카드 (그림 묶음 판이 있는 문서만) ─────────
+
+test('재단 꾸러미 끝의 엣지 그림 — 사내 부재마다 엣지 붙일 변, 번호는 재단 그림과 같은 라벨 번호 (옛 문서 · 외주처 종이에는 없다)', () => {
+  const snapshot = snapshotWith(null);
+  const html = cut(snapshot, docWith({ drawing_version: 1 }));
+  const text = strip(html);
+  assert.match(text, /엣지 — 부재마다 붙일 변/);
+  assert.match(text, /PB 15T · 본체 엣지 붙일 부재 2종/);
+  assert.match(text, /MDF 2\.7T · 뒷판 엣지 붙일 부재 0종 · 엣지 없음 1종/);
+  const edge = html.slice(html.lastIndexOf('엣지 — 부재마다 붙일 변'));
+  assert.equal(edge.split('class="door-drawing"').length - 1, 2, '엣지가 있는 사내 부재 둘 (측판 · 지판) — 도어재는 외주라 없다');
+  assert.match(strip(edge), /1–2 측판 × 2 · 개수대 0\.6 · 720×1 · 550×2/, '라벨 번호 · 부재 · 엣지');
+  // 도어재를 내수로 하면 도어도 엣지 그림에
+  const inHouse = cut(snapshotWith({ door: 'in' }), docWith({ drawing_version: 1 }));
+  assert.match(strip(inHouse.slice(inHouse.lastIndexOf('엣지 — 부재마다 붙일 변'))), /PET 18T · 도어 엣지 붙일 부재 2종/);
+  // 옛 문서 · 외주처 종이 · 꾸러미 목록은 그대로
+  assert.doesNotMatch(cut(snapshot), /엣지 — 부재마다 붙일 변/);
+  assert.doesNotMatch(renderWorkOrder(docWith({ drawing_version: 1 }), snapshot, { toolbar: false, pack: 'cut-vendor' }), /엣지 — 부재마다 붙일 변/);
+  assert.match(renderWorkOrder(docWith({ drawing_version: 1 }), snapshot, { toolbar: false, pack: 'all' }), /엣지 — 부재마다 붙일 변/);
+});
+
+test('조립 지시서 — 모듈 카드에 속 구조(벽 그림에서 그 모듈 자리)와 도어 앞모습 · 경첩 컵 (그림 묶음 판이 있는 문서만)', () => {
+  // 플래너 설계 — 판재 행의 모듈 이름이 「#n …」, 품목 이름 = 벽 이름
+  const mats = fx.materials().map((m) => ({ ...m, itemLabel: '싱크대', module: /상부장/.test(m.module) ? '#2 후드장 800' : '#1 개수대 1000', moduleKey: /상부장/.test(m.module) ? 'm2' : 'm1' }));
+  // 경첩 행도 플래너처럼 모듈 키로 짝을 짓는다
+  const hardware = fx.hardware().map((h) => (h.category === '경첩' ? { ...h, moduleKey: /후드장/.test(h.note) ? 'm2' : 'm1' } : h));
+  const snapshot = snapshotWith(null, { bom_payload: { materials: mats }, hardware_payload: { hardware } });
+  const inside = [{ item_index: 0, item_unique_id: 1757900000123, path: 'D1/1/inside.svg', view: { w: 900, h: 400 }, boxes: [{ nos: [1], x: 90, y: 100, w: 300, h: 240 }] }];
+  const urls = new Map([['D1/1/inside.svg', 'https://x.supabase.co/sign/inside.svg?token=T']]);
+  const html = renderWorkOrder(docWith({ drawing_version: 1, inside_renders: inside }), snapshot, { toolbar: false, pack: 'assembly', renderUrls: urls });
+  // 모듈 1 — 자리만 잘라 보인다 (폭 = 그림 ÷ 상자, 여백 = 상자 자리 ÷ 상자 폭)
+  assert.match(html, /class="mc-inside" style="aspect-ratio:1\.2500;width:min\(100%, 87\.5mm\)"><img src="https:\/\/x\.supabase\.co\/sign\/inside\.svg\?token=T" alt="싱크대 1 속 구조" style="width:300\.000%;margin-left:-30\.000%;margin-top:-33\.333%">/);
+  assert.equal(html.split('class="mc-inside"').length - 1, 1, '상자 자리가 없는 모듈 2 는 치수도만');
+  // 도어 앞모습 — 모듈마다 그 모듈의 도어, 경첩 컵 수
+  assert.equal(html.split('class="mc-door"').length - 1, 2);
+  assert.match(strip(html), /도어 × 2 · 컵 3구/);
+  assert.match(html, /\.module-card \.mc-inside\{overflow:hidden/);
+  assert.match(strip(html), /속 구조 = 플래너 도면 · 도어 = 굵은 변 엣지/);
+  // 그림이 없으면 까닭 한 줄
+  assert.match(strip(renderWorkOrder(docWith({ drawing_version: 1 }), snapshot, { toolbar: false, pack: 'assembly' })), /싱크대 속 구조 정면도 없음 — 플래너에서 다시 보내고 지시서를 다시 내 주세요/);
+  assert.match(strip(renderWorkOrder(docWith({ drawing_version: 1, inside_renders: [{ item_index: 0, path: null, stale: true }] }), snapshot, { toolbar: false, pack: 'assembly' })), /싱크대 속 구조 정면도 — 이 설계 판의 그림이 아님/);
+  assert.match(strip(renderWorkOrder(docWith({ drawing_version: 1, inside_renders: inside }), snapshot, { toolbar: false, pack: 'assembly' })), /싱크대 속 구조 정면도 — 그림을 불러올 수 없음/);
+  // 옛 문서 — 카드가 그대로 · 플래너에서 오지 않은 설계 — 번호를 짐작하지 않는다 (도어 앞모습 없음 · 까닭 글 없음)
+  const old = renderWorkOrder(docWith({ inside_renders: inside }), snapshot, { toolbar: false, pack: 'assembly', renderUrls: urls });
+  assert.doesNotMatch(old, /mc-inside|mc-door|속 구조/);
+  const app = renderWorkOrder(docWith({ drawing_version: 1 }), fx.snapshot({ bom_payload: { materials: mats } }), { toolbar: false, pack: 'assembly' });
+  assert.doesNotMatch(app, /class="mc-door"|속 구조 정면도 없음/);
+});

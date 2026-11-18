@@ -130,6 +130,8 @@ function buildContext(doc, snapshot, renderUrls) {
     renders: Array.isArray(rp.renders) ? rp.renders : null,
     isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
     planRenders: Array.isArray(rp.plan_renders) ? rp.plan_renders : null,
+    // 벽마다 속 구조 정면도 (플래너 도면 — 조립 카드가 모듈 자리로 잘라 보인다, 2026-11-19)
+    insideRenders: Array.isArray(rp.inside_renders) ? rp.inside_renders : null,
     renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})),
     swatches,
     swatchByCode: new Map(swatches.map((s) => [s.code, s])),
@@ -596,8 +598,79 @@ export function elevationBlock(ctx) {
     .join('');
 }
 
-/** ⑪ 모듈 치수도 — 모듈마다 정면(W × 몸통 H) + 측면(D). 번호는 정면도·⑥ 과 같다. */
+/** 모듈 카드의 속 구조 · 도어 앞모습 모양 — 그림 묶음 판이 있는 문서의 그 쪽에만 싣는다 (공통 인쇄 모양을 바꾸면 옛 문서의 출력이 달라진다) */
+const MODULE_MORE_CSS = '<style>'
+  + '.module-card .mc-inside{overflow:hidden;border:0.3pt solid #999;margin:1mm auto 0}'
+  + '.module-card .mc-inside img{display:block;max-width:none;height:auto}'
+  + '.module-card .mc-doors{display:flex;flex-wrap:wrap;gap:1mm 2mm;align-items:flex-end;margin-top:1mm}'
+  + '.module-card .mc-door{max-width:48%}'
+  + '.module-card .mc-door svg.door-drawing{display:block;max-width:100%;height:auto}'
+  + '.module-card .mc-door .door-cap{font-size:7pt;line-height:1.3}'
+  + '</style>';
+
+/** 모듈 카드의 속 구조 칸 높이 한도 (mm) — 그림 값 (키큰장도 한 칸에 들어가게) */
+const INSIDE_CROP_MAX_MM = 70;
+
+/**
+ * 모듈의 속 구조 — 벽 그림(플래너 속 구조 정면도)에서 그 모듈의 자리만 잘라 보인다.
+ *   그림 칸의 폭에 맞춰 그림을 키우고 왼쪽 · 위로 민다 (여백 % 는 칸 폭 기준). 그 모듈의 자리가 없으면 '' (카드는 치수도만).
+ */
+function insideCropOf(ctx, itemIndex, moduleNo, label) {
+  const r = Array.isArray(ctx.insideRenders) ? ctx.insideRenders.find((x) => x && x.item_index === itemIndex) : null;
+  const url = r && r.path ? ctx.renderUrls.get(r.path) : null;
+  if (!url) return '';
+  const vw = Number(r.view && r.view.w);
+  const box = (Array.isArray(r.boxes) ? r.boxes : []).find((b) => b && Array.isArray(b.nos) && b.nos.includes(moduleNo));
+  if (!box || !(vw > 0) || !(Number(box.w) > 0) || !(Number(box.h) > 0)) return '';
+  const pct = (v) => `${(v * 100).toFixed(3)}%`;
+  const ratio = box.w / box.h;
+  return `<div class="mc-inside" style="aspect-ratio:${ratio.toFixed(4)};width:min(100%, ${(INSIDE_CROP_MAX_MM * ratio).toFixed(1)}mm)"><img src="${esc(url)}" alt="${esc(label)} 속 구조" style="width:${pct(vw / box.w)};margin-left:-${pct(box.x / box.w)};margin-top:-${pct(box.y / box.w)}"></div>`;
+}
+
+/** 속 구조 정면도가 없는 까닭 한 줄 — 그림 묶음 판이 있는 플래너 설계의 문서만 (없음 · 다른 판 · 못 불러옴). 다 있으면 '' */
+function insideStateLine(ctx) {
+  if (!ctx.drawingVersion || !ctx.plannerDesign) return '';
+  const list = Array.isArray(ctx.insideRenders) ? ctx.insideRenders : [];
+  const why = ctx.items.map((item, i) => {
+    const r = list.find((x) => x && x.item_index === i);
+    const name = itemLabel(item, i);
+    if (r && r.path) return ctx.renderUrls.get(r.path) ? '' : `${name} 속 구조 정면도 — 그림을 불러올 수 없음`;
+    return r && r.stale ? `${name} 속 구조 정면도 — 이 설계 판의 그림이 아님` : `${name} 속 구조 정면도 없음`;
+  }).filter(Boolean);
+  return why.length ? `<div class="warn">${esc(why.join(' · '))} — 플래너에서 다시 보내고 지시서를 다시 내 주세요</div>` : '';
+}
+
+/** 도어 · 서랍 앞판 행인가 (몰딩 · 걸레받이 같은 긴 도어재는 아니다) */
+const isFrontRow = (m) => m.slot === 'door' || m.slot === 'drawerFront' || m.part === '도어' || m.part === '서랍도어';
+/** 조립 카드의 도어 앞모습 축척 — 그림 값 (모듈 카드 한 칸에 도어 두 짝) */
+const CARD_DOOR_SCALE = 0.08;
+
+/**
+ * 그 모듈의 도어 · 서랍 앞판 앞모습 + 경첩 컵 자리 (2026-11-19 사장님 「조립: 도어 앞모습 · 경첩 자리」).
+ *   플래너 설계의 판재 행은 모듈 이름이 「#n …」(n = 품목 안 모듈 번호)이라 번호로 묶는다 — 그 밖의 설계는 번호를 짐작하지 않는다 ('').
+ */
+function moduleDoorsOf(ctx, item, itemIndex, moduleNo, boringById) {
+  if (!ctx.plannerDesign) return '';
+  const wall = itemLabel(item, itemIndex);
+  const head = `#${moduleNo} `;
+  const rows = ctx.materials
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => isFrontRow(row) && String(row.itemLabel || '') === wall && String(row.module || '').startsWith(head));
+  if (!rows.length) return '';
+  return `<div class="mc-doors">${rows.map(({ row: m, index }) => {
+    const b = boringById.get(partIdOf(m, index));
+    return `<div class="mc-door">${doorDrawingSvg(m, b, CARD_DOOR_SCALE)}<div class="door-cap"><b>${rowLabelText(ctx, m, index)}</b> ${esc(m.part || '')} × ${num(m.qty)}${b ? ` · 컵 ${num(b.count)}구${b.side === 'top' ? ' (천판 쪽)' : ''}` : ''}</div></div>`;
+  }).join('')}</div>`;
+}
+
+/**
+ * ⑪ 모듈 치수도 — 모듈마다 정면(W × 몸통 H) + 측면(D). 번호는 정면도·⑥ 과 같다.
+ *   그림 묶음 판이 있는 문서(2026-11-19 사장님 「조립: 모듈마다 속 구조 정면도 · 도어 앞모습 · 경첩 자리」)는 카드에 속 구조(플래너 도면에서 그 모듈 자리) · 도어 앞모습이 더 붙는다.
+ */
 function moduleDrawingsSheet(ctx) {
+  const more = !!ctx.drawingVersion;
+  const boringById = new Map();
+  if (more) for (const b of boringRows(ctx.materials, ctx.hardware)) if (b.partId) boringById.set(b.partId, b);
   const cards = ctx.items.flatMap((item, i) => {
     const label = itemLabel(item, i);
     const modules = Array.isArray(item.modules) ? item.modules : [];
@@ -616,15 +689,15 @@ function moduleDrawingsSheet(ctx) {
     <div class="module-card">
       <div class="mc-head"><b>${num(mi + 1)}</b> ${esc(label)} · ${esc(modulePosLabel(m))} ${esc(m.name || m.type || '-')}</div>
       ${svg || '<div class="ph">치수 없음</div>'}
-      <div class="mc-foot">몸통 ${dims3(m.w, m.h, m.d)}${bits.length ? ` · ${esc(bits.join(' · '))}` : ''}</div>
+      <div class="mc-foot">몸통 ${dims3(m.w, m.h, m.d)}${bits.length ? ` · ${esc(bits.join(' · '))}` : ''}</div>${more ? `${insideCropOf(ctx, i, mi + 1, `${label} ${mi + 1}`)}${moduleDoorsOf(ctx, item, i, mi + 1, boringById)}` : ''}
     </div>`;
     });
   });
   if (cards.length === 0) return '';
   return `
 <div class="sheet">
-  <div class="section-title">⑪ 모듈 치수도 <span class="muted">몸통 기준 mm — 다리·상판·몰딩은 정면도</span></div>
-  <div class="module-grid">${cards.join('')}</div>
+  <div class="section-title">⑪ 모듈 치수도 <span class="muted">몸통 기준 mm — 다리·상판·몰딩은 정면도${more ? ' · 속 구조 = 플래너 도면 · 도어 = 굵은 변 엣지 · 원 경첩 컵 (상단 기준 mm)' : ''}</span></div>
+  ${more ? MODULE_MORE_CSS : ''}${insideStateLine(ctx)}<div class="module-grid">${cards.join('')}</div>
 </div>`;
 }
 
@@ -1169,6 +1242,52 @@ function cutSheets(ctx, { vendor = false } = {}) {
 </div>`;
 }
 
+// ── 엣지 — 부재마다 붙일 변 ──────────────────────────────────────
+
+/** 엣지 카드의 부재 앞모습 축척 — 그림 값 (긴 부재도 한 칸에) */
+const EDGE_CARD_SCALE = 0.1;
+
+/**
+ * 엣지 그림 쪽 — 사내에서 자르는 부재마다 앞모습에 엣지 붙일 변을 굵게 (2026-11-19 사장님 「엣지: 부재마다 엣지 붙는 변 그림(재단 그림과 같은 번호)」).
+ *   재단 꾸러미 끝에 붙는다 (엣지는 재단 꾸러미에 합쳐 둔 것 그대로 — 엣지 기사도 이 꾸러미를 연다).
+ *   원장 묶음(자재 · 두께 · 부재 구분)마다 라벨 번호 차례로 — 재단 지시서와 같은 묶음 · 같은 번호. 엣지가 없는 부재는 그리지 않고 수만 적는다.
+ */
+function edgeSheets(ctx) {
+  const title = '엣지 — 부재마다 붙일 변';
+  const rows = ctx.materials.map((row, index) => ({ row, index })).filter(({ row }) => routeOf(ctx, row) === 'in');
+  if (!rows.length) return '';
+  const edged = (m) => { const e = rowEdges(m) || {}; return !!(e.L || e.R || e.T || e.B); };
+  const groups = new Map();
+  rows.forEach((r) => {
+    const m = r.row;
+    const partClass = partClassOf(m.part, m.thickness);
+    const key = `${m.material || ''}|${m.thickness ?? ''}|${partClass}`;
+    if (!groups.has(key)) groups.set(key, { material: m.material, thickness: m.thickness, partClass, list: [] });
+    groups.get(key).list.push(r);
+  });
+  const firstNo = ({ row, index }) => ctx.labelNo.get(`${partIdOf(row, index)}#0`) || Number.MAX_SAFE_INTEGER;
+  const blocks = [...groups.values()]
+    .map((g) => {
+      const list = g.list.filter(({ row }) => edged(row)).sort((a, b) => firstNo(a) - firstNo(b));
+      const none = g.list.length - list.length;
+      const cards = list
+        .map(({ row: m, index }) => `<div class="door-card">${doorDrawingSvg(m, null, EDGE_CARD_SCALE)}<div class="door-cap"><b>${rowLabelText(ctx, m, index)}</b> ${esc(m.part || '')} × ${num(m.qty)} · ${esc(moduleNameOf(m.module) || m.module || '')}<br>${edgeText(m)}</div></div>`)
+        .join('');
+      return `
+  <div class="sub-title">${esc(g.material || '')} ${num(g.thickness)}T · ${esc(g.partClass)} <span class="muted">엣지 붙일 부재 ${num(list.length)}종${none ? ` · 엣지 없음 ${num(none)}종` : ''}</span></div>
+  ${cards ? `<div class="door-grid">${cards}</div>` : ''}`;
+    })
+    .join('');
+  return `
+<div class="sheet">
+  <div class="section-title">${title} <span class="muted">굵은 변 = 엣지 붙일 변 · 굵은 숫자 = 라벨 번호 (재단 그림과 같다) · 치수 mm</span></div>
+  ${blocks}
+</div>`;
+}
+
+/** 엣지 그림 쪽 — 그림 묶음 판이 있는 문서만 (옛 문서의 꾸러미는 바이트 그대로) */
+const edgePages = (ctx) => (ctx.drawingVersion ? edgeSheets(ctx) : '');
+
 // ── ④ 철물·체결구 ────────────────────────────────────────────────
 
 /** 부자재 목록 — 분류별로 묶는다. */
@@ -1646,9 +1765,9 @@ function moduleSectionsSection(ctx) {
 }
 
 const PACK_SECTIONS = {
-  all: [(ctx) => withTopBox(coverSheet(ctx), specialNotesBox(ctx.specialNotes, ['cut', 'assembly', 'door', 'top'])), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
+  all: [(ctx) => withTopBox(coverSheet(ctx), specialNotesBox(ctx.specialNotes, ['cut', 'assembly', 'door', 'top'])), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx) + edgePages(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
   // 판재 도면은 재단 쪽 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
-  cut: [(ctx) => packHeader(ctx, 'cut') + specialNotesBox(ctx.specialNotes, ['cut']), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx)],
+  cut: [(ctx) => packHeader(ctx, 'cut') + specialNotesBox(ctx.specialNotes, ['cut']), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx) + edgePages(ctx)],
   // 외주처 종이 — 고객 이름·설계 제목·특기사항·정면도·시간 없음 (door 와 같은 원칙)
   'cut-vendor': [(ctx) => packHeader(ctx, 'cut-vendor') + specialNotesBox(ctx.specialNotes, ['cut']), (ctx) => cutSheets(ctx, { vendor: true })],
   // 모듈 단면도는 치수도 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
