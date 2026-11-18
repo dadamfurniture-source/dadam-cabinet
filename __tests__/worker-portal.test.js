@@ -1057,7 +1057,97 @@ describe('공장 (순수)', () => {
     ['demolition', 'delivery', 'cutting', 'edge'].forEach((k) => expect(html(k)).toContain('data-act="as-checks"'));
     expect(P.jobDetailHtml(detail({ my: { assignment_id: A1, assignment_status: 'offered' }, kind: 'demolition' }), NOW, 'mine')).not.toContain('data-act="as-pack"');
     // 꾸러미를 고른 단추는 그 꾸러미로 연다
-    expect(fs.readFileSync(path.join(ROOT, 'js/worker-portal.js'), 'utf8')).toContain("openPack(`/work/assignments/${id}/pack${pack ? `?pack=${encodeURIComponent(pack)}` : ''}`)");
+    expect(fs.readFileSync(path.join(ROOT, 'js/worker-portal.js'), 'utf8')).toContain("openPack(`/work/assignments/${id}/pack${docQuery(pack, b.getAttribute('data-design'))}`)");
+  });
+
+  test('지시서 · 필수 확인 길의 쿼리 — 꾸러미 · 고른 설계 (없는 것은 뺀다, 설계는 uuid 만)', () => {
+    const D1 = '77777777-7777-4777-8777-777777777771';
+    expect(P.docQuery('', '')).toBe('');
+    expect(P.docQuery('labels', null)).toBe('?pack=labels');
+    expect(P.docQuery('', D1)).toBe('?design=' + D1);
+    expect(P.docQuery('cut', D1)).toBe('?pack=cut&design=' + D1);
+    expect(P.docQuery('cut', 'x y&z')).toBe('?pack=cut');
+    // 화면이 그 쿼리로 부른다 — 꾸러미 · 필수 확인 읽기 · 체크 · 사진 올리기
+    const src = fs.readFileSync(path.join(ROOT, 'js/worker-portal.js'), 'utf8');
+    expect(src).toContain("openChecks(`/work/assignments/${id}`, b.getAttribute('data-design'), b.getAttribute('data-item'))");
+    expect(src).toContain("await api(`${base}/checks${docQuery('', d)}`)");
+    expect(src).toContain("await api(`${base}/checks${docQuery('', design)}`, { method: 'POST', body })");
+    expect(src).toContain("fetch(`${API}${base}/checks/photo${docQuery('', design)}`");
+    expect(src).toContain('await openChecks(base, design, item)');
+    // 공장 길은 그대로 — 설계를 고르지 않는다
+    expect(src).toContain("openChecks(`/work/factory/orders/${order}`)");
+  });
+
+  test('내 작업 상세 — 지시서 목록(sheets)이 오면 설계마다: 있으면 그 설계로 여는 단추, 없으면 「지시서 준비 전」 (2026-11-19)', () => {
+    const D1 = '77777777-7777-4777-8777-777777777771';
+    const D2 = '77777777-7777-4777-8777-777777777772';
+    const D3 = '77777777-7777-4777-8777-777777777773';
+    const my = { assignment_id: A1, assignment_status: 'confirmed' };
+    const sheet = (design, label, state, doc_no = null) => ({ design, label, state, doc_no, rev: doc_no ? 1 : null, packs: ['cut', 'labels'] });
+    const draw = (over) => {
+      document.body.innerHTML = '<div id="pk">' + P.jobDetailHtml(detail({ my, kind: 'cutting', ...over }), NOW, 'mine') + '</div>';
+      return document.getElementById('pk');
+    };
+    const buttons = (el) => [...el.querySelectorAll('[data-act="as-pack"], [data-act="as-checks"]')].map((b) => [b.getAttribute('data-act'), b.getAttribute('data-pack') || '', b.getAttribute('data-design'), b.getAttribute('data-item'), b.textContent]);
+
+    // 설계 셋 — 묶음마다 품목 이름 · 문서 번호, 지시서가 없는 설계는 단추 대신 글
+    const many = draw({ sheets: [sheet(D1, XSS, 'issued', 'DD-20261119-AAAA-WO-r1'), sheet(D2, '붙박이장', 'issued', 'DD-20261119-BBBB-WO-r2'), sheet(D3, '신발장', 'none')] });
+    expect(many.querySelector('script')).toBe(null);
+    const sets = [...many.querySelectorAll('.doc-set')];
+    expect(sets.map((s) => s.querySelector('.fw-head').textContent)).toEqual([XSS + ' · DD-20261119-AAAA-WO-r1', '붙박이장 · DD-20261119-BBBB-WO-r2', '신발장']);
+    expect(buttons(sets[0])).toEqual([
+      ['as-pack', 'cut', D1, null, '재단 지시서'],
+      ['as-pack', 'labels', D1, null, '부재 라벨'],
+      ['as-checks', '', D1, XSS, '필수 확인'],
+    ]);
+    expect(buttons(sets[1]).map((b) => b[2])).toEqual([D2, D2, D2]);
+    expect(buttons(sets[2])).toEqual([]);
+    expect(sets[2].querySelector('[data-doc="none"]').textContent).toBe('지시서 준비 전');
+
+    // 설계 하나 — 품목 이름 줄 없이 지금 모습 (단추는 그 설계로)
+    const one = draw({ sheets: [sheet(D1, '싱크대', 'issued', 'DD-20261119-AAAA-WO-r1')] });
+    expect(one.querySelector('.doc-set')).toBe(null);
+    expect(buttons(one)).toEqual([
+      ['as-pack', 'cut', D1, null, '재단 지시서'],
+      ['as-pack', 'labels', D1, null, '부재 라벨'],
+      ['as-checks', '', D1, null, '필수 확인'],
+    ]);
+    const oneNone = draw({ sheets: [sheet(D1, '싱크대', 'none')] });
+    expect(buttons(oneNone)).toEqual([]);
+    expect(oneNone.querySelector('[data-doc="none"]').textContent).toBe(P.SHEET_NOT_READY);
+    // 여는 설계가 없다 (프로젝트에 이은 설계 없음) · 모르는 모양의 줄은 버린다
+    expect(buttons(draw({ sheets: [] }))).toEqual([]);
+    expect(draw({ sheets: [] }).querySelector('[data-doc="none"]')).not.toBe(null);
+    expect(P.sheetListOf([{ design: 'nope', state: 'issued' }, { design: D1, state: 'weird' }, null, sheet(D2, ' 붙박이장 ', 'issued', 'X-1')])).toEqual([{ design: D2, label: '붙박이장', state: 'issued', docNo: 'X-1' }]);
+    expect(P.sheetListOf(undefined)).toBe(null);
+
+    // 서버가 목록을 안 주면 (예전 서버) — 지금 그대로: 설계를 고르지 않는 단추
+    const old = draw({});
+    expect(buttons(old)).toEqual([
+      ['as-pack', 'cut', null, null, '재단 지시서'],
+      ['as-pack', 'labels', null, null, '부재 라벨'],
+      ['as-checks', '', null, null, '필수 확인'],
+    ]);
+    expect(old.querySelector('[data-doc="none"]')).toBe(null);
+    // 수락 전에는 목록이 와도 단추 · 글이 없다
+    const offered = P.jobDetailHtml(detail({ my: { assignment_id: A1, assignment_status: 'offered' }, kind: 'cutting', sheets: [sheet(D1, '싱크대', 'issued', 'X')] }), NOW, 'mine');
+    expect(offered).not.toContain('data-act="as-pack"');
+    expect(offered).not.toContain(P.SHEET_NOT_READY);
+    // 현장 문서(철거)도 같다
+    const dm = draw({ kind: 'demolition', sheets: [{ design: D1, label: '싱크대', state: 'issued', doc_no: 'DM-1', packs: ['demolition'] }, { design: D2, label: '붙박이장', state: 'none', doc_no: null, packs: ['demolition'] }] });
+    expect(buttons(dm)).toEqual([['as-pack', '', D1, null, '철거 지시서'], ['as-checks', '', D1, '싱크대', '필수 확인']]);
+  });
+
+  test('필수 확인 화면 — 고른 설계의 품목 이름을 머리에 같이 적는다 (설계가 여럿일 때만 넘어온다)', () => {
+    const v = { order_label: '수주 전 · DD-1', document: { id: 'doc', doc_no: 'DD-1', rev: 1 }, db_ready: true, roles: [] };
+    const head = (html) => {
+      document.body.innerHTML = '<div id="hd">' + html + '</div>';
+      return document.querySelector('#hd h3').textContent;
+    };
+    expect(head(P.checksHtml(v))).toBe('필수 확인 · 수주 전 · DD-1');
+    expect(head(P.checksHtml(v, '붙박이장'))).toBe('필수 확인 · 붙박이장 · 수주 전 · DD-1');
+    expect(head(P.checksHtml(v, XSS))).toBe('필수 확인 · ' + XSS + ' · 수주 전 · DD-1');
+    expect(document.querySelector('#hd script')).toBe(null);
   });
 
   test('내 작업 상세 — 설치 · 조립 작업은 확정 뒤에 지시서 · 필수 확인 단추', () => {

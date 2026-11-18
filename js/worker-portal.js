@@ -128,6 +128,10 @@
   });
   const DOC_JOB_KINDS = Object.freeze(Object.keys(DOC_JOB_PACKS));
   const DOC_ASSIGNMENT_STATUSES = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
+  /** 상세의 지시서 목록(sheets) 상태 — 서버 work/job-links.js workerSheetsOf */
+  const SHEET_STATES = Object.freeze(['issued', 'none']);
+  /** 지시서가 아직 없을 때 단추 자리의 글 */
+  const SHEET_NOT_READY = '지시서 준비 전';
   /** 이 기기의 생산 링크 토큰 — production-worker.html 이 localStorage 에 둔다. 있으면 「내 계정에 잇기」 */
   const LINK_TOKEN_KEY = 'dadamWorkerToken';
   /** 마지막에 고른 공정 · 진행 중 타이머 (이 기기 localStorage) */
@@ -540,6 +544,44 @@
     }).join('')}</ol>`;
   }
 
+  /** 배정받은 작업의 지시서 · 필수 확인 길의 쿼리 — ?pack=&design= (없는 것은 뺀다). design = 그 작업의 설계 고르기 (서버 work/checks.js) */
+  function docQuery(pack, design) {
+    const q = [];
+    if (pack) q.push(`pack=${encodeURIComponent(pack)}`);
+    if (isUuid(design)) q.push(`design=${encodeURIComponent(design)}`);
+    return q.length ? `?${q.join('&')}` : '';
+  }
+
+  /** 상세의 지시서 목록 → [{ design, label(품목 이름), state, docNo }]. 서버가 안 주면(예전 서버 · 확정 전) null */
+  function sheetListOf(list) {
+    if (!Array.isArray(list)) return null;
+    return list
+      .filter((s) => s && typeof s === 'object' && isUuid(s.design) && SHEET_STATES.includes(s.state))
+      .map((s) => ({ design: s.design, label: trimStr(s.label), state: s.state, docNo: trimStr(s.doc_no) }));
+  }
+
+  /**
+   * 배정받은 작업의 지시서 · 필수 확인 단추 (2026-11-19 「한 작업에 모든 설계」 · 「수주 없이도 작업」).
+   *   서버가 지시서 목록(sheets)을 주면 설계마다: 지시서가 있으면 그 종류의 꾸러미 단추 + 「필수 확인」(그 설계로 연다), 없으면 「지시서 준비 전」.
+   *   설계가 여럿이면 묶음마다 품목 이름 · 문서 번호 한 줄, 하나면 줄 없이. 목록을 안 주면 예전 그대로.
+   */
+  function docButtonsHtml(d, id) {
+    const buttons = (s, many) => {
+      const at = s ? ` data-design="${esc(s.design)}"` : '';
+      const item = s && many && s.label ? ` data-item="${esc(s.label)}"` : '';
+      return `<div class="btns">${DOC_JOB_PACKS[d.kind].map(([pack, label]) => `<button type="button" class="big" data-act="as-pack" data-id="${esc(id)}"${pack ? ` data-pack="${esc(pack)}"` : ''}${at}>${esc(label)}</button>`).join('')}` +
+        `<button type="button" class="big" data-act="as-checks" data-id="${esc(id)}"${at}${item}>필수 확인</button></div>`;
+    };
+    const notReady = `<p class="muted" data-doc="none">${esc(SHEET_NOT_READY)}</p>`;
+    const sheets = sheetListOf(d.sheets);
+    if (sheets === null) return buttons(null, false);
+    if (!sheets.length) return notReady;
+    if (sheets.length === 1) return sheets[0].state === 'issued' ? buttons(sheets[0], false) : notReady;
+    return sheets.map((s) =>
+      `<div class="doc-set"><p class="muted fw-head">${esc([s.label, s.state === 'issued' ? s.docNo : ''].filter(Boolean).join(' · '))}</p>` +
+      `${s.state === 'issued' ? buttons(s, true) : notReady}</div>`).join('');
+  }
+
   /** 보고 양식 (글만 — 사진은 2주차) */
   function reportFormHtml(d, kinds) {
     const id = d.my.assignment_id;
@@ -581,8 +623,7 @@
     }
     if (act.start) parts.push(`<button type="button" class="big go" data-act="start" data-id="${esc(my.assignment_id)}">작업 시작</button>`);
     if (DOC_JOB_KINDS.includes(d.kind) && isUuid(my.assignment_id) && DOC_ASSIGNMENT_STATUSES.includes(my.assignment_status)) {
-      parts.push(`<div class="btns">${DOC_JOB_PACKS[d.kind].map(([pack, label]) => `<button type="button" class="big" data-act="as-pack" data-id="${esc(my.assignment_id)}"${pack ? ` data-pack="${esc(pack)}"` : ''}>${esc(label)}</button>`).join('')}` +
-        `<button type="button" class="big" data-act="as-checks" data-id="${esc(my.assignment_id)}">필수 확인</button></div>`);
+      parts.push(docButtonsHtml(d, my.assignment_id));
     }
     if (act.reports.length) parts.push(reportFormHtml(d, act.reports));
     if (act.release) {
@@ -846,12 +887,13 @@
   /**
    * 필수 확인 화면 (GET …/checks — 서버 work/checks.js) — 역할마다 칸(원장 · 모듈 · 주문) × 항목 체크.
    * 체크는 지우지 않고 기록으로 쌓인다. 저장 준비 전(db_ready false)이면 칸을 잠근다. 글은 전부 esc().
+   * item = 고른 설계의 품목 이름 (그 작업의 설계가 여럿일 때만 — 머리에 같이 적는다)
    */
-  function checksHtml(v) {
+  function checksHtml(v, item) {
     if (!v || !v.document) return '<div class="card empty">필수 확인을 불러오지 못했습니다.</div>';
     const parts = [
       '<div class="btns"><button type="button" class="big" data-act="ck-back">← 돌아가기</button></div>',
-      `<div class="card"><h3>필수 확인 · ${esc(v.order_label)}</h3><p class="muted">작업지시서 ${esc(v.document.doc_no)} · 하고 나서 체크해 주세요. 체크는 지우지 않고 기록으로 남습니다.</p>` +
+      `<div class="card"><h3>필수 확인 · ${esc([trimStr(item), v.order_label].filter(Boolean).join(' · '))}</h3><p class="muted">작업지시서 ${esc(v.document.doc_no)} · 하고 나서 체크해 주세요. 체크는 지우지 않고 기록으로 남습니다.</p>` +
         (v.db_ready ? '' : '<p class="warn">아직 저장 준비가 안 되어 체크를 남길 수 없습니다 (회사 DB 적용 전).</p>') + '</div>',
     ];
     (v.roles || []).forEach((r) => {
@@ -1195,12 +1237,16 @@
       }
     }
     const factoryRole = () => factoryRoleOf(factoryData && factoryData.roles, store.get(FACTORY_ROLE_KEY));
-    /** 필수 확인 화면 — { base: '/work/factory/orders/<id>' | '/work/assignments/<id>', data } (null 이면 원래 화면) */
+    /**
+     * 필수 확인 화면 — { base: '/work/factory/orders/<id>' | '/work/assignments/<id>', design, item, data } (null 이면 원래 화면)
+     *   design = 배정받은 작업의 고른 설계 (없으면 '' — 서버가 첫 설계로 본다), item = 그 설계의 품목 이름 (머리에 적는다)
+     */
     let checks = null;
-    async function openChecks(base) {
+    async function openChecks(base, design, item) {
       try {
-        checks = { base, data: await api(`${base}/checks`) };
-        $('appBody').innerHTML = checksHtml(checks.data);
+        const d = isUuid(design) ? design : '';
+        checks = { base, design: d, item: trimStr(item), data: await api(`${base}/checks${docQuery('', d)}`) };
+        $('appBody').innerHTML = checksHtml(checks.data, checks.item);
       } catch (err) {
         if (await handleAuthError(err)) return;
         say(err.message);
@@ -1616,7 +1662,7 @@
         sendCheck(b, true, true).catch(async (err) => {
           if (await handleAuthError(err)) return;
           say(err.message);
-          if (err.status === 409) await openChecks(checks.base);
+          if (err.status === 409 && checks) await openChecks(checks.base, checks.design, checks.item);
         });
         return;
       }
@@ -1629,13 +1675,13 @@
         return;
       }
       if (what === 'as-pack') {
-        // 재단 · 엣지 작업은 꾸러미를 고른다 (재단 지시서 · 부재 라벨) — 그 밖은 문서가 하나다
+        // 재단 · 엣지 작업은 꾸러미를 고른다 (재단 지시서 · 부재 라벨) — 그 밖은 문서가 하나다. 설계가 여럿이면 그 설계로 (data-design)
         const pack = b.getAttribute('data-pack') || '';
-        openPack(`/work/assignments/${id}/pack${pack ? `?pack=${encodeURIComponent(pack)}` : ''}`);
+        openPack(`/work/assignments/${id}/pack${docQuery(pack, b.getAttribute('data-design'))}`);
         return;
       }
       if (what === 'as-checks') {
-        openChecks(`/work/assignments/${id}`);
+        openChecks(`/work/assignments/${id}`, b.getAttribute('data-design'), b.getAttribute('data-item'));
         return;
       }
       if (what === 'withdraw') {
@@ -1651,11 +1697,11 @@
     // 필수 확인 체크 — 보내고 다시 받는다 (칸마다 마지막 줄이 지금 값). 지시서가 새 판이면(409) 새 판으로 다시 연다.
     //   사진 필수 항목은 체크할 때 사진 고르기를 열고, 사진을 올린 뒤 그 경로를 붙여 체크한다 (취소하면 되돌린다)
     /** 사진 한 장 올리기 → photo_path (본문 = 줄인 사진) */
-    async function uploadCheckPhoto(base, file) {
+    async function uploadCheckPhoto(base, file, design) {
       const t = await token();
       if (!t) throw Object.assign(new Error('로그인이 필요합니다.'), { status: 401 });
       const blob = await shrinkPhoto(file);
-      const res = await fetch(`${API}${base}/checks/photo`, { method: 'POST', headers: { Authorization: `Bearer ${t}`, 'Content-Type': blob.type || 'image/jpeg' }, body: blob, cache: 'no-store' });
+      const res = await fetch(`${API}${base}/checks/photo${docQuery('', design)}`, { method: 'POST', headers: { Authorization: `Bearer ${t}`, 'Content-Type': blob.type || 'image/jpeg' }, body: blob, cache: 'no-store' });
       let body = null;
       try { body = await res.json(); } catch (e) { body = null; }
       if (!res.ok || !body || !body.success) throw Object.assign(new Error((body && body.message) || `사진을 올리지 못했습니다 (${res.status})`), { status: res.status });
@@ -1675,16 +1721,17 @@
       });
     }
     async function sendCheck(el, checked, withPhoto) {
-      const base = checks.base;
+      // 고른 설계는 보낼 때의 것으로 — 그 사이 화면이 바뀌어도 같은 설계에 적는다
+      const { base, design, item } = checks;
       const body = { document_id: checks.data.document.id, role: el.getAttribute('data-ck-role'), scope_key: el.getAttribute('data-ck-scope'), item_key: el.getAttribute('data-ck-item'), checked };
       if (checked && withPhoto) {
         const file = await pickPhoto();
         if (!file) throw Object.assign(new Error('사진을 고르지 않아 체크하지 않았습니다.'), { status: 0, quiet: true });
         say('사진을 올리는 중…', true);
-        body.photo_path = await uploadCheckPhoto(base, file);
+        body.photo_path = await uploadCheckPhoto(base, file, design);
       }
-      await api(`${base}/checks`, { method: 'POST', body });
-      await openChecks(base);
+      await api(`${base}/checks${docQuery('', design)}`, { method: 'POST', body });
+      await openChecks(base, design, item);
     }
     appBody.addEventListener('change', async (e) => {
       const c = e.target && e.target.closest && e.target.closest('input[data-ck-item]');
@@ -1695,7 +1742,7 @@
         c.checked = !c.checked;
         if (await handleAuthError(err)) return;
         say(err.message);
-        if (err.status === 409) await openChecks(checks.base);
+        if (err.status === 409 && checks) await openChecks(checks.base, checks.design, checks.item);
       }
     });
 
@@ -1805,6 +1852,10 @@
     factoryJobsHtml,
     factoryDocButtons,
     checksHtml,
+    docQuery,
+    sheetListOf,
+    docButtonsHtml,
+    SHEET_NOT_READY,
     factoryHtml,
     storeInvite,
     loadInvite,
