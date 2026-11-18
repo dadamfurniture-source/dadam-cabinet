@@ -36,8 +36,13 @@ export async function currentDoc(env, designId, docType) {
 
 /** 주문 → 지금 문서 + 동결본 + 고정 목록 (없으면 NotFound) */
 export async function docContext(env, order, docType) {
-  const doc = order.design_id ? await currentDoc(env, order.design_id, docType) : null;
-  if (!doc) throw new NotFoundError(`이 주문의 ${DOC_NAME[docType] || DOC_NAME.work_order}가 아직 없습니다`);
+  return docContextOfDesign(env, order.design_id, docType, '이 주문의 ');
+}
+
+/** 설계 → 지금 문서 + 동결본 + 고정 목록 (없으면 NotFound) — 작업의 지시서는 설계로 찾는다 (수주가 없어도, work/job-links.js) */
+export async function docContextOfDesign(env, designId, docType, lead = '') {
+  const doc = designId ? await currentDoc(env, designId, docType) : null;
+  if (!doc) throw new NotFoundError(`${lead}${DOC_NAME[docType] || DOC_NAME.work_order}가 아직 없습니다`);
   const snapshot = await selectOne(env, 'design_snapshots', { id: `eq.${doc.snapshot_id}`, select: '*' });
   if (!snapshot) throw new NotFoundError('문서가 참조하는 스냅샷이 없습니다');
   return { doc, snapshot, list: checkListOfDoc(doc) };
@@ -114,11 +119,17 @@ export async function checkRows(env, documentId, roles) {
  * @param {{orderId:string, role:string}} o role = cut | edge | assembly | install | demolition | delivery
  */
 export async function assertChecksDone(env, { orderId, role }) {
-  const docType = DOC_TYPE_OF_ROLE[role];
-  if (!orderId || !docType) return;
+  if (!orderId || !DOC_TYPE_OF_ROLE[role]) return;
   const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: 'id,design_id' });
   if (!order || !order.design_id) return;
-  const doc = await currentDoc(env, order.design_id, docType);
+  await assertDesignChecksDone(env, { designId: order.design_id, role });
+}
+
+/** 완료 막기 — 설계 · 역할로 (작업의 설계마다 — work/job-links.js assertJobChecksDone). 막는 조건은 assertChecksDone 과 같다 */
+export async function assertDesignChecksDone(env, { designId, role }) {
+  const docType = DOC_TYPE_OF_ROLE[role];
+  if (!designId || !docType) return;
+  const doc = await currentDoc(env, designId, docType);
   if (!doc) return;
   const list = checkListOfDoc(doc);
   if (list.block !== 'must' || !itemsFor(list, role).length) return;

@@ -179,7 +179,7 @@ export function jobCard(job, { filled = 0, application = null, assignment = null
  * timeline 은 부르는 쪽이 이미 고른 기록 (visible_to_worker · 내 배정 관련 + 작업 전체 회사 공지).
  * site 는 부르는 쪽이 읽어 온 현장 정보 줄 — siteOpenFor 가 참일 때만 싣는다 (닫혀 있으면 넘겨도 버린다).
  */
-export function jobDetail(job, { filled = 0, application = null, assignment = null, order = null, timeline = [], now = Date.now(), companyName = null, site = null } = {}) {
+export function jobDetail(job, { filled = 0, application = null, assignment = null, order = null, timeline = [], now = Date.now(), companyName = null, site = null, sheets = null } = {}) {
   const open = siteOpenFor(job, assignment, now);
   const shown = open ? workerSite(site) : null;
   const out = {
@@ -194,6 +194,10 @@ export function jobDetail(job, { filled = 0, application = null, assignment = nu
     if (order.order_no) out.order_no = order.order_no;
     const masked = maskName(order.customer_name);
     if (masked) out.customer_masked = masked;
+  }
+  // 지시서 목록 — 확정된 배정에만 (설계마다 품목 이름 · 문서 번호 · 판, work/job-links.js workerSheetsOf). 고객 정보는 없다
+  if (assignment && COUNTED_STATUSES.includes(assignment.status) && Array.isArray(sheets)) {
+    out.sheets = sheets.map((s) => ({ design: s.design, label: s.label, state: s.state, doc_no: s.doc_no || null, rev: s.rev || null, packs: Array.isArray(s.packs) ? s.packs : [] }));
   }
   return out;
 }

@@ -16,7 +16,7 @@ import { notifyWork } from './notify.js';
 import { later, notifyCompanyWork } from '../push/work-hooks.js';
 import { COUNTED_STATUSES, workerUpdate } from './reveal.js';
 import { assertUuid, oneOf, optUuid, reqText } from './validate.js';
-import { assertChecksDone, ROLE_OF_JOB_KIND } from './check-state.js';
+import { assertJobChecksDone } from './job-links.js';
 
 /** 필수 확인이 남으면 완료 보고를 막는 작업 종류 — 설치 · 조립 (2026-11-04) + 철거 · 납품 (2026-11-17 「철거 뒤 사진 확인」 · 「납품 확인」) */
 const CHECKED_KINDS = Object.freeze(['install', 'assembly', 'demolition', 'delivery']);
@@ -55,8 +55,9 @@ export async function addWorkerUpdate(env, { user, params, body, ctx }) {
   if (kind === 'result') {
     if (!['started', 'revision'].includes(assignment.status)) throw new ConflictError('시작한 작업만 완료 보고할 수 있습니다');
     // 필수 확인이 남았으면 완료 보고를 막는다 (2026-11-04 사장님 확정 「필수만 막음」 — 목록 판 v1, check-state.js). 설치 · 조립 · 철거 · 납품 작업만
-    //   지시서가 없거나 그 판에 그 역할 항목이 없으면 (v2 까지의 철거 · 납품) 막지 않는다
-    if (job.order_id && CHECKED_KINDS.includes(job.kind)) await assertChecksDone(env, { orderId: job.order_id, role: ROLE_OF_JOB_KIND[job.kind] });
+    //   지시서가 없거나 그 판에 그 역할 항목이 없으면 (v2 까지의 철거 · 납품) 막지 않는다.
+    //   작업이 여는 설계마다 본다 — 수주가 없는 작업(프로젝트에 이은 설계)도 (work/job-links.js)
+    if (CHECKED_KINDS.includes(job.kind)) await assertJobChecksDone(env, job);
     const t = nowIso();
     // 공장 조립은 검수 없이 완료 보고로 끝난다 (각자 스스로 검수)
     const patch = needsReview(job.kind)
