@@ -140,9 +140,8 @@ describe('0072 — 수주 없는 작업의 필수 확인 · 지시서 그림 종
     // 작업을 지우는 일은 준비 단계에서 하고 칸에서는 읽는다
     const setup = probe.setup.join('\n');
     expect(setup).toContain('DELETE FROM public.work_jobs WHERE id = {{job_gone}}');
-    expect(setup.indexOf("'probe-gone'")).toBeLessThan(
-      setup.indexOf('DELETE FROM public.work_jobs')
-    );
+    // 그 작업의 체크 줄을 먼저 넣고, 그 뒤에 작업을 지운다
+    expect(setup).toMatch(/'probe-gone'[\s\S]*DELETE FROM public\.work_jobs/);
     // 한 프로젝트에 같은 종류의 살아 있는 작업을 둘 넣지 않는다 (0065 유니크)
     const jobKinds = [...setup.matchAll(/\{\{job_\w+\}\}, '([a-z]+)'/g)].map((x) => x[1]);
     expect(new Set(jobKinds).size).toBe(jobKinds.length);
