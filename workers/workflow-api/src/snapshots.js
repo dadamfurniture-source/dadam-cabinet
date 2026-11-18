@@ -197,6 +197,9 @@ function footprintOf(p) {
  */
 const CUT_STRATEGY_RE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
+/** 재단기 파일 이름 — 간편 플래너 js/qk.js 가 짓는 꼴 (차례 번호-자재 두께[-구분]-x장수.qk) */
+const CNC_FILE_RE = /^[0-9]{2,3}-[A-Za-z0-9.]{1,40}(-[A-Z])?-x[0-9]{1,3}\.qk$/;
+
 export function validateCutPlan(cutPlan, bom) {
   if (cutPlan === undefined || cutPlan === null) return null;
   if (typeof cutPlan !== 'object' || Array.isArray(cutPlan)) {
@@ -276,6 +279,39 @@ export function validateCutPlan(cutPlan, bom) {
     const qty = qtyById.get(id) || 0;
     if (n > qty) problems.push(`partId ${id}: 배치 ${n}개 > 수량 ${qty}`);
   });
+
+  // 재단기 파일 (플래너가 CNC 파일을 만들 때의 이름 · 화면 값 — 2026-11-19). 있으면 모양만 본다: 이름 꼴 · 있는 원장 · 원장은 한 파일에만 · 길이 · 넓이 = 그 원장의 두 변
+  if (cutPlan.cnc !== undefined && cutPlan.cnc !== null) {
+    const cnc = cutPlan.cnc;
+    const sizeOf = new Map(cutPlan.sheets.map((s) => [Number(s && s.no), s && s.size]));
+    if (typeof cnc !== 'object' || Array.isArray(cnc) || !Array.isArray(cnc.files)) {
+      problems.push('cnc: { files: [] } 모양이 아님');
+    } else {
+      const owned = new Set();
+      cnc.files.slice(0, 500).forEach((f, fi) => {
+        const tag = `cnc.files[${fi}]`;
+        if (!f || typeof f !== 'object') { problems.push(`${tag}: 객체가 아님`); return; }
+        if (typeof f.name !== 'string' || !CNC_FILE_RE.test(f.name)) problems.push(`${tag}: name 모양이 올바르지 않음`);
+        const nos = Array.isArray(f.sheetNos) ? f.sheetNos : [];
+        if (!nos.length) problems.push(`${tag}: sheetNos 가 비어 있음`);
+        nos.forEach((no) => {
+          if (!sizeOf.has(Number(no))) problems.push(`${tag}: 원장 ${no} 가 없음`);
+          else if (owned.has(Number(no))) problems.push(`${tag}: 원장 ${no} 가 두 파일에 있음`);
+          owned.add(Number(no));
+          const size = sizeOf.get(Number(no));
+          const sides = size ? [Number(size.w), Number(size.h)].sort((a, b) => a - b) : null;
+          const mine = [Number(f.length), Number(f.width)].sort((a, b) => a - b);
+          if (sides && (sides[0] !== mine[0] || sides[1] !== mine[1])) problems.push(`${tag}: 길이 · 넓이가 원장 ${no} 의 두 변이 아님`);
+        });
+        if (!Number.isFinite(Number(f.lead))) problems.push(`${tag}: lead 가 숫자가 아님`);
+      });
+      if (cnc.files.length > 500) problems.push('cnc.files 가 500개를 넘음');
+      if (cnc.problems !== undefined && !Array.isArray(cnc.problems)) problems.push('cnc.problems 는 배열이어야 함');
+      (Array.isArray(cnc.problems) ? cnc.problems : []).slice(0, 500).forEach((p, pi) => {
+        if (!p || typeof p !== 'object' || !sizeOf.has(Number(p.sheetNo)) || typeof p.reason !== 'string' || p.reason.length > 200) problems.push(`cnc.problems[${pi}]: { sheetNo(있는 원장), reason(200자까지) } 모양이 아님`);
+      });
+    }
+  }
 
   if (problems.length) {
     throw new ValidationError('cutPlan 이 BOM 과 맞지 않습니다', problems.slice(0, 20));

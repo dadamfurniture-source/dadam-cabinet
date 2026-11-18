@@ -346,14 +346,20 @@ export async function memoForPrint(env, { doc, jobId }) {
   if (!jobId || !doc) return '';
   let job;
   try {
-    job = await selectOne(env, 'work_jobs', { id: `eq.${assertUuid(jobId, '작업 id')}`, select: 'id,kind,design_id,sheet_memo' });
+    job = await selectOne(env, 'work_jobs', { id: `eq.${assertUuid(jobId, '작업 id')}`, select: 'id,kind,design_id,project_id,schedule_id,company_id,sheet_memo' });
   } catch (e) {
     if (e instanceof ValidationError) throw e;
     if (isMissingRelation(e) || /42703|PGRST204/.test(String((e && e.message) || ''))) return '';
     throw e;
   }
   const k = job ? sheetKindOf(job.kind) : null;
-  if (!k || job.design_id !== doc.design_id || k.doc_type !== doc.doc_type) return '';
+  if (!k || k.doc_type !== doc.doc_type) return '';
+  if (job.design_id !== doc.design_id) {
+    // 프로젝트 「작업 배정」의 작업은 그 프로젝트의 설계 모두의 것이다 (work/job-links.js) — 이 문서의 설계가 그 프로젝트 · 그 팩토리의 것이면 같은 메모
+    if (!job.project_id || job.schedule_id || !job.company_id) return '';
+    const design = await selectOne(env, 'designs', { id: `eq.${doc.design_id}`, company_id: `eq.${job.company_id}`, project_id: `eq.${job.project_id}`, select: 'id' });
+    if (!design) return '';
+  }
   return sheetMemoOf(job) || '';
 }
 
