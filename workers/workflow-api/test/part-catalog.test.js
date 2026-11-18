@@ -186,6 +186,42 @@ test('올리기 — 공급 회사를 만들고 상품을 넣는다 · 참고가�
   });
 });
 
+test('올리기 — 파일에 매입가와 날짜가 있으면 적는다 · 더 최근 값이 적힌 상품은 그대로 · 없으면 건드리지 않는다', async () => {
+  const db = makeDb();
+  await withDb(db, async () => {
+    const call = (items) => importParts(ENV, { user: u(OWNER), body: { vendor: { name: '나다 상사' }, seen_on: '2026-11-19', items } });
+    // 새 상품 — 매입가와 그 날짜가 같이 들어간다. 매입가가 없는 줄은 비워 둔다 (한 묶음의 줄은 칸이 모두 같다)
+    const r = await call([{ name: '시험 경첩 A', buy_price: '1,200', buy_price_on: '2026-03-13' }, { name: '시험 레일 B', width_mm: 450 }]);
+    assert.deepEqual([r.added, r.updated, r.same], [2, 0, 0]);
+    const a = db.part_items.find((x) => x.name === '시험 경첩 A');
+    const b = db.part_items.find((x) => x.name === '시험 레일 B');
+    assert.deepEqual([a.buy_price, a.buy_price_on, a.ref_price, a.ref_price_on, a.width_mm], [1200, '2026-03-13', null, null, null]);
+    assert.deepEqual([b.buy_price, b.buy_price_on, b.width_mm], [null, null, 450]);
+    assert.deepEqual(Object.keys(a).sort(), Object.keys(b).sort());
+
+    // 같은 날짜 · 더 옛 날짜의 값은 그대로
+    assert.deepEqual([(await call([{ name: '시험 경첩 A', buy_price: 1500, buy_price_on: '2026-03-13' }])).same, a.buy_price], [1, 1200]);
+    assert.deepEqual([(await call([{ name: '시험 경첩 A', buy_price: 900, buy_price_on: '2025-12-01' }])).same, a.buy_price, a.buy_price_on], [1, 1200, '2026-03-13']);
+    // 더 최근 날짜면 고친다
+    assert.equal((await call([{ name: '시험 경첩 A', buy_price: 1300, buy_price_on: '2026-06-02' }])).updated, 1);
+    assert.deepEqual([a.buy_price, a.buy_price_on], [1300, '2026-06-02']);
+    // 매입가가 없던 상품에는 적는다 · 파일에 매입가가 없으면 건드리지 않는다
+    assert.equal((await call([{ name: '시험 레일 B', width_mm: 450, buy_price: 0, buy_price_on: '2026-01-05' }])).updated, 1);
+    assert.deepEqual([b.buy_price, b.buy_price_on], [0, '2026-01-05']);
+    assert.equal((await call([{ name: '시험 경첩 A' }])).same, 1);
+    assert.deepEqual([a.buy_price, a.buy_price_on], [1300, '2026-06-02']);
+  });
+
+  const bad = (raw) => assert.throws(() => cleanPartItem(raw, 0), (e) => e instanceof ValidationError && /^1번째 상품: 매입가/.test(e.message));
+  bad({ name: '가', buy_price: 1000 });
+  bad({ name: '가', buy_price: 1000, buy_price_on: '2026-13-40' });
+  bad({ name: '가', buy_price: -1, buy_price_on: '2026-03-13' });
+  bad({ name: '가', buy_price: 10.5, buy_price_on: '2026-03-13' });
+  bad({ name: '가', buy_price: PART_PRICE_MAX + 1, buy_price_on: '2026-03-13' });
+  // 날짜만 있고 매입가가 없으면 싣지 않는다
+  assert.equal('buy_price_on' in cleanPartItem({ name: '가', buy_price_on: '2026-03-13' }, 0), false);
+});
+
 test('올리기 — 사람이 확인한 사양 · 치수는 다시 올려도 그대로', async () => {
   const db = makeDb();
   await withDb(db, async () => {

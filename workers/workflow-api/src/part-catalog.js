@@ -7,9 +7,12 @@
  *
  *   GET   /parts/catalog              공급 회사 · 상품 전부 { company, can_manage, vendors[], items[] } — 구성원 누구나 (매입가는 대표 · 실장에게만)
  *   POST  /parts/import               카탈로그 파일의 한 묶음 { vendor{ name, site_url? }, seen_on, items[] } — 대표 · 실장. 201
- *     items[] = { vendor_item_no?, category?, sub_category?, brand?, name, ref_price?, options?, addons?, specs?, width_mm?, depth_mm?, height_mm?, source_url?, note? }
- *     같은 공급 회사의 같은 상품 번호(번호가 없으면 같은 이름)는 고친다 — 매입가 · 사진 · 쓰는지는 건드리지 않고,
+ *     items[] = { vendor_item_no?, category?, sub_category?, brand?, name, ref_price?, buy_price?, buy_price_on?, options?, addons?, specs?, width_mm?, depth_mm?, height_mm?, source_url?, note? }
+ *     같은 공급 회사의 같은 상품 번호(번호가 없으면 같은 이름)는 고친다 — 사진 · 쓰는지는 건드리지 않고,
  *     사람이 확인한 사양 · 치수(specs_checked)도 건드리지 않는다. 없으면 새로 넣는다. 한 번에 PART_IMPORT_MAX 개까지 (나눠 보낸다).
+ *     매입가는 파일에 매입가와 그 날짜(buy_price + buy_price_on — 거래명세서의 단가와 날짜)가 같이 있을 때만 적는다
+ *     (2026-11-19 사장님 「…회계세무자료\거래명세서 여기에 거래명세서 자료 있음」 — PC 에 모아 둔 명세서 사진을 읽어 만든 파일).
+ *     이미 같은 날이나 더 최근 날짜의 매입가가 적힌 상품은 그대로 둔다 (「거래명세표에서 가져오기」와 같다). 파일에 매입가가 없으면 건드리지 않는다.
  *   POST  /parts/items/:id/photo      사진 올리기 (본문 = 이미지 바이트) — 대표 · 실장. 201
  *   PATCH /parts/items/:id            매입가 · 쓰는지 고치기 { buy_price?(원 | null), active? } — 대표 · 실장
  *   GET   /parts/ledger-suppliers     회계장부의 거래명세표 · 영수증에서 읽힌 파는 곳들 { suppliers[{ key, name, biz_no, docs, items }] } — 대표 · 실장
@@ -130,6 +133,15 @@ export function cleanPartItem(raw, i) {
     if (!Number.isInteger(p) || p < 0 || p > PART_PRICE_MAX) throw bad(`참고가는 0 ~ ${PART_PRICE_MAX} 사이 정수(원)여야 합니다`, 'ref_price');
     out.ref_price = p;
   }
+  // 매입가는 날짜와 같이 보냈을 때만 싣는다 — 안 보내면 지금 값을 그대로 둔다
+  if (!(raw.buy_price === undefined || raw.buy_price === null || raw.buy_price === '')) {
+    const p = moneyOf(raw.buy_price);
+    if (!Number.isInteger(p) || p < 0 || p > PART_PRICE_MAX) throw bad(`매입가는 0 ~ ${PART_PRICE_MAX} 사이 정수(원)여야 합니다`, 'buy_price');
+    const on = text(raw.buy_price_on);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(on) || Number.isNaN(Date.parse(on))) throw bad('매입가에는 날짜(buy_price_on, YYYY-MM-DD)가 같이 있어야 합니다', 'buy_price_on');
+    out.buy_price = p;
+    out.buy_price_on = on;
+  }
   out.options = cleanList(raw.options, optionShape, PART_JSON_MAX.options, bad, 'options');
   out.addons = cleanList(raw.addons, addonShape, PART_JSON_MAX.addons, bad, 'addons');
   // 사양 · 치수는 보냈을 때만 싣는다 — 안 보내면 지금 값을 그대로 둔다
@@ -238,7 +250,9 @@ export async function importParts(env, { user, body }) {
       const cur = have.get(keyOf(it));
       const price = it.ref_price === null ? { ref_price: null, ref_price_on: null } : { ref_price: it.ref_price, ref_price_on: seenOn };
       if (!cur) {
-        fresh.push({ company_id: company.id, vendor_id: vendor.id, ...it, ...price, specs: it.specs || {}, created_by: user.id });
+        // 한 번에 넣는 줄은 칸이 모두 같아야 한다 (PostgREST) — 안 보낸 칸은 null 로 채운다
+        const blank = { buy_price: null, buy_price_on: null, width_mm: null, depth_mm: null, height_mm: null };
+        fresh.push({ company_id: company.id, vendor_id: vendor.id, ...blank, ...it, ...price, specs: it.specs || {}, created_by: user.id });
         continue;
       }
       ids[keyOf(it).slice(1)] = { id: cur.id, has_photo: !!cur.photo_path };
@@ -248,6 +262,8 @@ export async function importParts(env, { user, body }) {
       // 값이 달라졌을 때만 본 날을 옮긴다
       const curPrice = cur.ref_price === null || cur.ref_price === undefined ? null : Number(cur.ref_price);
       if (curPrice !== it.ref_price) Object.assign(patch, price);
+      // 매입가 — 파일의 날짜가 더 최근일 때만 (손으로 적었거나 더 최근 명세서에서 온 값은 그대로)
+      if (it.buy_price !== undefined && (!cur.buy_price_on || String(cur.buy_price_on) < it.buy_price_on)) Object.assign(patch, { buy_price: it.buy_price, buy_price_on: it.buy_price_on });
       // 사람이 확인한 사양 · 치수는 건드리지 않는다
       if (cur.specs_checked !== true) {
         if (it.specs && !sameJson(cur.specs, it.specs)) patch.specs = it.specs;
