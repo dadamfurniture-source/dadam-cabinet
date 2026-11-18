@@ -208,7 +208,7 @@ test('철거 지시서 — 작업자 보기: 현장 사진은 주소와 같은 �
 // ── 발행 ─────────────────────────────────────────────────────────
 
 /** 발행 가짜 DB — 본사 설계. reject = DB 가 새 문서 종류를 거절한다 (0068 적용 전) */
-function issueRoute({ reject = false } = {}) {
+function issueRoute({ reject = false, renders = [] } = {}) {
   return (u, method, body) => {
     const company = companyRoute(u, { hq: HQ, members: MEMBERS });
     if (company) return company;
@@ -225,6 +225,8 @@ function issueRoute({ reject = false } = {}) {
     if (/\/design_documents\?/.test(u)) return json([]);
     if (u.includes('/design_site_info?')) return json([{ design_id: 'd-hq', ...SITE }]);
     if (u.includes('/design_schedules?')) return json(SCHEDULES);
+    // 발행 때 고정하는 그림 (납품 = 정면 렌더 · ISO, 철거 = 배치 평면 — 2026-11-19)
+    if (u.includes('/design_renders?')) return json(renders.filter((r) => u.includes(`kind=eq.${r.kind}`)));
     return null;
   };
 }
@@ -563,4 +565,34 @@ test('본사 · 업체 보기 — 주문의 필수 확인에 철거 · 납품 �
     // 작업지시서 판의 역할에는 철거 · 납품이 겹쳐 붙지 않는다
     assert.equal(out.roles.filter((r) => r.role === 'demolition').length, 1);
   });
+});
+
+test('발행 — 그림을 문서에 고정한다: 납품 = 정면 렌더 · ISO, 철거 = 배치 평면, 그 동결본과 같이 온 그림만 (2026-11-19)', async () => {
+  const hash = fx.snapshot({ id: 's1', design_id: 'd-hq' }).content_hash;
+  const uid = Math.floor(fx.snapshot().design_payload.items[0].uniqueId);   // 품목 번호는 정수로 읽는다 (itemUniqueIdOf)
+  const row = (kind, path, snapshot = hash) => ({ item_unique_id: uid, kind, path, width: null, height: null, camera: { source: 'planner-lite', snapshot }, created_at: '2026-11-19T03:00:00Z' });
+  const renders = [row('front', 'd-hq/1/front.png'), row('iso', 'd-hq/1/iso.svg'), row('layout', 'd-hq/1/layout.svg'), row('inside', 'd-hq/1/inside.svg')];
+  const issued = async (docType, list) => withFetch(issueRoute({ renders: list }), async (calls) => {
+    await issueDocument(ENV, { user: { id: HQ_OWNER, email: 'owner@example.test' }, body: { doc_type: docType, snapshot_id: 's1' } });
+    return calls.find((c) => c.method === 'POST' && /\/design_documents$/.test(c.url.split('?')[0])).body.render_payload;
+  });
+  const dv = await issued('delivery_order', renders);
+  assert.equal(dv.drawing_version, 1);
+  assert.deepEqual([dv.renders[0].path, dv.iso_renders[0].path], ['d-hq/1/front.png', 'd-hq/1/iso.svg']);
+  assert.equal('layout_renders' in dv, false);
+  const dm = await issued('demolition_order', renders);
+  assert.equal(dm.drawing_version, 1);
+  assert.equal(dm.layout_renders[0].path, 'd-hq/1/layout.svg');
+  ['renders', 'iso_renders', 'inside_renders'].forEach((k) => assert.equal(k in dm, false, k));
+  // 다른 판의 그림뿐이면 싣지 않고 그 사실만 남긴다
+  const old = await issued('demolition_order', [row('layout', 'd-hq/1/layout-old.svg', 'other-hash')]);
+  assert.deepEqual([old.layout_renders[0].path, old.layout_renders[0].stale], [null, true]);
+  // 그림이 하나도 없으면 칸을 싣지 않는다 — 판 표시만
+  const none = await issued('delivery_order', []);
+  assert.equal(none.drawing_version, 1);
+  ['renders', 'iso_renders'].forEach((k) => assert.equal(k in none, false, k));
+  // 설치 지시서 — 상판 탑뷰 · 배치 평면 · 속 구조 정면도까지
+  const inst = await issued('installation_order', [...renders, row('plan', 'd-hq/1/plan.svg')]);
+  assert.equal(inst.drawing_version, 1);
+  assert.deepEqual([inst.plan_renders[0].path, inst.layout_renders[0].path, inst.inside_renders[0].path], ['d-hq/1/plan.svg', 'd-hq/1/layout.svg', 'd-hq/1/inside.svg']);
 });

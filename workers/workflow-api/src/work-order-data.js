@@ -274,8 +274,18 @@ export function doorRowsForHinge(materials, hingeRow) {
 
 // ── DB 조회 (발행 시점) ──────────────────────────────────────────
 
-/** 품목별 최신 렌더 (kind front = 정면 PNG · iso = 플래너 ISO 도면 SVG · plan = 플래너 상판 탑뷰 SVG). 표가 없으면 전부 path null. */
-export async function collectRenders(env, designId, items, kind = 'front') {
+/** 지시서 그림 묶음의 판 — 이 칸(render_payload.drawing_version)이 있는 문서만 새 그림 칸(배치 평면 · 속 구조 정면도 …)과 「그림 없음」 상태 글을 그린다. 옛 문서는 한 글자도 바뀌지 않는다 (2026-11-19) */
+export const DRAWING_VERSION = 1;
+const RENDER_KINDS = ['front', 'iso', 'plan', 'layout', 'inside'];
+
+/**
+ * 품목별 최신 렌더 (kind front = 정면 PNG · iso = 플래너 ISO 도면 SVG · plan = 플래너 상판 탑뷰 SVG ·
+ *   layout = 플래너 배치 평면 SVG (설계에 하나 — 실린 품목 줄에만 path) · inside = 플래너 속 구조 정면도 SVG). 표가 없으면 전부 path null.
+ * contentHash 를 주면 그 동결본과 같이 온 그림만 고른다 — 다른 판의 그림만 있으면 path null + stale true
+ *   (camera.snapshot 이 없는 옛 줄은 판을 가리지 않는다 — 예전 동작 그대로).
+ * inside 줄에는 view · boxes (모듈 상자 자리 — planner-handoff.js) 가 같이 온다.
+ */
+export async function collectRenders(env, designId, items, kind = 'front', { contentHash = null } = {}) {
   const list = Array.isArray(items) ? items : [];
   const out = list.map((item, i) => ({
     item_index: i,
@@ -293,8 +303,8 @@ export async function collectRenders(env, designId, items, kind = 'front') {
     rows = await selectMany(env, 'design_renders', {
       design_id: `eq.${designId}`,
       item_unique_id: `in.(${ids.join(',')})`,
-      kind: `eq.${kind === 'iso' || kind === 'plan' ? kind : 'front'}`,
-      select: 'item_unique_id,path,width,height,created_at',
+      kind: `eq.${RENDER_KINDS.includes(kind) ? kind : 'front'}`,
+      select: 'item_unique_id,path,width,height,camera,created_at',
       order: 'created_at.desc',
       limit: String(Math.max(50, ids.length * 5)),
     });
@@ -304,18 +314,33 @@ export async function collectRenders(env, designId, items, kind = 'front') {
     return out;
   }
 
+  const cameraOf = (r) => (r && r.camera && typeof r.camera === 'object' && !Array.isArray(r.camera) ? r.camera : {});
+  // 이 판의 그림인가 — 판을 적지 않은 옛 줄은 늘 맞는 것으로 본다
+  const fits = (r) => !contentHash || !cameraOf(r).snapshot || cameraOf(r).snapshot === contentHash;
   const latest = new Map();
+  const other = new Set();
   for (const r of rows || []) {
     const key = Number(r.item_unique_id);
-    if (!latest.has(key)) latest.set(key, r);
+    if (latest.has(key)) continue;
+    if (fits(r)) latest.set(key, r);
+    else other.add(key);
   }
   for (const r of out) {
     const hit = r.item_unique_id !== null ? latest.get(r.item_unique_id) : null;
-    if (!hit || !hit.path) continue;
+    if (!hit || !hit.path) {
+      // 다른 판의 그림만 있다 — 싣지 않고 알린다
+      if (r.item_unique_id !== null && other.has(r.item_unique_id)) r.stale = true;
+      continue;
+    }
     r.path = hit.path;
     r.width = numOrNull(hit.width);
     r.height = numOrNull(hit.height);
     r.created_at = hit.created_at || null;
+    if (kind === 'inside') {
+      const cam = cameraOf(hit);
+      r.view = cam.view && typeof cam.view === 'object' ? { w: numOrNull(cam.view.w), h: numOrNull(cam.view.h) } : null;
+      r.boxes = Array.isArray(cam.boxes) ? cam.boxes : [];
+    }
   }
   return out;
 }
@@ -408,10 +433,12 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
   const materials = materialsOf(snapshot);
   const digest = partsDigest(materials);
 
-  const [renders, isoRenders, planRenders, swatches, prevRev] = await Promise.all([
-    collectRenders(env, designId, items),
-    collectRenders(env, designId, items, 'iso'),
-    collectRenders(env, designId, items, 'plan'),
+  const by = { contentHash: (snapshot && snapshot.content_hash) || null };
+  const [renders, isoRenders, planRenders, insideRenders, swatches, prevRev] = await Promise.all([
+    collectRenders(env, designId, items, 'front', by),
+    collectRenders(env, designId, items, 'iso', by),
+    collectRenders(env, designId, items, 'plan', by),
+    collectRenders(env, designId, items, 'inside', by),
     collectSwatches(env, materials),
     collectPrevRev(env, designId, digest),
   ]);
@@ -429,6 +456,9 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
     // 플래너 ISO 도면 (2026-11-05) — 있을 때만 싣는다 (옛 설계 · 상세설계는 정면도 그대로)
     ...(isoRenders.some((r) => r.path) ? { iso_renders: isoRenders } : {}),
     ...(planRenders.some((r) => r.path) ? { plan_renders: planRenders } : {}),
+    // 속 구조 정면도 (2026-11-19 — 조립 지시서의 모듈 카드가 모듈 자리로 잘라 보인다). 다른 판의 그림뿐이면 그 사실만 싣는다
+    ...(insideRenders.some((r) => r.path || r.stale) ? { inside_renders: insideRenders } : {}),
+    drawing_version: DRAWING_VERSION,
     swatches,
     cut_plan: cutPlan,
     parts_digest: digest,
