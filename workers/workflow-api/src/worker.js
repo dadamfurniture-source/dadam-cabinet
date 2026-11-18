@@ -11,7 +11,7 @@
  *   POST /planner/prices · GET /planner/colors — 플래너 BOM 요약의 품목 단가(대표 · 실장만) · 몸통 / 우라 색 목록 (src/planner-prices.js)
  *   GET /planner/cut — 재단기 설정 (톱날 두께 · 가장자리 여백 — 플래너가 재단 배치를 셈할 때)
  *   POST /planner/price-lists · GET /planner/price-lists · GET /planner/price-lists/items — 자재 가격표 올리기 · 지금 가격표 · 줄 (대표 · 실장, src/price-lists.js — DB 0070)
- *   GET /parts/catalog · POST /parts/import · POST /parts/items/:id/photo · PATCH /parts/items/:id — 철물 · 부속 카탈로그 (다담 공장 · 본사만, 올리기 · 고치기는 대표 · 실장, src/part-catalog.js — DB 0071)
+ *   GET /parts/catalog · POST /parts/import · POST /parts/items/:id/photo · PATCH /parts/items/:id — 철물 · 부속 카탈로그 · GET /parts/ledger-suppliers · POST /parts/from-ledger (거래명세표에서 가져오기) (다담 공장 · 본사만, 올리기 · 고치기는 대표 · 실장, src/part-catalog.js — DB 0071)
  *   PUT /planner/drafts/:id/learn · POST /planner/drafts/report · GET · PUT /planner/photo-consent · POST /planner/signals — 학습 묶음 · 저장 실패 기록 · 사진 제공 동의 · 구성 카드 쓰임 (src/planner-learn.js, DB 0067)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
@@ -125,7 +125,7 @@ import {
 } from './planner-learn.js';
 import { plannerPrices, plannerColors, plannerCut } from './planner-prices.js';
 import { uploadPriceList, listPriceLists, listPriceItems, PRICE_LIST_BODY_MAX_BYTES } from './price-lists.js';
-import { partCatalog, importParts, addPartPhoto, patchPartItem, PART_IMPORT_BODY_MAX_BYTES } from './part-catalog.js';
+import { partCatalog, importParts, addPartPhoto, patchPartItem, partLedgerSuppliers, importPartsFromLedger, PART_IMPORT_BODY_MAX_BYTES } from './part-catalog.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
@@ -1542,6 +1542,8 @@ const router = createRouter([
   { method: 'POST',   path: '/parts/import',                       auth: 'jwt', handler: handleImportParts },
   { method: 'POST',   path: '/parts/items/:id/photo',              auth: 'jwt', handler: rawRoute(addPartPhoto, 201) },
   { method: 'PATCH',  path: '/parts/items/:id',                    auth: 'jwt', handler: workRoute(patchPartItem) },
+  { method: 'GET',    path: '/parts/ledger-suppliers',             auth: 'jwt', handler: workRoute(partLedgerSuppliers) },
+  { method: 'POST',   path: '/parts/from-ledger',                  auth: 'jwt', handler: workRoute(importPartsFromLedger, 201) },
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
   { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
