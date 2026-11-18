@@ -596,3 +596,83 @@ test('발행 — 그림을 문서에 고정한다: 납품 = 정면 렌더 · ISO
   assert.equal(inst.drawing_version, 1);
   assert.deepEqual([inst.plan_renders[0].path, inst.layout_renders[0].path, inst.inside_renders[0].path], ['d-hq/1/plan.svg', 'd-hq/1/layout.svg', 'd-hq/1/inside.svg']);
 });
+
+// ── 지시서의 그림 (2026-11-19 — 그림 묶음 판이 있는 문서만) ───────
+
+const PLANNER_SNAPSHOT = { ...SNAPSHOT, design_payload: { ...SNAPSHOT.design_payload, source: 'planner-lite' } };
+const URLS = new Map([
+  ['D1/1/layout.svg', 'https://x.supabase.co/sign/layout.svg?token=T'],
+  ['D1/1/iso.svg', 'https://x.supabase.co/sign/iso.svg?token=T'],
+  ['D1/1/front.png', 'https://x.supabase.co/sign/front.png?token=T'],
+  ['D1/1/inside.svg', 'https://x.supabase.co/sign/inside.svg?token=T'],
+]);
+const entry = (path, extra = {}) => ({ item_index: 0, item_unique_id: 1, path, width: null, height: null, created_at: null, ...extra });
+
+test('철거 지시서 — 배치 평면: 그림이 있으면 싣고, 없으면 까닭 한 줄 (없음 · 다른 판 · 못 불러옴). 옛 문서 · 플래너 설계가 아니면 장이 없다', () => {
+  const rp = (extra) => ({ site_info: SITE, schedules: SCHEDULES, check_list: frozenCheckList('v3'), drawing_version: 1, ...extra });
+  const html = (payload, snapshot = PLANNER_SNAPSHOT, urls = URLS) => renderSiteOrder(siteDoc('demolition_order', { render_payload: payload }), snapshot, { toolbar: false, renderUrls: urls });
+  const withPlan = html(rp({ layout_renders: [entry('D1/1/layout.svg')] }));
+  assert.match(withPlan, /<h2>배치 평면/);
+  assert.match(withPlan, /<img src="https:\/\/x\.supabase\.co\/sign\/layout\.svg\?token=T" alt="배치 평면"/);
+  assert.match(strip(html(rp({}))), /배치 평면 없음 — 플래너에서 다시 보내고 지시서를 다시 내 주세요/);
+  assert.match(strip(html(rp({ layout_renders: [entry(null, { stale: true })] }))), /배치 평면 — 이 설계 판의 그림이 아님/);
+  assert.match(strip(html(rp({ layout_renders: [entry('D1/1/layout.svg')] }), PLANNER_SNAPSHOT, new Map())), /배치 평면 — 그림을 불러올 수 없음/);
+  // 그림 장은 표지 다음 · 현장 사진 앞
+  const withPhotos = renderSiteOrder(siteDoc('demolition_order', { render_payload: rp({ layout_renders: [entry('D1/1/layout.svg')] }) }), PLANNER_SNAPSHOT, { toolbar: false, renderUrls: URLS, sitePhotos: [{ url: 'https://x.test/p1.jpg' }] });
+  assert.ok(withPhotos.indexOf('<h2>배치 평면') < withPhotos.lastIndexOf('<h2>현장 사진'));
+  // 옛 문서(그림 묶음 판 없음) · 플래너에서 오지 않은 설계 — 장이 없다
+  const old = { site_info: SITE, schedules: SCHEDULES, check_list: frozenCheckList('v3') };
+  assert.doesNotMatch(html(old), /배치 평면/);
+  assert.equal(html(old), renderSiteOrder(siteDoc('demolition_order', { render_payload: old }), PLANNER_SNAPSHOT, { toolbar: false }), '옛 문서는 그림 주소를 줘도 그대로');
+  assert.doesNotMatch(html(rp({ layout_renders: [entry('D1/1/layout.svg')] }), SNAPSHOT), /배치 평면/);
+  // 작업자 보기 — 현장이 닫혀 있어도 그림은 보인다 (주소 · 사진만 닫힌다), 고객 이름은 없다
+  const worker = renderSiteOrder(siteDoc('demolition_order', { render_payload: rp({ layout_renders: [entry('D1/1/layout.svg')] }) }), PLANNER_SNAPSHOT, { toolbar: false, renderUrls: URLS, worker: { orderLabel: '수주 전 · DD-1', siteOpen: false } });
+  assert.match(worker, /sign\/layout\.svg/);
+  assert.doesNotMatch(strip(worker), /홍길동|시험로 1/);
+});
+
+test('납품 지시서 — 벽마다 ISO 도면 · 3D 앞모습 (번호 = 싣는 품목 번호), ISO 가 없으면 앱 정면도. 옛 문서는 그대로', () => {
+  const rp = (extra) => ({ site_info: SITE, schedules: SCHEDULES, check_list: frozenCheckList('v3'), drawing_version: 1, ...extra });
+  const html = (payload) => renderSiteOrder(siteDoc('delivery_order', { render_payload: payload }), PLANNER_SNAPSHOT, { toolbar: false, renderUrls: URLS });
+  const full = html(rp({ renders: [entry('D1/1/front.png')], iso_renders: [entry('D1/1/iso.svg')] }));
+  assert.match(full, /sign\/iso\.svg\?token=T" alt="싱크대 #1 ISO 도면"/);
+  assert.match(full, /<h2>3D 앞모습<\/h2>/);
+  assert.match(full, /sign\/front\.png/);
+  assert.match(strip(full), /번호 = 싣는 품목 번호/);
+  assert.ok(full.indexOf('ISO 도면') < full.indexOf('싣는 품목 — 모듈'), '그림 장이 품목 표 앞');
+  // ISO 가 없으면 앱이 그린 정면도 — 3D 앞모습이 없으면 그 칸을 그리지 않는다
+  const plain = html(rp({}));
+  assert.match(plain, /<svg[^>]*>/);
+  assert.match(strip(plain), /정면도/);
+  assert.doesNotMatch(plain, /3D 앞모습/);
+  const old = { site_info: SITE, schedules: SCHEDULES, check_list: frozenCheckList('v3') };
+  assert.doesNotMatch(html(old), /번호 = 싣는 품목 번호|ISO 도면|<svg/);
+  // 철거 지시서에는 품목 그림을 싣지 않는다
+  assert.doesNotMatch(renderSiteOrder(siteDoc('demolition_order', { render_payload: rp({ renders: [entry('D1/1/front.png')] }) }), PLANNER_SNAPSHOT, { toolbar: false, renderUrls: URLS }), /3D 앞모습/);
+});
+
+test('설치 지시서 — 그림 묶음 판이 있으면 배치 평면 · 상판 탑뷰 · 속 구조 정면도 장이 이어진다 (옛 문서의 지문은 위 시험이 지킨다)', () => {
+  const base = { doc_no: 'DD-20261119-AAAA-IO-r1', doc_type: 'installation_order', created_at: '2026-11-19T02:00:00.000Z', customer_name: '홍길동' };
+  const topRow = { partId: 'line|0-ep-top-0', slot: 'top', part: '상판', material: '인조대리석', thickness: 12, w: 2400, h: 600, qty: 1, module: '줄 부재' };
+  const withTop = { ...PLANNER_SNAPSHOT, bom_payload: { ...PLANNER_SNAPSHOT.bom_payload, materials: [...PLANNER_SNAPSHOT.bom_payload.materials, topRow] } };
+  const rp = (extra) => ({ site_info: SITE, schedules: SCHEDULES, check_list: frozenCheckList('v3'), renders: [], drawing_version: 1, ...extra });
+  const html = (payload, snapshot = withTop, opts = {}) => renderInstallationOrder({ ...base, render_payload: payload }, snapshot, { toolbar: false, renderUrls: URLS, ...opts });
+  const full = html(rp({ layout_renders: [entry('D1/1/layout.svg')], inside_renders: [entry('D1/1/inside.svg', { view: { w: 900, h: 400 }, boxes: [] })] }));
+  assert.match(full, /<h2>배치 평면<\/h2>/);
+  assert.match(full, /sign\/layout\.svg/);
+  assert.match(full, /<h2>상판 탑뷰<\/h2>/);
+  assert.match(full, /class="top-plan"/, '일자 상판은 앱이 그린 탑뷰');
+  assert.match(full, /<h2>속 구조 정면도/);
+  assert.match(full, /sign\/inside\.svg\?token=T" alt="싱크대 #1 속 구조 정면도"/);
+  assert.ok(full.indexOf('<h2>배치 평면') < full.indexOf('<h2>상판 탑뷰') && full.indexOf('<h2>상판 탑뷰') < full.indexOf('<h2>속 구조 정면도'));
+  // 그림이 없으면 까닭 한 줄
+  assert.match(strip(html(rp({}))), /배치 평면 없음 — 플래너에서 다시 보내고 지시서를 다시 내 주세요/);
+  assert.match(strip(html(rp({ inside_renders: [entry(null, { stale: true })] }))), /싱크대 #1 속 구조 정면도 — 이 설계 판의 그림이 아님/);
+  // 상판이 없는 설계 — 탑뷰 장이 없다. 플래너에서 오지 않은 설계 — 플래너 그림 장이 없다 (상판 탑뷰는 그린다)
+  assert.doesNotMatch(html(rp({}), PLANNER_SNAPSHOT), /<h2>상판 탑뷰/);
+  const app = html(rp({}), { ...withTop, design_payload: SNAPSHOT.design_payload });
+  assert.doesNotMatch(app, /<h2>배치 평면|<h2>속 구조 정면도/);
+  assert.match(app, /<h2>상판 탑뷰/);
+  // 옛 문서 (그림 묶음 판 없음) — 새 장이 없다
+  assert.doesNotMatch(html({ site_info: SITE, schedules: SCHEDULES, check_list: frozenCheckList('v3'), renders: [] }), /배치 평면|상판 탑뷰|속 구조 정면도/);
+});

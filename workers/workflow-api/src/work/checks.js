@@ -35,6 +35,7 @@ import { itemsFor, itemApplies, CHECK_ROLES } from './check-items.js';
 import { PACKS_OF_ROLE, DOC_TYPE_OF_ROLE, ROLE_OF_JOB_KIND, docContext, docContextOfDesign, cellsOf, roleChecks, checkRows } from './check-state.js';
 import { sheetTargetOf } from './job-links.js';
 import { resolvePrintAssets } from '../documents.js';
+import { loadCountertopContext } from '../reports/outsource.js';
 import { renderWorkOrder, normalizePack } from '../templates/work-order.js';
 import { renderInstallationOrder } from '../templates/installation-order.js';
 import { renderSiteOrder } from '../templates/site-order.js';
@@ -117,14 +118,22 @@ async function packHtml(env, ctx, rawPack) {
   const allowed = ctx.roles.flatMap((r) => PACKS_OF_ROLE[r] || []);
   if (ctx.roles.includes('install')) {
     const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
-    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, worker: { orderLabel: ctx.label, siteOpen: ctx.siteOpen === true } });
+    // 상판 탑뷰의 가전 모델 타공 (그림 묶음 판이 있는 문서만) — 생산 설정 기본값 · 모델만 넘긴다 (현장 정보 · 거래처는 넘기지 않는다)
+    let top = null;
+    if (ctx.doc.render_payload && ctx.doc.render_payload.drawing_version) {
+      const t = await loadCountertopContext(env, { doc: ctx.doc, snapshot: ctx.snapshot });
+      top = { countertop: t.countertop, models: t.models };
+    }
+    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, top, worker: { orderLabel: ctx.label, siteOpen: ctx.siteOpen === true } });
   }
   // 철거 · 납품 지시서 — 현장 정보는 설치 지시서와 같은 판정, 사무실 메모는 그 작업 줄의 것
   if (ctx.roles.includes('demolition') || ctx.roles.includes('delivery')) {
     // 철거 — 팩토리가 그 설계에 올려 둔 현장 사진. 주소와 같은 때에만 읽는다 (닫혀 있으면 서명 주소도 만들지 않는다)
     const sitePhotos =
       ctx.roles.includes('demolition') && ctx.siteOpen === true ? await sitePhotosOf(env, { designId: ctx.design.id, companyId: ctx.companyId }) : null;
-    return renderSiteOrder(ctx.doc, ctx.snapshot, { toolbar: true, memo: ctx.memo || '', sitePhotos, worker: { orderLabel: ctx.label, siteOpen: ctx.siteOpen === true } });
+    // 고정한 그림(납품 = ISO · 3D 앞모습, 철거 = 배치 평면)의 서명 주소 — 그림이 없는 옛 문서는 조회하지 않는다
+    const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
+    return renderSiteOrder(ctx.doc, ctx.snapshot, { toolbar: true, memo: ctx.memo || '', sitePhotos, renderUrls, worker: { orderLabel: ctx.label, siteOpen: ctx.siteOpen === true } });
   }
   const pack = rawPack ? normalizePack(rawPack) : allowed[0];
   if (!pack || allowed.indexOf(pack) < 0) throw new ForbiddenError('내 공정의 꾸러미만 엽니다', 'not_my_pack');

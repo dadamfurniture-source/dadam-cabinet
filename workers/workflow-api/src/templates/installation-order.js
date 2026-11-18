@@ -16,6 +16,8 @@ import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
 import { modulePosLabel } from './elevation.js';
 import { elevationBlock, renderBoxes, specialNotesBox, drawingTitle } from './work-order.js';
+import { planSvg } from './countertop-order.js';
+import { countertopRequests, hasCountertop } from '../countertop.js';
 import { specialNotesOfDoc } from '../work/special-notes.js';
 import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
@@ -194,11 +196,72 @@ export function moduleSheet(snapshot) {
 /** 줄 부재 행 — 품목 단위 (엔진 moduleKey `…-ep`, 간편 플래너 「줄 부재」) */
 export const isLineRow = (m) => (m.moduleKey && /-ep$/.test(String(m.moduleKey))) || String(m.module || '') === '줄 부재';
 
+/** 간편 플래너에서 온 설계인가 — 플래너가 그려 보내는 그림(배치 평면 · 속 구조 정면도)은 이 설계에만 있다 */
+export const isPlannerDesign = (snapshot) => !!(snapshot && snapshot.design_payload && snapshot.design_payload.source === 'planner-lite');
+const urlMap = (renderUrls) => (renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})));
+
+/**
+ * 플래너가 그려 보낸 그림 한 장 — 있으면 그림, 없으면 까닭 한 줄 (짐작해서 그리지 않는다).
+ *   entry = 발행 때 고정한 줄 { path, stale? } | null · name = 그림 이름 · cap = 그림 아래 글
+ */
+export function plannerDrawing(entry, renderUrls, { name, cap }) {
+  const url = entry && entry.path ? urlMap(renderUrls).get(entry.path) : null;
+  if (url) return `<div class="elev-box"><img src="${esc(url)}" alt="${esc(name)}" style="width:100%;height:auto"><div class="elev-cap">${cap}</div></div>`;
+  const why = entry && entry.path
+    ? `${name} — 그림을 불러올 수 없음`
+    : entry && entry.stale
+      ? `${name} — 이 설계 판의 그림이 아님 · 플래너에서 다시 보내고 지시서를 다시 내 주세요`
+      : `${name} 없음 — 플래너에서 다시 보내고 지시서를 다시 내 주세요`;
+  return `<div class="elev-box"><div class="ph">${esc(why)}</div></div>`;
+}
+
+/** 배치 평면 (설계에 하나 — 벽 · 가전 자리). 고정한 줄 가운데 그림이 있는 줄, 없으면 다른 판 표시가 있는 줄 */
+export function layoutBlock(rp, renderUrls) {
+  const list = Array.isArray(rp && rp.layout_renders) ? rp.layout_renders : [];
+  const entry = list.find((r) => r && r.path) || list.find((r) => r && r.stale) || null;
+  return plannerDrawing(entry, renderUrls, { name: '배치 평면', cap: '배치 평면 (플래너 도면 · mm) — 벽 길이 · 깊이 · 가전 자리' });
+}
+
+/** 벽(품목)마다 속 구조 정면도 — 선반 · 세로칸막이 · 서랍 (플래너 도면 그대로) */
+export function insideBlocks(items, rp, renderUrls) {
+  const list = Array.isArray(rp && rp.inside_renders) ? rp.inside_renders : [];
+  return (items || [])
+    .map((item, i) => {
+      const label = esc(itemLabel(item, i));
+      return plannerDrawing(list.find((r) => r && r.item_index === i) || null, renderUrls, { name: `${itemLabel(item, i)} 속 구조 정면도`, cap: `${label} · 속 구조 정면도 (플래너 도면 · mm) — 선반 · 세로칸막이 · 서랍` });
+    })
+    .join('');
+}
+
+/**
+ * 상판 탑뷰 — 상판 한 장마다. 플래너가 그려 보낸 탑뷰(하부장이 두 벽 이상)가 있으면 그것, 아니면 상판 발주 요청서와 같은 그림 (countertop-order.js planSvg).
+ *   top = 인쇄 때 읽은 생산 설정 · 가전 모델 (없으면 모델 없이 — 그림에 「모델 미지정」). 상판이 없는 설계면 ''
+ */
+export function topViewBlock(snapshot, rp, renderUrls, top) {
+  if (!hasCountertop(snapshot && snapshot.bom_payload)) return '';
+  const reqs = countertopRequests(snapshot, { countertop: top && top.countertop, models: top && top.models });
+  if (!reqs.length) return '';
+  const plans = Array.isArray(rp && rp.plan_renders) ? rp.plan_renders : [];
+  const urls = urlMap(renderUrls);
+  return reqs
+    .map((req) => {
+      const r = plans.find((x) => x && x.item_index === req.index);
+      const url = r && r.path ? urls.get(r.path) : null;
+      const drawing = url
+        ? `<img src="${esc(url)}" alt="상판 탑뷰 (플래너 그림)" style="width:100%;height:auto">`
+        : planSvg(req);
+      return `<div class="elev-box">${drawing}<div class="elev-cap">상판 탑뷰 — 하부장 배치 · 타공 · 치수 mm</div></div>`;
+    })
+    .join('');
+}
+
 /**
  * 정면도 · 정면 렌더 · 줄 부재 (2026-11-05 사장님 E 「설치 지시서에 정면도 · 모듈 목록 · 상판 · 줄 부재」 · 메모 「작업 지시서 내에서는 무조건 그림」).
  *   정면도 번호 = 설치 모듈 명세 번호. 렌더는 발행 때 고정한 것 (없으면 칸을 그리지 않는다).
+ *   그림 묶음 판이 있는 문서(render_payload.drawing_version — 2026-11-19 사장님 「설치: 배치 평면 · 상판 탑뷰 · 모듈 속 구조 정면도」)는
+ *   그 뒤에 배치 평면 · 상판 탑뷰 · 속 구조 정면도 장이 이어진다. 옛 문서는 그대로다.
  */
-function drawingSheet(doc, snapshot, renderUrls) {
+function drawingSheet(doc, snapshot, renderUrls, top) {
   const design = snapshot.design_payload || {};
   const items = Array.isArray(design.items) ? design.items : [];
   if (!items.length) return '';
@@ -217,7 +280,21 @@ function drawingSheet(doc, snapshot, renderUrls) {
   ${elevationBlock(ctx)}
   ${renders ? `<h2>정면 렌더</h2>${renderBoxes(ctx)}` : ''}
   ${lineRows ? `<h2>줄 부재 <span class="hint">현장에서 붙이는 것</span></h2><table>${thead(['부품', '자재', '가로 × 세로', '수량', '비고'])}<tbody>${lineRows}</tbody></table>` : ''}
-</div>`;
+</div>${rp.drawing_version ? moreDrawingSheets(snapshot, items, rp, ctx.renderUrls, top) : ''}`;
+}
+
+/** 배치 평면 · 상판 탑뷰 · 속 구조 정면도 장 (그림 묶음 판이 있는 문서만). 플래너 그림 둘은 플래너에서 온 설계에만 */
+function moreDrawingSheets(snapshot, items, rp, renderUrls, top) {
+  const planner = isPlannerDesign(snapshot);
+  const topView = topViewBlock(snapshot, rp, renderUrls, top);
+  return [
+    planner ? `<div class="sheet"><h2>배치 평면</h2>${layoutBlock(rp, renderUrls)}</div>` : '',
+    topView ? `<div class="sheet"><h2>상판 탑뷰</h2>${topView}</div>` : '',
+    planner ? `<div class="sheet"><h2>속 구조 정면도 <span class="hint">벽마다 — 번호 = 설치 모듈 명세 번호</span></h2>${insideBlocks(items, rp, renderUrls)}</div>` : '',
+  ]
+    .filter(Boolean)
+    .map((s) => `\n${s}`)
+    .join('');
 }
 
 /** 일정 — 설치 팀이 알아야 할 앞뒤 공정. 작업자 보기는 장소를 열지 않는다 (주소일 수 있다). */
@@ -254,12 +331,12 @@ export const SITE_CSS = PRINT_CSS + `
       .hint { font-size: 11px; color: #666; margin: 2px 0 6px; }
     `;
 
-export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null, renderUrls = new Map() } = {}) {
+export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null, renderUrls = new Map(), top = null } = {}) {
   const w = worker && worker.orderLabel ? worker : null;
   const body = [
     toolbar ? PRINT_TOOLBAR : '',
     coverSheet(doc, snapshot, site || (doc.render_payload || {}).site_info, w),
-    drawingSheet(doc, snapshot, renderUrls),
+    drawingSheet(doc, snapshot, renderUrls, top),
     moduleSheet(snapshot),
     scheduleSheet(schedules || (doc.render_payload || {}).schedules, w),
   ]
