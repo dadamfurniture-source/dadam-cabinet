@@ -28,6 +28,8 @@
  *   - standard (표준): 첫 톱질이 원판 긴 변(2440)과 나란하다 — 폭을 긴 띠로 켠 뒤 띠를 돌려 토막 낸다. 그 차례에서 원판 수가 가장 적은 배치.
  *   - material (부재 최적화): 자르는 횟수와 상관없이 원판이 가장 많이 남는 배치.
  *   - cuts (최소 재단): 묶음마다 표준보다 한 장까지 더 쓰는 안에서 자르는 횟수가 가장 적은 배치.
+ *   기본 조건 (2026-11-19 사장님 「원장 한 장에서 나오는 자투리 자재가 최대한 적게」 · 「톱질 방향은 그대로 · 앞 장부터 꽉」):
+ *     원판 수가 같으면 앞 원판부터 꽉 채운 배치를 고른다 — 남는 넓이는 마지막 원판에 모인다 (표준의 첫 톱질 방향은 그대로).
  *   `opts.colorOf(row)` 를 주면 색이 다른 판을 한 원판에 섞지 않는다 (묶음 키에 색이 붙는다).
  *   둘 다 주지 않으면 위 알고리즘 그대로다 — 결과 JSON 이 한 글자도 바뀌지 않는다 (앱 CNC 탭 · 스냅샷이 그렇게 부른다).
  *
@@ -406,15 +408,19 @@
   const CUTS_EXTRA_SHEETS = 1;
   /** 후보 수 한도 — 묶음이 크면(치수 종류 × 조각 수) 줄인다. 아무리 커도 앞의 VARIANT_MIN 개는 만든다 */
   const SEARCH_WORK = 400000;
-  const VARIANT_MIN = 12;
+  const VARIANT_MIN = 14;
+  /** 「원판 한 장을 가장 넓게」 후보(fill)가 띠 하나 · 원판 한 장을 짤 때 보는 가지 수 — 셈 한도다 (개수로만 끊는다 — 같은 입력이면 같은 결과) */
+  const FILL_STRIP_NODES = 200;
+  const FILL_SHEET_NODES = 300;
 
   /**
    * 후보 방식 — 차례가 곧 우선순위다 (한도로 줄일 때 앞에서부터, 점수가 같으면 앞의 것).
    *   dir       첫 톱질: long = 원판 긴 변과 나란히 (1220 × 2440 이면 2440 길이로 켠다 — 표준) · short = 짧은 변과 나란히 · best = 원판마다 더 넓게 쓰는 쪽
    *   orient    부재 돌리기: free = 부재마다 · asis = 그린 대로 · rot = 돌릴 수 있는 것은 모두 돌려서 (결 부재는 어느 쪽이든 그대로)
-   *   pick      다음 띠 폭: widest = 들어가는 가장 넓은 것 · dense = 띠를 가장 꽉 채우는 것 · area = 가장 넓게 쓰는 것
+   *   pick      다음 띠 폭: widest = 들어가는 가장 넓은 것 · dense = 띠를 가장 꽉 채우는 것 · area = 가장 넓게 쓰는 것 · fit = 원판을 가장 넓게 쓰는 띠 폭 조합 (fill 만)
    *   remainder 띠에 남는 길이에 더 좁은 부재를 놓는다 (한 번 더 켠다 — 2026-11-17 사장님 「허락」)
    *   mode      repeat = 같은 배치를 겹칠 수 있는 만큼 겹친다 · plain = 원판마다 새로 · solo = 같은 부재로 꽉 차는 원판 먼저 · ffd = 띠를 다 만든 뒤 넓은 것부터 원판에
+   *             fill = 원판 한 장을 가장 넓게 쓰는 배치로 짜고(띠 폭 조합 × 띠마다 길이 조합) 남은 부재로 다음 장 — 앞 장부터 꽉 찬다 (2026-11-19). 긴 변 먼저만
    */
   const VARIANTS = (function () {
     const out = [];
@@ -426,7 +432,10 @@
       seen.add(key);
       out.push(Object.freeze({ dir, orient, pick, remainder, mode }));
     };
-    // 앞 12개 — 한도가 가장 작을 때도 세 방식이 모두 고를 것이 있게 (긴 변 먼저 여덟 + 그 밖 넷)
+    // 맨 앞 둘 — 앞 장부터 꽉 채우는 후보 (한도가 하나여도 표준이 고를 것이 있다)
+    push('long', 'free', 'fit', true, 'fill');
+    push('long', 'free', 'fit', false, 'fill');
+    // 다음 12개 — 한도가 가장 작을 때도 세 방식이 모두 고를 것이 있게 (긴 변 먼저 여덟 + 그 밖 넷)
     [
       ['long', 'free', 'widest', true, 'repeat'], ['long', 'free', 'dense', true, 'repeat'],
       ['long', 'asis', 'widest', true, 'repeat'], ['long', 'rot', 'widest', true, 'repeat'],
@@ -435,6 +444,7 @@
       ['best', 'free', 'dense', true, 'repeat'], ['best', 'free', 'widest', true, 'solo'],
       ['short', 'free', 'dense', true, 'repeat'], ['best', 'free', 'dense', false, 'plain'],
     ].forEach((c) => push(c[0], c[1], c[2], c[3], c[4]));
+    ['asis', 'rot'].forEach((orient) => [true, false].forEach((remainder) => push('long', orient, 'fit', remainder, 'fill')));
     ['long', 'short', 'best'].forEach((dir) => ['free', 'asis', 'rot'].forEach((orient) => ['widest', 'dense', 'area'].forEach((pick) =>
       [true, false].forEach((remainder) => ['repeat', 'plain', 'solo', 'ffd'].forEach((mode) => push(dir, orient, pick, remainder, mode))))));
     return Object.freeze(out);
@@ -477,6 +487,51 @@
     options.forEach((o) => { if (o.a === S) put(o, false); });
     if (remainder && CL - used > SMALL_LIMIT) options.forEach((o) => { if (o.a < S) put(o, true); });
     return { S, pieces, used, area, taken };
+  }
+
+  /**
+   * 띠 하나를 가장 넓게 채운다 (fill) — 길이 조합을 찾는다: 띠 폭과 같은 부재 + (remainder 면) 더 좁은 부재 가운데, 띠 길이에 들어가며 쓴 넓이가 가장 큰 수량 조합.
+   *   띠 폭과 같은 부재가 하나는 있어야 한다. 좁은 부재는 buildStrip 과 같이 띠 길이 쪽으로 한 줄. 처음 보는 조합이 buildStrip 의 긴 것부터 채우기와 같다 — 한도에 걸려도 그보다 나빠지지 않는다.
+   *   돌려주는 모양은 buildStrip 과 같다. 놓을 것이 없으면 null
+   */
+  function buildStripFill(S, options, CL, kerf, remainder) {
+    const items = [];
+    options.forEach((o) => { if (o.n.avail > 0 && (o.a === S || (remainder && o.a < S))) items.push(o); });
+    const counts = new Array(items.length).fill(0);
+    const takenN = new Map();
+    const cap = CL + kerf;
+    let best = null;
+    let nodes = 0;
+    const rec = (i, usedK, area, full) => {
+      if (i === items.length || nodes >= FILL_STRIP_NODES) {
+        if (full > 0 && (!best || area > best.area)) best = { area, counts: counts.slice(), usedK };
+        return;
+      }
+      nodes += 1;
+      const o = items[i];
+      // 남은 길이를 지금 폭(남은 것 가운데 가장 넓다)으로 다 채워도 못 이기면 그만
+      if (best && area + (cap - usedK) * o.a <= best.area) return;
+      const avail = o.n.avail - (takenN.get(o.n) || 0);
+      const max = Math.max(0, Math.min(avail, Math.floor((cap - usedK) / (o.l + kerf))));
+      for (let c = max; c >= 0; c--) {
+        counts[i] = c;
+        if (c) takenN.set(o.n, (takenN.get(o.n) || 0) + c);
+        rec(i + 1, usedK + c * (o.l + kerf), area + c * o.a * o.l, full + (o.a === S ? c : 0));
+        if (c) takenN.set(o.n, takenN.get(o.n) - c);
+      }
+      counts[i] = 0;
+    };
+    rec(0, 0, 0, 0);
+    if (!best) return null;
+    const pieces = [];
+    const taken = new Map();
+    items.forEach((o, i) => {
+      const c = best.counts[i];
+      if (!c) return;
+      pieces.push({ o, count: c, fromRemainder: o.a < S });
+      taken.set(o.n, (taken.get(o.n) || 0) + c);
+    });
+    return { S, pieces, used: best.usedK - kerf, area: best.area, taken };
   }
 
   /** 다음 띠 — 남은 폭(availA)에 들어가는 띠 폭 후보를 채워 보고 고른다. 놓을 것이 없으면 null */
@@ -543,6 +598,45 @@
     return strips.length ? layoutOf(dir, strips, availA, CL) : null;
   }
 
+  /**
+   * 원판 한 장을 가장 넓게 (fill) — 띠 폭 조합을 넓은 것부터 찾는다 (같은 조합을 두 번 보지 않게 폭이 줄어드는 차례로만).
+   *   띠마다 buildStripFill. 더 놓을 띠가 없는 조합 가운데 쓴 넓이가 가장 큰 것. options 의 need.avail 을 줄인다 (designSheet 와 같다). 놓은 것이 없으면 null
+   */
+  function designSheetFill(options, dir, CA, CL, kerf, v) {
+    const sizes = [];
+    options.forEach((o) => { if (sizes.indexOf(o.a) < 0) sizes.push(o.a); });
+    const cur = [];
+    let best = null;
+    let nodes = 0;
+    const rec = (start, availA, area) => {
+      let extended = false;
+      if (availA > SMALL_LIMIT) {
+        for (let i = start; i < sizes.length; i++) {
+          const S = sizes[i];
+          if (S > availA) continue;
+          if (nodes >= FILL_SHEET_NODES) break;
+          // 남은 폭을 다 써도 못 이기면 그만
+          if (best && area + availA * CL <= best.area) break;
+          if (!options.some((o) => o.a === S && o.n.avail > 0)) continue;
+          nodes += 1;
+          const st = buildStripFill(S, options, CL, kerf, v.remainder);
+          if (!st) continue;
+          st.taken.forEach((c, n) => { n.avail -= c; });
+          cur.push(st);
+          extended = true;
+          rec(i, availA - S - kerf, area + st.area);
+          cur.pop();
+          st.taken.forEach((c, n) => { n.avail += c; });
+        }
+      }
+      if (!extended && cur.length && (!best || area > best.area)) best = { area, strips: cur.slice(), remainA: availA };
+    };
+    rec(0, CA, 0);
+    if (!best) return null;
+    best.strips.forEach((st) => st.taken.forEach((c, n) => { n.avail -= c; }));
+    return layoutOf(dir, best.strips, best.remainA, CL);
+  }
+
   /** 배치가 같은 원판을 겹침으로 묶는다 (MAX_STACK 장씩) — 처음 나온 차례 */
   function stackPanels(layouts) {
     const order = [];
@@ -574,7 +668,7 @@
       dirs.forEach((d) => {
         const c = capOf(d);
         work.forEach((n) => { n.avail = !only || only === n ? n.remain : 0; });
-        const lay = designSheet(optionsBy[d], d, c.CA, c.CL, kerf, v);
+        const lay = (v.mode === 'fill' ? designSheetFill : designSheet)(optionsBy[d], d, c.CA, c.CL, kerf, v);
         if (lay && (!best || lay.usedArea > best.usedArea)) best = lay;
       });
       return best;
@@ -663,7 +757,25 @@
     return cuts;
   }
 
-  /** 후보 하나의 점수 — 못 놓은 수 · 원판 수 · 자르는 횟수 · 다시 쓸 수 있는 자투리 넓이 · 가장 큰 자투리 */
+  /**
+   * 「앞 장부터 꽉」 (2026-11-19 사장님) — 원판마다 놓인 넓이를 큰 것부터 세워, 앞에서 k 장까지 쓴 넓이를 k = 1..n 에 대해 모두 더한 값. 클수록 앞 장이 꽉 차 있다.
+   *   같은 묶음 · 같은 장수면 「남는 넓이 × 꽉 찬 차례 번호」의 합이 작은 것과 같다 — 남는 넓이가 뒤 장에 몰릴수록 크다.
+   *   넓이는 정수(mm²)로 맞춰 더한다 (소수 치수의 더하는 차례로 같은 배치가 갈리지 않게). 겹친 배치는 장수만큼 센다. 한 장이면 늘 같은 값이다.
+   */
+  function frontOf(panels) {
+    const used = [];
+    panels.forEach((p) => {
+      const a = Math.round(p.usedArea);
+      for (let i = 0; i < p.stack; i++) used.push(a);
+    });
+    used.sort((x, y) => y - x);
+    let acc = 0;
+    let total = 0;
+    for (let i = 0; i < used.length; i++) { acc += used[i]; total += acc; }
+    return total;
+  }
+
+  /** 후보 하나의 점수 — 못 놓은 수 · 원판 수 · 앞 장부터 꽉(front) · 자르는 횟수 · 다시 쓸 수 있는 자투리 넓이 · 가장 큰 자투리 */
   function scoreOf(panels, remains, PW, PH) {
     let sheets = 0;
     let cuts = 0;
@@ -682,7 +794,7 @@
         if (Math.max(r[0], r[1]) >= REUSE_LONG && Math.min(r[0], r[1]) >= REUSE_SHORT) reuse += area * p.stack;
       });
     });
-    return { unplaced: remains.reduce((s, r) => s + r, 0), sheets, cuts, reuse, largest };
+    return { unplaced: remains.reduce((s, r) => s + r, 0), sheets, front: frontOf(panels), cuts, reuse, largest };
   }
 
   /** 묶음 하나의 후보 모음 — 0번은 지금 방식(layoutGroup) 그대로, 그 뒤 VARIANTS 를 한도까지 */
@@ -705,16 +817,18 @@
     return pool;
   }
 
-  const byStandard = (a, b) => a.score.unplaced - b.score.unplaced || a.score.sheets - b.score.sheets || a.score.cuts - b.score.cuts || b.score.reuse - a.score.reuse || a.index - b.index;
-  const byMaterial = (a, b) => a.score.unplaced - b.score.unplaced || a.score.sheets - b.score.sheets || b.score.reuse - a.score.reuse || b.score.largest - a.score.largest || a.score.cuts - b.score.cuts || a.index - b.index;
-  const byCuts = (a, b) => a.score.cuts - b.score.cuts || a.score.sheets - b.score.sheets || b.score.reuse - a.score.reuse || a.index - b.index;
+  // 기본 조건 「앞 장부터 꽉」(front)은 원판 수 바로 다음이다 — 원판 수가 같으면 앞 장을 꽉 채운 후보 (2026-11-19 사장님)
+  const byStandard = (a, b) => a.score.unplaced - b.score.unplaced || a.score.sheets - b.score.sheets || b.score.front - a.score.front || a.score.cuts - b.score.cuts || b.score.reuse - a.score.reuse || a.index - b.index;
+  const byMaterial = (a, b) => a.score.unplaced - b.score.unplaced || a.score.sheets - b.score.sheets || b.score.front - a.score.front || b.score.reuse - a.score.reuse || b.score.largest - a.score.largest || a.score.cuts - b.score.cuts || a.index - b.index;
+  const byCuts = (a, b) => a.score.cuts - b.score.cuts || a.score.sheets - b.score.sheets || b.score.front - a.score.front || b.score.reuse - a.score.reuse || a.index - b.index;
 
   /**
    * 묶음 하나를 재단 방식대로 — layoutGroup 과 같은 모양 { panels, needs, unallocated } + 표준 결과 · 본 후보 수.
-   *   standard  긴 변 먼저인 후보 가운데: 못 놓은 수 → 원판 수 → 자르는 횟수 → 다시 쓸 자투리
-   *   material  모든 후보 가운데: 못 놓은 수 → 원판 수 → 다시 쓸 자투리 넓이 → 가장 큰 자투리 → 자르는 횟수
-   *   cuts      원판 수가 표준 + CUTS_EXTRA_SHEETS 안인 후보 가운데: 자르는 횟수 → 원판 수 → 다시 쓸 자투리
+   *   standard  긴 변 먼저인 후보 가운데: 못 놓은 수 → 원판 수 → 앞 장부터 꽉 → 자르는 횟수 → 다시 쓸 자투리
+   *   material  모든 후보 가운데: 못 놓은 수 → 원판 수 → 앞 장부터 꽉 → 다시 쓸 자투리 넓이 → 가장 큰 자투리 → 자르는 횟수
+   *   cuts      원판 수가 표준 + CUTS_EXTRA_SHEETS 안인 후보 가운데: 자르는 횟수 → 원판 수 → 앞 장부터 꽉 → 다시 쓸 자투리
    *   표준으로 고른 후보는 다른 두 모음에도 들어 있다 — 그래서 묶음마다 부재 최적화 원판 ≤ 표준, 최소 재단 횟수 ≤ 표준 이다.
+   *   고른 후보의 원판은 꽉 찬 것부터 낸다 (겹친 원판은 붙어 있다) — 원판 번호 · 배치 번호가 그 차례다.
    */
   function solveGroup(needs, PW, PH, kerf, smalls, strategy, budget, cache, cacheKey) {
     let pool = cache ? cache.get(cacheKey) : null;
@@ -733,8 +847,13 @@
     const solved = chosen.order.map((i) => needs[i]);
     const unallocated = [];
     chosen.remains.forEach((r, k) => { if (r > 0) unallocated.push(Object.assign({}, solved[k], { remain: r })); });
+    // 꽉 찬 원판부터 — 후보의 원판은 세 방식이 같이 쓰므로(cache) 건드리지 않고 사본에 번호를 다시 매긴다
+    const panels = chosen.panels
+      .map((p, i) => ({ p, i }))
+      .sort((x, y) => Math.round(y.p.usedArea) - Math.round(x.p.usedArea) || x.i - y.i)
+      .map((x, i) => Object.assign({}, x.p, { id: i + 1 }));
     return {
-      panels: chosen.panels,
+      panels,
       needs: solved,
       unallocated,
       standard: { sheetCount: standard.score.sheets, cutCount: standard.score.cuts },
@@ -761,7 +880,7 @@
    *   partClass   fn(partName, thickness)  원판 그룹을 가르는 부재 구분 (기본 partClassOf)
    *   strategy    'standard' | 'material' | 'cuts'  재단 방식 (STRATEGIES). 없으면 지금 방식 그대로 — 결과가 바뀌지 않는다
    *   colorOf     fn(row) → 색 이름  색이 다른 판을 한 원판에 섞지 않는다 (묶음 키에 색). 없으면 색을 보지 않는다
-   *   searchBudget number          묶음마다 만들어 볼 후보 수 (strategy 가 있을 때만 — 기본은 묶음 크기에 따라 12 ~ 전부)
+   *   searchBudget number          묶음마다 만들어 볼 후보 수 (strategy 가 있을 때만 — 기본은 묶음 크기에 따라 14 ~ 전부)
    * @returns cutPlan — bom-protocol.md §7-3. 석재 상판(isOutsourcedTop)은 배치하지 않고 skipped 로 돌려준다
    */
   function plan(materials, opts) {
@@ -861,6 +980,7 @@
     let partsPlaced = 0;
     let cutSum = 0;
     let layoutSum = 0;
+    let unusedSum = 0;
     // 색으로 나뉜 묶음이 자재 · 두께 · 구분이 같으면 배치 번호(layout.no)를 이어 매긴다 — 겹침을 그 셋 + 번호로 묶는 곳이 색을 섞지 않게
     const layoutBase = new Map();
     const colorSheets = new Map();
@@ -901,6 +1021,7 @@
       const noBase = colorOf ? layoutBase.get(tripleKey) || 0 : 0;
       if (colorOf) layoutBase.set(tripleKey, noBase + panels.length);
       let groupCuts = 0;
+      let groupUnused = 0;
 
       let groupPlaced = 0;
       const firstSheetNo = sheetNo + 1;
@@ -974,7 +1095,11 @@
             yield: round4(usedArea / sheetArea),
           };
           if (colorOf) sheet.color = grp.color;
-          if (strategy) sheet.cuts = panelCuts;   // 이 원판 배치를 자르는 횟수 — 겹친 원판은 같은 값 (한 번에 자른다)
+          if (strategy) {
+            sheet.cuts = panelCuts;   // 이 원판 배치를 자르는 횟수 — 겹친 원판은 같은 값 (한 번에 자른다)
+            sheet.unusedArea = Math.round(sheetArea - usedArea);   // 이 원판에서 부재가 놓이지 않은 넓이 (mm² — 가장자리 여백 · 톱날 몫까지, 수율의 나머지)
+            groupUnused += sheet.unusedArea;
+          }
           sheets.push(sheet);
         }
       });
@@ -1016,8 +1141,10 @@
         group.layoutCount = panels.length;
         group.standard = result.standard;   // 이 묶음을 표준으로 놓았을 때의 원판 수 · 자르는 횟수
         group.searched = result.searched;   // 만들어 본 후보 수
+        group.unusedArea = groupUnused;      // 이 묶음 원판들의 unusedArea 합
         cutSum += groupCuts;
         layoutSum += panels.length;
+        unusedSum += groupUnused;
       }
       groups.push(group);
     });
@@ -1051,6 +1178,7 @@
       out.summary.strategy = strategy;
       out.summary.cutCount = cutSum;       // 겹친 원판은 배치 하나로 한 번
       out.summary.layoutCount = layoutSum;
+      out.summary.unusedArea = unusedSum;
     }
     return out;
   }
