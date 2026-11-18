@@ -12,6 +12,12 @@
  *     사람이 확인한 사양 · 치수(specs_checked)도 건드리지 않는다. 없으면 새로 넣는다. 한 번에 PART_IMPORT_MAX 개까지 (나눠 보낸다).
  *   POST  /parts/items/:id/photo      사진 올리기 (본문 = 이미지 바이트) — 대표 · 실장. 201
  *   PATCH /parts/items/:id            매입가 · 쓰는지 고치기 { buy_price?(원 | null), active? } — 대표 · 실장
+ *   GET   /parts/ledger-suppliers     회계장부의 거래명세표 · 영수증에서 읽힌 파는 곳들 { suppliers[{ key, name, biz_no, docs, items }] } — 대표 · 실장
+ *   POST  /parts/from-ledger          그 파는 곳의 품목 · 단가를 카탈로그로 { supplier_key, vendor_name? } — 대표 · 실장. 201
+ *     (2026-11-18 사장님 「무림상사, 모아가구철물은 거래명세표에 자재 가격있고, 사진은 없음」 · 「명세표는 장부에 있고」)
+ *     품목 이름마다 가장 최근 명세표의 단가를 매입가로, 그 명세표 날짜를 본 날로 적는다. 이미 더 최근 값이 적힌 상품은 그대로.
+ *     읽는 것은 사진의 마지막 읽음 가운데 품목 합 검사가 맞은 것만 (DB 함수 ledger_doc_items 와 같은 규칙) · 반려한 사진은 뺀다.
+ *     한 번에 고치는 상품은 PART_LEDGER_UPDATE_MAX 개까지 — 남으면 left 로 알려 주고 다시 부르면 이어서 한다.
  *
  * 누가: 다담 공장의 구성원과 다담 본사 구성원(· 관리자)만 — 다른 팩토리는 403 not_catalog_company (화면에는 메뉴가 없다).
  * 고객 정보: 없다. 사진: 비공개 버킷 part-photos, 읽을 때 서명 주소를 만들어 준다.
@@ -38,6 +44,10 @@ export const PART_SIZE_MAX = 10000;
 export const PART_JSON_MAX = Object.freeze({ options: 20000, addons: 8000, specs: 20000 });
 /** 한 팩토리 카탈로그에서 읽는 상품 수 한도 */
 export const PART_ITEMS_MAX = 5000;
+/** 장부에서 훑는 읽음 수 한도 · 한 번에 고치는 상품 수 · 돌려주는 파는 곳 수 */
+export const PART_LEDGER_SCAN_MAX = 3000;
+export const PART_LEDGER_UPDATE_MAX = 30;
+export const PART_LEDGER_SUPPLIERS_MAX = 200;
 
 const ITEM_TEXTS = ['vendor_item_no', 'category', 'sub_category', 'brand', 'source_url', 'note'];
 const SIZES = ['width_mm', 'depth_mm', 'height_mm'];
@@ -314,5 +324,118 @@ export async function patchPartItem(env, { user, params, body }) {
     const next = { ...it, ...((rows && rows[0]) || patch) };
     const photo = next.photo_path ? (await signedPhotos(env, [next])).get(next.photo_path) : null;
     return { item: itemOut(next, canManage, photo) };
+  });
+}
+
+// ── 거래명세표(회계장부)에서 가져오기 ─────────────────────────────
+
+/** 상호 다듬기 — DB 함수 ledger_name_key 와 같다 (소문자 · 주식회사 · (주) · ㈜ 빼기 · 글자와 숫자만) */
+export const ledgerNameKey = (s) => String(s == null ? '' : s).toLowerCase().replace(/주식회사|\(주\)|㈜/g, '').replace(/[^0-9a-z가-힣]/g, '');
+
+/** 읽은 결과 한 장 → 파는 곳 열쇠 (상호가 있으면 상호, 없으면 사업자번호) */
+export function ledgerSupplierOf(result) {
+  const r = isPlainObject(result) ? result : {};
+  const name = text(r.supplier_name);
+  const biz = String(r.supplier_biz_no == null ? '' : r.supplier_biz_no).replace(/\D/g, '');
+  const nk = ledgerNameKey(name);
+  if (nk) return { key: `n:${nk}`, name, biz_no: /^\d{10}$/.test(biz) ? biz : '' };
+  if (/^\d{10}$/.test(biz)) return { key: `b:${biz}`, name: '', biz_no: biz };
+  return null;
+}
+
+/** 팩토리 장부의 읽음들 → 파는 곳마다 { key, name, biz_no, docs(Set), items(Map 이름 열쇠 → { name, unit_price, on }) } — 품목마다 가장 최근 것 */
+async function ledgerSuppliers(env, companyId) {
+  const rejected = new Set(((await selectMany(env, 'ledger_documents', { company_id: `eq.${companyId}`, review_status: 'eq.rejected', select: 'id', limit: String(PART_LEDGER_SCAN_MAX) })) || []).map((d) => d.id));
+  const latest = new Map();
+  for (let offset = 0; offset < PART_LEDGER_SCAN_MAX; offset += PAGE) {
+    const rows = (await selectMany(env, 'ledger_extractions', {
+      company_id: `eq.${companyId}`, status: 'eq.done', select: 'document_id,attempt,result,checks,finished_at', order: 'finished_at.desc', limit: String(PAGE), offset: String(offset),
+    })) || [];
+    for (const x of rows) {
+      const cur = latest.get(x.document_id);
+      if (!cur || Number(x.attempt) > Number(cur.attempt)) latest.set(x.document_id, x);
+    }
+    if (rows.length < PAGE) break;
+  }
+  const out = new Map();
+  for (const x of latest.values()) {
+    if (rejected.has(x.document_id)) continue;
+    // 품목 합 검사가 맞은 읽음만 (ledger_doc_items 와 같다)
+    if (!isPlainObject(x.checks) || x.checks.items !== 'ok') continue;
+    const res = isPlainObject(x.result) ? x.result : {};
+    const sup = ledgerSupplierOf(res);
+    const lines = Array.isArray(res.items) ? res.items : [];
+    if (!sup || !lines.length) continue;
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(String(res.issue_date || '')) ? res.issue_date : x.finished_at ? kstDay(Date.parse(x.finished_at)) : null;
+    if (!day) continue;
+    let s = out.get(sup.key);
+    if (!s) out.set(sup.key, (s = { key: sup.key, name: sup.name, biz_no: sup.biz_no, docs: new Set(), items: new Map() }));
+    if (!s.name && sup.name) s.name = sup.name;
+    if (!s.biz_no && sup.biz_no) s.biz_no = sup.biz_no;
+    for (const line of lines) {
+      const name = text(line && line.name).slice(0, PART_TEXT_MAX.name);
+      const price = line && typeof line.unit_price === 'number' ? line.unit_price : NaN;
+      if (!name || !Number.isInteger(price) || price < 0 || price > PART_PRICE_MAX) continue;
+      s.docs.add(x.document_id);
+      const k = nameKey(name);
+      const cur = s.items.get(k);
+      if (!cur || day > cur.on) s.items.set(k, { name, unit_price: price, on: day });
+    }
+  }
+  for (const [k, s] of out) if (!s.items.size) out.delete(k);
+  return out;
+}
+
+/** GET /parts/ledger-suppliers */
+export async function partLedgerSuppliers(env, { user }) {
+  const { company } = await catalogCompanyOf(env, user, { manage: true });
+  return db(async () => {
+    const list = [...(await ledgerSuppliers(env, company.id)).values()]
+      .map((s) => ({ key: s.key, name: s.name || s.biz_no, biz_no: s.biz_no, docs: s.docs.size, items: s.items.size }))
+      .sort((a, b) => b.items - a.items || a.name.localeCompare(b.name, 'ko'));
+    return { company: { id: company.id, name: company.name }, suppliers: list.slice(0, PART_LEDGER_SUPPLIERS_MAX) };
+  });
+}
+
+/** POST /parts/from-ledger */
+export async function importPartsFromLedger(env, { user, body }) {
+  const { company } = await catalogCompanyOf(env, user, { manage: true });
+  if (!isPlainObject(body) || typeof body.supplier_key !== 'string' || !/^[nb]:.{1,200}$/.test(body.supplier_key)) throw new ValidationError('파는 곳(supplier_key)을 골라 주세요', { field: 'supplier_key' });
+  const wantName = text(body.vendor_name);
+  if (wantName.length > PART_TEXT_MAX.vendor) throw new ValidationError(`공급 회사 이름은 ${PART_TEXT_MAX.vendor}자까지입니다`, { field: 'vendor_name' });
+  return db(async () => {
+    const sup = (await ledgerSuppliers(env, company.id)).get(body.supplier_key);
+    if (!sup) throw new NotFoundError('장부에서 그 파는 곳의 품목을 찾지 못했습니다');
+    const vendorName = (wantName || sup.name || sup.biz_no).slice(0, PART_TEXT_MAX.vendor);
+    const all = (await selectMany(env, 'part_vendors', { company_id: `eq.${company.id}`, select: 'id,name,site_url', limit: '200' })) || [];
+    let vendor = all.find((v) => nameKey(v.name) === nameKey(vendorName)) || null;
+    if (!vendor) vendor = await insertOne(env, 'part_vendors', { company_id: company.id, name: vendorName, memo: '거래명세표에서 가져옴', created_by: user.id });
+    // 번호 없는 상품끼리만 이름으로 맞춘다 (사이트에서 모은 상품은 번호가 있다)
+    const have = new Map((await itemsOf(env, company.id, { vendor_id: `eq.${vendor.id}` })).filter((r) => !r.vendor_item_no).map((r) => [nameKey(r.name), r]));
+    const fresh = [];
+    let updated = 0;
+    let same = 0;
+    let left = 0;
+    for (const [k, it] of sup.items) {
+      const cur = have.get(k);
+      if (!cur) {
+        fresh.push({ company_id: company.id, vendor_id: vendor.id, name: it.name, buy_price: it.unit_price, buy_price_on: it.on, created_by: user.id });
+        continue;
+      }
+      const curPrice = cur.buy_price === null || cur.buy_price === undefined ? null : Number(cur.buy_price);
+      // 이미 더 최근 값이 적혀 있으면(손으로 적은 값 포함) 그대로 둔다
+      if (curPrice !== null && cur.buy_price_on && cur.buy_price_on >= it.on) {
+        same += 1;
+        continue;
+      }
+      if (updated >= PART_LEDGER_UPDATE_MAX) {
+        left += 1;
+        continue;
+      }
+      await updateBy(env, 'part_items', { id: `eq.${cur.id}`, company_id: `eq.${company.id}` }, { buy_price: it.unit_price, buy_price_on: it.on });
+      updated += 1;
+    }
+    const added = fresh.length ? (await insertMany(env, 'part_items', fresh)) || [] : [];
+    return { company: { id: company.id, name: company.name }, vendor: { id: vendor.id, name: vendor.name }, added: added.length, updated, same, left, docs: sup.docs.size };
   });
 }

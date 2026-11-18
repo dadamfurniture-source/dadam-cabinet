@@ -14,7 +14,7 @@ import { ForbiddenError, NotFoundError, TooLargeError, ValidationError, clearHqC
 import { clearAdminCache } from '../src/reports/admin.js';
 import {
   PART_IMPORT_BODY_MAX_BYTES, PART_IMPORT_MAX, PART_JSON_MAX, PART_PHOTOS_BUCKET, PART_PHOTO_MAX_BYTES, PART_PRICE_MAX, PART_SIZE_MAX, PART_TEXT_MAX,
-  addPartPhoto, catalogCompanyOf, cleanPartItem, importParts, kstDay, partCatalog, patchPartItem,
+  PART_LEDGER_UPDATE_MAX, addPartPhoto, catalogCompanyOf, cleanPartItem, importParts, importPartsFromLedger, kstDay, ledgerNameKey, ledgerSupplierOf, partCatalog, partLedgerSuppliers, patchPartItem,
 } from '../src/part-catalog.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -45,6 +45,8 @@ function makeDb({ tables = true } = {}) {
     admin_roles: [],
     part_vendors: tables ? [] : null,
     part_items: tables ? [] : null,
+    ledger_documents: [],
+    ledger_extractions: [],
     objects: new Map(),
     signed: [],
     writes: [],
@@ -347,6 +349,115 @@ test('라우트 — 네 길이 등록돼 있고 올리기는 본문 크기를 �
     "path: '/parts/import',                       auth: 'jwt', handler: handleImportParts",
     "path: '/parts/items/:id/photo',              auth: 'jwt', handler: rawRoute(addPartPhoto, 201)",
     "path: '/parts/items/:id',                    auth: 'jwt', handler: workRoute(patchPartItem)",
+    "path: '/parts/ledger-suppliers',             auth: 'jwt', handler: workRoute(partLedgerSuppliers)",
+    "path: '/parts/from-ledger',                  auth: 'jwt', handler: workRoute(importPartsFromLedger, 201)",
   ]) assert.ok(src.includes(line), line);
   assert.match(src, /declared > PART_IMPORT_BODY_MAX_BYTES\) throw new TooLargeError/);
+});
+
+// ── 거래명세표(회계장부)에서 가져오기 ──
+
+/** 장부 사진 한 장의 읽음 (지어낸 값) */
+function addRead(db, { doc, company = HQ, attempt = 1, status = 'done', items = 'ok', supplier, biz, date, lines, finished = '2026-11-10T03:00:00Z', review = 'posted' }) {
+  if (!db.ledger_documents.some((d) => d.id === doc)) db.ledger_documents.push({ id: doc, company_id: company, review_status: review });
+  db.ledger_extractions.push({
+    document_id: doc, company_id: company, attempt, status, finished_at: finished, checks: { items },
+    result: { supplier_name: supplier, supplier_biz_no: biz || null, issue_date: date || null, items: lines },
+  });
+}
+const line = (name, unit_price, quantity = 1) => ({ name, quantity, unit_price, amount: unit_price * quantity });
+
+function ledgerDb() {
+  const db = makeDb();
+  addRead(db, { doc: 'd-1', supplier: '(주)마바상사', biz: '123-45-67890', date: '2026-10-05', lines: [line('댐핑 경첩', 2400, 100), line('3단 레일 450', 3100, 20)] });
+  addRead(db, { doc: 'd-2', supplier: '마바 상사', date: '2026-11-03', lines: [line('댐핑  경첩', 2500, 50), line('피스 4x16', 12)] });
+  // 다시 읽은 것이 있으면 마지막 읽음만 본다
+  addRead(db, { doc: 'd-3', attempt: 1, supplier: '마바상사', date: '2026-11-12', lines: [line('3단 레일 450', 9999)] });
+  addRead(db, { doc: 'd-3', attempt: 2, supplier: '마바상사', date: '2026-11-12', lines: [line('3단 레일 450', 3300)] });
+  // 안 쓰는 것 — 품목 합이 안 맞음 · 반려한 사진 · 읽다 만 것 · 다른 팩토리 · 품목 없는 영수증
+  addRead(db, { doc: 'd-4', items: 'mismatch', supplier: '마바상사', date: '2026-11-15', lines: [line('댐핑 경첩', 1)] });
+  addRead(db, { doc: 'd-5', review: 'rejected', supplier: '마바상사', date: '2026-11-16', lines: [line('댐핑 경첩', 2)] });
+  addRead(db, { doc: 'd-6', status: 'failed', supplier: '마바상사', date: '2026-11-17', lines: [line('댐핑 경첩', 3)] });
+  addRead(db, { doc: 'd-7', company: P1, supplier: '마바상사', date: '2026-11-17', lines: [line('남의 품목', 4)] });
+  addRead(db, { doc: 'd-8', supplier: '사아 식당', date: '2026-11-01', lines: [] });
+  // 다른 파는 곳 — 날짜를 못 읽어 읽은 날(한국 날짜)로
+  addRead(db, { doc: 'd-9', supplier: '자차 철물', date: null, finished: '2026-11-08T16:00:00Z', lines: [line('손잡이 A', 1800), { name: '값 없는 줄' }, line('너무 큰 값', 100000001)] });
+  return db;
+}
+
+test('장부의 파는 곳 — 상호를 다듬어 묶는다 · 마지막 읽음 · 품목 합이 맞은 것만 · 반려 · 다른 팩토리는 뺀다', async () => {
+  assert.equal(ledgerNameKey('(주) 마바-상사 ㈜'), '마바상사');
+  assert.deepEqual(ledgerSupplierOf({ supplier_name: '주식회사 마바 상사', supplier_biz_no: '123-45-67890' }), { key: 'n:마바상사', name: '주식회사 마바 상사', biz_no: '1234567890' });
+  assert.deepEqual(ledgerSupplierOf({ supplier_biz_no: '1234567890' }), { key: 'b:1234567890', name: '', biz_no: '1234567890' });
+  assert.equal(ledgerSupplierOf({ supplier_name: ' ', supplier_biz_no: '12' }), null);
+  assert.equal(ledgerSupplierOf(null), null);
+  const db = ledgerDb();
+  await withDb(db, async () => {
+    const r = await partLedgerSuppliers(ENV, { user: u(OWNER) });
+    assert.deepEqual(r.suppliers, [
+      { key: 'n:마바상사', name: '(주)마바상사', biz_no: '1234567890', docs: 3, items: 3 },
+      { key: 'n:자차철물', name: '자차 철물', biz_no: '', docs: 1, items: 1 },
+    ]);
+    // 대표 · 실장만, 다담 공장 · 본사만
+    await assert.rejects(() => partLedgerSuppliers(ENV, { user: u(STAFF) }), (e) => e.code === 'not_manager');
+    await assert.rejects(() => partLedgerSuppliers(ENV, { user: u(PARTNER_OWNER) }), (e) => e.code === 'not_catalog_company');
+    await assert.rejects(() => importPartsFromLedger(ENV, { user: u(STAFF), body: { supplier_key: 'n:마바상사' } }), (e) => e.code === 'not_manager');
+  });
+  assert.equal(db.writes.length, 0);
+});
+
+test('거래명세표에서 가져오기 — 품목마다 가장 최근 단가가 매입가, 그 명세표 날짜가 본 날 · 다시 가져오면 그대로', async () => {
+  const db = ledgerDb();
+  await withDb(db, async () => {
+    const r = await importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:마바상사', vendor_name: '마바 상사' } });
+    assert.deepEqual([r.vendor.name, r.added, r.updated, r.same, r.left, r.docs], ['마바 상사', 3, 0, 0, 0, 3]);
+    assert.equal(db.part_vendors[0].memo, '거래명세표에서 가져옴');
+    const by = (name) => db.part_items.find((x) => x.name === name);
+    assert.deepEqual([by('댐핑 경첩').buy_price, by('댐핑 경첩').buy_price_on], [2500, '2026-11-03']);
+    assert.deepEqual([by('3단 레일 450').buy_price, by('3단 레일 450').buy_price_on], [3300, '2026-11-12']);
+    assert.deepEqual([by('피스 4x16').buy_price, by('피스 4x16').ref_price, by('피스 4x16').vendor_item_no, by('피스 4x16').company_id], [12, null, '', HQ]);
+    const before = db.writes.length;
+    const again = await importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:마바상사', vendor_name: '마바 상사' } });
+    assert.deepEqual([again.added, again.updated, again.same, again.left], [0, 0, 3, 0]);
+    assert.equal(db.writes.length, before);
+    assert.equal(db.part_vendors.length, 1);
+
+    // 새 명세표가 오면 그 품목만 고친다 — 손으로 더 최근에 적은 값은 그대로
+    by('피스 4x16').buy_price = 10;
+    by('피스 4x16').buy_price_on = '2026-12-31';
+    addRead(db, { doc: 'd-20', supplier: '마바상사', date: '2026-12-01', lines: [line('댐핑 경첩', 2600), line('피스 4x16', 15), line('새 품목', 700)] });
+    const next = await importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:마바상사', vendor_name: '마바 상사' } });
+    assert.deepEqual([next.added, next.updated, next.same], [1, 1, 2]);
+    assert.deepEqual([by('댐핑 경첩').buy_price, by('댐핑 경첩').buy_price_on, by('피스 4x16').buy_price, by('새 품목').buy_price], [2600, '2026-12-01', 10, 700]);
+
+    // 이름을 안 주면 장부의 상호로 — 날짜를 못 읽은 장은 읽은 날(한국 날짜) · 값 없는 줄 · 너무 큰 값은 뺀다
+    const other = await importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:자차철물' } });
+    assert.deepEqual([other.vendor.name, other.added], ['자차 철물', 1]);
+    assert.deepEqual([by('손잡이 A').buy_price, by('손잡이 A').buy_price_on], [1800, '2026-11-09']);
+
+    await assert.rejects(() => importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:없는곳' } }), NotFoundError);
+    await assert.rejects(() => importPartsFromLedger(ENV, { user: u(OWNER), body: {} }), ValidationError);
+    await assert.rejects(() => importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'x' } }), ValidationError);
+    await assert.rejects(() => importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:마바상사', vendor_name: 'x'.repeat(PART_TEXT_MAX.vendor + 1) } }), ValidationError);
+  });
+});
+
+test('거래명세표에서 가져오기 — 사이트에서 모은 상품(번호 있음)은 건드리지 않고, 한 번에 고치는 수를 넘으면 left 로 알린다', async () => {
+  const db = makeDb();
+  const names = Array.from({ length: PART_LEDGER_UPDATE_MAX + 5 }, (_, i) => `품목 ${String(i + 1).padStart(2, '0')}`);
+  addRead(db, { doc: 'd-1', supplier: '가나 철물', date: '2026-10-01', lines: names.map((n) => line(n, 1000)) });
+  await withDb(db, async () => {
+    // 같은 이름이지만 번호가 있는 상품 (사이트에서 모은 것)
+    await importParts(ENV, { user: u(OWNER), body: { vendor: VENDOR, seen_on: '2026-11-18', items: [{ vendor_item_no: '1001', name: '품목 01', ref_price: 5000 }] } });
+    const site = db.part_items[0];
+    const first = await importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:가나철물' } });
+    assert.deepEqual([first.vendor.name, first.added, first.updated], ['가나 철물', names.length, 0]);
+    assert.deepEqual([site.buy_price, site.ref_price], [null, 5000]);
+    addRead(db, { doc: 'd-2', supplier: '가나 철물', date: '2026-11-01', lines: names.map((n) => line(n, 1100)) });
+    const second = await importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:가나철물' } });
+    assert.deepEqual([second.added, second.updated, second.left], [0, PART_LEDGER_UPDATE_MAX, 5]);
+    const third = await importPartsFromLedger(ENV, { user: u(OWNER), body: { supplier_key: 'n:가나철물' } });
+    assert.deepEqual([third.updated, third.same, third.left], [5, PART_LEDGER_UPDATE_MAX, 0]);
+    assert.ok(db.part_items.filter((x) => !x.vendor_item_no).every((x) => x.buy_price === 1100 && x.buy_price_on === '2026-11-01'));
+  });
 });
