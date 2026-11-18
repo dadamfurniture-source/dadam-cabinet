@@ -272,6 +272,8 @@ describe('철물 · 부속 카탈로그 — 파일 올리기', () => {
     const f = M.fileOf(fileText(fileItems(2), { seen_on: '어제' }));
     expect([f.vendor, f.seen_on, f.items.length]).toEqual([{ name: '가나 철물', site_url: 'https://parts.example.com' }, '', 2]);
     expect(M.importBodyOf(fileItems(1)[0])).toEqual({ vendor_item_no: 'N1', category: '경첩', name: '파일 상품 1', ref_price: 1000 });
+    // 거래명세서에서 온 파일 — 매입가와 그 날짜를 같이 넘긴다 (사진 · 모르는 칸은 안 넘긴다)
+    expect(M.importBodyOf({ name: '명세서 품목', buy_price: 1200, buy_price_on: '2026-03-13', ref_price: null, photo: 'data:image/jpeg;base64,AAAA', memo: '모르는 칸' })).toEqual({ name: '명세서 품목', buy_price: 1200, buy_price_on: '2026-03-13' });
     expect([...M.photoBytesOf(`data:image/jpeg;base64,${JPEG}`)]).toEqual([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
     expect(M.photoBytesOf('data:image/svg+xml;base64,PHN2Zz4=')).toBeNull();
     expect(M.photoBytesOf('https://example.com/a.jpg')).toBeNull();

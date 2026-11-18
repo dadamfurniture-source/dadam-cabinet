@@ -229,7 +229,8 @@
   /** 파일의 상품 하나 → 서버에 보낼 모양 (사진은 따로 올린다) */
   function importBodyOf(it) {
     var out = {};
-    ['vendor_item_no', 'category', 'sub_category', 'brand', 'name', 'ref_price', 'options', 'addons', 'specs', 'width_mm', 'depth_mm', 'height_mm', 'source_url', 'note'].forEach(function (k) {
+    // buy_price · buy_price_on — 거래명세서를 읽어 만든 파일의 단가와 그 날짜 (서버가 더 최근 값이 없을 때만 매입가로 적는다)
+    ['vendor_item_no', 'category', 'sub_category', 'brand', 'name', 'ref_price', 'buy_price', 'buy_price_on', 'options', 'addons', 'specs', 'width_mm', 'depth_mm', 'height_mm', 'source_url', 'note'].forEach(function (k) {
       if (it[k] !== undefined && it[k] !== null) out[k] = it[k];
     });
     return out;
