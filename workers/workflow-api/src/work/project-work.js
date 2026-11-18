@@ -7,7 +7,11 @@
  *     { project { id, title, status }, can_manage, can_assign,
  *       rows [{ key, kind, label, source: 'project' | 'schedule', schedule_id, schedule_status, at, job { id, status } | null,
  *               sheet { doc_type, doc_label, role, packs, state: 'no_design' | 'none' | 'issued', document { id, doc_no, rev, created_at } | null,
- *                       checks { done, total, must_left } | null } | null (A/S),  sheet_memo,  (2026-11-17 — work/job-sheet.js)
+ *                       checks { done, total, must_left } | null, pack_labels, stale, site_stale } | null (A/S),  sheet_memo,  (2026-11-17 — work/job-sheet.js)
+ *               sheets [{ label(품목 이름), …sheet }] — 그 줄이 여는 설계마다 (프로젝트 줄 = 그 프로젝트에 이은 설계 모두, 일정 줄 = 그 일정의 설계).
+ *                       sheet 는 그 가운데 첫 설계 (예전 화면이 읽는다). 둘째부터는 checks 가 null 이다 (2026-11-19 「한 작업에 모든 설계」)
+ *       designs [{ label, order_sheets [{ kind: door_order | top_order, label, packs, pack_labels, state, stale, applies, document }] }],
+ *       design_count, site { missing }
  *               can_assign, workers [{ assignment_id, name, status, label, reason, …, reports[] }], candidates [{ link_id, name, kinds, region }],
  *               recruit { on, state, slots, filled, deadline, applications [{ application_id, name, message, at }] } | null }] }
  *     줄: 철거 · 재단 · 엣지 · 조립은 늘 한 줄씩(프로젝트에 붙는 작업), 납품 · 설치 · A/S 방문은 그 프로젝트 설계의 일정마다 한 줄.
@@ -37,7 +41,8 @@ import { workersCompanyOf } from './company.js';
 import { recordEvent } from './events.js';
 import { createInviteCore } from './invites.js';
 import { computeJobStatus, loadJobAssignments, lockJob } from './jobs.js';
-import { memoOf, sheetMemoOf, sheetOf, sheetReader, writeSheetMemo } from './job-sheet.js';
+import { memoOf, orderSheetsOf, sheetMemoOf, sheetOf, sheetReader, writeSheetMemo } from './job-sheet.js';
+import { designLabels } from './job-links.js';
 import { closeRecruit, openRecruit, recruitOf } from './recruit.js';
 import { ACTIVE_STATUSES } from './reveal.js';
 import {
@@ -51,6 +56,8 @@ import { KIND_LABEL, PROJECT_KINDS, assertUuid, kindsPending, oneOf, optIso } fr
 const STAFFABLE = ['draft', 'open', 'filled', 'in_progress'];
 const ENDED_SCHEDULE = ['cancelled', 'completed'];
 const SCHEDULE_TYPES = Object.keys(SCHEDULE_JOB_KIND);
+/** 줄마다 지시서를 보이는 설계 수 — 그보다 많으면 앞의 것만 (design_count 로 알린다) */
+const SHEET_DESIGN_MAX = 6;
 
 function conflict(message, code) {
   const err = new ConflictError(message);
@@ -168,6 +175,10 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
   const co = `eq.${company.id}`;
   const { designIds, designId: projectDesignId, orderId: projectOrderId } = await linksOfProject(env, company, project);
   const reader = sheetReader(env);
+  // 줄이 여는 설계들 — 먼저 만든 것부터 (작업자의 지시서 목록과 같은 차례 · 같은 품목 이름, work/job-links.js)
+  const shown = designIds.slice(0, SHEET_DESIGN_MAX);
+  const labels = shown.length ? await designLabels(env, shown) : [];
+  const labelOf = (designId) => (shown.indexOf(designId) >= 0 ? labels[shown.indexOf(designId)] : null);
   const [links, projectJobs, schedules] = await Promise.all([
     selectMany(env, 'worker_companies', { company_id: co, status: 'eq.approved', select: 'id,worker_id,kinds,created_at', order: 'created_at.asc', limit: '500' }),
     selectMany(env, 'work_jobs', { project_id: `eq.${project.id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', select: '*', order: 'created_at.desc', limit: '50' }),
@@ -198,11 +209,21 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
         .filter((u) => u.assignment_id === assignmentId)
         .map((u) => ({ kind: u.kind, by: u.author_role, body: u.body, issue_chips: Array.isArray(u.issue_chips) ? u.issue_chips : [], at: u.created_at || null }));
     const active = (a) => (ACTIVE_STATUSES.includes(a.status) ? 0 : 1);
+    // 지시서 — 프로젝트 줄은 그 프로젝트에 이은 설계마다, 일정 줄은 그 일정의 설계. 첫 설계는 필수 확인 수까지. A/S 는 null
+    const sheetDesigns = base.source === 'project' ? shown : base.design_id ? [base.design_id] : [];
+    const firstId = sheetDesigns[0] || null;
+    const first = await sheetOf(reader, { kind: base.kind, designId: firstId });
+    const sheets = first === null
+      ? null
+      : [
+        ...(firstId ? [{ label: labelOf(firstId), ...first }] : []),
+        ...(await Promise.all(sheetDesigns.slice(1).map(async (d) => ({ label: labelOf(d), ...(await sheetOf(reader, { kind: base.kind, designId: d, checks: false })) })))),
+      ];
     return {
       ...base,
       job: job ? { id: job.id, status: job.status } : null,
-      // 지시서 — 그 줄의 설계(작업에 이어진 설계, 없으면 base.design_id)의 지금 문서 · 필수 확인 수. A/S 는 null
-      sheet: await sheetOf(reader, { kind: base.kind, designId: (job && job.design_id) || base.design_id || null }),
+      sheet: first,
+      sheets,
       sheet_memo: sheetMemoOf(job),
       can_assign: mayAssign && rowOpen && (!job || STAFFABLE.includes(job.status)),
       recruit: await recruitOf(env, job, all),
@@ -233,12 +254,19 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
       !ENDED_SCHEDULE.includes(s.status),
     ));
   }
+  // 설계마다 발주 줄 (도어재 · 상판 — 작업자 없이 사무실이 연다)
+  const designs = [];
+  for (let i = 0; i < shown.length; i++) designs.push({ label: labels[i], order_sheets: await orderSheetsOf(reader, { designId: shown[i] }) });
+  const site = projectDesignId ? await reader.siteOf(projectDesignId) : null;
   return {
     project: { id: project.id, title: project.title || null, status: project.status },
     can_manage: canAct,
     can_assign: mayAssign,
     // 줄의 design_id 는 지시서를 찾는 데만 쓴다 — 응답에는 싣지 않는다
     rows: rows.map(({ design_id, ...row }) => row),
+    designs,
+    design_count: designIds.length,
+    site: { missing: !!projectDesignId && !(site && site.info && typeof site.info.address === 'string' && site.info.address.trim()) },
   };
 }
 

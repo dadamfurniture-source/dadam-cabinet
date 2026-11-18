@@ -7,8 +7,14 @@
  *     철거 → 철거 지시서 · 재단 · 엣지 → 작업지시서 재단 꾸러미 · 조립 → 작업지시서 조립 꾸러미 ·
  *     납품 → 납품 지시서 · 설치 → 설치 지시서 · A/S → 없음
  *   상태 state: no_design (이을 설계가 없다) · none (그 문서를 아직 내지 않았다) · issued (지금 문서가 있다)
+ *     state 값은 늘리지 않는다 (화면이 모르는 값이면 줄을 버린다) — 낸 문서가 낡았는지는 덧붙인 칸으로 알린다 (2026-11-19 「설계 바뀜」):
+ *       stale       그 문서를 낸 동결본이 기준 동결본과 다르다. 기준 = ?snapshot_id= (플래너가 마지막으로 보낸 것) —
+ *                   없으면 가장 새 동결본이고, 그 판이 문서를 낸 뒤에 만들어졌을 때만 (옛 판으로 되돌려 보낸 설계를 낡았다고 하지 않는다)
+ *       site_stale  현장 문서(설치 · 철거 · 납품)가 고정한 현장 정보 · 일정이 지금과 다르다
+ *     job  그 줄의 작업 · 작업자 상태 { state: no_project | no_schedule | none | unassigned | offered | linked | done, jobs, offered, linked, done, names[] }
+ *     order_sheets  발주 줄 둘 — 도어재 발주 · 상판 발주 (작업자 없이 사무실이 여는 작업지시서 꾸러미 door · top)
  *
- *   GET  /designs/:designId/work-sheets        그 설계의 작업 종류마다 지시서 상태 (설계를 볼 수 있는 사람)
+ *   GET  /designs/:designId/work-sheets[?snapshot_id=]  그 설계의 작업 종류마다 지시서 상태 (설계를 볼 수 있는 사람)
  *   PUT  /company/work/jobs/:id/sheet-memo     { memo } — 그 작업 줄의 사무실 메모 (대표 · 실장, 내 팩토리 작업만)
  *     메모는 문서에 고정하지 않는다 — 철거 · 납품 지시서를 열 때 읽어 넣는다 (templates/site-order.js).
  *     작업 설명(detail)과 다른 칸이다: detail 은 수락 전 작업자에게도 보이고, 메모는 지시서를 여는 사람(확정된 배정 · 사무실)만 본다.
@@ -22,16 +28,19 @@
  */
 
 import { ConflictError, NotFoundError, ValidationError, assertDesignAccess, selectMany, selectOne } from '../supabase.js';
-import { isMissingRelation } from '../work-order-data.js';
+import { isMissingRelation, partClassOf } from '../work-order-data.js';
 import { createSignedUrls } from '../storage.js';
+import { getSiteInfo, listSchedulesForDoc } from '../site-info.js';
+import { hasCountertop } from '../countertop.js';
+import { DOC_PLANS, PLAN_REQUIRED_CODE, SITE_DOC_TYPES, assertCompanyPlan } from '../documents.js';
 import { DRAFT_ID_RE, PHOTO_FILE_RE, PHOTOS_BUCKET } from '../planner-drafts.js';
 import { PLANNER_SOURCE } from '../planner-handoff.js';
-import { checkListOfDoc, itemsFor, CHECK_ROLE_LABEL } from './check-items.js';
+import { checkListOfDoc, itemsFor, CHECK_ROLE_LABEL, CHECK_ROLES } from './check-items.js';
 import { DOC_TYPE_OF_ROLE, PACKS_OF_ROLE, ROLE_OF_JOB_KIND, checkRows, roleChecks } from './check-state.js';
 import { workersCompanyOf } from './company.js';
 import { recordEvent } from './events.js';
 import { lockJob } from './jobs.js';
-import { KIND_LABEL, assertUuid } from './validate.js';
+import { KIND_LABEL, PROJECT_KINDS, assertUuid } from './validate.js';
 
 /** 사무실 메모 글자 수 — DB 0068 work_jobs_sheet_memo_chk 와 같다 */
 export const SHEET_MEMO_MAX = 2000;
@@ -47,17 +56,79 @@ export function sheetKindOf(kind) {
   return { role, doc_type: docType, doc_label: DOC_LABEL[docType], packs: PACKS_OF_ROLE[role] };
 }
 
+/** 꾸러미 이름 — 화면 단추 글 (작업지시서 ?pack=). 꾸러미가 늘면 여기만 고친다 (화면은 이 값을 그대로 쓴다) */
+export const PACK_LABELS = Object.freeze({ cut: '재단 지시서', labels: '부재 라벨', assembly: '조립 지시서', door: '도어재 발주서', top: '상판 발주 요청서' });
+const packLabelsOf = (packs) => Object.fromEntries((packs || []).filter((p) => PACK_LABELS[p]).map((p) => [p, PACK_LABELS[p]]));
+/** 발주 줄 — 작업자 없이 사무실이 여는 작업지시서 꾸러미 (2026-11-19 사장님 「도어재 · 상판 발주: 탭에 줄 추가」) */
+export const ORDER_SHEETS = Object.freeze([
+  Object.freeze({ kind: 'door_order', label: '도어재 발주', pack: 'door' }),
+  Object.freeze({ kind: 'top_order', label: '상판 발주', pack: 'top' }),
+]);
+/** 일정에서 생기는 작업 종류 → 그 일정 종류 (work/schedule-link.js SCHEDULE_JOB_KIND 의 거꾸로) */
+const SCHEDULE_TYPE_OF_KIND = Object.freeze({ delivery: 'delivery', install: 'installation' });
+
 /** 문서 한 줄 → 응답 칸 (id · 번호 · 판 · 낸 때만) */
 const docOut = (d) => ({ id: d.id, doc_no: d.doc_no, rev: d.rev, created_at: d.created_at || null });
+
+/** 현장 문서가 인쇄하는 현장 정보 칸 (templates/installation-order.js · site-order.js 의 현장 칸) */
+const SITE_PRINT_KEYS = ['address', 'address_detail', 'floor', 'has_elevator', 'elevator_note', 'access_note', 'install_order', 'contact_name', 'contact_phone', 'notes'];
+const sitePrint = (s) => JSON.stringify(SITE_PRINT_KEYS.map((k) => { const v = s ? s[k] : null; return v === undefined || v === '' ? null : v; }));
+/** 일정은 종류 · 시각만 견준다 (담당 글 · 상태는 배정 · 진행에 따라 바뀐다). 취소한 일정은 뺀다 */
+const schedulePrint = (list) => JSON.stringify((Array.isArray(list) ? list : []).filter((s) => s && s.status !== 'cancelled').map((s) => `${s.type}|${s.scheduled_at || ''}`).sort());
+
+/**
+ * 현장 문서가 고정한 현장 정보 · 일정이 지금과 다른가 (순수).
+ * @param {object} doc  문서 (render_payload.site_info · schedules)
+ * @param {{info:object|null, schedules:object[]}} now  지금 값 (site-info.js getSiteInfo · listSchedulesForDoc)
+ */
+export function siteChanged(doc, now) {
+  const rp = (doc && doc.render_payload) || {};
+  return sitePrint(rp.site_info) !== sitePrint(now && now.info) || schedulePrint(rp.schedules) !== schedulePrint(now && now.schedules);
+}
 
 /**
  * 한 요청 안에서 같은 설계 · 문서를 두 번 읽지 않는 읽개.
  *   docOf(designId, docType) → 지금 문서 (새 판에 밀리지 않고 회수되지 않은 마지막 rev) | null
  *   checksOf(doc, role)      → { done, total, must_left } | null (목록에 그 역할 항목이 없거나 · 0035 전)
+ *   baseOf(designId, pinned) → 기준 동결본 { id, rev, created_at, pinned } | null (pinned = 플래너가 보낸 동결본 id)
+ *   staleOf(doc, designId, pinned) · siteOf(designId) → { info, schedules } · siteStaleOf(doc, designId) · snapOf(id)
  */
 export function sheetReader(env) {
   const docs = new Map();
   const snaps = new Map();
+  const checks = new Map();
+  const bases = new Map();
+  const sites = new Map();
+  // 문서의 체크 줄은 역할을 가리지 않고 한 번에 읽는다 — 줄(작업 종류)마다 다시 읽지 않게
+  const rowsOf = (doc) => {
+    if (!checks.has(doc.id)) checks.set(doc.id, checkRows(env, doc.id, CHECK_ROLES));
+    return checks.get(doc.id);
+  };
+  const baseOf = (designId, pinned) => {
+    const key = `${designId}|${pinned || ''}`;
+    if (!bases.has(key)) {
+      bases.set(key, (async () => {
+        if (pinned) {
+          const pin = await selectOne(env, 'design_snapshots', { id: `eq.${pinned}`, design_id: `eq.${designId}`, select: 'id,rev,created_at' });
+          if (pin) return { id: pin.id, rev: pin.rev, created_at: pin.created_at || null, pinned: true };
+        }
+        const last = await selectOne(env, 'design_snapshots', { design_id: `eq.${designId}`, select: 'id,rev,created_at', order: 'rev.desc' });
+        return last ? { id: last.id, rev: last.rev, created_at: last.created_at || null, pinned: false } : null;
+      })());
+    }
+    return bases.get(key);
+  };
+  const siteOf = (designId) => {
+    if (!sites.has(designId)) {
+      sites.set(designId, Promise.all([getSiteInfo(env, designId), listSchedulesForDoc(env, designId)])
+        .then(([info, schedules]) => ({ info: info || null, schedules: schedules || [] }))
+        .catch((e) => {
+          if (isMissingRelation(e)) return { info: null, schedules: [] };
+          throw e;
+        }));
+    }
+    return sites.get(designId);
+  };
   const docsOfDesign = async (designId) => {
     if (!docs.has(designId)) {
       docs.set(designId, selectMany(env, 'design_documents', {
@@ -80,10 +151,27 @@ export function sheetReader(env) {
       if (!itemsFor(list, role).length) return null;
       const snapshot = await snapOf(doc.snapshot_id);
       if (!snapshot) return null;
-      const rows = await checkRows(env, doc.id, [role]);
+      const rows = await rowsOf(doc);
       if (rows === null) return null;
       const r = roleChecks({ doc, snapshot, list }, role, rows);
       return { done: r.done, total: r.total, must_left: r.must_left };
+    },
+    baseOf,
+    siteOf,
+    snapOf,
+    /** 그 문서를 낸 동결본이 기준과 다른가 — 기준을 못 찾으면 낡았다고 하지 않는다 */
+    async staleOf(doc, designId, pinned) {
+      const base = await baseOf(designId, pinned);
+      if (!base || doc.snapshot_id === base.id) return false;
+      if (base.pinned) return true;
+      const made = Date.parse(base.created_at || '');
+      const issued = Date.parse(doc.created_at || '');
+      return Number.isFinite(made) && Number.isFinite(issued) && made > issued;
+    },
+    /** 현장 문서의 현장 정보 · 일정이 바뀌었나 (현장 문서가 아니면 false) */
+    async siteStaleOf(doc, designId) {
+      if (!SITE_DOC_TYPES.includes(doc.doc_type)) return false;
+      return siteChanged(doc, await siteOf(designId));
     },
   };
 }
@@ -92,16 +180,113 @@ export function sheetReader(env) {
  * 작업 종류 · 설계 → 그 줄의 지시서.
  * @returns {Promise<null | {doc_type:string, doc_label:string, role:string, packs:string[], state:'no_design'|'none'|'issued',
  *   document:{id:string, doc_no:string, rev:number, created_at:string|null}|null, checks:{done:number, total:number, must_left:number}|null}>}
- *   null = 지시서가 없는 종류 (A/S)
+ *   null = 지시서가 없는 종류 (A/S). 덧붙는 칸: pack_labels · stale · site_stale (머리말).
+ *   pinned = 기준 동결본 id (플래너가 마지막으로 보낸 것), checks: false 면 필수 확인 수를 세지 않는다 (설계가 여럿인 줄의 둘째부터)
  */
-export async function sheetOf(reader, { kind, designId }) {
+export async function sheetOf(reader, { kind, designId, pinned = null, checks = true }) {
   const k = sheetKindOf(kind);
   if (!k) return null;
-  const base = { doc_type: k.doc_type, doc_label: k.doc_label, role: k.role, packs: k.packs };
+  const base = { doc_type: k.doc_type, doc_label: k.doc_label, role: k.role, packs: k.packs, pack_labels: packLabelsOf(k.packs), stale: false, site_stale: false };
   if (!designId) return { ...base, state: 'no_design', document: null, checks: null };
   const doc = await reader.docOf(designId, k.doc_type);
   if (!doc) return { ...base, state: 'none', document: null, checks: null };
-  return { ...base, state: 'issued', document: docOut(doc), checks: await reader.checksOf(doc, k.role) };
+  const [count, stale, siteStale] = await Promise.all([
+    checks ? reader.checksOf(doc, k.role) : null,
+    reader.staleOf(doc, designId, pinned),
+    reader.siteStaleOf(doc, designId),
+  ]);
+  return { ...base, state: 'issued', document: docOut(doc), checks: count, stale, site_stale: siteStale };
+}
+
+/**
+ * 발주 줄 둘 (도어재 발주 · 상판 발주) — 그 설계의 지금 작업지시서의 꾸러미 door · top.
+ *   applies: 그 설계에 도어재 · 석재 상판이 있는가 (작업지시서가 있을 때만 안다 — 없으면 null)
+ */
+export async function orderSheetsOf(reader, { designId, pinned = null }) {
+  const doc = designId ? await reader.docOf(designId, 'work_order') : null;
+  const stale = doc ? await reader.staleOf(doc, designId, pinned) : false;
+  const applies = { door: null, top: null };
+  if (doc) {
+    const snap = await reader.snapOf(doc.snapshot_id);
+    const bom = snap ? snap.bom_payload : null;
+    const mats = bom && Array.isArray(bom.materials) ? bom.materials : [];
+    applies.door = mats.some((m) => partClassOf(m.part, Number(m.thickness)) === '도어');
+    applies.top = !!hasCountertop(bom);
+  }
+  return ORDER_SHEETS.map((o) => ({
+    kind: o.kind, label: o.label, doc_type: 'work_order', doc_label: DOC_LABEL.work_order, packs: [o.pack], pack_labels: packLabelsOf([o.pack]),
+    state: doc ? 'issued' : 'none', stale, applies: applies[o.pack], document: doc ? docOut(doc) : null,
+  }));
+}
+
+/** 수락한 뒤 ~ 확인 전의 배정 */
+const LINKED_STATUSES = ['confirmed', 'started', 'submitted', 'revision'];
+const DONE_JOB = ['done', 'closed'];
+
+/**
+ * 작업 줄의 작업자 상태 (순수) — 그 줄의 작업들 · 그 배정들 · 작업자 이름.
+ * @returns {{state:'none'|'unassigned'|'offered'|'linked'|'done', jobs:number, offered:number, linked:number, done:number, names:string[]}}
+ */
+export function jobSummaryOf(jobs, assignments, names) {
+  const list = jobs || [];
+  if (!list.length) return { state: 'none', jobs: 0, offered: 0, linked: 0, done: 0, names: [] };
+  const ids = new Set(list.map((j) => j.id));
+  const mine = (assignments || []).filter((a) => ids.has(a.job_id));
+  const offered = mine.filter((a) => a.status === 'offered');
+  const linked = mine.filter((a) => LINKED_STATUSES.includes(a.status));
+  const done = mine.filter((a) => a.status === 'accepted');
+  const finished = list.every((j) => DONE_JOB.includes(j.status)) || (done.length > 0 && !offered.length && !linked.length);
+  const state = finished ? 'done' : linked.length ? 'linked' : offered.length ? 'offered' : 'unassigned';
+  const who = [...linked, ...offered, ...done].map((a) => (names ? names.get(a.worker_id) : null)).filter(Boolean);
+  return { state, jobs: list.length, offered: offered.length, linked: linked.length, done: done.length, names: [...new Set(who)] };
+}
+
+/**
+ * 그 설계의 작업 종류마다 작업자 상태 — 프로젝트 「작업 배정」의 작업(그 프로젝트 · 종류마다 하나) + 그 설계의 일정에서 생긴 작업.
+ *   작업 표가 아직 없으면(0064 · 0065 전) null.
+ * @returns {Promise<null | Map<string, object>>} 작업 종류 → jobSummaryOf 결과 (프로젝트가 없으면 no_project, 일정이 없으면 no_schedule)
+ */
+async function jobStatesOf(env, reader, design) {
+  const co = `eq.${design.company_id}`;
+  const cols = 'id,kind,status,schedule_id,project_id';
+  let jobs;
+  let assignments = [];
+  const names = new Map();
+  try {
+    const [byProject, byDesign] = await Promise.all([
+      design.project_id ? selectMany(env, 'work_jobs', { project_id: `eq.${design.project_id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', select: cols, limit: '50' }) : [],
+      selectMany(env, 'work_jobs', { design_id: `eq.${design.id}`, company_id: co, status: 'neq.cancelled', select: cols, limit: '50' }),
+    ]);
+    jobs = [...(byProject || []), ...(byDesign || []).filter((j) => j.schedule_id)];
+    if (jobs.length) {
+      assignments = (await selectMany(env, 'work_assignments', { job_id: `in.(${jobs.map((j) => j.id).join(',')})`, select: 'id,job_id,worker_id,status', limit: '500' })) || [];
+      const workerIds = [...new Set(assignments.filter((a) => a.status === 'offered' || a.status === 'accepted' || LINKED_STATUSES.includes(a.status)).map((a) => a.worker_id))];
+      if (workerIds.length) {
+        const people = (await selectMany(env, 'workers', { id: `in.(${workerIds.join(',')})`, select: 'id,display_name', limit: '200' })) || [];
+        people.forEach((w) => names.set(w.id, w.display_name));
+      }
+    }
+  } catch (e) {
+    if (isMissingRelation(e) || /42703|PGRST204/.test(String((e && e.message) || ''))) return null;
+    throw e;
+  }
+  const empty = (state) => ({ state, jobs: 0, offered: 0, linked: 0, done: 0, names: [] });
+  const out = new Map();
+  for (const kind of SHEET_KINDS) {
+    if (PROJECT_KINDS.includes(kind)) {
+      out.set(kind, design.project_id ? jobSummaryOf(jobs.filter((j) => j.kind === kind && !j.schedule_id), assignments, names) : empty('no_project'));
+      continue;
+    }
+    const mine = jobs.filter((j) => j.kind === kind && j.schedule_id);
+    if (mine.length) {
+      out.set(kind, jobSummaryOf(mine, assignments, names));
+      continue;
+    }
+    const { schedules } = await reader.siteOf(design.id);
+    const has = (schedules || []).some((s) => s.type === SCHEDULE_TYPE_OF_KIND[kind] && s.status !== 'cancelled');
+    out.set(kind, empty(has ? 'none' : 'no_schedule'));
+  }
+  return out;
 }
 
 /** 작업 줄의 사무실 메모 — 없거나 칸이 아직 없으면 null */
@@ -220,25 +405,54 @@ export async function sitePhotosOf(env, { design = null, designId = null, compan
   }
 }
 
-/** GET /designs/:designId/work-sheets — 작업 종류마다 그 설계의 지시서 상태 */
-export async function listDesignWorkSheets(env, { user, designId }) {
+/** 이 설계에 지시서를 낼 수 있는 등급인가 — { allowed, block: null | 'plan_required', min_plan? } (지시서 넷은 등급이 같다 — DOC_PLANS) */
+async function issueGateOf(env, design) {
+  try {
+    await assertCompanyPlan(env, design.company_id, DOC_PLANS.work_order, '작업지시서는');
+    return { allowed: true, block: null };
+  } catch (e) {
+    if (!e || e.code !== PLAN_REQUIRED_CODE) throw e;
+    return { allowed: false, block: PLAN_REQUIRED_CODE, min_plan: (e.details && e.details.min_plan) || null };
+  }
+}
+
+/**
+ * GET /designs/:designId/work-sheets[?snapshot_id=] — 작업 종류마다 그 설계의 지시서 상태.
+ *   snapshotId = 기준 동결본 (플래너가 마지막으로 보낸 것) — 그 설계의 것이 아니면 가장 새 동결본으로 본다.
+ */
+export async function listDesignWorkSheets(env, { user, designId, snapshotId = null }) {
   const id = assertUuid(designId, '설계 id');
+  const pinned = snapshotId === undefined || snapshotId === null || snapshotId === '' ? null : assertUuid(snapshotId, '동결본 id');
   await assertDesignAccess(env, id, user, { money: false });
   const design = await selectOne(env, 'designs', { id: `eq.${id}`, select: 'id,project_id,company_id' });
   if (!design) throw new NotFoundError('설계를 찾을 수 없습니다');
-  const [project, order] = await Promise.all([
+  const reader = sheetReader(env);
+  const [project, order, approved, base, site, gate, jobStates] = await Promise.all([
     design.project_id ? selectOne(env, 'projects', { id: `eq.${design.project_id}`, company_id: `eq.${design.company_id}`, select: 'id,title,status' }) : null,
     selectOne(env, 'orders', { design_id: `eq.${id}`, status: 'neq.cancelled', select: 'id', order: 'created_at.desc' }),
+    selectOne(env, 'design_documents', { design_id: `eq.${id}`, doc_type: 'eq.customer_confirmation', decision: 'eq.approved', select: 'id' }),
+    reader.baseOf(id, pinned),
+    reader.siteOf(id),
+    issueGateOf(env, design),
+    jobStatesOf(env, reader, design),
   ]);
-  const reader = sheetReader(env);
   const sheets = [];
   for (const kind of SHEET_KINDS) {
-    sheets.push({ kind, label: KIND_LABEL[kind], role_label: CHECK_ROLE_LABEL[ROLE_OF_JOB_KIND[kind]], ...(await sheetOf(reader, { kind, designId: id })) });
+    sheets.push({
+      kind, label: KIND_LABEL[kind], role_label: CHECK_ROLE_LABEL[ROLE_OF_JOB_KIND[kind]],
+      ...(await sheetOf(reader, { kind, designId: id, pinned })),
+      job: jobStates ? jobStates.get(kind) : null,
+    });
   }
   return {
     design_id: id,
     project: project ? { id: project.id, title: project.title || null, status: project.status } : null,
     has_order: !!order,
+    approved: !!approved,
+    snapshot: base ? { id: base.id, rev: base.rev, created_at: base.created_at } : null,
+    issue: gate,
+    site: { missing: !(site.info && typeof site.info.address === 'string' && site.info.address.trim()) },
     sheets,
+    order_sheets: await orderSheetsOf(reader, { designId: id, pinned }),
   };
 }
