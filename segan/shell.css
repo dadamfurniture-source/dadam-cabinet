@@ -3281,6 +3281,252 @@ button.sm-num[aria-pressed='true'] {
   border: 2px solid var(--v5-tan);
 }
 
+/* 구매 · 재고 › 철물 · 부속 카탈로그 (segan/part-catalog.js): 공급 회사 고르기 · 찾기 · 상품 줄(사진 · 이름 · 값).
+   좁은 화면에서는 값 칸이 이름 아래로 내려간다 — 화면 전체는 밀리지 않는다 */
+.pc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.pc-chip,
+.pc-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pc-chip[aria-pressed='true'] {
+  border-color: var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-paper);
+}
+
+.pc-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pc-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pc-tools input,
+.pc-tools select,
+.pc-buy input {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+}
+
+.pc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.pc-file {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pc-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.pc-file:focus-within {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
+.pc-progress,
+.pc-count,
+.pc-meta,
+.pc-note,
+.pc-k,
+.pc-none {
+  color: var(--v5-ink-2);
+  font-size: 12px;
+}
+
+.pc-count {
+  margin: 12px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-msg,
+.pc-err {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pc-err {
+  border: 2px solid var(--v5-tan);
+}
+
+.pc-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pc-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.pc-row.is-off .pc-ph,
+.pc-row.is-off .pc-info {
+  opacity: 0.5;
+}
+
+.pc-ph {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--v5-line);
+  background: #fff;
+  object-fit: contain;
+}
+
+.pc-info {
+  min-width: 0;
+}
+
+.pc-name {
+  margin: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.pc-meta,
+.pc-note {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.pc-k {
+  margin: 8px 0 0;
+}
+
+.pc-tag {
+  padding: 0 4px;
+  border: 1px solid var(--v5-line);
+  color: var(--v5-ink-2);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.pc-det {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.pc-det summary {
+  width: fit-content;
+  color: var(--v5-ink-2);
+  cursor: pointer;
+}
+
+.pc-opts {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-opts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--v5-line);
+}
+
+.pc-opts li span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pc-opts .pc-g {
+  border-bottom: 0;
+  color: var(--v5-ink-2);
+  font-size: 12px;
+}
+
+.pc-money {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pc-money p {
+  margin: 0;
+}
+
+.pc-buy input {
+  width: 8em;
+  text-align: right;
+}
+
+.pc-more {
+  margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+  .pc-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pc-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .pc-ph {
+    width: 56px;
+    height: 56px;
+  }
+
+  .pc-money {
+    grid-column: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    white-space: normal;
+  }
+}
+
 /* 생산 설정 아래 — 자재 가격표 (segan/price-list.js): 지금 가격표 · 제품군마다 용도 · 찾은 줄.
    표는 좁은 화면에서 표만 옆으로 민다 (.pl-scroll) — 화면 전체는 밀리지 않는다 */
 .pl-scroll {
