@@ -15,9 +15,13 @@
                POST  /parts/import             카탈로그 파일의 한 묶음 { vendor, seen_on, items[≤30] } → { added, updated, same, ids }
                POST  /parts/items/:id/photo    사진 바이트
                PATCH /parts/items/:id          { buy_price?(원 | null), active? }
+               GET   /parts/ledger-suppliers   회계장부 사진에서 읽힌 파는 곳들 { suppliers[{ key, name, biz_no, docs, items }] }
+               POST  /parts/from-ledger        { supplier_key } → { vendor, added, updated, same, left } (left 가 남으면 다시 부른다)
    화면      공급 회사 고르기 → 분류 · 찾기 → 상품 줄(사진 · 이름 · 브랜드 · 분류 · 참고가 · 매입가) → 펼치면 옵션 · 추가상품 · 사양.
              대표 · 실장: 매입가 적기 · 숨기기/다시 쓰기 · 「카탈로그 파일 올리기」(.json — 상품을 30개씩, 사진을 하나씩 올린다.
-             같은 파일을 다시 올리면 달라진 것만 고치고 이미 있는 사진은 건너뛴다).
+             같은 파일을 다시 올리면 달라진 것만 고치고 이미 있는 사진은 건너뛴다) ·
+             「거래명세표에서 가져오기」(회계장부 사진에서 읽힌 파는 곳을 골라 그 품목 · 단가를 매입가로 — 사진 · 참고가는 없다.
+             2026-11-18 사장님 「무림상사, 모아가구철물은 거래명세표에 자재 가격있고」).
    없는 것    지우기 (서버에 없다 — 숨기기만) · 공급 회사 이름 고치기.
    못 읽으면  칸째 감춘다 (오류 · 끊김 · 권한 없음 · DB 적용 전). 바꾸기가 안 되면 서버 글을 그 자리에 적는다.
    정보      고객 정보는 없다. 매입가는 화면에만 그린다 — 주소 · 기기 저장에 싣지 않는다.
@@ -59,6 +63,11 @@
     source: '원래 상품 쪽',
     soldout: '품절',
     saved: '저장했습니다.',
+    ledger: '거래명세표에서 가져오기',
+    ledgerNote: '회계장부에 올린 거래명세표 · 영수증에서 읽힌 파는 곳입니다. 고르면 품목마다 가장 최근 단가가 매입가로 들어갑니다.',
+    ledgerNone: '장부에서 읽힌 품목이 없습니다.',
+    take: '가져오기',
+    close: '닫기',
   };
 
   var J = {
@@ -79,6 +88,7 @@
     msg: '',
     err: '',
     progress: '',
+    ledger: null, // 거래명세표의 파는 곳 목록 (열었을 때만)
   };
 
   function $(id) {
@@ -372,6 +382,76 @@
     return h + '</div></li>';
   }
 
+  /** 서버가 준 파는 곳 목록 — 열쇠 · 이름 없는 줄은 버린다 */
+  function suppliersOf(data) {
+    var list = obj(data).suppliers;
+    if (!Array.isArray(list)) return null;
+    return list.map(obj).filter(function (s) {
+      return str(s.key) && str(s.name);
+    }).map(function (s) {
+      return { key: str(s.key), name: str(s.name), biz_no: str(s.biz_no), docs: intOrNull(s.docs) || 0, items: intOrNull(s.items) || 0 };
+    });
+  }
+
+  function ledgerHtml() {
+    var h = '<div class="pc-ledger"><p class="pc-note">' + esc(TEXT.ledgerNote) + '</p>';
+    if (!J.ledger.length) h += '<p class="mk-note">' + esc(TEXT.ledgerNone) + '</p>';
+    else {
+      h += '<ul class="pc-opts">';
+      J.ledger.forEach(function (s) {
+        h += '<li><span>' + esc(s.name) + ' <span class="pc-k">사진 ' + s.docs + '장 · 품목 ' + s.items + '개</span></span><span><button type="button" class="pc-btn" data-pc-take="' + esc(s.key) + '"' + (J.busy ? ' disabled' : '') + '>' + esc(TEXT.take) + '</button></span></li>';
+      });
+      h += '</ul>';
+    }
+    return h + '<button type="button" class="pc-btn" data-pc-ledger-close>' + esc(TEXT.close) + '</button></div>';
+  }
+
+  async function openLedger() {
+    if (J.busy || !J.canManage) return;
+    J.busy = true;
+    J.err = '';
+    J.msg = '';
+    render();
+    var r = await call('GET', '/parts/ledger-suppliers');
+    J.busy = false;
+    var list = r.ok ? suppliersOf(r.body.data) : null;
+    if (list) J.ledger = list;
+    else J.err = errText(r);
+    render();
+  }
+
+  /** 고른 파는 곳의 품목을 가져온다 — 한 번에 다 못 고치면(left) 이어서 부른다 */
+  async function takeLedger(key) {
+    if (J.busy || !J.canManage || !key) return;
+    J.busy = true;
+    J.err = '';
+    J.msg = '';
+    var sum = { added: 0, updated: 0, same: 0, name: '' };
+    for (var round = 0; round < 40; round++) {
+      J.progress = '가져오는 중' + (round ? ' (' + (round + 1) + ')' : '');
+      render();
+      var r = await call('POST', '/parts/from-ledger', { supplier_key: key });
+      if (!r.ok) {
+        J.err = errText(r);
+        break;
+      }
+      var d = obj(r.body.data);
+      sum.added += intOrNull(d.added) || 0;
+      sum.updated += intOrNull(d.updated) || 0;
+      sum.same = intOrNull(d.same) || 0;
+      sum.name = str(obj(d.vendor).name);
+      if (!(intOrNull(d.left) > 0)) break;
+    }
+    J.busy = false;
+    J.progress = '';
+    await reload();
+    if (!J.err) {
+      J.ledger = null;
+      J.msg = '가져왔습니다 — ' + sum.name + ': 새 상품 ' + sum.added + ' · 매입가 고침 ' + sum.updated + ' · 그대로 ' + sum.same;
+    }
+    render();
+  }
+
   function render() {
     var b = box();
     if (!b || !J.ready) return;
@@ -395,9 +475,11 @@
     }
     if (J.canManage) {
       h += '<div class="pc-bar"><label class="pc-btn pc-file">' + esc(TEXT.upload) + '<input type="file" id="partCatalogFile" accept=".json,application/json"' + (J.busy ? ' disabled' : '') + '></label>';
+      h += '<button type="button" class="pc-btn" data-pc-ledger' + (J.busy ? ' disabled' : '') + '>' + esc(TEXT.ledger) + '</button>';
       if (J.progress) h += '<span class="pc-progress" role="status">' + esc(J.progress) + '</span>';
       h += '</div>';
     }
+    if (J.canManage && J.ledger) h += ledgerHtml();
     if (J.err) h += '<p class="pc-err" role="alert">' + esc(J.err) + '</p>';
     else if (J.msg) h += '<p class="pc-msg" role="status">' + esc(J.msg) + '</p>';
     if (J.items.length) {
@@ -534,8 +616,15 @@
     if (!b || b.getAttribute('data-pc-bound') === '1') return;
     b.setAttribute('data-pc-bound', '1');
     b.addEventListener('click', function (e) {
-      var t = e.target && e.target.closest ? e.target.closest('[data-pc-vendor],[data-pc-toggle],[data-pc-more]') : null;
+      var t = e.target && e.target.closest ? e.target.closest('[data-pc-vendor],[data-pc-toggle],[data-pc-more],[data-pc-ledger],[data-pc-ledger-close],[data-pc-take]') : null;
       if (!t || !b.contains(t)) return;
+      if (t.hasAttribute('data-pc-ledger')) return void openLedger();
+      if (t.hasAttribute('data-pc-take')) return void takeLedger(t.getAttribute('data-pc-take'));
+      if (t.hasAttribute('data-pc-ledger-close')) {
+        J.ledger = null;
+        render();
+        return;
+      }
       if (t.hasAttribute('data-pc-vendor')) {
         J.vendor = t.getAttribute('data-pc-vendor') || '';
         J.cat = '';
@@ -613,6 +702,7 @@
     J.err = '';
     J.progress = '';
     J.busy = false;
+    J.ledger = null;
     if (!J.base || !session || !canSee(me)) return;
     try {
       if (!(await reload())) return;
@@ -635,6 +725,7 @@
     importBodyOf: importBodyOf,
     photoBytesOf: photoBytesOf,
     buyOf: buyOf,
+    suppliersOf: suppliersOf,
     state: J,
     load: load,
   };

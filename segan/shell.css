@@ -3504,6 +3504,20 @@ button.sm-num[aria-pressed='true'] {
   margin-top: 12px;
 }
 
+.pc-ledger {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line);
+}
+
+.pc-ledger .pc-opts li {
+  align-items: center;
+}
+
+.pc-ledger > .pc-btn {
+  margin-top: 10px;
+}
+
 @media (max-width: 600px) {
   .pc-tools {
     grid-template-columns: minmax(0, 1fr);
