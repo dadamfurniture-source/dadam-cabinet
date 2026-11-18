@@ -40,7 +40,7 @@ import { renderWorkOrder } from './templates/work-order.js';
 import { renderInstallationOrder } from './templates/installation-order.js';
 import { renderSiteOrder } from './templates/site-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
-import { gatherWorkOrderPayload, workOrderTotals, collectRenders } from './work-order-data.js';
+import { gatherWorkOrderPayload, workOrderTotals, collectRenders, DRAWING_VERSION } from './work-order-data.js';
 import { frozenCheckList } from './work/check-items.js';
 import { specialNotesOf, withNoteChecks } from './work/special-notes.js';
 import { createSignedUrls, RENDERS_BUCKET, SIGNED_URL_TTL_SEC } from './storage.js';
@@ -220,9 +220,27 @@ export async function issueDocument(env, { user, body }) {
   if (docType === 'installation_order') {
     // 정면 렌더도 발행 때 고정 (2026-11-05 사장님 C · E — 설치 지시서에도 그림). 없으면 빈 목록
     const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
-    renderPayload.renders = await collectRenders(env, designId, items);
-    const iso = await collectRenders(env, designId, items, 'iso');
+    const by = { contentHash: snapshot.content_hash || null };
+    renderPayload.renders = await collectRenders(env, designId, items, 'front', by);
+    const iso = await collectRenders(env, designId, items, 'iso', by);
     if (iso.some((r) => r.path)) renderPayload.iso_renders = iso;
+    // 상판 탑뷰 · 배치 평면 · 속 구조 정면도 (2026-11-19 사장님 「설치: 배치 평면 · 상판 탑뷰 · 모듈 속 정면도」) — 있을 때만 (다른 판의 그림뿐이면 그 사실만)
+    for (const [key, kind] of [['plan_renders', 'plan'], ['layout_renders', 'layout'], ['inside_renders', 'inside']]) {
+      const list = await collectRenders(env, designId, items, kind, by);
+      if (list.some((r) => r.path || r.stale)) renderPayload[key] = list;
+    }
+    renderPayload.drawing_version = DRAWING_VERSION;
+  }
+  // 납품 지시서 — 벽마다 ISO · 3D 앞모습 (싣는 품목을 그림으로 알아보게), 철거 지시서 — 배치 평면 (2026-11-19). 발행 때 고정
+  if (SITE_ORDER_TYPES.includes(docType)) {
+    const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
+    const by = { contentHash: snapshot.content_hash || null };
+    const kinds = docType === 'delivery_order' ? [['renders', 'front'], ['iso_renders', 'iso']] : [['layout_renders', 'layout']];
+    for (const [key, kind] of kinds) {
+      const list = await collectRenders(env, designId, items, kind, by);
+      if (list.some((r) => r.path || r.stale)) renderPayload[key] = list;
+    }
+    renderPayload.drawing_version = DRAWING_VERSION;
   }
 
   // B5: 작업지시서 v2 — 정면 렌더·색 스와치·재단 배치·부재 요약·이전 rev 차이를 발행 시점에 동결한다.
@@ -484,11 +502,14 @@ export function documentForViewer(doc, money) {
  * B5: 인쇄 시점에만 만드는 자료 — 동결된 렌더 경로의 서명 URL (1시간).
  * 버킷·표가 없거나 서명이 실패해도 인쇄는 되어야 한다 → 빈 Map (표지에 "정면 렌더 없음").
  */
+const PRINT_RENDER_DOCS = Object.freeze(['work_order', 'installation_order', 'demolition_order', 'delivery_order']);
+
 export async function resolvePrintAssets(env, doc) {
   const rp = doc && doc.render_payload;
-  const listOf = (v) => (doc && (doc.doc_type === 'work_order' || doc.doc_type === 'installation_order') && rp && Array.isArray(v) ? v : []);
-  // 정면 렌더 + 플래너 ISO 도면 · 상판 탑뷰 (2026-11-05)
-  const renders = [...listOf(rp && rp.renders), ...listOf(rp && rp.iso_renders), ...listOf(rp && rp.plan_renders)];
+  // 그림을 싣는 문서 — 작업지시서 · 설치 · 철거 · 납품 지시서 (고객 확인서는 싣지 않는다)
+  const listOf = (v) => (doc && PRINT_RENDER_DOCS.includes(doc.doc_type) && rp && Array.isArray(v) ? v : []);
+  // 정면 렌더 + 플래너 ISO 도면 · 상판 탑뷰 (2026-11-05) + 배치 평면 · 속 구조 정면도 (2026-11-19 — 철거 · 납품 지시서도 그림을 싣는다)
+  const renders = [...listOf(rp && rp.renders), ...listOf(rp && rp.iso_renders), ...listOf(rp && rp.plan_renders), ...listOf(rp && rp.layout_renders), ...listOf(rp && rp.inside_renders)];
   const paths = renders.map((r) => r && r.path).filter((p) => typeof p === 'string' && p);
   if (paths.length === 0) return { renderUrls: new Map() };
   try {

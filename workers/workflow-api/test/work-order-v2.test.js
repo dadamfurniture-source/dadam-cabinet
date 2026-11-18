@@ -715,3 +715,64 @@ test('모든 섹션 표는 thead 를 써서 머리를 반복한다', () => {
   const heads = html.split('<thead>').length - 1;
   assert.equal(tables, heads);
 });
+
+// ── 그림의 판 맞춤 · 새 그림 종류 (2026-11-19) ────────────────────
+
+test('collectRenders — 동결본 해시를 주면 그 판과 같이 온 그림만: 다른 판뿐이면 path null + stale, 판을 안 적은 옛 줄은 그대로', async () => {
+  const rows = [
+    { item_unique_id: 1, path: 'D1/1/iso-new.svg', width: null, height: null, camera: { source: 'planner-lite', snapshot: 'hash-2' }, created_at: '2026-11-19T03:00:00Z' },
+    { item_unique_id: 1, path: 'D1/1/iso-old.svg', width: null, height: null, camera: { source: 'planner-lite', snapshot: 'hash-1' }, created_at: '2026-11-19T02:00:00Z' },
+    { item_unique_id: 2, path: 'D1/2/iso-other.svg', width: null, height: null, camera: { snapshot: 'hash-2' }, created_at: '2026-11-19T03:00:00Z' },
+    { item_unique_id: 3, path: 'D1/3/iso-legacy.svg', width: null, height: null, camera: null, created_at: '2026-11-01T03:00:00Z' },
+  ];
+  await withFetch((u) => (/\/design_renders\?/.test(u) ? json(rows) : null), async () => {
+    const items = [{ uniqueId: 1 }, { uniqueId: 2 }, { uniqueId: 3 }, { uniqueId: 4 }];
+    const v1 = await collectRenders(ENV, 'D1', items, 'iso', { contentHash: 'hash-1' });
+    assert.deepEqual(v1.map((r) => [r.path, r.stale === true]), [['D1/1/iso-old.svg', false], [null, true], ['D1/3/iso-legacy.svg', false], [null, false]]);
+    const v2 = await collectRenders(ENV, 'D1', items, 'iso', { contentHash: 'hash-2' });
+    assert.deepEqual(v2.map((r) => r.path), ['D1/1/iso-new.svg', 'D1/2/iso-other.svg', 'D1/3/iso-legacy.svg', null]);
+    // 해시를 주지 않으면 예전처럼 가장 새 것
+    const any = await collectRenders(ENV, 'D1', items, 'iso');
+    assert.deepEqual(any.map((r) => r.path), ['D1/1/iso-new.svg', 'D1/2/iso-other.svg', 'D1/3/iso-legacy.svg', null]);
+    assert.equal(any.some((r) => 'stale' in r), false);
+  });
+});
+
+test('collectRenders — kind layout · inside 를 찾고, inside 줄에는 그림 크기 · 모듈 상자 자리가 같이 온다', async () => {
+  const boxes = [{ nos: [1], x: 10, y: 10, w: 300, h: 200 }];
+  await withFetch((u) => {
+    if (!/\/design_renders\?/.test(u)) return null;
+    if (/kind=eq\.inside/.test(u)) return json([{ item_unique_id: 1, path: 'D1/1/inside.svg', width: null, height: null, camera: { snapshot: 'h', view: { w: 900, h: 400 }, boxes }, created_at: '2026-11-19T03:00:00Z' }]);
+    if (/kind=eq\.layout/.test(u)) return json([{ item_unique_id: 1, path: 'D1/1/layout.svg', width: null, height: null, camera: { snapshot: 'h' }, created_at: '2026-11-19T03:00:00Z' }]);
+    throw new Error('모르는 종류 ' + u);
+  }, async () => {
+    const inside = await collectRenders(ENV, 'D1', [{ uniqueId: 1 }, { uniqueId: 2 }], 'inside', { contentHash: 'h' });
+    assert.deepEqual([inside[0].path, inside[0].view, inside[0].boxes], ['D1/1/inside.svg', { w: 900, h: 400 }, boxes]);
+    assert.equal('boxes' in inside[1], false);
+    const layout = await collectRenders(ENV, 'D1', [{ uniqueId: 1 }, { uniqueId: 2 }], 'layout', { contentHash: 'h' });
+    assert.deepEqual(layout.map((r) => r.path), ['D1/1/layout.svg', null], '배치 평면은 설계에 하나 — 실린 품목 줄에만');
+    assert.equal('boxes' in layout[0], false);
+  });
+});
+
+test('resolvePrintAssets — 철거 · 납품 지시서의 그림도 서명 주소를 만든다 (배치 평면 · 속 구조 정면도 포함), 고객 확인서는 만들지 않는다', async () => {
+  const signedCalls = [];
+  const route = (u, init) => {
+    const body = init.body ? JSON.parse(init.body) : null;
+    if (init.method === 'POST' && /\/storage\/v1\/object\/sign\/renders/.test(u)) {
+      signedCalls.push(body.paths);
+      return json(body.paths.map((p) => ({ path: p, signedURL: `/object/sign/renders/${p}?token=T` })));
+    }
+    return null;
+  };
+  await withFetch(route, async () => {
+    const dm = { doc_type: 'demolition_order', render_payload: { layout_renders: [{ item_index: 0, path: 'D1/1/layout.svg' }] } };
+    assert.equal((await resolvePrintAssets(ENV, dm)).renderUrls.size, 1);
+    const inst = { doc_type: 'installation_order', render_payload: { renders: [{ path: 'D1/1/front.png' }], inside_renders: [{ path: 'D1/1/inside.svg' }, { path: null, stale: true }], layout_renders: [{ path: 'D1/1/layout.svg' }] } };
+    assert.equal((await resolvePrintAssets(ENV, inst)).renderUrls.size, 3);
+    assert.deepEqual(signedCalls, [['D1/1/layout.svg'], ['D1/1/front.png', 'D1/1/layout.svg', 'D1/1/inside.svg']]);
+    const cc = { doc_type: 'customer_confirmation', render_payload: { layout_renders: [{ path: 'D1/1/layout.svg' }] } };
+    assert.equal((await resolvePrintAssets(ENV, cc)).renderUrls.size, 0);
+    assert.equal(signedCalls.length, 2);
+  });
+});

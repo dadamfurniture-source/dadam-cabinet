@@ -39,8 +39,8 @@ const json = (rows, status = 200) => ({ ok: true, status, headers: { get: () => 
 const fail = (status, body) => ({ ok: false, status, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(body) });
 
 /** PostgREST 흉내 — designs 찾기 · 만들기, 동결 (cut-plan.test.js 와 같은 길) */
-function fakeSupabase({ existing = null, missing = false, uploadFails = false } = {}) {
-  const calls = { designPosts: [], snapshotPosts: [], designFinds: 0, uploads: [], renderRows: [] };
+function fakeSupabase({ existing = null, missing = false, uploadFails = false, renderReject = null } = {}) {
+  const calls = { designPosts: [], snapshotPosts: [], designFinds: 0, uploads: [], renderRows: [], renderPosts: [] };
   const original = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
@@ -79,8 +79,13 @@ function fakeSupabase({ existing = null, missing = false, uploadFails = false } 
       return json({ Key: path });
     }
     if (method === 'POST' && /\/design_renders$/.test(path)) {
-      calls.renderRows.push(JSON.parse(init.body));
-      return json([{ id: 'R1', ...JSON.parse(init.body) }], 201);
+      // 줄은 묶어서 한 번에 온다 (옛 종류 한 번 · 새 종류 한 번). renderReject(줄들) 이 참이면 그 묶음을 거절한다
+      const rows = [].concat(JSON.parse(init.body));
+      calls.renderPosts.push(rows);
+      const rejected = renderReject ? renderReject(rows) : null;
+      if (rejected) return fail(400, rejected);
+      calls.renderRows.push(...rows);
+      return json(rows.map((r, i) => ({ id: `R${i + 1}`, ...r })), 201);
     }
     if (method === 'POST' && /\/design_snapshots$/.test(path)) {
       const body = JSON.parse(init.body);
@@ -183,8 +188,81 @@ test('정면 렌더 — 품목 uniqueId 마다 버킷 renders · design_renders 
   try {
     const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }] }) });
     assert.deepEqual([r.snapshot_id, r.renders_saved], ['S1', 0]);
+    assert.deepEqual(r.renders_dropped, [{ item: 1, kind: 'front', reason: 'upload_failed' }], '못 넣은 그림을 알린다');
     assert.equal(f.renderRows.length, 0);
   } finally { f.restore(); }
+});
+
+/** 합성 그림 (플래너가 그려 보내는 SVG 모양) */
+const PLAIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400"><rect x="10" y="10" width="300" height="200" fill="none" stroke="#000"/><text x="20" y="30">A벽 2400</text></svg>';
+const insideRender = (over = {}) => ({ item: 1, kind: 'inside', svg: PLAIN_SVG, view: { w: 900, h: 400 }, boxes: [{ nos: [1], x: 10, y: 10, w: 300, h: 200 }, { nos: [2, 3], x: 320, y: 10, w: 300, h: 380 }], ...over });
+
+test('배치 평면 · 속 구조 정면도 — kind layout · inside 를 받고 모듈 상자 자리 · 동결본 해시를 camera 에 적는다 (2026-11-19)', async () => {
+  const f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }, { item: 1, kind: 'iso', svg: PLAIN_SVG }, { item: 1, kind: 'layout', svg: PLAIN_SVG }, insideRender()] }) });
+    assert.equal(r.renders_saved, 4);
+    assert.deepEqual(r.renders_dropped, []);
+    assert.equal(f.uploads.length, 4);
+    assert.match(f.uploads[2].path, /^D-NEW\/1\/layout-\d+-2\.svg$/);
+    assert.match(f.uploads[3].path, /^D-NEW\/1\/inside-\d+-3\.svg$/);
+    // 줄 넣기는 두 번 — 옛 종류 묶음 · 새 종류 묶음
+    assert.deepEqual(f.renderPosts.map((rows) => rows.map((x) => x.kind)), [['front', 'iso'], ['layout', 'inside']]);
+    const hash = f.snapshotPosts[0].content_hash;
+    assert.ok(hash);
+    f.renderRows.forEach((row) => assert.deepEqual([row.camera.source, row.camera.snapshot], ['planner-lite', hash]));
+    const inside = f.renderRows.find((x) => x.kind === 'inside');
+    assert.deepEqual(inside.camera.view, { w: 900, h: 400 });
+    assert.deepEqual(inside.camera.boxes, [{ nos: [1], x: 10, y: 10, w: 300, h: 200 }, { nos: [2, 3], x: 320, y: 10, w: 300, h: 380 }]);
+    assert.equal('boxes' in f.renderRows.find((x) => x.kind === 'layout').camera, false);
+  } finally { f.restore(); }
+});
+
+test('배치 평면 · 속 구조 정면도 — 모양이 틀리면 동결 전에 422, 장수는 24장까지', async () => {
+  const f = fakeSupabase();
+  try {
+    const bad = [
+      insideRender({ view: null }),
+      insideRender({ view: { w: 0, h: 400 } }),
+      insideRender({ boxes: 'x' }),
+      insideRender({ boxes: [{ nos: [], x: 0, y: 0, w: 10, h: 10 }] }),
+      insideRender({ boxes: [{ nos: [0], x: 0, y: 0, w: 10, h: 10 }] }),
+      insideRender({ boxes: [{ nos: [1.5], x: 0, y: 0, w: 10, h: 10 }] }),
+      insideRender({ boxes: [{ nos: [1], x: 0, y: 0, w: 0, h: 10 }] }),
+      insideRender({ boxes: [{ nos: [1], x: 800, y: 0, w: 200, h: 10 }] }),
+      insideRender({ boxes: [{ nos: [1], x: '0', y: 0, w: 10, h: 10 }] }),
+      insideRender({ svg: PLAIN_SVG.replace('</svg>', '<script>x()</script></svg>') }),
+      { item: 1, kind: 'layout', svg: '' },
+      { item: 1, kind: 'section', svg: PLAIN_SVG },
+    ];
+    for (const render of bad) {
+      await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [render] }) }), (e) => e instanceof ValidationError, JSON.stringify(render).slice(0, 80));
+    }
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: Array.from({ length: 25 }, () => ({ item: 1, kind: 'iso', svg: PLAIN_SVG })) }) }), ValidationError);
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.uploads.length, 0, '아무것도 쓰지 않는다');
+    // 상자 없는 속 구조 정면도 · 24장은 받는다
+    const ok = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [insideRender({ boxes: undefined }), ...Array.from({ length: 23 }, () => ({ item: 1, kind: 'iso', svg: PLAIN_SVG }))] }) });
+    assert.equal(ok.renders_saved, 24);
+    assert.equal(f.renderPosts.length, 2, '줄 넣기는 묶음마다 한 번');
+  } finally { f.restore(); }
+});
+
+test('배치 평면 · 속 구조 정면도 — DB 가 새 종류를 아직 모르면 (0072 전) 그 둘만 빠지고 옛 종류는 들어간다', async () => {
+  const reject = (rows) => (rows.some((x) => x.kind === 'layout' || x.kind === 'inside') ? { code: '23514', message: 'new row for relation "design_renders" violates check constraint "design_renders_kind_check"' } : null);
+  const f = fakeSupabase({ renderReject: reject });
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }, { item: 1, kind: 'layout', svg: PLAIN_SVG }, insideRender()] }) });
+    assert.equal(r.snapshot_id, 'S1', '동결은 그대로');
+    assert.equal(r.renders_saved, 1);
+    assert.deepEqual(r.renders_dropped, [{ item: 1, kind: 'layout', reason: 'db_pending' }, { item: 1, kind: 'inside', reason: 'db_pending' }]);
+    assert.deepEqual(f.renderRows.map((x) => x.kind), ['front']);
+  } finally { f.restore(); }
+  // 옛 종류 묶음이 다른 까닭으로 실패 — save_failed
+  const g = fakeSupabase({ renderReject: () => ({ code: 'XX000', message: 'boom' }) });
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }] }) });
+    assert.deepEqual([r.renders_saved, r.renders_dropped], [0, [{ item: 1, kind: 'front', reason: 'save_failed' }]]);
+  } finally { g.restore(); }
 });
 
 /** 합성 ISO 도면 — 플래너 js/iso.js 가 그리는 모양 (선 범례 · 패턴 참조) */
