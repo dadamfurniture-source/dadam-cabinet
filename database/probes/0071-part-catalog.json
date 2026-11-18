@@ -1,0 +1,269 @@
+{
+  "title": "0071 철물 · 부속 카탈로그 — part_vendors · part_items 는 서버만, 지우기 없음, 상품은 같은 팩토리의 공급 회사에만 · 팩토리와 공급 회사는 바꾸지 못한다 (scripts/rls-probe.mjs --migration database/migrations/0071_part_catalog.sql). 칸은 하나씩 되돌린다 — 바꾸는 칸의 기대값은 rows:n",
+  "ids": [
+    "company_x",
+    "company_y",
+    "vendor_a",
+    "vendor_b",
+    "vendor_y",
+    "item_a",
+    "item_n"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.part_vendors (id, company_id, name, site_url, created_by) VALUES ({{vendor_a}}, {{company_x}}, 'probe 공급 회사', 'https://example.com', {{x_owner_user}}), ({{vendor_b}}, {{company_x}}, 'probe 둘째 회사', '', NULL), ({{vendor_y}}, {{company_y}}, 'probe 공급 회사', '', NULL)",
+    "INSERT INTO public.part_items (id, company_id, vendor_id, vendor_item_no, category, name, ref_price, ref_price_on, options) VALUES ({{item_a}}, {{company_x}}, {{vendor_a}}, 'P-1', '경첩', 'probe 경첩', 12000, DATE '2026-11-18', '[{\"g\":\"사이즈\",\"l\":\"18T\",\"d\":0,\"x\":false}]'::jsonb)",
+    "INSERT INTO public.part_items (id, company_id, vendor_id, name, buy_price, buy_price_on) VALUES ({{item_n}}, {{company_x}}, {{vendor_b}}, 'probe 명세표 품목', 3500, DATE '2026-11-01')"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 part_vendors — 서버만 (대표 계정의 브라우저도 못 읽는다)",
+      "sql": "select count(*) from public.part_vendors where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "읽기 part_items — 서버만",
+      "sql": "select count(*) from public.part_items where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "넣기 part_vendors — 서버만",
+      "sql": "insert into public.part_vendors (company_id, name) values ({{company_x}}, 'probe 셋째 회사')",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "공급 회사 — 같은 팩토리에 같은 이름은 하나 (앞뒤 빈칸 · 대소문자 무시)",
+      "sql": "insert into public.part_vendors (company_id, name) values ({{company_x}}, ' PROBE 공급 회사 ')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "공급 회사 — 다른 팩토리는 같은 이름을 쓸 수 있다 (setup 에서 넣음)",
+      "sql": "select count(*) from public.part_vendors where lower(btrim(name)) = 'probe 공급 회사' and company_id in ({{company_x}}, {{company_y}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "공급 회사 — 이름이 비면 거절",
+      "sql": "insert into public.part_vendors (company_id, name) values ({{company_x}}, '   ')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "지우기 part_vendors — 서버도 지우지 못한다",
+      "sql": "delete from public.part_vendors where id = {{vendor_b}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "넣기 part_items — 서버만",
+      "sql": "insert into public.part_items (company_id, vendor_id, vendor_item_no, name) values ({{company_x}}, {{vendor_a}}, 'P-2', 'probe 레일')",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "상품 — 같은 공급 회사에 같은 상품 번호는 하나",
+      "sql": "insert into public.part_items (company_id, vendor_id, vendor_item_no, name) values ({{company_x}}, {{vendor_a}}, 'P-1', 'probe 겹침')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "상품 — 번호가 없으면 같은 공급 회사에 같은 이름은 하나",
+      "sql": "insert into public.part_items (company_id, vendor_id, name) values ({{company_x}}, {{vendor_b}}, ' PROBE 명세표 품목 ')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "상품 — 다른 팩토리의 공급 회사에는 붙지 않는다",
+      "sql": "insert into public.part_items (company_id, vendor_id, vendor_item_no, name) values ({{company_x}}, {{vendor_y}}, 'P-9', 'probe 남의 회사')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "상품 — 참고가만 있고 본 날이 없으면 거절",
+      "sql": "insert into public.part_items (company_id, vendor_id, vendor_item_no, name, ref_price) values ({{company_x}}, {{vendor_a}}, 'P-3', 'probe 날 없음', 1000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "상품 — 매입가가 1억을 넘으면 거절",
+      "sql": "insert into public.part_items (company_id, vendor_id, vendor_item_no, name, buy_price, buy_price_on) values ({{company_x}}, {{vendor_a}}, 'P-4', 'probe 큰 값', 100000001, DATE '2026-11-18')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "상품 — 옵션이 목록이 아니면 거절",
+      "sql": "insert into public.part_items (company_id, vendor_id, vendor_item_no, name, options) values ({{company_x}}, {{vendor_a}}, 'P-5', 'probe 옵션', '{}'::jsonb)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "상품 — 폭이 0 이면 거절",
+      "sql": "insert into public.part_items (company_id, vendor_id, vendor_item_no, name, width_mm) values ({{company_x}}, {{vendor_a}}, 'P-6', 'probe 폭', 0)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "고치기 part_items — 서버만 (매입가 · 본 날)",
+      "sql": "update public.part_items set buy_price = 9000, buy_price_on = DATE '2026-11-18' where id = {{item_a}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "지킴이 — 상품의 공급 회사는 바꾸지 못한다",
+      "sql": "update public.part_items set vendor_id = {{vendor_b}} where id = {{item_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "지킴이 — 숨기기(active)는 된다",
+      "sql": "update public.part_items set active = false where id = {{item_n}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "지우기 part_items — 서버도 지우지 못한다 (active 로 숨긴다)",
+      "sql": "delete from public.part_items where id = {{item_a}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "지킴이 함수 — 아무 역할도 직접 부르지 못한다",
+      "sql": "select has_function_privilege('service_role', 'public.part_items_guard()', 'EXECUTE') or has_function_privilege('authenticated', 'public.part_items_guard()', 'EXECUTE') or has_function_privilege('anon', 'public.part_items_guard()', 'EXECUTE')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false"
+      }
+    },
+    {
+      "name": "RLS — part_vendors 켜져 있다",
+      "sql": "select relrowsecurity from pg_class where oid = 'public.part_vendors'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "RLS — part_items 켜져 있다",
+      "sql": "select relrowsecurity from pg_class where oid = 'public.part_items'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "정책이 없다 (브라우저로 여는 길이 없다)",
+      "sql": "select count(*) from pg_policies where schemaname = 'public' and tablename in ('part_vendors', 'part_items')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "사진 버킷 part-photos — 비공개 · 5MB · JPEG · PNG · WebP",
+      "sql": "select public || '/' || file_size_limit || '/' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'part-photos'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/5242880/image/jpeg,image/png,image/webp"
+      }
+    }
+  ]
+}
