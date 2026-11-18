@@ -345,3 +345,62 @@ describe('철물 · 부속 카탈로그 — 마이페이지에 이어진 곳', (
     expect(read('segan/shell.css')).toContain('.pc-row {');
   });
 });
+
+describe('철물 · 부속 카탈로그 — 거래명세표에서 가져오기', () => {
+  const SUPPLIERS = { suppliers: [{ key: 'n:마바상사', name: '(주)마바상사 <i>', biz_no: '1234567890', docs: 3, items: 42 }, { key: '', name: '열쇠 없는 줄' }] };
+
+  test('단추를 누르면 장부의 파는 곳을 읽어 보여 준다 — 대표 · 실장만, 닫을 수 있다', async () => {
+    const staff = await boot(HQ, () => ok(CATALOG(false)));
+    expect(staff.box.querySelector('[data-pc-ledger]')).toBeNull();
+    const { box, calls } = await boot(HQ, (c) => (c.path === '/parts/ledger-suppliers' ? ok(SUPPLIERS) : ok(CATALOG())));
+    box.querySelector('[data-pc-ledger]').click();
+    await until(() => box.querySelector('.pc-ledger'));
+    expect(calls[1]).toMatchObject({ method: 'GET', path: '/parts/ledger-suppliers' });
+    const rows = [...box.querySelectorAll('.pc-ledger li')];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector('span').textContent).toBe('(주)마바상사 <i> 사진 3장 · 품목 42개');
+    expect(rows[0].querySelector('i')).toBeNull();
+    expect(rows[0].querySelector('[data-pc-take]').getAttribute('data-pc-take')).toBe('n:마바상사');
+    box.querySelector('[data-pc-ledger-close]').click();
+    expect(box.querySelector('.pc-ledger')).toBeNull();
+    // 읽힌 품목이 없으면 그렇게 적는다
+    const none = await boot(HQ, (c) => (c.path === '/parts/ledger-suppliers' ? ok({ suppliers: [] }) : ok(CATALOG())));
+    none.box.querySelector('[data-pc-ledger]').click();
+    await until(() => none.box.querySelector('.pc-ledger'));
+    expect(none.box.querySelector('.pc-ledger').textContent).toContain('장부에서 읽힌 품목이 없습니다.');
+  });
+
+  test('가져오기 — left 가 남으면 이어서 부르고, 끝나면 다시 읽어 결과를 적는다 · 거절되면 서버 글', async () => {
+    let n = 0;
+    const { box, calls } = await boot(HQ, (c) => {
+      if (c.path === '/parts/ledger-suppliers') return ok(SUPPLIERS);
+      if (c.path === '/parts/from-ledger') {
+        n += 1;
+        return ok({ vendor: { id: 'v-9', name: '마바 상사' }, added: n === 1 ? 12 : 0, updated: 30, same: n === 1 ? 0 : 30, left: n === 1 ? 5 : 0 }, 201);
+      }
+      return ok(CATALOG());
+    });
+    box.querySelector('[data-pc-ledger]').click();
+    await until(() => box.querySelector('[data-pc-take]'));
+    box.querySelector('[data-pc-take]').click();
+    await until(() => box.querySelector('.pc-msg'));
+    const posts = calls.filter((c) => c.path === '/parts/from-ledger');
+    expect(posts).toHaveLength(2);
+    expect(JSON.parse(posts[0].body)).toEqual({ supplier_key: 'n:마바상사' });
+    expect(calls[calls.length - 1]).toMatchObject({ method: 'GET', path: '/parts/catalog' });
+    expect(box.querySelector('.pc-msg').textContent).toBe('가져왔습니다 — 마바 상사: 새 상품 12 · 매입가 고침 60 · 그대로 30');
+    expect(box.querySelector('.pc-ledger')).toBeNull();
+
+    const bad = await boot(HQ, (c) => {
+      if (c.path === '/parts/ledger-suppliers') return ok(SUPPLIERS);
+      if (c.path === '/parts/from-ledger') return { status: 404, body: { success: false, message: '장부에서 그 파는 곳의 품목을 찾지 못했습니다' } };
+      return ok(CATALOG());
+    });
+    bad.box.querySelector('[data-pc-ledger]').click();
+    await until(() => bad.box.querySelector('[data-pc-take]'));
+    bad.box.querySelector('[data-pc-take]').click();
+    await until(() => bad.box.querySelector('.pc-err'));
+    expect(bad.box.querySelector('.pc-err').textContent).toBe('장부에서 그 파는 곳의 품목을 찾지 못했습니다');
+    expect(bad.box.querySelector('.pc-ledger')).not.toBeNull();
+  });
+});
