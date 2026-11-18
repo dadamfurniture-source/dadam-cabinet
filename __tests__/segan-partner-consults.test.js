@@ -325,6 +325,7 @@ describe('자리 · 이름', () => {
       'workShifts', // 근무 일정 (segan/work-shifts.js — 인사 › 근무 일정)
       'stockOrders', // 발주 (segan/stock-orders.js — 구매 · 재고 › 발주)
       'stockNeeds', // 작업 자재 (segan/stock-needs.js — 구매 · 재고 › 작업 자재)
+      'partCatalog', // 철물 · 부속 카탈로그 (segan/part-catalog.js — 구매 · 재고 › 철물 · 부속 카탈로그)
       'orders', // 수주 (segan/orders.js — 프로젝트 관리 › 영업 › 계약)
       'quotes', // 견적서 (segan/quotes.js — 프로젝트 관리 › 영업 › 견적)
       'customers', // 고객 (segan/customers.js — 프로젝트 관리 › 영업 › 고객)

@@ -36,7 +36,8 @@
          구매 · 재고   팩토리 — 기본 자재 · 철물 (#stock-board · #stock-hardware — segan/stock.js, 다담 공장 · Expert · Agent 구성원.
                         못 읽으면 — DB 적용 전 등 — 「준비 중」 안내) · 자투리 자재 (#stock-scrap — segan/stock-offcuts.js, 같은 사람 · 못 읽으면 「준비 중」),
                         거래처 · 공급처 (#counterparties — segan/counterparties.js, 다담 공장 · Expert · Agent 의 대표 · 실장.
-                        그 화면을 못 쓰는 관리자에게는 PC 화면 줄)
+                        그 화면을 못 쓰는 관리자에게는 PC 화면 줄),
+                        철물 · 부속 카탈로그 (#part-catalog — segan/part-catalog.js, 다담 공장 · 본사 구성원만 · 읽혔을 때만)
          회계          segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 (+ 업체는 설정),
                         사진만 올리면 영수증 올리기 (업체만). 본사 대표 · 실장은 본사 장부 — 공장 장부는 플랫폼 › 등록 업체 › 다담 공장 › 회계
          인사          Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
@@ -599,6 +600,13 @@
       parts: ['stockNeeds'],
       label: 'stockNeedsTitle',
     },
+    // 구매 · 재고 › 철물 · 부속 카탈로그 — 공급 회사별 상품 · 참고가 · 매입가 · 사진 (segan/part-catalog.js)
+    'part-catalog': {
+      title: '철물 · 부속 카탈로그',
+      section: 'partner',
+      parts: ['partCatalog'],
+      label: 'partCatalogTitle',
+    },
     // 구매 · 재고 › 발주 — 철물 · 판재 구매 발주 · 입고 · 발주서 인쇄 (segan/stock-orders.js)
     'stock-orders': {
       title: '발주',
@@ -784,6 +792,7 @@
     'workShifts',
     'stockOrders',
     'stockNeeds',
+    'partCatalog',
     'siteInstall',
     'orders',
     'quotes',
@@ -1534,6 +1543,9 @@
       // 거래처 · 공급처 — 읽혔을 때만 (대표 · 실장). 못 쓰는 관리자에게는 PC 화면 줄 하나
       case 'counterparties':
         return v.factory && !v.platform && available(key);
+      // 철물 · 부속 카탈로그 — 다담 공장 · 본사 구성원, 읽혔을 때만 (segan/part-catalog.js)
+      case 'part-catalog':
+        return (v.hq || v.platform) && available(key);
       case 'hq-counterparties':
         return roles.admin === true && !rowOn('counterparties', v, roles, ledger);
       // 회계 — 장부를 열면 (본사 대표 · 실장은 본사 장부), 설정 · 영수증 올리기는 업체만
@@ -1822,6 +1834,7 @@
     var Shifts = window.SeganWorkShifts;
     var POrders = window.SeganStockOrders;
     var Needs = window.SeganStockNeeds;
+    var Parts = window.SeganPartCatalog;
     var Quotes = window.SeganQuotes;
     var Customers = window.SeganCustomers;
     var Numbers = window.SeganCompanySummary;
@@ -1871,6 +1884,8 @@
           synced(POrders && POrders.load ? POrders.load(auth.sb, auth.session, me) : null),
           // 작업 자재 = 재고와 같은 사람, 짝 정하기는 대표 · 실장 (segan/stock-needs.js — 구매 · 재고 › 작업 자재)
           synced(Needs && Needs.load ? Needs.load(auth.sb, auth.session, me) : null),
+          // 철물 · 부속 카탈로그 = 다담 공장 · 본사 구성원, 고치기는 대표 · 실장 (segan/part-catalog.js — 구매 · 재고 › 철물 · 부속 카탈로그)
+          synced(Parts && Parts.load ? Parts.load(auth.sb, auth.session, me) : null),
           // 생산 설정 = 다담 공장 · 협력업체의 대표 · 실장 (segan/production-settings.js — 생산 › 생산 설정 화면)
           synced(Settings && Settings.load ? Settings.load(auth.sb, auth.session, me) : null),
           // 업무 달력 = 프로젝트를 보는 사람과 같다 (segan/calendar.js — 프로젝트 관리 대시보드)

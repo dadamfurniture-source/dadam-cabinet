@@ -335,7 +335,7 @@ describe('자리 · 이름', () => {
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('partner');
     expect(el.previousElementSibling.id).toBe('stockOrders');
-    expect(el.nextElementSibling.id).toBe('orders');
+    expect(el.nextElementSibling.id).toBe('partCatalog'); // 철물 · 부속 카탈로그 다음이 수주 (segan/part-catalog.js)
     const li = doc.querySelector('#meSubStock li[data-me-item="stock-needs"]');
     expect(li.previousElementSibling.getAttribute('data-me-item')).toBe('stock-orders');
     const srcs = [...doc.querySelectorAll('script[src]')].map(
