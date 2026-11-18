@@ -85,7 +85,8 @@ async function loadProject(env, company, rawId) {
 async function linksOfProject(env, company, project) {
   const co = `eq.${company.id}`;
   const [designs, orders] = await Promise.all([
-    selectMany(env, 'designs', { project_id: `eq.${project.id}`, company_id: co, select: 'id', limit: '100' }),
+    // 먼저 만든 설계부터 — 작업자의 지시서 목록(work/job-links.js)과 같은 차례
+    selectMany(env, 'designs', { project_id: `eq.${project.id}`, company_id: co, select: 'id', order: 'created_at.asc', limit: '100' }),
     selectMany(env, 'orders', { project_id: `eq.${project.id}`, company_id: co, status: 'neq.cancelled', select: 'id,design_id', order: 'created_at.desc', limit: '20' }),
   ]);
   const designIds = (designs || []).map((d) => d.id);

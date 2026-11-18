@@ -10,7 +10,9 @@
  *     GET  /work/factory/orders/:orderId/checks       내 역할 항목 · 칸 · 지금 값
  *     POST /work/factory/orders/:orderId/checks       체크 한 번
  *     POST /work/factory/orders/:orderId/checks/photo 사진 한 장 (본문 = JPEG · PNG) → photo_path — 체크에 붙인다
- *   배정받은 작업(모집 · 초대 · 프로젝트 「작업 배정」으로 맡은 일): 내 배정이 확정 이상이고 작업에 주문이 있을 때 (assignments.js loadMyAssignment).
+ *   배정받은 작업(모집 · 초대 · 프로젝트 「작업 배정」으로 맡은 일): 내 배정이 확정 이상일 때 (assignments.js loadMyAssignment).
+ *     지시서는 그 작업의 설계로 찾는다 (work/job-links.js) — 프로젝트 작업은 그 프로젝트에 이은 설계마다 (?design= 로 고른다, 없으면 첫 설계),
+ *     수주가 없어도 프로젝트에 이은 설계면 연다 (수주 전 작업 — 이름표는 「수주 전 · 문서 번호」, 체크는 수주 칸을 비우고 작업 칸을 적는다 — DB 0072).
  *     설치 → 시공 지시서 · 철거 → 철거 지시서 · 납품 → 납품 지시서 (주소 · 연락처는 수락한 때부터 작업이 끝나고 7일까지만 — reveal.js siteOpenFor),
  *     재단 · 엣지 → 재단 꾸러미 · 라벨, 조립 → 조립 꾸러미. A/S 는 지시서가 없다 (2026-11-17 사장님 「각 작업에 작업지시서」).
  *     철거 · 납품 지시서에는 그 작업 줄의 사무실 메모(work_jobs.sheet_memo)가 같이 나온다.
@@ -30,7 +32,8 @@ import { workerOrderLabel, orderLabel } from '../production/redact.js';
 import { COUNTED_STATUSES, siteOpenFor } from './reveal.js';
 import { assertUuid } from './validate.js';
 import { itemsFor, itemApplies, CHECK_ROLES } from './check-items.js';
-import { PACKS_OF_ROLE, DOC_TYPE_OF_ROLE, ROLE_OF_JOB_KIND, docContext, cellsOf, roleChecks, checkRows } from './check-state.js';
+import { PACKS_OF_ROLE, DOC_TYPE_OF_ROLE, ROLE_OF_JOB_KIND, docContext, docContextOfDesign, cellsOf, roleChecks, checkRows } from './check-state.js';
+import { sheetTargetOf } from './job-links.js';
 import { resolvePrintAssets } from '../documents.js';
 import { renderWorkOrder, normalizePack } from '../templates/work-order.js';
 import { renderInstallationOrder } from '../templates/installation-order.js';
@@ -51,6 +54,8 @@ const MEMO_MAX = 300;
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 
 const dbPending = (what) => new ConflictError(`DB ${what} 적용 전입니다 — 필수 확인 ${what === '0037' ? '사진' : '기록'}은 적용 뒤에 됩니다`, { code: 'db_pending' });
+/** 수주 전 작업의 이름표 — 고객 이름 없이 문서 번호만 (문서 제목에는 고객 이름이 들어 있을 수 있어 쓰지 않는다) */
+export const orderlessLabel = (doc) => `수주 전 · ${doc.doc_no}`;
 /** 현장 문서를 쓰는 역할 — 설치 · 철거 · 납품 */
 const SITE_ROLES = Object.freeze(['install', 'demolition', 'delivery']);
 
@@ -72,43 +77,59 @@ async function factoryContext(env, user, rawOrderId) {
   }
   const order = await loadOrder(env, orderId);
   const ctx = await docContext(env, order, 'work_order');
-  return { ...ctx, worker, order, roles: roles.map((r) => CHECK_ROLE_OF_FACTORY[r]).filter(Boolean) };
+  return withScope({ ...ctx, worker, order, roles: roles.map((r) => CHECK_ROLE_OF_FACTORY[r]).filter(Boolean) });
 }
 
-/** 배정받은 작업의 내 배정 + 주문 + 지금 문서 — 작업 종류마다 그 지시서 (A/S 는 없다) */
-async function assignmentContext(env, user, rawId) {
+/**
+ * 맥락에 이름표 · 팩토리 · 설계 · 사진 자리를 붙인다 — 수주가 있으면 가린 주문 이름, 없으면(수주 전 작업) 「수주 전 · 문서 번호」.
+ *   label 은 비지 않는다: 템플릿은 이름표가 빈 글이면 사무실 보기(고객 실명 · 주소)로 그린다.
+ */
+function withScope(ctx) {
+  const order = ctx.order || null;
+  const design = ctx.design || (order ? { id: order.design_id, company_id: order.company_id } : null);
+  const label = order ? workerOrderLabel(order) : orderlessLabel(ctx.doc);
+  if (!label || !design || !design.company_id) throw new NotFoundError('이 작업의 지시서를 열 수 없습니다');
+  return { ...ctx, order, design, label, companyId: design.company_id, scopeId: order ? order.id : design.id };
+}
+
+/**
+ * 배정받은 작업의 내 배정 + 설계(+ 수주) + 지금 문서 — 작업 종류마다 그 지시서 (A/S 는 없다).
+ *   설계는 work/job-links.js 가 고른다 — 프로젝트 작업은 그 프로젝트에 이은 설계 가운데 designId (없으면 첫 설계). 수주는 없어도 된다.
+ */
+async function assignmentContext(env, user, rawId, designId) {
   const { worker, assignment, job } = await loadMyAssignment(env, user, rawId);
   if (!COUNTED_STATUSES.includes(assignment.status)) throw new ForbiddenError('확정된 배정에서만 지시서를 엽니다', 'not_confirmed');
   const role = ROLE_OF_JOB_KIND[job.kind] || null;
   if (!role) throw new NotFoundError('이 작업에는 작업지시서가 없습니다');
-  if (!job.order_id) throw new NotFoundError('이 작업에는 연결된 주문이 없습니다');
-  const order = await loadOrder(env, job.order_id);
-  const ctx = await docContext(env, order, DOC_TYPE_OF_ROLE[role]);
-  // 지시서의 주소 · 연락처도 같은 판정으로 연다 — 그 주문이 작업을 낸 팩토리의 것일 때만
-  const siteOpen = siteOpenFor(job, assignment) && !!job.company_id && order.company_id === job.company_id;
+  const { design, order } = await sheetTargetOf(env, job, designId);
+  const ctx = order ? await docContext(env, order, DOC_TYPE_OF_ROLE[role]) : await docContextOfDesign(env, design.id, DOC_TYPE_OF_ROLE[role]);
+  // 지시서의 주소 · 연락처도 같은 판정으로 연다 — 그 설계(수주)가 작업을 낸 팩토리의 것일 때만
+  const siteOpen = siteOpenFor(job, assignment) && !!job.company_id && design.company_id === job.company_id;
   // 사무실 메모 — 그 작업 줄에 적어 둔 글 (0068 전에는 칸이 없다 → 빈 글)
   const memo = typeof job.sheet_memo === 'string' ? job.sheet_memo : '';
-  return { ...ctx, worker, order, roles: [role], siteOpen, memo };
+  return withScope({ ...ctx, worker, order, design, roles: [role], siteOpen, memo, jobId: job.id });
 }
 
 /** 꾸러미 HTML — 내 역할의 꾸러미만, 작업자 보기 (가린 주문 이름 · 주소 · 연락처 없음). 그림(렌더 · ISO 도면)은 1시간 서명 주소 */
 async function packHtml(env, ctx, rawPack) {
+  // 이름표가 비면 템플릿이 사무실 보기로 그린다 — 작업자 길에서는 늘 채운다 (withScope)
+  if (!ctx.label) throw new NotFoundError('이 작업의 지시서를 열 수 없습니다');
   const allowed = ctx.roles.flatMap((r) => PACKS_OF_ROLE[r] || []);
   if (ctx.roles.includes('install')) {
     const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
-    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, worker: { orderLabel: workerOrderLabel(ctx.order), siteOpen: ctx.siteOpen === true } });
+    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, worker: { orderLabel: ctx.label, siteOpen: ctx.siteOpen === true } });
   }
   // 철거 · 납품 지시서 — 현장 정보는 설치 지시서와 같은 판정, 사무실 메모는 그 작업 줄의 것
   if (ctx.roles.includes('demolition') || ctx.roles.includes('delivery')) {
     // 철거 — 팩토리가 그 설계에 올려 둔 현장 사진. 주소와 같은 때에만 읽는다 (닫혀 있으면 서명 주소도 만들지 않는다)
     const sitePhotos =
-      ctx.roles.includes('demolition') && ctx.siteOpen === true ? await sitePhotosOf(env, { designId: ctx.order.design_id, companyId: ctx.order.company_id }) : null;
-    return renderSiteOrder(ctx.doc, ctx.snapshot, { toolbar: true, memo: ctx.memo || '', sitePhotos, worker: { orderLabel: workerOrderLabel(ctx.order), siteOpen: ctx.siteOpen === true } });
+      ctx.roles.includes('demolition') && ctx.siteOpen === true ? await sitePhotosOf(env, { designId: ctx.design.id, companyId: ctx.companyId }) : null;
+    return renderSiteOrder(ctx.doc, ctx.snapshot, { toolbar: true, memo: ctx.memo || '', sitePhotos, worker: { orderLabel: ctx.label, siteOpen: ctx.siteOpen === true } });
   }
   const pack = rawPack ? normalizePack(rawPack) : allowed[0];
   if (!pack || allowed.indexOf(pack) < 0) throw new ForbiddenError('내 공정의 꾸러미만 엽니다', 'not_my_pack');
   const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
-  return renderWorkOrder(ctx.doc, ctx.snapshot, { toolbar: true, pack, renderUrls, worker: { orderLabel: workerOrderLabel(ctx.order) } });
+  return renderWorkOrder(ctx.doc, ctx.snapshot, { toolbar: true, pack, renderUrls, worker: { orderLabel: ctx.label } });
 }
 
 /** 작업자 보기 — 사진 경로 대신 있음 · 없음 */
@@ -127,8 +148,8 @@ async function checksView(env, ctx, label, { worker = true } = {}) {
   };
 }
 
-/** 이 주문 · 문서의 사진 경로 모양 (서버가 올린 것만) */
-const photoPathRe = (ctx) => new RegExp(`^${ctx.order.company_id}/${ctx.order.id}/${ctx.doc.id}/${UUID}\\.(jpg|png)$`);
+/** 이 주문(수주 전 작업이면 설계) · 문서의 사진 경로 모양 (서버가 올린 것만) */
+const photoPathRe = (ctx) => new RegExp(`^${ctx.companyId}/${ctx.scopeId}/${ctx.doc.id}/${UUID}\\.(jpg|png)$`);
 
 /** 체크 한 번 — 지금 문서 판 · 내 역할 · 목록 항목 · 있는 칸 · 사진 필수면 사진 */
 async function addCheck(env, ctx, user, body) {
@@ -151,23 +172,35 @@ async function addCheck(env, ctx, user, body) {
     const left = rows === null ? 0 : roleChecks(ctx, b.role, rows).must_left;
     if (left > 0) throw new ConflictError(`필수 확인이 ${left}개 남았습니다 — 필수를 다 체크한 뒤 주문 끝을 체크해 주세요`, { code: 'checks_left', left });
   }
+  const row = {
+    company_id: ctx.companyId,
+    order_id: ctx.order ? ctx.order.id : null,
+    document_id: ctx.doc.id,
+    worker_id: ctx.worker ? ctx.worker.id : null,
+    actor_user_id: user.id,
+    role: b.role,
+    scope_key: scopeKey,
+    item_key: item.key,
+    list_version: ctx.list.version,
+    checked: b.checked,
+    memo: b.memo ? b.memo.trim() || null : null,
+    photo_path: b.checked ? photoPath : null,
+  };
+  const text = (e) => String((e && e.message) || '');
   try {
-    await insertOne(env, 'work_checks', {
-      company_id: ctx.order.company_id,
-      order_id: ctx.order.id,
-      document_id: ctx.doc.id,
-      worker_id: ctx.worker ? ctx.worker.id : null,
-      actor_user_id: user.id,
-      role: b.role,
-      scope_key: scopeKey,
-      item_key: item.key,
-      list_version: ctx.list.version,
-      checked: b.checked,
-      memo: b.memo ? b.memo.trim() || null : null,
-      photo_path: b.checked ? photoPath : null,
-    });
+    try {
+      // 배정받은 작업의 체크는 그 작업을 적는다 (DB 0072 — 공장 길은 작업이 없어 칸을 싣지 않는다)
+      await insertOne(env, 'work_checks', ctx.jobId ? { ...row, job_id: ctx.jobId } : row);
+    } catch (e) {
+      // 작업 칸이 아직 없다 (0072 전) — 수주가 있으면 칸 없이 예전처럼 적는다
+      if (!ctx.jobId || !/job_id/.test(text(e)) || !/42703|PGRST204/.test(text(e))) throw e;
+      if (!row.order_id) throw dbPending('0072');
+      await insertOne(env, 'work_checks', row);
+    }
   } catch (e) {
     if (isMissingRelation(e)) throw dbPending('0035');
+    // 수주 전 작업의 체크는 DB 0072 부터 (work_checks.order_id 를 비울 수 있다 — 그 전에는 23502)
+    if (!row.order_id && /23502/.test(text(e))) throw dbPending('0072');
     // 철거 · 납품 역할은 DB 0068 부터 (work_checks.role 제약 23514)
     if (SITE_ROLES.includes(b.role) && b.role !== 'install' && /23514/.test(String((e && e.message) || ''))) throw dbPending('0068');
     throw e;
@@ -185,7 +218,7 @@ async function addPhoto(env, ctx, request) {
   if (Math.max(img.width, img.height) > PHOTO_MAX_EDGE || img.width * img.height > PHOTO_MAX_PIXELS) {
     throw new ValidationError(`사진이 너무 큽니다 (긴 변 ${PHOTO_MAX_EDGE}px · ${PHOTO_MAX_PIXELS / 10000}만 화소 이하)`, { code: 'dimensions' });
   }
-  const path = `${ctx.order.company_id}/${ctx.order.id}/${ctx.doc.id}/${crypto.randomUUID()}.${img.mime === 'image/png' ? 'png' : 'jpg'}`;
+  const path = `${ctx.companyId}/${ctx.scopeId}/${ctx.doc.id}/${crypto.randomUUID()}.${img.mime === 'image/png' ? 'png' : 'jpg'}`;
   try {
     await uploadObject(env, CHECK_PHOTO_BUCKET, path, bytes, img.mime);
   } catch (e) {
@@ -204,7 +237,7 @@ export async function factoryPack(env, { user, params, query }) {
 /** GET /work/factory/orders/:orderId/checks */
 export async function getFactoryChecks(env, { user, params }) {
   const ctx = await factoryContext(env, user, params.orderId);
-  return checksView(env, ctx, workerOrderLabel(ctx.order));
+  return checksView(env, ctx, ctx.label);
 }
 /** POST /work/factory/orders/:orderId/checks */
 export async function postFactoryCheck(env, { user, params, body }) {
@@ -214,22 +247,33 @@ export async function postFactoryCheck(env, { user, params, body }) {
 export async function postFactoryPhoto(env, { user, params, request }) {
   return addPhoto(env, await factoryContext(env, user, params.orderId), request);
 }
-/** GET /work/assignments/:id/pack?pack= — HTML. pack 은 재단 · 엣지 작업의 꾸러미 고르기 (cut · labels — 없으면 첫 꾸러미), 현장 문서는 하나뿐이라 보지 않는다 */
+/** 주소의 ?design= — 그 작업의 설계 고르기 (프로젝트 작업은 설계가 여럿일 수 있다). 없으면 첫 설계 */
+const designOf = (query, request) => {
+  if (query && query.design) return query.design;
+  if (!request || !request.url) return null;
+  try {
+    return new URL(request.url).searchParams.get('design') || null;
+  } catch {
+    return null;
+  }
+};
+
+/** GET /work/assignments/:id/pack?pack=&design= — HTML. pack 은 재단 · 엣지 작업의 꾸러미 고르기 (cut · labels — 없으면 첫 꾸러미), 현장 문서는 하나뿐이라 보지 않는다 */
 export async function assignmentPack(env, { user, params, query }) {
-  return packHtml(env, await assignmentContext(env, user, params.id), (query && query.pack) || null);
+  return packHtml(env, await assignmentContext(env, user, params.id, designOf(query)), (query && query.pack) || null);
 }
-/** GET /work/assignments/:id/checks */
-export async function getAssignmentChecks(env, { user, params }) {
-  const ctx = await assignmentContext(env, user, params.id);
-  return checksView(env, ctx, workerOrderLabel(ctx.order));
+/** GET /work/assignments/:id/checks?design= */
+export async function getAssignmentChecks(env, { user, params, query }) {
+  const ctx = await assignmentContext(env, user, params.id, designOf(query));
+  return { ...(await checksView(env, ctx, ctx.label)), design: ctx.design.id };
 }
-/** POST /work/assignments/:id/checks */
-export async function postAssignmentCheck(env, { user, params, body }) {
-  return addCheck(env, await assignmentContext(env, user, params.id), user, body);
+/** POST /work/assignments/:id/checks?design= */
+export async function postAssignmentCheck(env, { user, params, body, query }) {
+  return addCheck(env, await assignmentContext(env, user, params.id, designOf(query)), user, body);
 }
-/** POST /work/assignments/:id/checks/photo — 본문 = 사진 */
-export async function postAssignmentPhoto(env, { user, params, request }) {
-  return addPhoto(env, await assignmentContext(env, user, params.id), request);
+/** POST /work/assignments/:id/checks/photo?design= — 본문 = 사진 */
+export async function postAssignmentPhoto(env, { user, params, request, query }) {
+  return addPhoto(env, await assignmentContext(env, user, params.id, designOf(query, request)), request);
 }
 /** GET /orders/:orderId/checks — 본사 · 업체: 설계를 볼 수 있는 사람이 역할 전부 (작업지시서 판 기준, 설치 · 철거 · 납품은 그 지시서 판), 사진은 서명 주소 */
 export async function getOrderChecks(env, { user, params }) {
@@ -239,7 +283,7 @@ export async function getOrderChecks(env, { user, params }) {
   for (const [docType, roles] of [['work_order', CHECK_ROLES.filter((r) => DOC_TYPE_OF_ROLE[r] === 'work_order')], ['installation_order', ['install']], ['demolition_order', ['demolition']], ['delivery_order', ['delivery']]]) {
     let ctx;
     try {
-      ctx = { ...(await docContext(env, order, docType)), order, roles };
+      ctx = withScope({ ...(await docContext(env, order, docType)), order, roles });
     } catch (e) {
       if (e instanceof NotFoundError) continue;
       throw e;

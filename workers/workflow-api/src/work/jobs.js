@@ -21,6 +21,7 @@ import { completeScheduleOf } from './schedule-names.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment, siteOpenFor } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
 import { approvedLinkMap, companyNames, kindsFor } from './links.js';
+import { workerSheetsOf } from './job-links.js';
 
 export const JOB_STATUSES = Object.freeze(['draft', 'open', 'filled', 'in_progress', 'review', 'done', 'closed', 'cancelled']);
 export const JOB_MODES = Object.freeze(['open', 'invite', 'direct']);
@@ -350,7 +351,16 @@ export async function getJobForWorker(env, { user, params }) {
   const names = await companyNames(env, [job.company_id]);
   // 현장 주소 · 연락처 — 내가 수락한 때부터 작업이 끝나고 7일까지만 읽는다 (reveal.js siteOpenFor)
   const site = siteOpenFor(job, assignment) ? await loadWorkerSite(env, job) : null;
-  return jobDetail(job, { filled: countFilled(all), application: myApps[0] || null, assignment, order, timeline, companyName: names.get(job.company_id) || null, site });
+  // 지시서 목록 — 확정된 배정만 (설계마다 한 줄). 못 읽어도 상세는 그대로 연다
+  let sheets = null;
+  if (assignment && COUNTED_STATUSES.includes(assignment.status)) {
+    try {
+      sheets = await workerSheetsOf(env, job);
+    } catch (err) {
+      console.warn('[work] 지시서 목록을 읽지 못했습니다:', err && err.message);
+    }
+  }
+  return jobDetail(job, { filled: countFilled(all), application: myApps[0] || null, assignment, order, timeline, companyName: names.get(job.company_id) || null, site, sheets });
 }
 
 // ── 관리자 ───────────────────────────────────────────────────────

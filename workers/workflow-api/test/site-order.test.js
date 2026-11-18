@@ -417,9 +417,14 @@ test('작업자 꾸러미 — 수락 전 · A/S · 끝나고 7일 뒤', async ()
     await assert.rejects(() => pack(A_DM), (e) => e.statusCode === 404 && /철거 지시서가 아직 없습니다/.test(e.message));
     await assert.rejects(() => pack(A_DV), (e) => e.statusCode === 404 && /납품 지시서가 아직 없습니다/.test(e.message));
   });
-  // 작업에 주문이 없다
-  await withDb(makeDb({ work_jobs: [{ id: 'J-DM', kind: 'demolition', order_id: null, design_id: 'D1', company_id: HQ, status: 'open', slots: 1 }] }), async () => {
+  // 작업에 주문이 없고 그 설계에도 수주가 없다 (프로젝트에 잇지 않은 설계) — 열지 않는다
+  const noOrderJob = [{ id: 'J-DM', kind: 'demolition', order_id: null, design_id: 'D1', company_id: HQ, status: 'open', slots: 1 }];
+  await withDb(makeDb({ work_jobs: noOrderJob, orders: [] }), async () => {
     await assert.rejects(() => pack(A_DM), (e) => e.statusCode === 404 && /연결된 주문이 없습니다/.test(e.message));
+  });
+  // 작업에는 주문이 안 적혀 있어도 그 설계의 수주가 (나중에) 있으면 그 수주로 연다
+  await withDb(makeDb({ work_jobs: noOrderJob }), async () => {
+    assert.match(strip(await pack(A_DM)), /고객 홍\*동/);
   });
 });
 
