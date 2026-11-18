@@ -4452,6 +4452,41 @@ button.sm-num[aria-pressed='true'] {
 .pjw-table .pw-act .od-open + .od-open {
   margin-left: 10px;
 }
+/* 설계가 여럿인 줄 — 설계마다 지시서 한 묶음 · 표 아래 발주 줄 (2026-11-19) */
+.pjw-sheet-item {
+  display: grid;
+  gap: 8px;
+}
+.pjw-sheet-item + .pjw-sheet-item {
+  padding-top: 8px;
+  border-top: 1px solid var(--v5-line-18);
+}
+.pjw-orders {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--v5-line-18);
+}
+.pjw-order-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 300;
+}
+.pjw-order b {
+  font-weight: 500;
+}
+.pjw-order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
 
 .pjw-invite {
   padding-top: 12px;

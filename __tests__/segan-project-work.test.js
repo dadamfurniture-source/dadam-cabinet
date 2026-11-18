@@ -1088,3 +1088,234 @@ describe('지시서 — 줄마다 그 작업의 지시서 · 철거 · 납품 �
   });
 });
 
+describe('지시서 — 설계마다 · 설계 바뀜 · 현장 바뀜 · 발주 줄 (2026-11-19)', () => {
+  const D1 = '77777777-7777-4777-8777-777777777781';
+  const D2 = '77777777-7777-4777-8777-777777777782';
+  const D3 = '77777777-7777-4777-8777-777777777783';
+  const D4 = '77777777-7777-4777-8777-777777777784';
+  const doc = (id, no) => ({ id, doc_no: no, rev: 1, created_at: '2026-11-19T00:00:00Z' });
+  const wo = (extra = {}) => ({
+    doc_type: 'work_order',
+    doc_label: '작업지시서',
+    role: 'cut',
+    packs: ['cut', 'labels'],
+    pack_labels: { cut: '재단 지시서', labels: '부재 라벨' },
+    state: 'none',
+    document: null,
+    checks: null,
+    stale: false,
+    site_stale: false,
+    ...extra,
+  });
+  const dm = (extra = {}) => ({
+    doc_type: 'demolition_order',
+    doc_label: '철거 지시서',
+    role: 'demolition',
+    packs: ['demolition'],
+    pack_labels: {},
+    state: 'none',
+    document: null,
+    checks: null,
+    stale: false,
+    site_stale: false,
+    ...extra,
+  });
+  const order = (kind, pack, name, extra = {}) => ({
+    kind,
+    label: kind === 'door_order' ? '도어재 발주' : '상판 발주',
+    doc_type: 'work_order',
+    doc_label: '작업지시서',
+    packs: [pack],
+    pack_labels: { [pack]: name },
+    state: 'none',
+    stale: false,
+    applies: null,
+    document: null,
+    ...extra,
+  });
+  // 재단 = 설계 셋 (싱크대: 낡은 작업지시서 · 붙박이장: 낸 작업지시서 · 신발장: 아직), 엣지 = 첫 설계는 아직 · 둘째만 냄, 철거 = 현장이 바뀐 지시서
+  const cut1 = wo({ state: 'issued', document: doc(D1, 'DD-20261119-AAAA-WO-r1'), checks: { done: 3, total: 12, must_left: 7 }, stale: true });
+  const cut2 = wo({ state: 'issued', document: doc(D2, 'DD-20261119-BBBB-WO-r1') });
+  const VIEW = (extra = {}) => ({
+    project: { id: P1, title: '시험 주방', status: 'active' },
+    can_manage: true,
+    can_assign: true,
+    rows: [
+      row('demolition', '철거', {
+        job: { id: 'j-1', status: 'open' },
+        sheet: dm({ state: 'issued', document: doc(D3, 'DD-20261119-AAAA-DM-r1'), site_stale: true }),
+        sheets: [{ label: '싱크대', ...dm({ state: 'issued', document: doc(D3, 'DD-20261119-AAAA-DM-r1'), site_stale: true }) }],
+      }),
+      row('cutting', '재단', {
+        workers: [worker('a-1', '시험기사 다', 'offered')],
+        job: { id: 'j-2', status: 'open' },
+        sheet: cut1,
+        sheets: [{ label: '싱크대 <b>1</b>', ...cut1 }, { label: '붙박이장', ...cut2 }, { label: '신발장', ...wo() }],
+      }),
+      row('edge', '엣지', {
+        sheet: wo(),
+        sheets: [{ label: '싱크대', ...wo() }, { label: '붙박이장', ...cut2 }],
+      }),
+      row('assembly', '조립', { sheet: wo({ packs: ['assembly'], pack_labels: { assembly: '조립 지시서' } }) }),
+    ],
+    designs: [
+      {
+        label: '싱크대 <b>1</b>',
+        order_sheets: [
+          order('door_order', 'door', '도어재 발주서', { state: 'issued', stale: true, applies: true, document: doc(D1, 'DD-20261119-AAAA-WO-r1') }),
+          order('top_order', 'top', '상판 발주 요청서', { state: 'issued', applies: false, document: doc(D1, 'DD-20261119-AAAA-WO-r1') }),
+        ],
+      },
+      {
+        label: '붙박이장',
+        order_sheets: [order('door_order', 'door', '도어재 발주서'), order('top_order', 'top', '상판 발주 요청서', { state: 'issued', applies: true, document: doc(D4, 'DD-20261119-BBBB-WO-r1') })],
+      },
+    ],
+    design_count: 2,
+    site: { missing: false },
+    ...extra,
+  });
+  const fakeWindow = () => {
+    const win = { html: '', closed: false, document: { open: jest.fn(), write: (h) => (win.html += h), close: jest.fn() }, close: () => (win.closed = true) };
+    return win;
+  };
+  const openPanel = async (options) => {
+    const calls = await load(options);
+    await press(workBtn(P1));
+    return calls;
+  };
+  const box = () => panel().querySelector('[data-pjw="sheet"]');
+  const orders = () => panel().querySelector('[data-pjw="orders"]');
+
+  test('순수 — 덧붙는 칸(품목 이름 · 꾸러미 이름 · 설계 바뀜 · 현장 바뀜)은 서버가 줄 때만, 설계 자리로 여는 주소 · 발주 줄', () => {
+    const M = mod();
+    const d = M.dataOf(VIEW({ design_count: 5, site: { missing: true } }));
+    const by = (kind) => d.rows.filter((r) => r.kind === kind)[0];
+    expect(by('cutting').sheets.map((s) => [s.item, s.state, s.doc && s.doc.id, !!s.stale, !!s.siteStale])).toEqual([
+      ['싱크대 <b>1</b>', 'issued', D1, true, false],
+      ['붙박이장', 'issued', D2, false, false],
+      ['신발장', 'none', null, false, false],
+    ]);
+    expect(by('cutting').sheets[0].packNames).toEqual({ cut: '재단 지시서', labels: '부재 라벨' });
+    expect(by('cutting').sheet.doc.id).toBe(D1);
+    expect(by('assembly').sheets.length).toBe(1); // 서버가 sheets 를 안 주면 sheet 하나
+    expect(M.sheetStateOf(by('cutting'))).toBe('설계 바뀜');
+    expect(M.sheetStateOf(by('demolition'))).toBe('현장 바뀜');
+    expect(M.sheetStateOf(by('assembly'))).toBe('');
+    // 안 낸 문서의 stale 은 버린다
+    expect(M.sheetOf(wo({ stale: true, site_stale: true })).stale).toBeUndefined();
+    // 여는 주소 — 설계 자리
+    expect(M.sheetPath(by('cutting'))).toBe('/documents/' + D1 + '/print?pack=cut');
+    expect(M.sheetPath(by('cutting'), 'labels', 1)).toBe('/documents/' + D2 + '/print?pack=labels');
+    expect(M.sheetPath(by('cutting'), 'cut', 2)).toBe('');
+    expect(M.sheetPath(by('cutting'), 'cut', 9)).toBe('');
+    // 발주 줄 — 해당 없는 줄(applies false)은 뺀다, 설계 차례는 그대로
+    expect(d.designs.map((g) => [g.item, g.orders.map((o) => [o.kind, o.pack, o.name, o.doc && o.doc.id, o.stale])])).toEqual([
+      ['싱크대 <b>1</b>', [['door_order', 'door', '도어재 발주서', D1, true]]],
+      ['붙박이장', [['door_order', 'door', '도어재 발주서', null, false], ['top_order', 'top', '상판 발주 요청서', D4, false]]],
+    ]);
+    expect(M.orderPath(d.designs[1].orders[1])).toBe('/documents/' + D4 + '/print?pack=top');
+    expect(M.orderPath(d.designs[1].orders[0])).toBe('');
+    expect([d.designCount, d.siteMissing]).toEqual([5, true]);
+    // 서버가 새 칸을 안 주면 — 빈 값
+    const old = M.dataOf({ rows: [row('cutting', '재단', { sheet: { doc_type: 'work_order', doc_label: '작업지시서', packs: ['cut'], state: 'none', document: null, checks: null } })] });
+    expect([old.designs, old.designCount, old.siteMissing]).toEqual([[], 0, false]);
+    expect(Object.keys(old.rows[0].sheet).sort()).toEqual(['checks', 'doc', 'label', 'packs', 'state', 'type']);
+  });
+
+  test('펼친 줄 — 설계가 여럿이면 설계마다 한 묶음(품목 이름 · 문서 번호 · 꾸러미 단추), 낡은 지시서에 꼬리표. 표의 상태 칸에도', async () => {
+    const win = fakeWindow();
+    const print = jest.fn(async () => ({ ok: true, status: 200, html: 'x' }));
+    await openPanel({ work: () => ok(VIEW()), print });
+    jest.spyOn(window, 'open').mockReturnValue(win);
+    // 표 — 상태 칸: 배정 상태 뒤에 낡은 지시서
+    expect(tableRows().slice(0, 4)).toEqual([
+      '철거 | - | - | 현장 바뀜 | 지시서고르기',
+      '재단 | 시험기사 다 | - | 수락 대기 · 설계 바뀜 | 지시서고르기',
+      '엣지 | - | - | - | 지시서고르기',
+      '조립 | - | - | - | 고르기',
+    ]);
+    await openRow('kind:cutting');
+    const items = [...box().querySelectorAll('.pjw-sheet-item')];
+    expect(items.map((el) => text(el.querySelector('p')))).toEqual([
+      '싱크대 <b>1</b> · 작업지시서 DD-20261119-AAAA-WO-r1 · 필수 확인 3 / 12설계 바뀜',
+      '붙박이장 · 작업지시서 DD-20261119-BBBB-WO-r1',
+      '신발장 · 작업지시서를 아직 내지 않았습니다. 간편 플래너 BOM 창 「작업지시서」에서 냅니다.',
+    ]);
+    expect(items[0].querySelector('b').innerHTML).toBe('싱크대 &lt;b&gt;1&lt;/b&gt;'); // 글자로만
+    expect([...items[0].querySelectorAll('.od-badge')].map(text)).toEqual(['설계 바뀜']);
+    expect(items[1].querySelector('.od-badge')).toBeNull();
+    expect(items.map((el) => [...el.querySelectorAll('[data-act="pw-sheet"]')].map((b) => [text(b), b.getAttribute('data-pack'), b.getAttribute('data-design')]))).toEqual([
+      [['재단 지시서', 'cut', null], ['부재 라벨', 'labels', null]],
+      [['재단 지시서', 'cut', '1'], ['부재 라벨', 'labels', '1']],
+      [],
+    ]);
+    await press(items[1].querySelector('[data-act="pw-sheet"][data-pack="labels"]'));
+    expect(print).toHaveBeenLastCalledWith(WORK + '/documents/' + D2 + '/print?pack=labels');
+    // 표의 「지시서」 — 지시서를 낸 첫 설계 (엣지 줄은 둘째 설계)
+    await press(panel().querySelector('[data-pjw-row="kind:edge"] [data-act="pw-sheet"]'));
+    expect(print).toHaveBeenLastCalledWith(WORK + '/documents/' + D2 + '/print?pack=cut');
+    // 설계가 하나인 줄은 묶음 없이 예전 모습 + 꼬리표
+    await press(act('pw-fold'));
+    await openRow('kind:demolition');
+    expect(box().querySelector('.pjw-sheet-item')).toBeNull();
+    expect(text(box().querySelector('.pjw-sheet-doc'))).toBe('철거 지시서 DD-20261119-AAAA-DM-r1현장 바뀜');
+    expect(box().querySelector('[data-pjw="site-missing"]')).toBeNull();
+  });
+
+  test('현장 주소가 비었으면 현장 문서를 여는 줄에 「현장 주소 미입력」 (재단 줄에는 없다)', async () => {
+    await openPanel({ work: () => ok(VIEW({ site: { missing: true } })) });
+    await openRow('kind:demolition');
+    expect(text(box().querySelector('[data-pjw="site-missing"]'))).toBe('현장 주소 미입력');
+    await press(act('pw-fold'));
+    await openRow('kind:cutting');
+    expect(box().querySelector('[data-pjw="site-missing"]')).toBeNull();
+  });
+
+  test('발주 줄 — 표 아래 설계마다: 낸 문서는 그 꾸러미를 열고, 없으면 「작업지시서 없음」, 해당 없는 줄은 없다. 직원도 본다', async () => {
+    const win = fakeWindow();
+    const print = jest.fn(async () => ({ ok: true, status: 200, html: '<h1>발주</h1>' }));
+    const calls = await openPanel({
+      partner: partnerOf('agent', 'staff'),
+      projects: () => PROJECTS(false),
+      work: () => ok(VIEW({ can_manage: false, can_assign: false, design_count: 5 })),
+      print,
+    });
+    jest.spyOn(window, 'open').mockReturnValue(win);
+    expect(text(orders().querySelector('.cw-label'))).toBe('발주');
+    const lines = [...orders().querySelectorAll('.pjw-order')];
+    expect(lines.map(text)).toEqual(['싱크대 <b>1</b>도어재 발주서설계 바뀜', '붙박이장도어재 발주 작업지시서 없음상판 발주 요청서']);
+    expect(lines[0].querySelector('b').innerHTML).toBe('싱크대 &lt;b&gt;1&lt;/b&gt;');
+    expect([...orders().querySelectorAll('[data-act="pw-order"]')].map((b) => [text(b), b.getAttribute('data-design'), b.getAttribute('data-pack')])).toEqual([
+      ['도어재 발주서', '0', 'door'],
+      ['상판 발주 요청서', '1', 'top'],
+    ]);
+    expect(text(orders().querySelector('[data-pjw="designs-more"]'))).toBe('설계 5개 가운데 2개');
+    await press(orders().querySelector('[data-act="pw-order"][data-design="1"]'));
+    expect(win.html).toBe('<h1>발주</h1>');
+    const call = calls.fetch.filter((c) => c.url.startsWith(WORK + '/documents/')).pop();
+    expect([call.url, call.auth, call.cache]).toEqual([WORK + '/documents/' + D4 + '/print?pack=top', 'Bearer tok-1', 'no-store']);
+    await press(orders().querySelector('[data-act="pw-order"][data-design="0"]'));
+    expect(print).toHaveBeenLastCalledWith(WORK + '/documents/' + D1 + '/print?pack=door');
+    expect(workCalls(calls).filter((c) => c[0] !== 'GET')).toEqual([]);
+  });
+
+  test('서버가 새 칸을 안 주면(옛 서버) 발주 줄 · 꼬리표 · 설계 묶음이 없다 — 예전 화면 그대로', async () => {
+    const old = VIEW();
+    delete old.designs;
+    delete old.design_count;
+    delete old.site;
+    old.rows.forEach((r) => {
+      delete r.sheets;
+      if (r.sheet) ['stale', 'site_stale', 'pack_labels'].forEach((k) => delete r.sheet[k]);
+    });
+    await openPanel({ work: () => ok(old) });
+    expect(orders()).toBeNull();
+    expect(tableRows()[1]).toBe('재단 | 시험기사 다 | - | 수락 대기 | 지시서고르기');
+    await openRow('kind:cutting');
+    expect(box().querySelector('.pjw-sheet-item')).toBeNull();
+    expect(panel().querySelector('.od-badge')).toBeNull();
+    expect(text(box().querySelector('.pjw-sheet-doc'))).toBe('작업지시서 DD-20261119-AAAA-WO-r1 · 필수 확인 3 / 12');
+    expect([...box().querySelectorAll('[data-act="pw-sheet"]')].map(text)).toEqual(['재단 지시서', '부재 라벨']);
+  });
+});

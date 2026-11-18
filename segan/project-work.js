@@ -7,13 +7,18 @@
    (2026-11-14 납품 일정 줄도 배정한다 — 종류 「납품」. 줄마다 「모집 올리기」 — segan/work-recruit.js)
    (2026-11-17 사장님 「각 작업자에게 보낼 작업지시서 각 작업에 작성되어서 확인」 — 줄마다 「지시서」: 그 작업의 지시서를 열고
     필수 확인이 얼마나 됐는지 본다. 철거 · 납품 줄에는 지시서에 같이 나오는 「사무실 메모」. 지시서를 내는 곳은 간편 플래너 BOM 창)
+   (2026-11-19 사장님 「한 작업에 모든 설계」 — 줄이 여는 설계가 여럿이면 설계마다(품목 이름) 지시서 칸. 낸 지시서가 낡았으면
+    「설계 바뀜」 · 「현장 바뀜」, 표 아래에 설계마다 발주 줄(도어재 발주 · 상판 발주 — 보기만). 서버가 새 칸을 안 주면 예전 화면 그대로)
 
    누가 보나  인사를 쓰는 팩토리(다담 공장 · Agent)의 구성원 — segan/partner-projects.js 가 프로젝트 줄에 단추를 그리고
              SeganProjectWork.mount(자리, { id, title }) 를 부른다. 배정 · 날짜 · 초대는 서버 답(can_manage · can_assign)을 따른다.
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET   /company/projects/:id/work           { project, can_manage, can_assign, rows[{ key, kind, label, source, schedule_id,
                                                             at, job, can_assign, workers[], candidates[],
-                                                            sheet { doc_type, doc_label, packs, state, document, checks } | null, sheet_memo }] }
+                                                            sheet { doc_type, doc_label, packs, state, document, checks } | null, sheet_memo,
+                                                            sheets[{ label(품목 이름), …sheet, pack_labels, stale, site_stale }] }],
+                                                            designs[{ label, order_sheets[{ kind, label, packs, pack_labels, state, stale, applies, document }] }],
+                                                            design_count, site { missing } }
                GET   /documents/:id/print?pack=&job=      지시서 인쇄 화면 (HTML — 본인 토큰으로 받아 새 창에 쓴다)
                PATCH /company/projects/:id/work/:kind     { sheet_memo } — 철거 줄의 메모 (작업이 없으면 서버가 만든다)
                PUT   /company/work/jobs/:id/sheet-memo    { memo } — 납품 줄의 메모 (일정에서 생긴 작업)
@@ -54,6 +59,10 @@
   var MEMO_KINDS = ['demolition', 'delivery'];
   // 작업지시서 꾸러미 이름 (서버 work/check-state.js PACKS_OF_ROLE — 재단 · 엣지 = 재단 · 라벨, 조립 = 조립)
   var PACK_LABEL = { cut: '재단 지시서', labels: '부재 라벨', assembly: '조립 지시서' };
+  // 현장 문서(철거 · 납품 · 설치 지시서)를 여는 종류 — 현장 주소가 비었으면 그 줄에 알린다
+  var SITE_KINDS = ['demolition', 'delivery', 'install'];
+  // 발주 줄 — 작업자 없이 사무실이 여는 작업지시서 꾸러미 (서버 work/job-sheet.js ORDER_SHEETS)
+  var ORDER_LABEL = { door_order: '도어재 발주', top_order: '상판 발주' };
   // 프로젝트에 붙는 종류 (일하는 차례) — 서버 work/validate.js PROJECT_KINDS
   var PROJECT_KINDS = ['demolition', 'cutting', 'edge', 'assembly'];
   var KIND = {
@@ -149,6 +158,11 @@
     sheetChecks: '필수 확인',
     sheetPopup: '새 창이 막혀 지시서를 열지 못했습니다. 팝업을 허용해 주세요.',
     sheetFail: '지시서를 열지 못했습니다.',
+    sheetStale: '설계 바뀜',
+    sheetSiteStale: '현장 바뀜',
+    siteMissing: '현장 주소 미입력',
+    orders: '발주',
+    orderNone: '작업지시서 없음',
     memo: '사무실 메모',
     memoHelp: '지시서에 같이 나옵니다. 배정을 수락한 작업자가 봅니다.',
     memoSave: '메모 저장',
@@ -269,7 +283,7 @@
     var doc = obj(s.document);
     var c = obj(s.checks);
     var total = Number(c.total);
-    return {
+    var out = {
       type: str(s.doc_type),
       label: str(s.doc_label),
       state: s.state,
@@ -285,12 +299,66 @@
           ? { done: Number(c.done) || 0, total: total, left: Number(c.must_left) || 0 }
           : null,
     };
+    // 덧붙는 칸 (2026-11-19 — 서버가 줄 때만 싣는다): 품목 이름 · 꾸러미 이름 · 설계 바뀜 · 현장 바뀜
+    if (str(s.label)) out.item = str(s.label);
+    var names = packNamesOf(s.pack_labels, out.packs);
+    if (names) out.packNames = names;
+    if (out.doc && s.stale === true) out.stale = true;
+    if (out.doc && s.site_stale === true) out.siteStale = true;
+    return out;
+  }
+  /** 서버가 준 꾸러미 이름 { cut: '재단 지시서', … } — 그 줄의 꾸러미 것만. 없으면 null (PACK_LABEL 을 쓴다) */
+  function packNamesOf(labels, packs) {
+    labels = obj(labels);
+    var out = null;
+    packs.forEach(function (p) {
+      if (!str(labels[p])) return;
+      out = out || {};
+      out[p] = str(labels[p]);
+    });
+    return out;
+  }
+  /** 줄이 여는 설계마다의 지시서 — 서버가 sheets 를 주면 그것, 아니면 sheet 하나 (예전 서버) */
+  function sheetsOf(list, first) {
+    var out = (Array.isArray(list) ? list : []).map(sheetOf).filter(Boolean);
+    return out.length ? out : first ? [first] : [];
+  }
+  /** 발주 줄 하나 — { kind, label, pack, name(꾸러미 이름), doc | null, stale } | null (그 설계에 해당 없음 · 모르는 모양) */
+  function orderOf(o) {
+    o = obj(o);
+    if (!own(ORDER_LABEL, o.kind) || o.applies === false) return null;
+    var packs = (Array.isArray(o.packs) ? o.packs : []).filter(function (p) {
+      return typeof p === 'string' && PACK_RE.test(p);
+    });
+    if (!packs.length) return null;
+    var doc = obj(o.document);
+    var has = o.state === 'issued' && ID_RE.test(str(doc.id));
+    var names = packNamesOf(o.pack_labels, packs);
+    return {
+      kind: o.kind,
+      label: str(o.label) || ORDER_LABEL[o.kind],
+      pack: packs[0],
+      name: names && names[packs[0]] ? names[packs[0]] : '',
+      doc: has ? { id: str(doc.id), no: str(doc.doc_no), rev: Number(doc.rev) || 0 } : null,
+      stale: has && o.stale === true,
+    };
+  }
+  /** 설계마다 발주 줄 — [{ item(품목 이름), orders[] }] (서버 차례 그대로 — 자리 번호로 연다) */
+  function designsOf(list) {
+    return (Array.isArray(list) ? list : []).map(function (g) {
+      g = obj(g);
+      return {
+        item: str(g.label),
+        orders: (Array.isArray(g.order_sheets) ? g.order_sheets : []).map(orderOf).filter(Boolean),
+      };
+    });
   }
   function rowOf(r) {
     r = obj(r);
     if (!str(r.key) || !own(KIND, r.kind)) return null;
     var schedule = r.source === 'schedule';
     if (schedule && !ID_RE.test(str(r.schedule_id))) return null;
+    var first = sheetOf(r.sheet);
     return {
       key: str(r.key),
       kind: r.kind,
@@ -299,7 +367,8 @@
       at: str(r.at),
       job: r.job && typeof r.job === 'object' ? str(r.job.status) : '',
       jobId: r.job && typeof r.job === 'object' && ID_RE.test(str(r.job.id)) ? str(r.job.id) : '',
-      sheet: sheetOf(r.sheet),
+      sheet: first,
+      sheets: sheetsOf(r.sheets, first),
       memo: str(r.sheet_memo),
       assign: r.can_assign === true,
       recruit: recruitKit() ? recruitKit().recruitOf(r.recruit) : null,
@@ -313,14 +382,41 @@
         }),
     };
   }
-  /** GET /company/projects/:id/work 의 data → { manage, assign, rows } | null */
+  /** GET /company/projects/:id/work 의 data → { manage, assign, rows, designs, designCount, siteMissing } | null */
   function dataOf(d) {
     if (!d || typeof d !== 'object' || Array.isArray(d) || !Array.isArray(d.rows)) return null;
     return {
       manage: d.can_manage === true,
       assign: d.can_manage === true && d.can_assign === true,
       rows: d.rows.map(rowOf).filter(Boolean),
+      designs: designsOf(d.designs),
+      designCount: Number.isInteger(d.design_count) && d.design_count > 0 ? d.design_count : 0,
+      siteMissing: obj(d.site).missing === true,
     };
+  }
+  /** 지시서의 꼬리표 글 — 설계 바뀜 · 현장 바뀜 */
+  function flagsOf(s) {
+    var out = [];
+    if (s && s.stale) out.push(TEXT.sheetStale);
+    if (s && s.siteStale) out.push(TEXT.sheetSiteStale);
+    return out;
+  }
+  /** 줄의 지시서들 가운데 낡은 것이 있으면 그 글 — '설계 바뀜 · 현장 바뀜' (없으면 '') */
+  function sheetStateOf(row) {
+    var list = row && Array.isArray(row.sheets) ? row.sheets : [];
+    var out = [];
+    list.forEach(function (s) {
+      flagsOf(s).forEach(function (t) {
+        if (out.indexOf(t) < 0) out.push(t);
+      });
+    });
+    return out.join(' · ');
+  }
+  /** 줄에서 지시서를 낸 첫 설계의 자리 (없으면 -1) */
+  function firstDocOf(row) {
+    var list = row && Array.isArray(row.sheets) ? row.sheets : [];
+    for (var i = 0; i < list.length; i++) if (list[i].doc) return i;
+    return -1;
   }
   /** 줄의 작업자 칸 — '김○○ · 이○○' (살아 있는 · 확인된 배정만, 없으면 '') */
   function namesOf(row) {
@@ -435,6 +531,9 @@
       .map(function (r) {
         var on = W.open === r.key;
         var names = namesOf(r);
+        // 상태 칸 — 배정 · 모집 상태 뒤에 낡은 지시서 (설계 바뀜 · 현장 바뀜)
+        var state = [stateOf(r), sheetStateOf(r)].filter(Boolean).join(' · ');
+        var docAt = firstDocOf(r);
         return (
           '<tr class="pjw-row' +
           (on ? ' od-row--on' : '') +
@@ -451,12 +550,20 @@
           '>' +
           esc(whenText(r.at) || '-') +
           '</td><td' +
-          (stateOf(r) ? '' : ' class="pw-muted"') +
+          (state ? '' : ' class="pw-muted"') +
           '>' +
-          esc(stateOf(r) || '-') +
+          esc(state || '-') +
           '</td><td class="pw-act">' +
-          (r.sheet && r.sheet.doc
-            ? btn('pw-sheet', TEXT.sheet, ' data-key="' + esc(r.key) + '"', 'link')
+          (docAt >= 0
+            ? btn(
+                'pw-sheet',
+                TEXT.sheet,
+                ' data-key="' +
+                  esc(r.key) +
+                  '"' +
+                  (docAt > 0 ? ' data-design="' + docAt + '"' : ''),
+                'link'
+              )
             : '') +
           btn(
             on ? 'pw-fold' : 'pw-open',
@@ -562,32 +669,50 @@
       '</div></div>'
     );
   }
-  /** 지시서를 여는 주소 — 작업지시서는 꾸러미, 철거 · 납품 지시서는 그 작업 줄의 메모를 같이 (job) */
-  function sheetPath(row, pack) {
-    var s = row.sheet;
+  /** 지시서를 여는 주소 — 작업지시서는 꾸러미, 철거 · 납품 지시서는 그 작업 줄의 메모를 같이 (job). i = 그 줄의 설계 자리 (없으면 첫 설계) */
+  function sheetPath(row, pack, i) {
+    var s = (Array.isArray(row.sheets) && row.sheets[i || 0]) || (i ? null : row.sheet);
     if (!s || !s.doc) return '';
     var q = [];
     if (s.type === 'work_order') {
       var p = pack && s.packs.indexOf(pack) >= 0 ? pack : s.packs[0];
       if (p) q.push('pack=' + encodeURIComponent(p));
-    } else if (MEMO_KINDS.indexOf(row.kind) >= 0 && row.jobId) q.push('job=' + encodeURIComponent(row.jobId));
-    return '/documents/' + encodeURIComponent(s.doc.id) + '/print' + (q.length ? '?' + q.join('&') : '');
+    } else if (MEMO_KINDS.indexOf(row.kind) >= 0 && row.jobId)
+      q.push('job=' + encodeURIComponent(row.jobId));
+    return (
+      '/documents/' + encodeURIComponent(s.doc.id) + '/print' + (q.length ? '?' + q.join('&') : '')
+    );
   }
-  /** 펼친 줄의 지시서 칸 — 상태 · 「지시서 보기」 · 필수 확인 수 · (철거 · 납품) 사무실 메모 */
-  function sheetHtml(d, row) {
-    var s = row.sheet;
-    if (!s) return '';
+  /** 발주 줄의 문서를 여는 주소 — 작업지시서의 그 꾸러미 (도어재 발주서 · 상판 발주 요청서) */
+  function orderPath(o) {
+    if (!o || !o.doc) return '';
+    return (
+      '/documents/' + encodeURIComponent(o.doc.id) + '/print?pack=' + encodeURIComponent(o.pack)
+    );
+  }
+  function tagsHtml(list) {
+    return list
+      .map(function (t) {
+        return '<span class="od-badge">' + esc(t) + '</span>';
+      })
+      .join('');
+  }
+  /** 지시서 하나 (그 줄의 설계 하나) — 문서 번호 · 필수 확인 수 · 꼬리표 + 꾸러미마다 단추. many 면 품목 이름을 앞에 */
+  function sheetOneHtml(row, s, i, many) {
+    var item = many && s.item ? '<b>' + esc(s.item) + '</b> · ' : '';
     var state =
       s.state === 'issued' && s.doc
-        ? '<p class="pjw-sheet-doc"><b>' +
-          esc(s.label) +
-          '</b> ' +
+        ? '<p class="pjw-sheet-doc">' +
+          (item ? item + esc(s.label) : '<b>' + esc(s.label) + '</b>') +
+          ' ' +
           esc(s.doc.no) +
           (s.checks
             ? ' · ' + esc(TEXT.sheetChecks) + ' ' + s.checks.done + ' / ' + s.checks.total
             : '') +
+          tagsHtml(flagsOf(s)) +
           '</p>'
         : '<p class="mk-note">' +
+          item +
           esc(s.state === 'no_design' ? TEXT.sheetNoDesign : s.label + TEXT.sheetNone) +
           '</p>';
     var open = '';
@@ -599,13 +724,90 @@
           .map(function (p) {
             return btn(
               'pw-sheet',
-              p ? PACK_LABEL[p] || TEXT.sheetOpen : TEXT.sheetOpen,
-              ' data-key="' + esc(row.key) + '"' + (p ? ' data-pack="' + esc(p) + '"' : '')
+              p
+                ? (s.packNames && s.packNames[p]) || PACK_LABEL[p] || TEXT.sheetOpen
+                : TEXT.sheetOpen,
+              ' data-key="' +
+                esc(row.key) +
+                '"' +
+                (p ? ' data-pack="' + esc(p) + '"' : '') +
+                (i > 0 ? ' data-design="' + i + '"' : '')
             );
           })
           .join('') +
         '</div>';
     }
+    return many ? '<div class="pjw-sheet-item">' + state + open + '</div>' : state + open;
+  }
+  /** 표 아래 발주 줄 — 설계마다 도어재 발주 · 상판 발주 (보기만). 서버가 안 주면 빈 글 */
+  function ordersHtml(d) {
+    var many = d.designs.length > 1;
+    var items = d.designs
+      .map(function (g, i) {
+        if (!g.orders.length) return '';
+        return (
+          '<li class="pjw-order">' +
+          (many && g.item ? '<b>' + esc(g.item) + '</b>' : '') +
+          g.orders
+            .map(function (o) {
+              return o.doc
+                ? '<span class="pjw-order-one">' +
+                    btn(
+                      'pw-order',
+                      o.name || o.label,
+                      ' data-design="' + i + '" data-pack="' + esc(o.pack) + '"',
+                      'link'
+                    ) +
+                    (o.stale ? tagsHtml([TEXT.sheetStale]) : '') +
+                    '</span>'
+                : '<span class="pjw-order-one">' +
+                    esc(o.label) +
+                    ' <span class="pw-muted">' +
+                    esc(TEXT.orderNone) +
+                    '</span></span>';
+            })
+            .join('') +
+          '</li>'
+        );
+      })
+      .join('');
+    var more =
+      d.designs.length && d.designCount > d.designs.length
+        ? '<p class="mk-note" data-pjw="designs-more">설계 ' +
+          d.designCount +
+          '개 가운데 ' +
+          d.designs.length +
+          '개</p>'
+        : '';
+    if (!items && !more) return '';
+    return (
+      '<div class="pjw-orders" data-pjw="orders">' +
+      (items
+        ? '<p class="cw-label">' +
+          esc(TEXT.orders) +
+          '</p><ul class="pjw-order-list">' +
+          items +
+          '</ul>'
+        : '') +
+      more +
+      '</div>'
+    );
+  }
+  /** 펼친 줄의 지시서 칸 — 설계마다 상태 · 「지시서 보기」 · 필수 확인 수 · (철거 · 납품) 사무실 메모 */
+  function sheetHtml(d, row) {
+    var list =
+      Array.isArray(row.sheets) && row.sheets.length ? row.sheets : row.sheet ? [row.sheet] : [];
+    if (!list.length) return '';
+    var many = list.length > 1;
+    var state = list
+      .map(function (s, i) {
+        return sheetOneHtml(row, s, i, many);
+      })
+      .join('');
+    // 현장 문서를 여는 줄 — 현장 주소가 비어 있으면 알린다
+    if (d.siteMissing && SITE_KINDS.indexOf(row.kind) >= 0)
+      state += '<p class="mk-note" data-pjw="site-missing">' + esc(TEXT.siteMissing) + '</p>';
+    var open = '';
     var memo = '';
     if (MEMO_KINDS.indexOf(row.kind) >= 0) {
       // 철거 줄은 작업이 없어도 적는다 (서버가 만든다), 납품 줄은 일정에서 생긴 작업이 있어야 한다
@@ -787,12 +989,18 @@
     // 같은 줄을 다시 그릴 때만 적던 사유 · 날짜를 되살린다 — 다른 줄로 옮기면 그 줄의 값이 보여야 한다
     var keep = {};
     if (row && h.getAttribute('data-pjw-open') === row.key)
-      ['pw-reason', 'pw-date', 'pw-time', 'pw-people', 'pw-until-date', 'pw-until-time', 'pw-memo'].forEach(
-        function (name) {
-          var el = h.querySelector('[name="' + name + '"]');
-          if (el) keep[name] = el.value;
-        }
-      );
+      [
+        'pw-reason',
+        'pw-date',
+        'pw-time',
+        'pw-people',
+        'pw-until-date',
+        'pw-until-time',
+        'pw-memo',
+      ].forEach(function (name) {
+        var el = h.querySelector('[name="' + name + '"]');
+        if (el) keep[name] = el.value;
+      });
     h.innerHTML =
       head +
       '<p class="mk-note">' +
@@ -809,7 +1017,8 @@
       esc(W.err) +
       '</p>' +
       tableHtml(d) +
-      (row ? detailHtml(d, row) : '');
+      (row ? detailHtml(d, row) : '') +
+      ordersHtml(d);
     h.setAttribute('aria-busy', W.busy ? 'true' : 'false');
     // 날짜를 저장 · 지운 바로 뒤에는 서버 값을 보인다 (적던 값을 되살리지 않는다)
     Object.keys(keep).forEach(function (name) {
@@ -871,8 +1080,10 @@
       : null;
   }
   /** 지시서 인쇄 화면은 로그인이 필요해 새 창 주소로 바로 열 수 없다 — 받아서 새 창에 쓴다 (작업자 화면 js/worker-portal.js openPack 과 같은 방식) */
-  async function openSheet(row, pack) {
-    var p = row ? sheetPath(row, pack) : '';
+  function openSheet(row, pack, i) {
+    return openPrint(row ? sheetPath(row, pack, i) : '');
+  }
+  async function openPrint(p) {
     if (!p || !W.base) return;
     var win = window.open('', '_blank');
     if (!win) {
@@ -953,7 +1164,22 @@
       var target = W.data.rows.filter(function (r) {
         return r.key === key;
       })[0];
-      return void openSheet(target, el.getAttribute('data-pack') || '');
+      return void openSheet(
+        target,
+        el.getAttribute('data-pack') || '',
+        Number(el.getAttribute('data-design')) || 0
+      );
+    }
+    // 발주 줄 — 그 설계의 작업지시서 꾸러미 (도어재 발주서 · 상판 발주 요청서). 직원도 본다
+    if (act === 'pw-order') {
+      var group = W.data.designs[Number(el.getAttribute('data-design')) || 0];
+      var orderPack = el.getAttribute('data-pack') || '';
+      var order = group
+        ? group.orders.filter(function (o) {
+            return o.pack === orderPack;
+          })[0]
+        : null;
+      return void openPrint(orderPath(order));
     }
     if (!row || !W.data.manage) return;
     if (act === 'pw-memo') {
@@ -969,8 +1195,19 @@
       }
       if (row.schedule) {
         if (!row.jobId) return;
-        run('PUT', '/company/work/jobs/' + encodeURIComponent(row.jobId) + '/sheet-memo', { memo: memo }, TEXT.memoSaved);
-      } else run('PATCH', workPath() + '/' + encodeURIComponent(row.kind), { sheet_memo: memo }, TEXT.memoSaved);
+        run(
+          'PUT',
+          '/company/work/jobs/' + encodeURIComponent(row.jobId) + '/sheet-memo',
+          { memo: memo },
+          TEXT.memoSaved
+        );
+      } else
+        run(
+          'PATCH',
+          workPath() + '/' + encodeURIComponent(row.kind),
+          { sheet_memo: memo },
+          TEXT.memoSaved
+        );
       return;
     }
     if (act === 'pw-pick') {
@@ -1218,6 +1455,8 @@
     dataOf: dataOf,
     sheetOf: sheetOf,
     sheetPath: sheetPath,
+    orderPath: orderPath,
+    sheetStateOf: sheetStateOf,
     MEMO_KINDS: MEMO_KINDS,
     MEMO_MAX: MEMO_MAX,
     namesOf: namesOf,
