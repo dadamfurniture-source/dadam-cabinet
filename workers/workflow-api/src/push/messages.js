@@ -266,10 +266,14 @@ function workAssigned(p) {
 /**
  * 작업 일정 바뀜 — 맡은 작업의 시각이 바뀜. { jobKind, startsAt(새 시각), jobId }
  * cancelled 가 true 면 일정이 취소돼 그 작업이 취소된 것 — 같은 종류(work_schedule)로 글만 다르다
+ * sheet 가 true 면 그 작업의 지시서가 새 판으로 바뀐 것 (설계가 바뀌어 다시 냄 — work/sheet-issue.js) — 같은 종류로 글만 다르다
  */
 function workSchedule(p) {
   const j = workJob(p);
   if (!j) return null;
+  if (p && p.sheet === true) {
+    return { title: '지시서 바뀜', body: `${j.what}의 지시서가 새 판으로 바뀌었습니다. 작업 탭에서 다시 열어 주세요.`, url: j.url };
+  }
   if (p && p.cancelled === true) {
     return { title: '작업 취소', body: `${j.what}이 취소되었습니다. 작업 탭에서 확인해 주세요.`, url: j.url };
   }

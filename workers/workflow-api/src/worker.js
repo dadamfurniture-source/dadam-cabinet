@@ -40,6 +40,7 @@
  *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
  *   GET|POST /company/projects/:id/work · PATCH …/work/:kind · POST …/work/invite — 프로젝트의 작업 배정 (src/work/project-work.js)
  *   GET  /designs/:designId/work-sheets · PUT /company/work/jobs/:id/sheet-memo — 작업 종류마다 지시서 상태 · 작업 줄의 지시서 메모 (src/work/job-sheet.js)
+ *   POST /designs/:designId/work-sheets/issue — 지시서 한 종류를 지금 판으로 맞춘다 (src/work/sheet-issue.js — 플래너 「지시서 내기」)
  *   POST /company/projects/:id/work/recruit · POST /company/schedules/:id/workers/recruit — 모집 올리기 · 내리기,
  *     POST /company/work/applications/:id/approve|reject — 신청한 작업자 뽑기 · 반려 (src/work/recruit.js, 2026-11-14)
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
@@ -214,6 +215,7 @@ import {
 } from './work/schedule-link.js';
 import { listProjectWork, assignProjectWork, patchProjectWork, inviteProjectWork, recruitProjectWork } from './work/project-work.js';
 import { listDesignWorkSheets, memoForPrint, putSheetMemo, sitePhotosOf, SITE_PHOTO_DOC_TYPE } from './work/job-sheet.js';
+import { issueDesignSheet } from './work/sheet-issue.js';
 import { approveCompanyApplication, rejectCompanyApplication } from './work/recruit.js';
 import {
   listJobsForWorker,
@@ -1347,7 +1349,7 @@ async function handleCompanyDesigns(request, env, { user }) {
 
 /** 그 설계의 작업 종류마다 지시서 상태 (간편 플래너 「작업지시서」 탭 — src/work/job-sheet.js) */
 async function handleDesignWorkSheets(request, env, { params, user }) {
-  const data = await listDesignWorkSheets(env, { user, designId: params.designId });
+  const data = await listDesignWorkSheets(env, { user, designId: params.designId, snapshotId: queryOf(request).snapshot_id || null });
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
@@ -1568,6 +1570,7 @@ const router = createRouter([
   // 설계를 프로젝트에 잇기 · 풀기 (그 업체 대표 · 실장, 협력업체 설계는 만든 사람도)
   { method: 'PUT', path: '/designs/:designId/project', auth: 'jwt', handler: handleLinkDesignProject },
   { method: 'GET', path: '/designs/:designId/work-sheets', auth: 'jwt', handler: handleDesignWorkSheets },
+  { method: 'POST', path: '/designs/:designId/work-sheets/issue', auth: 'jwt', handler: workRoute(issueDesignSheet) },
   { method: 'PATCH', path: '/schedules/:scheduleId', auth: 'jwt', handler: handleUpdateSchedule },
   { method: 'POST', path: '/schedules/batches/:batchId/notify', auth: 'jwt', handler: handleResendSlack },
 

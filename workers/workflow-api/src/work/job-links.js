@@ -77,7 +77,7 @@ export async function sheetTargetOf(env, job, rawDesignId) {
 }
 
 /** 설계마다 품목 이름 (가장 새 동결본의 첫 품목 종류) — 같은 이름이 여럿이면 뒤에 번호. 못 읽으면 「설계 n」 */
-async function designLabels(env, designIds) {
+export async function designLabels(env, designIds) {
   let rows = [];
   try {
     rows = (await selectMany(env, 'design_snapshots', {

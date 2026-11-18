@@ -204,6 +204,32 @@ export async function notifyWorkSchedule(env, { before, after }) {
   }
 }
 
+/** 지시서가 바뀌었다는 알림을 받는 배정 — 수락해 지시서를 열 수 있는 작업자 (아직 답하지 않은 초대 · 끝난 배정은 뺀다) */
+const SHEET_ASSIGNMENT_STATUSES = Object.freeze(['confirmed', 'started']);
+
+/**
+ * 작업의 지시서가 새 판으로 바뀌었다 → 그 작업을 맡은 작업자(확정 · 작업 중)에게 (문서마다 사람마다 한 번).
+ * @param {object} job         작업 (id · kind · starts_at)
+ * @param {string} documentId  새 문서 id — 같은 문서로 두 번 알리지 않는다
+ */
+export async function notifyWorkSheet(env, { job, documentId }) {
+  try {
+    if (!job || !isUuid(job.id) || !isUuid(documentId)) return 0;
+    const message = buildMessage('work_schedule', { jobKind: job.kind, startsAt: job.starts_at, jobId: job.id, sheet: true });
+    if (!message) return 0;
+    const assignments =
+      (await selectMany(env, 'work_assignments', {
+        job_id: `eq.${job.id}`,
+        status: `in.(${SHEET_ASSIGNMENT_STATUSES.join(',')})`,
+        select: 'id,worker_id',
+      })) || [];
+    return await enqueueNotifications(env, await scheduleRows(env, { job, assignments, message, suffix: `sheet-${documentId}` }));
+  } catch (e) {
+    console.warn('[push] work_schedule(sheet) failed:', statusOf(e));
+    return 0;
+  }
+}
+
 /** 배정들 → 그 작업자 계정마다 work_schedule 알림 한 줄 (같은 계정은 한 번, 계정 없는 작업자는 뺀다) */
 async function scheduleRows(env, { job, assignments, message, suffix }) {
   const workerIds = [...new Set((assignments || []).map((a) => a.worker_id).filter(isUuid))];

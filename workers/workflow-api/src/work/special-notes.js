@@ -221,6 +221,17 @@ export function withNoteChecks(checkList, specialNotes) {
   return { ...checkList, roles };
 }
 
+/** 문서가 고정한 특별 지시 가운데 사무실이 적은 글만 — { 역할: [글] } (새 판에 그대로 잇는다 — work/sheet-issue.js). 자동 지시는 새 동결본에서 다시 뽑힌다 */
+export function officeNotesOfDoc(doc) {
+  const notes = specialNotesOfDoc(doc);
+  const out = {};
+  Object.keys(notes).forEach((r) => {
+    const list = (Array.isArray(notes[r]) ? notes[r] : []).filter((n) => n && n.src === 'office' && typeof n.text === 'string' && n.text.trim()).map((n) => n.text);
+    if (list.length) out[r] = list;
+  });
+  return out;
+}
+
 /** 문서가 고정한 특별 지시 (옛 문서는 빈 값) */
 export function specialNotesOfDoc(doc) {
   const v = doc && doc.render_payload && doc.render_payload.special_notes;
