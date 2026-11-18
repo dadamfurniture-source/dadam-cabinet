@@ -106,7 +106,16 @@ export async function sha256Hex(text) {
 export function cutDigestOf(cutPlan) {
   if (!cutPlan || typeof cutPlan !== 'object' || typeof cutPlan.strategy !== 'string' || !cutPlan.strategy) return null;
   const sheets = Array.isArray(cutPlan.sheets) ? cutPlan.sheets : [];
+  // 재단기 파일 (cutPlan.cnc — 2026-11-19) — 있을 때만 넣는다: 파일 이름 · 화면 값이 지시서에 실리므로, 처음 실어 보낸 판은 새 리비전이다.
+  //   없는 배치(옛 플래너)는 예전과 같은 값이다
+  const cnc = cutPlan.cnc && typeof cutPlan.cnc === 'object' && Array.isArray(cutPlan.cnc.files)
+    ? {
+        files: cutPlan.cnc.files.map((f) => ({ name: f && f.name, sheetNos: f && Array.isArray(f.sheetNos) ? f.sheetNos : [], length: f && f.length, width: f && f.width, lead: f && f.lead })),
+        problems: (Array.isArray(cutPlan.cnc.problems) ? cutPlan.cnc.problems : []).map((p) => ({ sheetNo: p && p.sheetNo, reason: p && p.reason })),
+      }
+    : null;
   return {
+    ...(cnc ? { cnc } : {}),
     strategy: cutPlan.strategy,
     sheets: sheets.map((s) => ({
       no: s.no,

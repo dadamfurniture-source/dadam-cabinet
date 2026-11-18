@@ -547,6 +547,13 @@ cutPlan = {
 - **자르는 횟수** (2026-11-17 사장님 「겹쳐 자르면 한 번, 여백 재단은 빼고」): 배치 하나마다 `스트립 수 + Σ(스트립의 조각 수 − 1) + Σ(스트립마다 fromRemainder 조각의 서로 다른 폭 수)`. 앞 두 항은 CNC 탭 셈(`ai-design-report.js sheetCutCount`)과 같고, 셋째 항이 「더 좁은 부재를 한 번 더 켜는」 수다. 겹친 원판은 배치 하나로 한 번, 가장자리 트림 재단은 세지 않는다. `NestingEngine.cutCount(sheet)` 가 같은 셈을 낸 원판에서 다시 센다.
 - **`summary.sheetsByMaterial` 의 키는 색이 있어도 `자재_두께` 그대로다** — 재고(`workers/workflow-api/src/stock-needs.js boardNeeds`) · 견적(`quote-sheet.js doorSheets`) · 생산 부하(`production/workload.js`)가 이 키를 `_` 로 잘라 읽는다. 색별 장수는 `sheetsByColor` 에서 읽는다.
 - **묶음 안 원판은 꽉 찬 것부터 낸다** (2026-11-19 사장님 「앞 장부터 꽉」 — `opts.strategy` 가 있을 때): `sheets[].no` · `layout.no` 가 놓인 넓이가 큰 차례이고 겹친 원판은 붙어 있다. 남는 넓이는 묶음의 마지막 원판에 모인다. 고르는 기준은 `docs/02-design/features/nesting-engine.md` §3-1.
+- **재단기 파일 `cutPlan.cnc`** (2026-11-19 — 간편 플래너가 CNC 파일(.qk)을 만들 때의 이름 · 재단기 화면 값을 같이 실어 보낸다. 엔진은 만들지 않는다):
+  `{ files: [{ name, sheetNos: [원장 번호…], count, length, width, lead }], problems: [{ sheetNo, reason }] }`. `length` = 재단기 화면의 「길이」(먼저 나누는 변) · `width` = 「넓이」 · `lead` = 「선재단」.
+  워커는 모양만 본다 (이름 꼴 `NN-자재두께[-구분]-x장수.qk` · 있는 원장 · 원장은 한 파일에만 · 길이 · 넓이 = 그 원장의 두 변). 있으면 `content_hash` 에 넣는다 (`cutDigestOf`).
+  작업지시서 재단 꾸러미가 원장 머리에 파일 이름 · 길이 × 넓이 · 선재단을 적고, 길이가 원장의 세로 변이면 그림 · 표를 가로 · 세로를 맞바꿔 재단기 화면대로 놓는다 (`templates/work-order.js screenSheetOf` — 그림 묶음 판이 있는 문서만).
+- **가공 구분 `design.processing`** (2026-11-19 사장님 「외주, 내수가공 선택할 수 있게 도어는 외주를 기본값으로 나머지는 내수가공을 기본값으로」): `{ door, body, back }` 값은 `in`(사내 재단) · `out`(외주). 간편 플래너가 기본(도어재 out · 몸통 in · 뒷판 in)과 다를 때만 설계에 싣는다 — 없는 칸은 기본값이고 지시서는 예전과 같다.
+  배치는 바뀌지 않는다 (원장 수 · 금액 셈은 그대로) — 작업지시서가 판을 어디로 보내는지만 바뀐다 (`work-order-data.js rowRouteOf`): 사내 재단(재단 지시서 원장 · 재단 차례 라벨 · 엣지 합계) · 도어재 발주 · 재단 외주 목록 · 상판 업체.
+  도어재를 내수로 하면 도어재와 밥솥장 · 홈카페장 · 오픈장 MDF 18T 상자(도어와 같은 도어재)가 사내 재단으로 온다.
 - 색으로 나뉜 묶음이 자재 · 두께 · 구분이 같으면 `layout.no` 를 이어 매긴다 — 그 셋 + 번호로 겹침을 묶는 곳(CNC 탭 · 작업지시서)이 색을 섞지 않는다.
 
 워커(`workers/workflow-api/src/snapshots.js` `validateCutPlan`)는 배치를 **다시 계산하지 않고** 검증만 한다: `version === 1`, 시트 `no` 고유·`size` 양수·`material` 비지 않음,

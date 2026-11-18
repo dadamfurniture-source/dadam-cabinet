@@ -136,6 +136,36 @@ export function isOutsourcedCutRow(row) {
   );
 }
 
+/**
+ * 가공 구분 — 원장 종류마다 사내에서 자르나(in) 외주에 맡기나(out)
+ *   (2026-11-19 사장님 「외주, 내수가공 선택할 수 있게 도어는 외주를 기본값으로 나머지는 내수가공을 기본값으로」).
+ *   설계에 실려 온다 (design_payload.processing { door, body, back } — 간편 플래너가 기본과 다를 때만 싣는다). 없는 칸은 기본값.
+ *   door = 도어재 (도어 · 서랍 앞판 · 몰딩 · 걸레받이 · 목찬넬 · 마감) · body = 몸통 · back = 얇은 뒷판 · 서랍밑판.
+ */
+export const PROCESSING_KEYS = Object.freeze(['door', 'body', 'back']);
+export const DEFAULT_PROCESSING = Object.freeze({ door: 'out', body: 'in', back: 'in' });
+export function processingOf(design) {
+  const p = design && design.processing && typeof design.processing === 'object' && !Array.isArray(design.processing) ? design.processing : {};
+  const out = {};
+  PROCESSING_KEYS.forEach((k) => { out[k] = p[k] === 'in' || p[k] === 'out' ? p[k] : DEFAULT_PROCESSING[k]; });
+  return out;
+}
+
+/**
+ * 자재 행이 가는 곳 — 'in' 사내 재단 · 'door' 도어재 발주 · 'cut' 재단 외주 · 'top' 상판 업체.
+ *   기본 가공 구분이면 예전 가름과 같다: 도어재 = 발주, 밥솥장 · 홈카페장 · 오픈장 MDF 18T 몸통 = 재단 외주, 석재 상판 = 상판 업체, 나머지 = 사내.
+ *   도어재를 내수로 하면 도어재와 그 MDF 18T 상자(도어와 같은 도어재다)가 사내 재단으로 온다. 몸통 · 뒷판을 외주로 하면 재단 외주 목록으로 간다.
+ */
+export function rowRouteOf(row, proc = DEFAULT_PROCESSING) {
+  if (isOutsourcedTopRow(row)) return 'top';
+  if (isDoorClass(row)) return proc.door === 'in' ? 'in' : 'door';
+  if (isOutsourcedCutRow(row)) return proc.door === 'in' ? 'in' : 'cut';
+  const key = partClassOf(row && row.part, row && row.thickness) === '뒷판' ? 'back' : 'body';
+  return proc[key] === 'in' ? 'in' : 'cut';
+}
+/** 원장의 부재 구분(본체 · 도어 · 뒷판) → 가공 구분 칸 */
+export const processingKeyOfClass = (partClass) => (partClass === '도어' ? 'door' : partClass === '뒷판' ? 'back' : 'body');
+
 /** 재단 조각 id `partId#k` → 자재 행 partId (partId 자체에 '#' 이 있을 수 있어 마지막 '#' 을 뗀다). */
 export function pieceBaseId(pieceId) {
   const s = String(pieceId || '');

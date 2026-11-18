@@ -54,6 +54,10 @@ import {
   isOutsourcedCutRow,
   isOutsourcedTopRow,
   pieceBaseId,
+  processingOf,
+  rowRouteOf,
+  processingKeyOfClass,
+  DEFAULT_PROCESSING,
 } from '../work-order-data.js';
 import { laborEstimate, fmtMinutes } from '../labor-standards.js';
 import { elevationSvg, elevationModel, moduleDrawingSvg, modulePosLabel } from './elevation.js';
@@ -110,6 +114,8 @@ function buildContext(doc, snapshot, renderUrls) {
   const plan = cutPlan && typeof cutPlan === 'object' && Array.isArray(cutPlan.sheets) ? cutPlan : null;
   // 라벨 번호 차례 — 발행 때 고정 (2026-11-05 사장님 A 「재단 차례」: label_order 'cut' — 원장 1 조각부터). 옛 문서는 자재 행 차례 그대로
   const labelOrder = rp.label_order === 'cut' && plan ? 'cut' : 'row';
+  // 가공 구분 (2026-11-19 — 설계에 실려 온 것, 없으면 기본: 도어재 외주 · 몸통 · 뒷판 내수)
+  const processing = processingOf(design);
   return {
     doc,
     snapshot,
@@ -117,6 +123,10 @@ function buildContext(doc, snapshot, renderUrls) {
     materials,
     hardware,
     labelOrder,
+    processing,
+    // 그림 묶음 판이 있는 문서만 새 칸을 그린다 (재단기 파일 · 도어재 원장 그림 …) — 옛 문서는 그대로
+    drawingVersion: Number(rp.drawing_version) || 0,
+    plannerDesign: design.source === 'planner-lite',
     renders: Array.isArray(rp.renders) ? rp.renders : null,
     isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
     planRenders: Array.isArray(rp.plan_renders) ? rp.plan_renders : null,
@@ -129,7 +139,7 @@ function buildContext(doc, snapshot, renderUrls) {
     labor: rp.labor && typeof rp.labor === 'object' ? rp.labor : null, // 없으면(옛 문서) 예상 시간 생략
     rowById: new Map(materials.map((m, i) => [partIdOf(m, i), { row: m, index: i }])),
     // 조각 id → 라벨 번호 — 표에는 긴 부재 ID 대신 이 번호 (부재 ID 는 라벨 QR · CSV · 재단 배치에 그대로)
-    labelNo: labelNumbers(materials, labelOrder === 'cut' ? plan : null),
+    labelNo: labelNumbers(materials, labelOrder === 'cut' ? plan : null, processing),
     // 작업자 필수 확인 — 발행 때 고정한 판 (없으면 옛 문서 v0, src/work/check-items.js)
     checkList: checkListOfDoc(doc),
     // 특별 지시 — 발행 때 고정 (자동 + 사무실 글, src/work/special-notes.js). 옛 문서는 빈 값
@@ -193,27 +203,34 @@ function isDrawerFrontRow(m) {
 }
 
 /** 꾸러미 머리 숫자의 재료 — 사내/도어재 시트·행, 통·서랍·도어 수. (순수, 시험용으로 노출) */
-/** 사내에서 자르는 행 — 도어재(외주) · 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주) · 석재 상판(상판 업체)을 뺀 나머지. */
-function isInHouseRow(m) {
-  return !isDoorClass(m) && !isOutsourcedCutRow(m) && !isOutsourcedTopRow(m);
-}
+/**
+ * 그 행이 가는 곳 — 이 문서의 가공 구분대로 (work-order-data.js rowRouteOf): in 사내 재단 · door 도어재 발주 · cut 재단 외주 · top 상판 업체.
+ *   기본 가공 구분이면 사내 = 도어재(외주) · 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주) · 석재 상판(상판 업체)을 뺀 나머지.
+ */
+const routeOf = (ctx, m) => rowRouteOf(m, ctx.processing || DEFAULT_PROCESSING);
+const isInHouse = (ctx) => (m) => routeOf(ctx, m) === 'in';
 
-/** 재단 시트에서 재단 외주 조각을 뺀다. 다 빠지면 null (그 원판은 사내에서 자르지 않는다). */
+/** 재단 시트에서 사내에서 자르지 않는 조각을 뺀다. 다 빠지면 null (그 원판은 사내에서 자르지 않는다). 행을 못 찾은 조각은 원장의 부재 구분으로 본다 */
 function inHouseSheetOf(ctx, sheet) {
-  if (sheet.partClass === '도어') return null;
+  const proc = ctx.processing || DEFAULT_PROCESSING;
+  const bySheet = proc[processingKeyOfClass(sheet.partClass)] === 'in';
   const parts = Array.isArray(sheet.parts) ? sheet.parts : [];
-  const kept = parts.filter((p) => !isOutsourcedCutRow(rowOfPiece(ctx, p)));
-  if (kept.length === parts.length) return sheet;
+  const kept = parts.filter((p) => {
+    const m = rowOfPiece(ctx, p);
+    return m ? routeOf(ctx, m) === 'in' : bySheet;
+  });
+  if (kept.length === parts.length) return parts.length || bySheet ? sheet : null;
   return kept.length ? { ...sheet, parts: kept } : null;
 }
 
 export function workCounts(ctx) {
   const sheets = ctx.cutPlan ? ctx.cutPlan.sheets : null;
   const inHouseSheets = sheets ? sheets.map((s) => inHouseSheetOf(ctx, s)).filter(Boolean) : null;
-  const doorSheets = sheets ? sheets.filter((s) => s.partClass === '도어') : null;
-  const inHouseRows = ctx.materials.filter(isInHouseRow);
-  const doorRows = ctx.materials.filter((m) => isDoorClass(m));
-  const outsourcedRows = ctx.materials.filter(isOutsourcedCutRow);
+  // 도어재 발주로 가는 원장 — 도어재를 내수로 하면 사내 원장이다
+  const doorSheets = sheets ? sheets.filter((s) => s.partClass === '도어' && (ctx.processing || DEFAULT_PROCESSING).door !== 'in') : null;
+  const inHouseRows = ctx.materials.filter(isInHouse(ctx));
+  const doorRows = ctx.materials.filter((m) => routeOf(ctx, m) === 'door');
+  const outsourcedRows = ctx.materials.filter((m) => routeOf(ctx, m) === 'cut');
   return {
     inHouseSheets,
     doorSheets,
@@ -853,7 +870,46 @@ function rowOfPiece(ctx, piece) {
   return hit ? hit.row : null;
 }
 
-function cutSheetBlock(ctx, sheet, labelNo) {
+/**
+ * 재단기 화면대로 놓은 원장 — 화면의 「길이」(먼저 나누는 변)가 가로다 (2026-11-18 사장님 화면 사진).
+ *   길이가 원장의 세로 변이면 가로 · 세로를 맞바꾼다: 조각 자리 x ↔ y, 눕힘이 뒤집힌다 (엣지는 길이가 맞는 변끼리 옮겨진다 — drawnEdges).
+ */
+export function screenSheetOf(sheet, file) {
+  const w = Number(sheet.size && sheet.size.w);
+  const h = Number(sheet.size && sheet.size.h);
+  if (!file || !(w > 0) || !(h > 0) || w === h || Number(file.length) !== h) return sheet;
+  return {
+    ...sheet,
+    size: { w: h, h: w },
+    parts: (Array.isArray(sheet.parts) ? sheet.parts : []).map((p) => ({ ...p, x: p.y, y: p.x, rot: !p.rot })),
+  };
+}
+
+/** 그 원장의 재단기 파일 (cutPlan.cnc — 플래너가 CNC 파일을 만들 때의 이름 · 화면 값) — { file, problem } */
+function cncOf(ctx, sheet) {
+  const cnc = ctx.cutPlan && ctx.cutPlan.cnc && typeof ctx.cutPlan.cnc === 'object' ? ctx.cutPlan.cnc : null;
+  if (!cnc) return { has: false, file: null, problem: null };
+  const file = (Array.isArray(cnc.files) ? cnc.files : []).find((f) => f && Array.isArray(f.sheetNos) && f.sheetNos.includes(sheet.no)) || null;
+  const problem = (Array.isArray(cnc.problems) ? cnc.problems : []).find((p) => p && p.sheetNo === sheet.no) || null;
+  return { has: true, file, problem };
+}
+
+/** 원장 머리의 재단기 파일 글 — 그림 묶음 판이 있는 문서만. 외주로 가는 원장(참고 그림)에는 적지 않는다 */
+function cncLine(ctx, sheet, { file, problem, has }) {
+  if (!ctx.drawingVersion) return '';
+  if (file) {
+    const others = file.sheetNos.filter((n) => n !== sheet.no);
+    return `<div class="cut-file">재단기 파일 <b class="mono">${esc(file.name)}</b> · 길이 ${num(file.length)} × 넓이 ${num(file.width)} · 선재단 ${num(file.lead)}${others.length ? ` · 같은 파일 — 시트 ${others.map((n) => `#${num(n)}`).join(' ')}` : ''}</div>`;
+  }
+  if (problem) return `<div class="cut-file warn">재단기 파일 없음 — ${esc(problem.reason || '')}</div>`;
+  if (!has && ctx.plannerDesign) return '<div class="cut-file warn">재단기 파일 이름 없음 — 플래너에서 다시 보내고 지시서를 다시 내 주세요</div>';
+  return '';
+}
+
+function cutSheetBlock(ctx, rawSheet, labelNo, { reference = false } = {}) {
+  const cnc = reference ? { has: false, file: null, problem: null } : cncOf(ctx, rawSheet);
+  // 재단기 파일이 있는 원장은 재단기 화면대로 (길이 가로 · 넓이 세로) — 그림과 표의 자리가 같다
+  const sheet = ctx.drawingVersion ? screenSheetOf(rawSheet, cnc.file) : rawSheet;
   const parts = Array.isArray(sheet.parts) ? sheet.parts : [];
   const rows = parts
     .map((p) => {
@@ -886,8 +942,8 @@ function cutSheetBlock(ctx, sheet, labelNo) {
   <div class="cut-head">
     <b>시트 #${num(sheet.no)}</b> ${esc(sheet.material || '')} ${num(sheet.thickness)}T · ${esc(sheet.partClass || '')}${sheet.color ? ` · ${esc(sheet.color)}` : ''}
     · 원판 ${num(sheet.size && sheet.size.w)} × ${num(sheet.size && sheet.size.h)} · 조각 ${num(parts.length)} · 수율 ${fmtPct(sheet.yield)}${layout}
-    <span class="checks">${itemsFor(ctx.checkList, 'cut', 'sheet').map((x) => `${esc(x.short || x.label)} ☐`).join(' ')}</span>
-  </div>
+    ${reference ? '' : `<span class="checks">${itemsFor(ctx.checkList, 'cut', 'sheet').map((x) => `${esc(x.short || x.label)} ☐`).join(' ')}</span>`}
+  </div>${reference ? '' : cncLine(ctx, rawSheet, cnc)}
   <div class="cut-sheet">
     <div class="cut-svg">${svg}</div>
     <div class="cut-parts">
@@ -929,7 +985,7 @@ function flatMaterialTable(ctx, rows) {
  * 배치와 자재표가 어긋나면(옛 스냅샷, 손으로 고친 행) 부재가 재단 종이에서 조용히 빠지지 않게 따로 싣는다.
  * 반환: [{ row, index, missing: [k…] }] (순수, 시험용으로 노출)
  */
-export function uncoveredInHouse(materials, plan) {
+export function uncoveredInHouse(materials, plan, proc = DEFAULT_PROCESSING) {
   if (!plan || !Array.isArray(plan.sheets)) return [];
   const covered = new Set();
   for (const s of plan.sheets) for (const p of Array.isArray(s.parts) ? s.parts : []) covered.add(String(p.partId));
@@ -942,7 +998,7 @@ export function uncoveredInHouse(materials, plan) {
   }
   const out = [];
   materials.forEach((row, index) => {
-    if (!isInHouseRow(row)) return;
+    if (rowRouteOf(row, proc) !== 'in') return;
     const base = partIdOf(row, index);
     const missing = [];
     for (let k = 0; k < qtyOf(row); k++) if (!covered.has(`${base}#${k}`)) missing.push(k);
@@ -978,15 +1034,21 @@ function orderChecksBlock(ctx, role) {
 function cutSheets(ctx, { vendor = false } = {}) {
   const counts = workCounts(ctx);
   const labelNo = ctx.labelNo;
+  const proc = ctx.processing || DEFAULT_PROCESSING;
   const inHouse = ctx.materials
     .map((row, index) => ({ row, index }))
-    .filter(({ row }) => isInHouseRow(row));
+    .filter(({ row }) => routeOf(ctx, row) === 'in');
   const outsourced = ctx.materials
     .map((row, index) => ({ row, index }))
-    .filter(({ row }) => isOutsourcedCutRow(row));
-  // 2026-10-20 사장님 "재단 외주, 조립 사내" — 외주처 미정이라 업체 이름 없이 적는다
+    .filter(({ row }) => routeOf(ctx, row) === 'cut');
+  // 2026-10-20 사장님 "재단 외주, 조립 사내" — 외주처 미정이라 업체 이름 없이 적는다.
+  //   가공 구분으로 몸통 · 뒷판을 외주로 돌린 판이 섞이면 묶음 이름만 「재단 외주」로 (2026-11-19)
+  const outsourcedQty = num(outsourced.reduce((s, x) => s + qtyOf(x.row), 0));
+  const outsourcedTitle = outsourced.every(({ row }) => isOutsourcedCutRow(row))
+    ? `MDF 18T 재단 외주 <span class="muted">밥솥장·홈카페장·오픈장 몸통 ${outsourcedQty}장 — 사내에서 자르지 않는다 · 입고 후 사내 조립</span>`
+    : `재단 외주 <span class="muted">${outsourcedQty}장 — 사내에서 자르지 않는다 · 입고 후 사내 조립</span>`;
   const outsourcedBlock = outsourced.length
-    ? `<div class="sub-title">MDF 18T 재단 외주 <span class="muted">밥솥장·홈카페장·오픈장 몸통 ${num(outsourced.reduce((s, x) => s + qtyOf(x.row), 0))}장 — 사내에서 자르지 않는다 · 입고 후 사내 조립</span></div>${flatMaterialTable(ctx, outsourced)}`
+    ? `<div class="sub-title">${outsourcedTitle}</div>${flatMaterialTable(ctx, outsourced)}`
     : '';
   const doorNote = !vendor && counts.doorRows.length
     ? `<div class="muted">도어재 ${num(counts.doorRows.reduce((s, m) => s + qtyOf(m), 0))}장${counts.doorSheets ? ` (원장 ${num(counts.doorSheets.length)}장)` : ''} 은 외주 — ⑩ 도어재 발주서.</div>`
@@ -1020,10 +1082,11 @@ function cutSheets(ctx, { vendor = false } = {}) {
   const offRowsOf = (list) => list
     .map((o) => tr([num(o.sheetNo), o.kind === 'strip' ? '스트립 잔여' : '원판 잔여', `${num(o.w)} × ${num(o.h)}`, num(o.x), num(o.y), num(o.free)], ['num', '', 'num', 'num', 'num', 'num']))
     .join('');
+  // 사내에서 자르는 소부품만 — 그 행의 가공 구분대로 (행을 못 찾으면 부재 구분으로)
+  const inByClass = (x) => proc[processingKeyOfClass(x.partClass || partClassOf(x.part, x.thickness))] === 'in';
   const smalls = (Array.isArray(plan.smallParts) ? plan.smallParts : []).filter((s) => {
-    if ((s.partClass || partClassOf(s.part)) === '도어') return false;
     const hit = ctx.rowById.get(s.partId);
-    return !(hit && isOutsourcedCutRow(hit.row));
+    return hit ? routeOf(ctx, hit.row) === 'in' : inByClass(s);
   });
   const smallRowsOf = (list) => list
     .map((s) => {
@@ -1031,11 +1094,14 @@ function cutSheets(ctx, { vendor = false } = {}) {
       return tr([pieceLabelText(ctx, [s.partId], qtyOf(s)), esc(s.part || ''), `${esc(s.material || '')} ${num(s.thickness)}T`, `${num(s.w)} × ${num(s.h)}`, num(s.qty), hit ? edgeText(hit.row) : '', hit ? esc(hit.row.note || '') : ''], ['num', '', '', 'num', 'num', '', '']);
     })
     .join('');
-  const missingRows = uncoveredInHouse(ctx.materials, plan);
+  const missingRows = uncoveredInHouse(ctx.materials, plan, proc);
   const unalloc = (Array.isArray(plan.unallocated) ? plan.unallocated : []).filter((u) => {
-    if (u.partClass === '도어') return false;
     const ids = Array.isArray(u.partIds) ? u.partIds : [];
-    return !(ids.length && ids.every((id) => isOutsourcedCutRow(rowOfPiece(ctx, { partId: id }))));
+    if (!ids.length) return inByClass(u);
+    return ids.some((id) => {
+      const m = rowOfPiece(ctx, { partId: id });
+      return m ? routeOf(ctx, m) === 'in' : inByClass(u);
+    });
   });
   const unRowsOf = (list) => list
     .map((u) => tr([pieceLabelText(ctx, Array.isArray(u.partIds) ? u.partIds : []), esc(Array.isArray(u.parts) ? u.parts.join(', ') : ''), `${esc(u.material || '')} ${num(u.thickness)}T`, `${num(u.w)} × ${num(u.h)}`, num(u.qty)], ['num', '', '', 'num', 'num']))
@@ -1072,6 +1138,15 @@ function cutSheets(ctx, { vendor = false } = {}) {
     ${unRows ? unTable(unRows) : ''}
   </div>`;
   };
+  // 도어재 원장 — 외주로 가는 원장도 재단 그림을 싣는다 (2026-11-19 사장님 「재단: 도어재 원장 재단 그림」 — 참고용, 사내에서 자르지 않는다).
+  //   그림 묶음 판이 있는 문서의 사내용 종이에만. 내수로 하면 위 묶음에 들어 있다
+  const doorRef = !vendor && ctx.drawingVersion && counts.doorSheets && counts.doorSheets.length
+    ? `
+  <div class="cut-group cut-group-next" id="cut-group-door" data-group="door" data-view="both">
+    <div class="cut-group-head"><b>도어재 원장</b> <span class="muted">외주 · 참고 — 원장 ${num(counts.doorSheets.length)}장 · 사내에서 자르지 않는다</span></div>
+    ${counts.doorSheets.map((s) => cutSheetBlock(ctx, s, labelNo, { reference: true })).join('')}
+  </div>`
+    : '';
   // 그 자재 · 두께 원장이 없는 소부품 · 미배치 — 맨 뒤에 한 번
   const loneSmall = smallRowsOf(smalls.filter((s) => !groups.some((g) => inGroup(g, s))));
   const loneUn = unRowsOf(unalloc.filter((u) => !groups.some((g) => inGroup(g, u))));
@@ -1085,7 +1160,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
   <div class="muted">굵은 실선 = 엣지 0.6 · 이중선 = 엣지 1.0 · 선 없음 = 엣지 없음 · 굵은 숫자 = 라벨 번호${ctx.labelOrder === 'cut' ? ' (재단 차례 — 원장 1 조각부터)' : ''}. 표의 변 길이는 부재 기준 (회전해도 같다).</div>
   ${doorNote}
   ${tabs}
-  ${vendor ? '' : orderChecksBlock(ctx, 'cut')}${groups.map(groupBlock).join('')}
+  ${vendor ? '' : orderChecksBlock(ctx, 'cut')}${groups.map(groupBlock).join('')}${doorRef}
   ${loneSmall ? smallTable(loneSmall) : ''}
   ${loneUn ? unTable(loneUn) : ''}
   ${outsourcedBlock}
@@ -1262,14 +1337,16 @@ export function labelUnits(materials) {
  * 라벨 순서 — 사내 재단 부재 먼저(재단 직후 부착), MDF 18T 재단 외주·도어재는 뒤(입고 시 부착).
  * 석재 상판(top)은 상판 업체가 가져와 현장에서 얹는다 — 라벨 없음 (묶음은 부재 보존을 세려고 남긴다).
  */
-export function labelGroups(materials, cutPlan = null) {
+export function labelGroups(materials, cutPlan = null, proc = DEFAULT_PROCESSING) {
   const units = labelUnits(materials);
-  const inHouse = units.filter((u) => isInHouseRow(u.row));
+  // 가공 구분대로 (work-order-data.js rowRouteOf) — 내수로 돌린 도어재는 사내 묶음(재단 차례)에, 외주로 돌린 몸통은 재단 외주 묶음에
+  const of = (route) => units.filter((u) => rowRouteOf(u.row, proc) === route);
+  const inHouse = of('in');
   return {
     inHouse: cutPlan && Array.isArray(cutPlan.sheets) ? cutOrderOf(inHouse, cutPlan) : inHouse,
-    outsourced: units.filter((u) => isOutsourcedCutRow(u.row)),
-    door: units.filter((u) => isDoorClass(u.row)),
-    top: units.filter((u) => isOutsourcedTopRow(u.row)),
+    outsourced: of('cut'),
+    door: of('door'),
+    top: of('top'),
   };
 }
 
@@ -1293,13 +1370,13 @@ export function cutOrderOf(units, plan) {
 }
 
 /** 조각 id → 라벨 번호 (1부터, labelGroups 순서). 재단표와 라벨이 같은 번호를 쓴다. cutPlan 을 주면 사내 부재는 재단 차례 */
-export function labelNumbers(materials, cutPlan = null) {
-  const { inHouse, outsourced, door } = labelGroups(materials, cutPlan);
+export function labelNumbers(materials, cutPlan = null, proc = DEFAULT_PROCESSING) {
+  const { inHouse, outsourced, door } = labelGroups(materials, cutPlan, proc);
   return new Map([...inHouse, ...outsourced, ...door].map((u, i) => [u.id, i + 1]));
 }
 
 /** 이 문서의 라벨 묶음 — 고정한 차례대로 */
-const docLabelGroups = (ctx) => labelGroups(ctx.materials, ctx.labelOrder === 'cut' ? ctx.cutPlan : null);
+const docLabelGroups = (ctx) => labelGroups(ctx.materials, ctx.labelOrder === 'cut' ? ctx.cutPlan : null, ctx.processing || DEFAULT_PROCESSING);
 
 function labelCell(unit, no, ctx) {
   const m = unit.row;
@@ -1345,7 +1422,7 @@ function labelSheets(ctx) {
     }
   };
   emit(inHouse, 0, '사내 재단 (재단 직후 부착)');
-  emit(outsourced, inHouse.length, 'MDF 18T 재단 외주 (입고 시 부착)');
+  emit(outsourced, inHouse.length, outsourced.every((u) => isOutsourcedCutRow(u.row)) ? 'MDF 18T 재단 외주 (입고 시 부착)' : '재단 외주 (입고 시 부착)');
   emit(door, inHouse.length + outsourced.length, '도어재 (입고 시 부착)');
   return pages.join('');
 }
@@ -1414,9 +1491,11 @@ export function doorDrawingSvg(m, boring, scale = 0.16) {
 function doorOrderSheet(ctx) {
   const counts = workCounts(ctx);
   const title = '⑩ 도어재 발주서';
-  const rows = ctx.materials.map((row, index) => ({ row, index })).filter(({ row }) => isDoorClass(row));
+  const rows = ctx.materials.map((row, index) => ({ row, index })).filter(({ row }) => routeOf(ctx, row) === 'door');
   if (rows.length === 0) {
-    return `<div class="sheet"><div class="section-title">${title}</div><div class="muted">도어재 부재 없음</div></div>`;
+    // 도어재를 내수로 하는 설계 — 발주가 없다 (재단 지시서의 원장에 들어 있다)
+    const inHouseDoors = (ctx.processing || DEFAULT_PROCESSING).door === 'in' && ctx.materials.some((m) => isDoorClass(m));
+    return `<div class="sheet"><div class="section-title">${title}</div><div class="muted">${inHouseDoors ? '도어재 발주 없음 — 내수가공 (재단 지시서의 원장)' : '도어재 부재 없음'}</div></div>`;
   }
 
   const borings = boringRows(ctx.materials, ctx.hardware);
@@ -1558,7 +1637,7 @@ function cadStampOf(ctx) {
 }
 
 function partDrawingsSection(ctx) {
-  return partDrawingsSheet(Object.assign(cadStampOf(ctx), { include: isInHouseRow }));
+  return partDrawingsSheet(Object.assign(cadStampOf(ctx), { include: isInHouse(ctx) }));
 }
 
 /** CAD 베타 PR17b: 모듈 단면도 — 동결 명세의 모듈마다 옆 단면. 도장은 판재 도면과 같다. 명세가 없으면 쪽이 없다. */

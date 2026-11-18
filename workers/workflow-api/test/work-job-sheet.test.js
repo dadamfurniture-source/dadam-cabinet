@@ -477,3 +477,26 @@ test('재단 꾸러미 — 원장에 색이 있으면 원장 머리에 색을 �
   const plain = head(renderWorkOrder(doc(null), SNAPSHOT, { toolbar: false, pack: 'cut' }));
   assert.match(plain, /시트 #1 PB 15T · 본체 · 원판 1,220 × 2,440/);
 });
+
+test('인쇄 — 프로젝트 작업의 메모는 그 프로젝트의 설계 모두의 지시서에 나온다 (한 작업에 모든 설계, 2026-11-19)', async () => {
+  const t = tables();
+  // 같은 프로젝트의 둘째 설계 · 다른 프로젝트의 설계
+  t.designs.push({ id: D(4), company_id: A, user_id: OWNER_A, name: '김고객 붙박이장 설계', project_id: P(1) }, { id: D(5), company_id: A, user_id: OWNER_A, name: '둘째 프로젝트 설계', project_id: P(2) });
+  t.design_snapshots.push({ ...SNAPSHOT, id: id('09', 4), design_id: D(4) }, { ...SNAPSHOT, id: id('09', 5), design_id: D(5) });
+  t.design_documents.push(
+    docRow(6, 'demolition_order', { design_id: D(4), snapshot_id: id('09', 4) }),
+    docRow(7, 'demolition_order', { design_id: D(5), snapshot_id: id('09', 5) }),
+  );
+  t.work_jobs.push(
+    { id: id('0c', 1), kind: 'demolition', title: '철거', company_id: A, project_id: P(1), schedule_id: null, design_id: D(1), order_id: null, status: 'open', slots: 1, version: 0, mode: 'invite', sheet_memo: '기존 상부장은 남깁니다' },
+    { id: id('0c', 2), kind: 'delivery', title: '납품', company_id: A, project_id: null, design_id: D(1), order_id: null, schedule_id: S(2), status: 'open', slots: 1, version: 0, mode: 'invite', sheet_memo: '납품 메모' },
+  );
+  const fake = world(t);
+  const print = (doc, job) => call(fake, 't_owner', `/documents/${DOC(doc)}/print?job=${id('0c', job)}`);
+  assert.match(strip((await print(6, 1)).text), /사무실 메모 기존 상부장은 남깁니다/, '같은 프로젝트의 둘째 설계');
+  assert.doesNotMatch(strip((await print(7, 1)).text), /사무실 메모/, '다른 프로젝트의 설계');
+  // 일정에서 생긴 작업의 메모는 그 일정의 설계에만
+  t.design_documents.push(docRow(8, 'delivery_order', { design_id: D(4), snapshot_id: id('09', 4) }));
+  const fake2 = world(t);
+  assert.doesNotMatch(strip((await call(fake2, 't_owner', `/documents/${DOC(8)}/print?job=${id('0c', 2)}`)).text), /납품 메모/);
+});

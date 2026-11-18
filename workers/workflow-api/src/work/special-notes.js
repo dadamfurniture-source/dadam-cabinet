@@ -19,8 +19,8 @@ import {
   materialsOf,
   hardwareOf,
   isDoorClass,
-  isOutsourcedCutRow,
-  isOutsourcedTopRow,
+  processingOf,
+  rowRouteOf,
 } from '../work-order-data.js';
 import { isSinkModule, isCookModule } from '../countertop.js';
 
@@ -41,7 +41,6 @@ const OFFICE_MAX_LEN = 300;
 const qty = (m) => Math.max(0, Math.round(Number(m && m.qty) || 0));
 const sum = (rows) => rows.reduce((s, m) => s + qty(m), 0);
 const uniq = (xs) => [...new Set(xs.filter(Boolean))];
-const isInHouse = (m) => !isDoorClass(m) && !isOutsourcedCutRow(m) && !isOutsourcedTopRow(m);
 const isDoorPanel = (m) =>
   m.slot === 'door' || m.slot === 'drawerFront' || m.part === '도어' || m.part === '서랍도어';
 const moduleLabel = (item, mi, m) =>
@@ -52,7 +51,9 @@ export function autoNotesOf(snapshot, { cutPlan = null } = {}) {
   const out = Object.fromEntries(NOTE_ROLES.map((r) => [r, []]));
   const materials = materialsOf(snapshot);
   const hardware = hardwareOf(snapshot);
-  const inHouse = materials.filter(isInHouse);
+  // 사내에서 자르는 판 — 그 설계의 가공 구분대로 (기본: 도어재 · 재단 외주 · 석재 상판을 뺀 나머지)
+  const proc = processingOf(snapshot && snapshot.design_payload);
+  const inHouse = materials.filter((m) => rowRouteOf(m, proc) === 'in');
 
   // 재단 — 색이 지정된 몸통 부재 (도어재가 아닌데 마감 코드가 있다)
   const colored = new Map();
