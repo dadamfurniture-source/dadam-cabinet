@@ -512,7 +512,9 @@ async function handlePrintDocument(request, env, { params, user }) {
   // B5: 작업지시서 표지의 정면 렌더는 인쇄 시점에 서명 URL(1시간)을 만든다
   const assets = await resolvePrintAssets(env, doc);
   // 상판 발주 요청서 — 발주 마감(설치 − 4근무일) · 재질별 업체 · 가전 모델 타공은 인쇄 시점에 읽는다
-  const top = doc.doc_type === 'work_order' && (pack === 'top' || pack === 'all') ? await loadCountertopContext(env, { doc, snapshot }) : null;
+  //   설치 지시서의 상판 탑뷰(그림 묶음 판이 있는 문서)도 같은 값으로 그린다
+  const needsTop = (doc.doc_type === 'work_order' && (pack === 'top' || pack === 'all')) || (doc.doc_type === 'installation_order' && !!(doc.render_payload && doc.render_payload.drawing_version));
+  const top = needsTop ? await loadCountertopContext(env, { doc, snapshot }) : null;
   // 철거 · 납품 지시서 — ?job= 이면 그 작업 줄의 사무실 메모를 같이 (그 문서의 설계 · 종류의 작업일 때만 — src/work/job-sheet.js)
   const memo = SITE_ORDER_TYPES.includes(doc.doc_type) ? await memoForPrint(env, { doc, jobId: new URL(request.url).searchParams.get('job') }) : '';
   // 철거 지시서 — 팩토리가 그 설계에 올려 둔 현장 사진 (열 때 읽는 1시간 서명 주소 — src/work/job-sheet.js sitePhotosOf)

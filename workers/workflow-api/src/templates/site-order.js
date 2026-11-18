@@ -4,6 +4,9 @@
  *
  *   철거 (demolition_order): 현장 정보 · 반입 경로 + 일정 · 사무실 메모 + 현장 사진 + 철거 확인 (철거 후 사진)
  *   납품 (delivery_order):   현장 정보 · 반입 경로 + 일정 · 사무실 메모 + 싣는 품목 목록 + 납품 확인 (수량 · 하차 후 사진)
+ *   그림 (2026-11-19 사장님 「각 작업에 필요한 도면들」 — 그림 묶음 판이 있는 문서 render_payload.drawing_version 만, 옛 문서는 그대로):
+ *     철거 = 배치 평면 (벽 · 가전 자리 — 플래너 도면) · 납품 = 벽마다 ISO 도면 · 3D 앞모습 (번호 = 싣는 품목 번호).
+ *     발행 때 고정한 그림의 1시간 서명 주소(opts.renderUrls) — 주소 · 연락처와 달리 수락한 작업자에게 늘 보인다 (설치 지시서의 도면과 같다).
  *
  * 설치 지시서(installation-order.js)와 같은 현장 문서다 — 현장 정보 칸 · 모듈 명세 · 일정 표를 그 틀에서 그대로 가져다 쓴다
  * (주소 · 연락처를 여는 판정이 한 곳에만 있다 — siteBlock). 자재 재단 목록 · 금액 · 공유 링크가 없다.
@@ -17,7 +20,8 @@
 
 import { esc, num, ymd, tr, thead, documentShell } from './html.js';
 import { PRINT_TOOLBAR } from './print-css.js';
-import { siteBlock, moduleSheet, scheduleSheet, itemLabel, isLineRow, SITE_CSS } from './installation-order.js';
+import { siteBlock, moduleSheet, scheduleSheet, itemLabel, isLineRow, SITE_CSS, isPlannerDesign, layoutBlock } from './installation-order.js';
+import { elevationBlock, renderBoxes, drawingTitle } from './work-order.js';
 import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 
@@ -51,6 +55,33 @@ function photoSheet(urls) {
 <div class="sheet">
   <h2>현장 사진 <span class="hint">철거할 자리 — 팩토리가 설계에 올려 둔 사진</span></h2>
   <div class="site-photos">${urls.map((u, i) => `<figure><img src="${esc(u)}" alt="현장 사진 ${i + 1}">현장 사진 ${i + 1}</figure>`).join('')}</div>
+</div>`;
+}
+
+/** 그림 장 — 철거 = 배치 평면 (플래너에서 온 설계만), 납품 = 벽마다 ISO 도면(없으면 앱 정면도) · 3D 앞모습. 그림 묶음 판이 없는 옛 문서면 '' */
+function drawingSheet(doc, snapshot, renderUrls) {
+  const rp = doc.render_payload || {};
+  if (!rp.drawing_version) return '';
+  const urls = renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {}));
+  if (doc.doc_type === 'demolition_order') {
+    if (!isPlannerDesign(snapshot)) return '';
+    return `
+<div class="sheet">
+  <h2>배치 평면 <span class="hint">철거할 자리 — 벽 · 가전 자리</span></h2>
+  ${layoutBlock(rp, urls)}
+</div>`;
+  }
+  const design = snapshot.design_payload || {};
+  const items = Array.isArray(design.items) ? design.items : [];
+  if (!items.length) return '';
+  const renders = Array.isArray(rp.renders) && rp.renders.length ? rp.renders : null;
+  const ctx = { items, renders, isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null, renderUrls: urls };
+  return `
+<div class="sheet">
+  <h2>${drawingTitle(ctx)}</h2>
+  <p class="hint">번호 = 싣는 품목 번호. 치수 mm.</p>
+  ${elevationBlock(ctx)}
+  ${renders ? `<h2>3D 앞모습</h2>${renderBoxes(ctx)}` : ''}
 </div>`;
 }
 
@@ -121,11 +152,11 @@ function loadSheet(snapshot) {
 /**
  * @param {object} doc      design_documents 행 (doc_type demolition_order | delivery_order)
  * @param {object} snapshot 동결본
- * @param {{toolbar?:boolean, site?:object, schedules?:object[], worker?:{orderLabel:string, siteOpen:boolean}, memo?:string, sitePhotos?:{url:string}[]}} [opts]
+ * @param {{toolbar?:boolean, site?:object, schedules?:object[], worker?:{orderLabel:string, siteOpen:boolean}, memo?:string, sitePhotos?:{url:string}[], renderUrls?:Map<string,string>}} [opts]
  *   worker = 작업자 보기 (가린 주문 이름, 주소 · 연락처 · 현장 사진은 siteOpen 일 때만) · memo = 그 작업 줄의 사무실 메모 ·
- *   sitePhotos = 현장 사진 서명 주소 (철거 지시서만 그린다)
+ *   sitePhotos = 현장 사진 서명 주소 (철거 지시서만 그린다) · renderUrls = 고정한 그림의 서명 주소 (documents.js resolvePrintAssets)
  */
-export function renderSiteOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null, memo = '', sitePhotos = null } = {}) {
+export function renderSiteOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null, memo = '', sitePhotos = null, renderUrls = new Map() } = {}) {
   const kind = SITE_ORDERS[doc.doc_type];
   if (!kind) throw new Error(`현장 지시서가 아닌 문서입니다: ${doc.doc_type}`);
   const w = worker && worker.orderLabel ? worker : null;
@@ -134,6 +165,7 @@ export function renderSiteOrder(doc, snapshot, { toolbar = true, site = null, sc
   const body = [
     toolbar ? PRINT_TOOLBAR : '',
     coverSheet(doc, snapshot, site || rp.site_info, w, kind, memo, photos),
+    drawingSheet(doc, snapshot, renderUrls),
     photoSheet(photos),
     doc.doc_type === 'delivery_order' ? moduleSheet(snapshot).replace('<h2>설치 모듈 명세</h2>', '<h2>싣는 품목 — 모듈</h2>') : '',
     doc.doc_type === 'delivery_order' ? loadSheet(snapshot) : '',
