@@ -174,6 +174,19 @@ test('설정: 예전 기본 상판 125,000 이 저장돼 있으면 확정값 133
   assert.equal(mergeSettings(null).quote.demolitionPerMeter, 25000);
 });
 
+test('설정: 예전 기본 엣지 1롤 200m · 고정비 회수 32,800 이 저장돼 있으면 100m · 31,500 으로 읽는다 — 직접 바꾼 값은 그대로', () => {
+  // 2026-11-18 대표: 0.6T 엣지 한 롤은 100m. 고정비 회수는 표준 싱크대 견적이 그대로이게 같이 고친 값
+  const old = mergeSettings({ quote: { edgeRollMeters: 200, fixedPerPbSheet: 32800, edgeRoll: 18000 } }).quote;
+  assert.equal(old.edgeRollMeters, 100);
+  assert.equal(old.fixedPerPbSheet, 31500);
+  assert.equal(old.edgeRoll, 18000);
+  const own = mergeSettings({ quote: { edgeRollMeters: 150, fixedPerPbSheet: 40000 } }).quote;
+  assert.equal(own.edgeRollMeters, 150);
+  assert.equal(own.fixedPerPbSheet, 40000);
+  assert.equal(mergeSettings(null).quote.edgeRollMeters, 100);
+  assert.equal(mergeSettings(null).quote.fixedPerPbSheet, 31500);
+});
+
 test('알림: 제안 메시지에 승인 링크·추가 비용, 지시는 날짜별로 묶는다', () => {
   const jobs = [];
   for (let i = 0; i < 12; i++) jobs.push({ id: `s${i}`, label: `싱크대 ${i + 1}`, orderedAt: '2026-10-13', installDate: '2026-10-20', work: workloadFromCounts(SINK_3M) });
