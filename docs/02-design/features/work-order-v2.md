@@ -106,3 +106,47 @@ python qrcode 8 두 구현으로 만들어 대조했다 (고정 마스크 행렬
 - 보링 위치는 경첩 비고 자유문을 파싱한다. `extractHinges` 가 구조화 `boring[]` 을 실으면(BOM 도메인) 파서가 그것을 우선 읽는다 — 이미 준비돼 있다.
 - 경첩 외 철물(레일·손잡이)은 모듈 정보가 비고에 없어 키팅에서 "기타 철물" 로 내려간다. 철물 행에 `module` 필드가 생기면 그대로 묶인다.
 - `drawing-viewer.html` 의 `?snapshot=` 연결(계획 B5 마지막 줄)은 프런트 작업이라 이 PR 에 없다.
+
+## 9. 그림 묶음 판 (`render_payload.drawing_version`, 2026-11-19)
+
+작업마다 볼 그림을 지시서에 더 싣는다. **이 칸이 있는 문서만** 새 그림 칸과 「그림 없음」 상태 글을 그린다 — 칸이 없는 문서(그 전에 낸 것)의 출력은 한 글자도 바뀌지 않는다 (골든 시험).
+새 그림을 실으려면 지시서를 다시 낸다.
+
+### 9-1. 문서 종류마다 고정하는 그림
+
+| 문서 | `render_payload` 에 더 고정하는 것 | 그리는 곳 |
+|---|---|---|
+| `work_order` | `inside_renders` | 조립 꾸러미 ⑪ 모듈 카드 — 속 구조 |
+| `installation_order` | `plan_renders` · `layout_renders` · `inside_renders` | 배치 평면 · 상판 탑뷰 · 속 구조 정면도 |
+| `delivery_order` | `renders` · `iso_renders` | 벽마다 ISO · 3D 앞모습 |
+| `demolition_order` | `layout_renders` | 배치 평면 |
+
+- 그림은 간편 플래너가 보낸다 (`planner-handoff.js` — kind `layout` 배치 평면 · `inside` 벽마다 속 구조 정면도, DB 0072). 그림 줄의 `camera` 에 보낸 판의 해시(`snapshot`)와, `inside` 는 그림 크기 `view` · 모듈 상자 자리 `boxes[{nos, x, y, w, h}]` 를 적는다.
+- 발행 때 `work-order-data.js collectRenders(env, designId, items, kind, { contentHash })` 가 **그 판의 그림만** 고른다. 다른 판의 그림뿐이면 `path null · stale true` 로 남긴다.
+- 그림이 없을 때는 짐작해 그리지 않고 까닭을 적는다 — 「… 없음」 · 「… — 이 설계 판의 그림이 아님」 · 「… — 그림을 불러올 수 없음」.
+- 조립 카드의 속 구조는 벽 그림 한 장을 그 모듈의 상자 자리로 잘라 보인다 (`work-order.js insideCropOf`). 상자 자리가 없는 모듈은 치수도만.
+
+### 9-2. 가공 구분 (`design_payload.processing`)
+
+`{ door, body, back }` 가 각각 `in`(내수) · `out`(외주). 칸이 없으면 도어 외주 · 몸통 내수 · 우라 내수 (지금까지의 동작).
+`work-order-data.js rowRouteOf(row, processing)` 가 판재 줄의 길을 정한다 — `in`(사내 재단 · 라벨 · 엣지 그림) · `door`(도어재 발주) · `cut`(재단 외주 의뢰) · `top`(상판 발주).
+도어재가 외주여도 그림 묶음 판이 있는 문서는 도어재 원장 그림을 참고로 싣는다.
+
+### 9-3. 재단기 화면 방향 · 파일 이름 (`cut_plan.cnc`)
+
+`cnc = { files: [{ name, sheetNos, count, length, width, lead }], problems: [{ sheetNo, reason }] }` — 플래너가 재단기 파일(.qk)을 만들 때의 이름과 방향이다. `snapshots.js validateCutPlan` 이 모양을 보고, `hash.js cutDigestOf` 에 들어간다.
+이 칸이 있으면 원장 그림을 재단기 화면과 같은 방향(「길이」가 가로)으로 그리고 원장 머리에 파일 이름을 적는다. 파일로 옮기지 못한 원장은 까닭을 적는다.
+
+### 9-4. 엣지 그림 쪽
+
+재단 꾸러미(`cut` · `all`) 끝에 「엣지 — 부재마다 붙일 변」 쪽이 붙는다 (`work-order.js edgeSheets`). 사내에서 자르는 부재를 원장 묶음(자재 · 두께 · 부재 구분)마다 라벨 번호 차례로 그리고, 엣지 붙일 변을 굵게 그린다. 엣지가 없는 부재는 수만 적는다.
+꾸러미 목록 · 역할별 꾸러미(`check-state.js PACKS_OF_ROLE`)는 그대로다 — 엣지 기사는 재단 꾸러미를 연다.
+
+### 9-5. 수주 없는 지시서
+
+작업자 화면의 지시서는 작업의 설계로 찾는다 (`work/job-links.js`) — 프로젝트 작업은 그 프로젝트의 설계 모두, 일정 작업은 그 일정의 설계. 수주가 없어도 프로젝트에 이은 설계면 열린다.
+지시서를 지금 판으로 맞추는 길은 `POST /designs/:id/work-sheets/issue` (`work/sheet-issue.js` — 한 요청에 문서 한 종류, 같은 판이면 `kept`).
+
+### 9-6. 그리지 않는 것
+
+다보 · 체결 구멍, 콘센트 타공 자리 — 엔진이 그 자리 값을 내지 않는다.
