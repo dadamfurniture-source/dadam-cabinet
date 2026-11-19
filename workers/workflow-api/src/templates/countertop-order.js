@@ -145,7 +145,8 @@ function elevatorText(site) {
   return `<span class="warn">${CHECK} 엘리베이터 미확인</span>`;
 }
 
-const modelName = (m) => (m ? `${esc(m.name)}${m.code ? ` <span class="mono">${esc(m.code)}</span>` : ''}` : `<span class="warn">${CHECK} 모델 미지정</span>`);
+// 모델(appliance_models)이 없어도 설계에서 고른 상품(철물 · 부속 카탈로그 — c.part)이 있으면 그 이름을 적는다. 타공 치수 칸의 [확인 필요] 는 그대로다
+const modelName = (m, part) => (m ? `${esc(m.name)}${m.code ? ` <span class="mono">${esc(m.code)}</span>` : ''}` : part ? `${esc(part)} <span class="muted">설계에서 고른 상품</span>` : `<span class="warn">${CHECK} 모델 미지정</span>`);
 
 /** 플래너가 그려 보낸 상판 탑뷰 (코너 — 발행 때 고정 · 인쇄 때 서명). 없으면 '' → 앱 그림 */
 function planImgOf(ctx, req) {
@@ -165,7 +166,7 @@ function requestSheet(ctx, req, k, total) {
     : `<span class="warn">${CHECK} 설치일 미정 — 설치 4근무일 전까지</span>`;
   const f = req.finishes;
   const cutRows = req.cutouts.length
-    ? req.cutouts.map((c) => `<tr><td>${KIND_ICON[c.kind] || ''} ${esc(c.label)}</td><td>${modelName(c.model)}</td><td>${c.center === null ? esc(c.at || '') : `${c.no ? `${num(c.no)}번 칸 · ` : ''}왼쪽 끝에서 중심 <b>${num(c.center)}</b>${req.shape === 'corner' ? ' <span class="muted">(펼친 길이)</span>' : ''}`}</td><td>${cutoutSize(c)}</td></tr>`).join('')
+    ? req.cutouts.map((c) => `<tr><td>${KIND_ICON[c.kind] || ''} ${esc(c.label)}</td><td>${modelName(c.model, c.part)}</td><td>${c.center === null ? esc(c.at || '') : `${c.no ? `${num(c.no)}번 칸 · ` : ''}왼쪽 끝에서 중심 <b>${num(c.center)}</b>${req.shape === 'corner' ? ' <span class="muted">(펼친 길이)</span>' : ''}`}</td><td>${cutoutSize(c)}</td></tr>`).join('')
     : '<tr><td colspan="4" class="muted">타공 없음 (개수대 · 가스대 모듈 없음)</td></tr>';
   const rs = f.rearShelf || {};
   const rearText = rs.on ? (rs.d > 0 && rs.h > 0 ? `있음 · 깊이 ${num(rs.d)} × 높이 ${num(rs.h)}` : `있음 · <span class="warn">${CHECK} 크기 미정</span>`) : '없음';
