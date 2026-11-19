@@ -22,6 +22,7 @@ import { specialNotesOfDoc } from '../work/special-notes.js';
 import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 import { SITE_NOTE } from '../work/reveal.js';
+import { fixturePartsOfItem, fixturePartText } from '../fixture-parts.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -94,6 +95,21 @@ export function siteBlock(s, worker) {
  * worker (작업자 포털 — work/checks.js): 고객 칸은 가린 주문 이름. 주소 · 연락처는 worker.siteOpen 일 때만
  *   (수락한 때부터 작업이 끝나고 7일까지 — reveal.js siteOpenFor), 아니면 안내 문구.
  */
+/**
+ * 설비 — 설계에서 고른 싱크볼 · 수전 · 쿡탑 · 후드 (간편 플래너 specs.fixtureParts, 2026-11-19 사장님 「앱으로 보낼 때 같이」).
+ * 고른 상품이 없으면 칸째 없다 (옛 설계 · 고르지 않은 설계의 지시서는 그대로다).
+ */
+export function fixturePartsBlock(items) {
+  const rows = (Array.isArray(items) ? items : []).flatMap((item, i) => fixturePartsOfItem(item).map((p) => tr([esc(itemLabel(item, i)), esc(p.label), esc(fixturePartText(p)), esc(p.vendor || '-')])));
+  if (!rows.length) return '';
+  return `
+  <h2>설비 <span class="hint">설계에서 고른 상품</span></h2>
+  <table>
+    ${thead(['품목', '구분', '상품', '공급 회사'])}
+    <tbody>${rows.join('')}</tbody>
+  </table>`;
+}
+
 function coverSheet(doc, snapshot, site, worker) {
   const design = snapshot.design_payload || {};
   const items = Array.isArray(design.items) ? design.items : [];
@@ -135,7 +151,7 @@ function coverSheet(doc, snapshot, site, worker) {
   <table>
     ${thead(['품목', '분류', 'W × H × D (mm)', '모듈 수'])}
     <tbody>${summaryRows || tr(['-', '-', '-', '-'])}</tbody>
-  </table>
+  </table>${fixturePartsBlock(items)}
 
   ${installChecks(doc, snapshot)}<table class="sign">
     <tbody>

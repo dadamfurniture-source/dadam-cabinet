@@ -18,6 +18,7 @@
 import { materialsOf } from './work-order-data.js';
 import { isCornerItem, isoModel, runLengths } from './templates/isometric.js';
 import { DEFAULT_COUNTERTOP } from './production/standards.js';
+import { fixturePartNames } from './fixture-parts.js';
 
 /** 재질 → 생산 설정 vendors 키 (재질마다 업체가 다르다, Q7) */
 export const TOP_VENDOR_KEY = Object.freeze({
@@ -188,6 +189,12 @@ export function countertopRequests(snapshot, { countertop = DEFAULT_COUNTERTOP, 
         cutouts.push({ kind: 'faucet', label: '수전', center: null, at: '싱크볼 뒤 중앙', dia: faucetModel && faucetModel.faucet ? faucetModel.faucet : sinkModel ? sinkModel.faucet : null, model: faucetModel || null, sinkModel });
       }
     }
+    // 설계에서 고른 설비 상품 이름 (간편 플래너 specs.fixtureParts — 2026-11-19 사장님 「앱으로 보낼 때 같이」).
+    //   타공 치수는 없다 — 모델(appliance_models)이 없는 타공 줄에 이름만 같이 적는다 ([확인 필요] 는 그대로)
+    const partNames = fixturePartNames(multiWall ? plannerWalls.map((x) => x.it) : [item]);
+    cutouts.forEach((c) => {
+      if (partNames[c.kind]) c.part = partNames[c.kind];
+    });
     const lipNa = thickness >= 50; // 50T 는 앞에서 이미 두껍다 — 앞턱(등뜨기) 해당 없음
     const rearOn = specs.topRearShelf === 'on' || specs.topRearShelf === true;
     const finishCode = row.finishCode || (/^TOP-/i.test(String(specs.topColor || '')) ? String(specs.topColor).toUpperCase() : null);
