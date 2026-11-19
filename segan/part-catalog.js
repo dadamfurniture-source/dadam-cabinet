@@ -68,6 +68,8 @@
     ledgerNone: '장부에서 읽힌 품목이 없습니다.',
     take: '가져오기',
     close: '닫기',
+    company: '팩토리',
+    viewing: '이 팩토리의 카탈로그는 보기만 합니다.',
   };
 
   var J = {
@@ -89,6 +91,9 @@
     err: '',
     progress: '',
     ledger: null, // 거래명세표의 파는 곳 목록 (열었을 때만)
+    companies: [], // 본사 구성원 · 관리자가 고를 팩토리들 (그 밖에는 빈 목록)
+    pick: '', // 고른 팩토리 id ('' = 내 카탈로그)
+    viewing: false, // 다른 팩토리 것을 보기만 하는 중
   };
 
   function $(id) {
@@ -116,10 +121,19 @@
     return typeof v === 'number' && isFinite(v) ? v : null;
   }
 
-  /** 이 칸을 읽어 볼 사람인가 — 다담 공장 구성원 · 다담 본사 구성원. 다른 팩토리에는 묻지도 않는다 */
+  /** 구매 · 재고를 쓰는 협력 팩토리 등급 (segan/me.js FACTORY_PLANS · 서버 stock.js STOCK_PLANS 와 같다) */
+  var FACTORY_PLANS = ['expert', 'agent'];
+
+  /**
+   * 이 칸을 읽어 볼 사람인가 — 다담 공장 구성원 · 다담 본사 구성원 · 구매 · 재고를 쓰는 협력 팩토리 구성원
+   * (2026-11-19 사장님 「각 카탈로그는 각 공장에서 자료 올려서 각자 볼 수 있도록 해. 본사는 각 공장의 자료들 볼 수 있도록 해줘」).
+   * 그 밖의 사람에게는 묻지도 않는다.
+   */
   function canSee(me) {
     if (!me || typeof me !== 'object' || Array.isArray(me)) return false;
-    return me.hq_member === true || me.platform_member === true;
+    if (me.hq_member === true || me.platform_member === true) return true;
+    var c = obj(me.company);
+    return FACTORY_PLANS.indexOf(str(c.plan)) >= 0;
   }
 
   /** 서버가 준 상품 하나 — 이름 없는 줄은 버린다 */
@@ -159,12 +173,19 @@
     };
   }
 
-  /** 서버 답 → { canManage, vendors, items } — 모양이 아니면 null */
+  /** 서버 답 → { canManage, viewing, companies, vendors, items } — 모양이 아니면 null */
   function catalogOf(data) {
     var d = obj(data);
     if (!Array.isArray(d.vendors) || !Array.isArray(d.items)) return null;
     return {
-      canManage: d.can_manage === true,
+      canManage: d.can_manage === true && d.viewing !== true,
+      viewing: d.viewing === true,
+      // 본사 구성원 · 관리자에게만 온다 — 첫 줄이 내 카탈로그(다담 공장)
+      companies: (Array.isArray(d.companies) ? d.companies : []).map(obj).filter(function (c) {
+        return str(c.id) && str(c.name);
+      }).map(function (c) {
+        return { id: str(c.id), name: str(c.name) };
+      }),
       vendors: d.vendors.map(obj).filter(function (v) {
         return str(v.id) && str(v.name);
       }).map(function (v) {
@@ -459,6 +480,15 @@
     var list = filtered();
     var cats = catsOf();
     var h = '<h3 class="me-pt-sub" id="partCatalogTitle">' + esc(TEXT.title) + '</h3>';
+    if (J.companies.length > 1) {
+      h += '<div class="pc-tools"><select id="partCatalogCompany" aria-label="' + esc(TEXT.company) + '"' + (J.busy ? ' disabled' : '') + '>';
+      J.companies.forEach(function (c, i) {
+        var value = i === 0 ? '' : c.id;
+        h += '<option value="' + esc(value) + '"' + (J.pick === value ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+      });
+      h += '</select></div>';
+      if (J.viewing) h += '<p class="mk-note">' + esc(TEXT.viewing) + '</p>';
+    }
     if (!J.items.length) {
       h += '<p class="mk-note">' + esc(J.canManage ? TEXT.emptyManage : TEXT.empty) + '</p>';
     } else {
@@ -499,14 +529,48 @@
   }
 
   async function reload() {
-    var r = await call('GET', '/parts/catalog');
+    var r = await call('GET', '/parts/catalog' + (J.pick ? '?company=' + encodeURIComponent(J.pick) : ''));
     var c = r.ok ? catalogOf(r.body.data) : null;
     if (!c) return false;
     J.canManage = c.canManage;
+    J.viewing = c.viewing;
+    J.companies = c.companies;
     J.vendors = c.vendors;
     J.items = c.items;
     if (J.vendor && !vendorName(J.vendor)) J.vendor = '';
     return true;
+  }
+
+  /** 본사가 팩토리를 고른다 — 못 읽으면 내 카탈로그로 돌아간다 */
+  async function pickCompany(id) {
+    if (J.busy) return;
+    var known = J.companies.some(function (c, i) {
+      return i > 0 && c.id === id;
+    });
+    J.pick = known ? id : '';
+    J.vendor = '';
+    J.cat = '';
+    J.q = '';
+    J.shown = PAGE;
+    J.open = {};
+    J.ledger = null;
+    J.msg = '';
+    J.err = '';
+    J.busy = true;
+    render();
+    var done = false;
+    try {
+      done = await reload();
+      if (!done && J.pick) {
+        J.pick = '';
+        J.err = '그 팩토리의 카탈로그를 읽지 못했습니다.';
+        await reload();
+      }
+    } catch {
+      J.err = '카탈로그를 읽지 못했습니다.';
+    }
+    J.busy = false;
+    render();
   }
 
   function itemById(id) {
@@ -605,9 +669,12 @@
       if (pr.ok) sum.photos += 1;
       else sum.photoFail += 1;
     }
+    // 다시 읽는 동안에도 올리는 중으로 보인다 (상품이 많으면 몇 초 걸린다)
+    J.progress = '다시 읽는 중';
+    render();
+    await reload();
     J.busy = false;
     J.progress = '';
-    await reload();
     J.msg = '올렸습니다 — 새 상품 ' + sum.added + ' · 고침 ' + sum.updated + ' · 그대로 ' + sum.same + ' · 사진 ' + sum.photos + (sum.photoFail ? ' (사진 ' + sum.photoFail + '개는 올리지 못했습니다 — 같은 파일을 다시 올리면 이어서 올립니다)' : '');
     render();
   }
@@ -665,7 +732,9 @@
     b.addEventListener('change', function (e) {
       var t = e.target;
       if (!t) return;
-      if (t.id === 'partCatalogCat') {
+      if (t.id === 'partCatalogCompany') {
+        pickCompany(t.value);
+      } else if (t.id === 'partCatalogCat') {
         J.cat = t.value;
         J.shown = PAGE;
         render();
@@ -704,6 +773,9 @@
     J.progress = '';
     J.busy = false;
     J.ledger = null;
+    J.companies = [];
+    J.pick = '';
+    J.viewing = false;
     if (!J.base || !session || !canSee(me)) return;
     try {
       if (!(await reload())) return;

@@ -1543,9 +1543,9 @@
       // 거래처 · 공급처 — 읽혔을 때만 (대표 · 실장). 못 쓰는 관리자에게는 PC 화면 줄 하나
       case 'counterparties':
         return v.factory && !v.platform && available(key);
-      // 철물 · 부속 카탈로그 — 다담 공장 · 본사 구성원, 읽혔을 때만 (segan/part-catalog.js)
+      // 철물 · 부속 카탈로그 — 구매 · 재고를 쓰는 팩토리(자기 카탈로그) · 본사 구성원(팩토리를 골라 본다), 읽혔을 때만 (segan/part-catalog.js)
       case 'part-catalog':
-        return (v.hq || v.platform) && available(key);
+        return (v.factory || v.platform) && available(key);
       case 'hq-counterparties':
         return roles.admin === true && !rowOn('counterparties', v, roles, ledger);
       // 회계 — 장부를 열면 (본사 대표 · 실장은 본사 장부), 설정 · 영수증 올리기는 업체만

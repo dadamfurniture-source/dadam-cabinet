@@ -114,10 +114,16 @@ afterEach(() => {
 });
 
 describe('철물 · 부속 카탈로그 — 누가', () => {
-  test('다담 공장 · 본사 구성원만 묻는다 — 다른 팩토리 · 업체 없는 사람에게는 서버를 부르지 않는다', async () => {
+  test('다담 공장 · 본사 · 구매 · 재고를 쓰는 팩토리 구성원만 묻는다 — 그 밖의 등급 · 업체 없는 사람에게는 서버를 부르지 않는다', async () => {
     const M = mod();
-    expect([M.canSee(HQ), M.canSee(PLATFORM), M.canSee(PARTNER), M.canSee({}), M.canSee(null), M.canSee([])]).toEqual([true, true, false, false, false, false]);
-    for (const me of [PARTNER, {}, null]) {
+    const MANAGER_PLAN = { company: { id: 'c-2', plan: 'manager', role: 'owner' } };
+    expect([M.canSee(HQ), M.canSee(PLATFORM), M.canSee(PARTNER), M.canSee({ company: { plan: 'expert' } }), M.canSee(MANAGER_PLAN), M.canSee({}), M.canSee(null), M.canSee([])])
+      .toEqual([true, true, true, true, false, false, false, false]);
+    const partner = await boot(PARTNER);
+    expect(partner.calls.map((c) => `${c.method} ${c.path}`)).toEqual(['GET /parts/catalog']);
+    expect(partner.box.hidden).toBe(false);
+    expect(partner.box.querySelector('#partCatalogCompany')).toBeNull();
+    for (const me of [MANAGER_PLAN, {}, null]) {
       const { calls, box } = await boot(me);
       expect(calls).toHaveLength(0);
       expect(box.hidden).toBe(true);
@@ -142,6 +148,48 @@ describe('철물 · 부속 카탈로그 — 누가', () => {
       expect(box.hidden).toBe(true);
       expect(box.innerHTML).toBe('');
     }
+  });
+});
+
+describe('철물 · 부속 카탈로그 — 본사가 팩토리를 골라 본다', () => {
+  const COMPANIES = [{ id: 'hq-1', name: '다담 공장', kind: 'hq', vendors: 2 }, { id: 'p-1', name: '가나 <팩토리>', kind: 'partner', vendors: 1 }];
+  const OTHER = { company: { id: 'p-1', name: '가나 <팩토리>' }, can_manage: false, viewing: true, companies: COMPANIES, vendors: [{ id: 'v-9', name: '마바 상사', count: 1 }], items: [item('z1', { vendor_id: 'v-9', name: '협력 레일', buy_price: null })] };
+  const pick = async (box, value) => {
+    const sel = box.querySelector('#partCatalogCompany');
+    sel.value = value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  test('팩토리 목록이 오면 고르는 칸이 생긴다 — 고르면 그 팩토리 것을 읽고, 올리기 · 매입가 · 숨기기 · 거래명세표가 없다', async () => {
+    const { box, calls } = await boot(PLATFORM, (c) => (c.path === '/parts/catalog?company=p-1' ? ok(OTHER) : ok({ ...CATALOG(), companies: COMPANIES })));
+    const sel = box.querySelector('#partCatalogCompany');
+    expect([...sel.options].map((o) => [o.value, o.textContent])).toEqual([['', '다담 공장'], ['p-1', '가나 <팩토리>']]);
+    expect(box.querySelector('#partCatalogFile')).not.toBeNull();
+
+    await pick(box, 'p-1');
+    await until(() => box.textContent.includes('협력 레일'));
+    expect(calls.map((c) => c.path)).toEqual(['/parts/catalog', '/parts/catalog?company=p-1']);
+    expect(box.querySelector('#partCatalogCompany').value).toBe('p-1');
+    expect(box.textContent).toContain('보기만');
+    expect(box.querySelector('#partCatalogFile')).toBeNull();
+    expect(box.querySelector('[data-pc-ledger]')).toBeNull();
+    expect(box.querySelector('[data-pc-buy]')).toBeNull();
+    expect(box.querySelector('[data-pc-toggle]')).toBeNull();
+
+    // 내 카탈로그로 돌아오면 다시 고칠 수 있다
+    await pick(box, '');
+    await until(() => box.querySelector('#partCatalogFile'));
+    expect(calls[2].path).toBe('/parts/catalog');
+    expect(box.textContent).not.toContain('보기만');
+  });
+
+  test('목록에 없는 팩토리는 묻지 않고, 못 읽으면 내 카탈로그로 돌아와 알린다', async () => {
+    const { box, calls, M } = await boot(PLATFORM, (c) => (c.path === '/parts/catalog' ? ok({ ...CATALOG(), companies: COMPANIES }) : { status: 403, body: { success: false, code: 'not_catalog_company' } }));
+    await pick(box, 'p-1');
+    await until(() => box.textContent.includes('읽지 못했습니다'));
+    expect(calls.map((c) => c.path)).toEqual(['/parts/catalog', '/parts/catalog?company=p-1', '/parts/catalog']);
+    expect([M.state.pick, M.state.viewing, box.querySelector('#partCatalogCompany').value]).toEqual(['', false, '']);
+    expect(M.catalogOf({ vendors: [], items: [], can_manage: true, viewing: true }).canManage).toBe(false);
   });
 });
 
@@ -341,7 +389,7 @@ describe('철물 · 부속 카탈로그 — 마이페이지에 이어진 곳', (
     expect(me).toContain("'part-catalog': {");
     expect(me).toContain("parts: ['partCatalog'],");
     expect(me).toContain("label: 'partCatalogTitle',");
-    expect(me).toMatch(/case 'part-catalog':\s+return \(v\.hq \|\| v\.platform\) && available\(key\);/);
+    expect(me).toMatch(/case 'part-catalog':\s+return \(v\.factory \|\| v\.platform\) && available\(key\);/);
     expect(me).toContain('synced(Parts && Parts.load ? Parts.load(auth.sb, auth.session, me) : null),');
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'part-catalog.js'),");
     expect(read('segan/shell.css')).toContain('.pc-row {');
