@@ -14,7 +14,7 @@ import { ForbiddenError, NotFoundError, TooLargeError, ValidationError, clearHqC
 import { clearAdminCache } from '../src/reports/admin.js';
 import {
   PART_IMPORT_BODY_MAX_BYTES, PART_IMPORT_MAX, PART_JSON_MAX, PART_PHOTOS_BUCKET, PART_PHOTO_MAX_BYTES, PART_PRICE_MAX, PART_SIZE_MAX, PART_TEXT_MAX,
-  PART_LEDGER_UPDATE_MAX, addPartPhoto, catalogCompanyOf, cleanPartItem, importParts, importPartsFromLedger, kstDay, ledgerNameKey, ledgerSupplierOf, partCatalog, partLedgerSuppliers, patchPartItem,
+  PART_LEDGER_UPDATE_MAX, PLANNER_PARTS_MAX, PLANNER_PART_KINDS, plannerParts, addPartPhoto, catalogCompanyOf, cleanPartItem, importParts, importPartsFromLedger, kstDay, ledgerNameKey, ledgerSupplierOf, partCatalog, partLedgerSuppliers, patchPartItem,
 } from '../src/part-catalog.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -26,6 +26,8 @@ const STAFF = 'a0000000-0000-4000-8000-000000000003';
 const HQ_PERSON = 'a0000000-0000-4000-8000-000000000005';
 const PARTNER_OWNER = 'a0000000-0000-4000-8000-000000000004';
 const NOBODY = 'a0000000-0000-4000-8000-000000000009';
+const P2 = 'f0000000-0000-4000-8000-0000000000b2';
+const MANAGER_PLAN_OWNER = 'a0000000-0000-4000-8000-000000000006';
 const u = (id) => ({ id });
 const json = (rows, status = 200) => ({ ok: status < 300, status, headers: { get: () => 'application/json' }, json: async () => rows, text: async () => JSON.stringify(rows) });
 
@@ -35,12 +37,14 @@ function makeDb({ tables = true } = {}) {
       { id: HQ, kind: 'hq', name: '다담 공장', plan: null, status: 'active' },
       { id: PLATFORM, kind: 'platform', name: '다담 본사', plan: null, status: 'active' },
       { id: P1, kind: 'partner', name: '가나 팩토리', plan: 'agent', status: 'active' },
+      { id: P2, kind: 'partner', name: '다라 팩토리', plan: 'manager', status: 'active' },
     ],
     company_members: [
       { user_id: OWNER, company_id: HQ, role: 'owner', status: 'active' },
       { user_id: STAFF, company_id: HQ, role: 'staff', status: 'active' },
       { user_id: HQ_PERSON, company_id: PLATFORM, role: 'owner', status: 'active' },
       { user_id: PARTNER_OWNER, company_id: P1, role: 'owner', status: 'active' },
+      { user_id: MANAGER_PLAN_OWNER, company_id: P2, role: 'owner', status: 'active' },
     ],
     admin_roles: [],
     part_vendors: tables ? [] : null,
@@ -54,6 +58,8 @@ function makeDb({ tables = true } = {}) {
 }
 
 function matches(row, key, expr) {
+  const list = /^in\.\(([\s\S]*)\)$/.exec(expr);
+  if (list) return list[1].split(',').includes(String(row[key]));
   const m = /^eq\.([\s\S]*)$/.exec(expr);
   if (!m) throw new Error(`가짜 DB: 모르는 필터 ${key}=${expr}`);
   return String(row[key]) === m[1];
@@ -133,14 +139,19 @@ const ITEMS = [
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xc0, 0, 17, 8, 0, 40, 0, 60, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xff, 0xd9]);
 const photoReq = (bytes, headers = {}) => new Request('https://w/parts/items/x/photo', { method: 'POST', body: bytes, headers });
 
-test('누가 — 다담 공장 구성원 · 본사 구성원만, 다른 팩토리와 구성원이 아닌 사람은 못 본다', async () => {
+test('누가 — 팩토리마다 자기 카탈로그 · 본사 구성원은 다담 공장, 재고를 안 쓰는 팩토리와 구성원이 아닌 사람은 못 본다', async () => {
   const db = makeDb();
   await withDb(db, async () => {
     assert.equal((await catalogCompanyOf(ENV, u(OWNER))).company.id, HQ);
     assert.deepEqual((await catalogCompanyOf(ENV, u(STAFF))).canManage, false);
-    // 본사 구성원은 다담 공장의 카탈로그를 본다
-    assert.equal((await catalogCompanyOf(ENV, u(HQ_PERSON))).company.id, HQ);
-    await assert.rejects(() => partCatalog(ENV, { user: u(PARTNER_OWNER) }), (e) => e instanceof ForbiddenError && e.code === 'not_catalog_company');
+    // 본사 구성원은 다담 공장의 카탈로그를 본다 (고칠 수 있다)
+    const hqPerson = await catalogCompanyOf(ENV, u(HQ_PERSON), { manage: true });
+    assert.deepEqual([hqPerson.company.id, hqPerson.canManage, hqPerson.viewing, hqPerson.overseer], [HQ, true, false, true]);
+    // 협력 팩토리(Agent)는 자기 카탈로그
+    const partner = await catalogCompanyOf(ENV, u(PARTNER_OWNER), { manage: true });
+    assert.deepEqual([partner.company.id, partner.canManage, partner.viewing, partner.overseer], [P1, true, false, false]);
+    // 재고를 쓰지 않는 등급(Manager)의 팩토리 · 구성원이 아닌 사람
+    await assert.rejects(() => partCatalog(ENV, { user: u(MANAGER_PLAN_OWNER) }), (e) => e instanceof ForbiddenError && e.code === 'not_catalog_company');
     await assert.rejects(() => partCatalog(ENV, { user: u(NOBODY) }), ForbiddenError);
     // 올리기 · 사진 · 고치기는 대표 · 실장만
     await assert.rejects(() => importParts(ENV, { user: u(STAFF), body: { vendor: VENDOR, items: ITEMS } }), (e) => e instanceof ForbiddenError && e.code === 'not_manager');
@@ -220,6 +231,45 @@ test('올리기 — 파일에 매입가와 날짜가 있으면 적는다 · 더 
   bad({ name: '가', buy_price: PART_PRICE_MAX + 1, buy_price_on: '2026-03-13' });
   // 날짜만 있고 매입가가 없으면 싣지 않는다
   assert.equal('buy_price_on' in cleanPartItem({ name: '가', buy_price_on: '2026-03-13' }, 0), false);
+});
+
+test('팩토리마다 — 협력 팩토리는 자기 것만 올리고 읽는다 · 본사는 고른 팩토리를 보기만 하고 매입가는 못 본다', async () => {
+  const db = makeDb();
+  await withDb(db, async () => {
+    await importParts(ENV, { user: u(OWNER), body: { vendor: VENDOR, seen_on: '2026-11-18', items: [ITEMS[0]] } });
+    const mine = await importParts(ENV, { user: u(PARTNER_OWNER), body: { vendor: { name: '마바 상사' }, seen_on: '2026-11-19', items: [{ name: '협력 레일', buy_price: 4000, buy_price_on: '2026-11-01' }, { name: '숨긴 상품' }] } });
+    assert.deepEqual([mine.company.id, mine.added], [P1, 2]);
+    db.part_items.find((x) => x.name === '숨긴 상품').active = false;
+
+    // 협력 팩토리 — 자기 것만. 팩토리 목록은 안 준다. 남의 팩토리는 고르지 못한다
+    const p = await partCatalog(ENV, { user: u(PARTNER_OWNER), query: {} });
+    assert.deepEqual([p.company.id, p.can_manage, p.viewing, 'companies' in p], [P1, true, false, false]);
+    assert.deepEqual(p.items.map((x) => [x.name, x.buy_price]).sort(), [['숨긴 상품', null], ['협력 레일', 4000]]);
+    await assert.rejects(() => partCatalog(ENV, { user: u(PARTNER_OWNER), query: { company: HQ } }), (e) => e.code === 'not_catalog_company');
+    // 다담 공장 구성원도 남의 팩토리는 고르지 못한다
+    await assert.rejects(() => partCatalog(ENV, { user: u(OWNER), query: { company: P1 } }), (e) => e.code === 'not_catalog_company');
+    const own = await partCatalog(ENV, { user: u(OWNER), query: { company: HQ } });
+    assert.deepEqual([own.company.id, own.items.length, 'companies' in own], [HQ, 1, false]);
+
+    // 본사 — 기본은 다담 공장(고친다), 팩토리 목록이 같이 온다
+    const home = await partCatalog(ENV, { user: u(HQ_PERSON), query: {} });
+    assert.deepEqual([home.company.id, home.can_manage, home.viewing], [HQ, true, false]);
+    assert.deepEqual(home.companies, [{ id: HQ, name: '다담 공장', kind: 'hq', vendors: 1 }, { id: P1, name: '가나 팩토리', kind: 'partner', vendors: 1 }]);
+    // 다른 팩토리 — 보기만 · 매입가 · 숨긴 상품은 안 온다
+    const seen = await partCatalog(ENV, { user: u(HQ_PERSON), query: { company: P1 } });
+    assert.deepEqual([seen.company.id, seen.can_manage, seen.viewing, seen.companies.length], [P1, false, true, 2]);
+    assert.deepEqual(seen.items.map((x) => [x.name, x.buy_price, x.buy_price_on]), [['협력 레일', null, null]]);
+    // 재고를 안 쓰는 팩토리 · 없는 팩토리 · 이상한 값은 고르지 못한다
+    for (const id of [P2, PLATFORM, 'f0000000-0000-4000-8000-0000000000ff', "x'); drop"]) {
+      await assert.rejects(() => partCatalog(ENV, { user: u(HQ_PERSON), query: { company: id } }), (e) => e.code === 'not_catalog_company', id);
+    }
+    // 쓰는 길은 언제나 자기 카탈로그 — 본사가 올리면 다담 공장에 들어간다
+    const before = db.part_items.filter((x) => x.company_id === P1).length;
+    const r = await importParts(ENV, { user: u(HQ_PERSON), body: { vendor: VENDOR, company: P1, seen_on: '2026-11-19', items: [{ name: '본사가 올린 것' }] } });
+    assert.equal(r.company.id, HQ);
+    assert.equal(db.part_items.filter((x) => x.company_id === P1).length, before);
+    await assert.rejects(() => catalogCompanyOf(ENV, u(HQ_PERSON), { manage: true, company: P1 }), (e) => e.code === 'read_only');
+  });
 });
 
 test('올리기 — 사람이 확인한 사양 · 치수는 다시 올려도 그대로', async () => {
@@ -387,8 +437,74 @@ test('라우트 — 네 길이 등록돼 있고 올리기는 본문 크기를 �
     "path: '/parts/items/:id',                    auth: 'jwt', handler: workRoute(patchPartItem)",
     "path: '/parts/ledger-suppliers',             auth: 'jwt', handler: workRoute(partLedgerSuppliers)",
     "path: '/parts/from-ledger',                  auth: 'jwt', handler: workRoute(importPartsFromLedger, 201)",
+    "path: '/planner/parts',                      auth: 'jwt', handler: workRoute(plannerParts)",
   ]) assert.ok(src.includes(line), line);
   assert.match(src, /declared > PART_IMPORT_BODY_MAX_BYTES\) throw new TooLargeError/);
+});
+
+// ── 간편 플래너가 읽는 길 ──
+
+test('플래너 설비 상품 — 분류 낱말로 고르고 · 글로 찾고 · id 로 다시 읽는다 · 자기 팩토리 것만 · 매입가는 대표 · 실장만 · 확인한 치수만', async () => {
+  const db = makeDb();
+  await withDb(db, async () => {
+    const put = (user, vendor, items) => importParts(ENV, { user: u(user), body: { vendor: { name: vendor }, seen_on: '2026-11-19', items } });
+    await put(OWNER, '가나 철물', [
+      { vendor_item_no: 'S1', category: '씽크볼', brand: '백조', name: '시험 사각볼 850', ref_price: 200000, width_mm: 850, options: [{ g: '크기', l: '900', d: 20000 }] },
+      { vendor_item_no: 'S2', category: '주방 싱크볼', name: '시험 언더볼 780', ref_price: 150000 },
+      { vendor_item_no: 'F1', category: '수전', name: '시험 거위목 수전', ref_price: 60000 },
+      { vendor_item_no: 'H1', category: '후드', name: '시험 침니 후드 900', ref_price: 300000 },
+      { vendor_item_no: 'C1', category: '쿡탑', name: '시험 인덕션 3구', ref_price: 500000 },
+      { vendor_item_no: 'R1', category: '레일', name: '시험 레일', ref_price: 3000 },
+      { vendor_item_no: 'X1', category: '씽크볼', name: '숨긴 볼', ref_price: 1 },
+    ]);
+    await put(OWNER, '나다 상사', [{ name: '백조 DS850 (분류 없음)', buy_price: 55000, buy_price_on: '2025-08-11' }]);
+    await put(PARTNER_OWNER, '마바 상사', [{ category: '씽크볼', name: '협력 팩토리 볼' }]);
+    db.part_items.find((x) => x.name === '숨긴 볼').active = false;
+    const s1 = db.part_items.find((x) => x.vendor_item_no === 'S1');
+    Object.assign(s1, { buy_price: 170000, buy_price_on: '2026-11-01', photo_path: `${HQ}/${s1.id}.jpg` });
+    db.objects.set(`part-photos/${HQ}/${s1.id}.jpg`, new Uint8Array([1]));
+    const names = (r) => r.items.map((x) => x.name).sort();
+
+    // 분류 낱말 — 숨긴 상품 · 남의 팩토리 · 다른 분류는 안 온다
+    const sink = await plannerParts(ENV, { user: u(OWNER), query: { kind: 'sink' } });
+    assert.deepEqual([sink.company.id, sink.money, sink.catalog, sink.total], [HQ, true, true, 2]);
+    assert.deepEqual(names(sink), ['시험 사각볼 850', '시험 언더볼 780']);
+    const one = sink.items.find((x) => x.name === '시험 사각볼 850');
+    assert.deepEqual([one.vendor, one.brand, one.ref_price, one.buy_price, one.options.length, one.width_mm], ['가나 철물', '백조', 200000, 170000, 1, null]);
+    assert.match(one.photo_url, /object\/sign\/part-photos/);
+    assert.deepEqual(names(await plannerParts(ENV, { user: u(OWNER), query: { kind: 'faucet' } })), ['시험 거위목 수전']);
+    assert.deepEqual(names(await plannerParts(ENV, { user: u(OWNER), query: { kind: 'hood' } })), ['시험 침니 후드 900']);
+    assert.deepEqual(names(await plannerParts(ENV, { user: u(OWNER), query: { kind: 'cooktop' } })), ['시험 인덕션 3구']);
+
+    // 글로 찾기 — 분류가 빈 상품도 나온다, 그 설비 분류의 상품이 앞에
+    const found = await plannerParts(ENV, { user: u(OWNER), query: { kind: 'sink', q: ' 백조 ' } });
+    assert.deepEqual(found.items.map((x) => x.name), ['시험 사각볼 850', '백조 DS850 (분류 없음)']);
+    assert.deepEqual(names(await plannerParts(ENV, { user: u(OWNER), query: { kind: 'sink', q: '나다 ds850' } })), ['백조 DS850 (분류 없음)']);
+    assert.equal((await plannerParts(ENV, { user: u(OWNER), query: { kind: 'sink', q: '숨긴' } })).total, 0);
+
+    // 직원 — 매입가는 안 온다. 확인한 치수는 온다
+    s1.specs_checked = true;
+    const staff = await plannerParts(ENV, { user: u(STAFF), query: { ids: `${s1.id},${s1.id}` } });
+    assert.deepEqual([staff.money, staff.items.length, staff.items[0].buy_price, staff.items[0].buy_price_on, staff.items[0].width_mm], [false, 1, null, null, 850]);
+
+    // 본사 구성원 = 다담 공장 · 협력 팩토리 = 자기 것 · 재고를 안 쓰는 팩토리 = 빈 목록
+    assert.equal((await plannerParts(ENV, { user: u(HQ_PERSON), query: { kind: 'sink' } })).company.id, HQ);
+    const partner = await plannerParts(ENV, { user: u(PARTNER_OWNER), query: { kind: 'sink' } });
+    assert.deepEqual([partner.company.id, names(partner)], [P1, ['협력 팩토리 볼']]);
+    assert.equal((await plannerParts(ENV, { user: u(PARTNER_OWNER), query: { ids: s1.id } })).total, 0);
+    assert.deepEqual(await plannerParts(ENV, { user: u(MANAGER_PLAN_OWNER), query: { kind: 'sink' } }), { company: { id: P2, name: '다라 팩토리' }, money: true, catalog: false, total: 0, items: [] });
+    await assert.rejects(() => plannerParts(ENV, { user: u(NOBODY), query: { kind: 'sink' } }), ForbiddenError);
+
+    // 검증 · 한도
+    await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: {} }), ValidationError);
+    await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { kind: 'toString' } }), ValidationError);
+    await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { ids: 'abc' } }), ValidationError);
+    await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { ids: Array.from({ length: PLANNER_PARTS_MAX + 1 }, () => randomUUID()).join(',') } }), ValidationError);
+    assert.deepEqual(Object.keys(PLANNER_PART_KINDS), ['sink', 'faucet', 'hood', 'cooktop']);
+  });
+  await withDb(makeDb({ tables: false }), async () => {
+    await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { kind: 'sink' } }), (e) => e.code === 'db_pending');
+  });
 });
 
 // ── 거래명세표(회계장부)에서 가져오기 ──
@@ -434,9 +550,12 @@ test('장부의 파는 곳 — 상호를 다듬어 묶는다 · 마지막 읽음
       { key: 'n:마바상사', name: '(주)마바상사', biz_no: '1234567890', docs: 3, items: 3 },
       { key: 'n:자차철물', name: '자차 철물', biz_no: '', docs: 1, items: 1 },
     ]);
-    // 대표 · 실장만, 다담 공장 · 본사만
+    // 대표 · 실장만. 협력 팩토리는 자기 장부만 읽는다 · 재고를 안 쓰는 팩토리는 못 쓴다
     await assert.rejects(() => partLedgerSuppliers(ENV, { user: u(STAFF) }), (e) => e.code === 'not_manager');
-    await assert.rejects(() => partLedgerSuppliers(ENV, { user: u(PARTNER_OWNER) }), (e) => e.code === 'not_catalog_company');
+    const other = await partLedgerSuppliers(ENV, { user: u(PARTNER_OWNER) });
+    assert.equal(other.company.id, P1);
+    assert.deepEqual(other.suppliers.map((s) => [s.key, s.docs, s.items]), [['n:마바상사', 1, 1]]);
+    await assert.rejects(() => partLedgerSuppliers(ENV, { user: u(MANAGER_PLAN_OWNER) }), (e) => e.code === 'not_catalog_company');
     await assert.rejects(() => importPartsFromLedger(ENV, { user: u(STAFF), body: { supplier_key: 'n:마바상사' } }), (e) => e.code === 'not_manager');
   });
   assert.equal(db.writes.length, 0);

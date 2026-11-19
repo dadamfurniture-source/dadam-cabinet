@@ -5,7 +5,9 @@
  * 공급 회사마다 파는 상품(씽크볼 · 후드 · 수전 · 쿡탑 · 서랍재 · 레일 · 경첩 · 손잡이 · 하드웨어 · 악세사리 …)을 모아 두고
  * 마이페이지 구매 · 재고 › 「철물 · 부속 카탈로그」에서 본다.
  *
- *   GET   /parts/catalog              공급 회사 · 상품 전부 { company, can_manage, vendors[], items[] } — 구성원 누구나 (매입가는 대표 · 실장에게만)
+ *   GET   /parts/catalog              공급 회사 · 상품 전부 { company, can_manage, viewing, companies?, vendors[], items[] } — 구성원 누구나 (매입가는 대표 · 실장에게만)
+ *     ?company=<팩토리 id> — 본사 구성원 · 관리자가 다른 팩토리의 카탈로그를 볼 때 (보기만 · 매입가 · 숨긴 상품은 안 준다).
+ *     본사 구성원 · 관리자에게는 companies[{ id, name, kind, vendors }] (카탈로그가 있는 팩토리들 + 다담 공장)를 같이 준다.
  *   POST  /parts/import               카탈로그 파일의 한 묶음 { vendor{ name, site_url? }, seen_on, items[] } — 대표 · 실장. 201
  *     items[] = { vendor_item_no?, category?, sub_category?, brand?, name, ref_price?, buy_price?, buy_price_on?, options?, addons?, specs?, width_mm?, depth_mm?, height_mm?, source_url?, note? }
  *     같은 공급 회사의 같은 상품 번호(번호가 없으면 같은 이름)는 고친다 — 사진 · 쓰는지는 건드리지 않고,
@@ -22,12 +24,25 @@
  *     읽는 것은 사진의 마지막 읽음 가운데 품목 합 검사가 맞은 것만 (DB 함수 ledger_doc_items 와 같은 규칙) · 반려한 사진은 뺀다.
  *     한 번에 고치는 상품은 PART_LEDGER_UPDATE_MAX 개까지 — 남으면 left 로 알려 주고 다시 부르면 이어서 한다.
  *
- * 누가: 다담 공장의 구성원과 다담 본사 구성원(· 관리자)만 — 다른 팩토리는 403 not_catalog_company (화면에는 메뉴가 없다).
+ *   GET   /planner/parts              간편 플래너의 설비장에서 고를 상품 { company, money, catalog, total, items[≤60] } — 플래너 업체 구성원
+ *     (2026-11-19 사장님 「개수대 모듈 클릭하면 수전, 싱크볼 우측 패널에서 검색 및 선택 … 후드장도 … 가스대도」)
+ *     ?kind=sink|faucet|hood|cooktop  분류 글에 그 설비 낱말(PLANNER_PART_KINDS)이 든 상품
+ *     &q=글                            분류와 상관없이 이름 · 브랜드 · 분류 · 공급 회사에서 찾는다 (그 설비 분류의 상품이 앞에 온다)
+ *     ?ids=a,b                         그 상품들의 지금 값 (플래너 BOM 창이 값을 다시 읽을 때)
+ *     부르는 사람의 플래너 업체 카탈로그만 (본사 구성원 · 관리자는 다담 공장). 쓰는 상품만. 매입가는 대표 · 실장에게만.
+ *     치수는 사람이 확인한 것(specs_checked)만 싣는다. 카탈로그를 못 쓰는 팩토리는 catalog false 와 빈 목록.
+ *
+ * 누가 (2026-11-19 사장님 「각 카탈로그는 각 공장에서 자료 올려서 각자 볼 수 있도록 해. 본사는 각 공장의 자료들 볼 수 있도록 해줘」):
+ *   팩토리 구성원 = 자기 팩토리 카탈로그 (재고를 쓰는 팩토리 — 다담 공장 · active Expert · Agent, stock.js canHoldStock). 올리기 · 매입가 · 숨기기는 대표 · 실장.
+ *   다담 본사 구성원(· 관리자) = 다담 공장 카탈로그를 지금처럼 고치고, 다른 팩토리 것은 ?company= 로 보기만 한다 (그 팩토리의 매입가는 안 본다).
+ *   쓰는 길(올리기 · 사진 · 고치기 · 거래명세표)은 company 를 받지 않는다 — 언제나 자기 카탈로그에 쓴다.
+ *   그 밖은 403 not_catalog_company (화면에는 메뉴가 없다).
  * 고객 정보: 없다. 사진: 비공개 버킷 part-photos, 읽을 때 서명 주소를 만들어 준다.
  * DB 0071 적용 전: 모두 409 db_pending.
  */
 
-import { ConflictError, DbError, ForbiddenError, NotFoundError, TooLargeError, ValidationError, insertMany, insertOne, selectMany, selectOne, updateBy } from './supabase.js';
+import { ConflictError, DbError, ForbiddenError, NotFoundError, TooLargeError, ValidationError, activeMemberships, insertMany, insertOne, selectMany, selectOne, updateBy } from './supabase.js';
+import { canHoldStock } from './stock.js';
 import { plannerCompanyOf, sniffPhoto } from './planner-drafts.js';
 import { createSignedUrls, uploadObject } from './storage.js';
 
@@ -79,12 +94,42 @@ async function db(fn) {
   }
 }
 
-/** 부르는 사람의 카탈로그 팩토리 — 다담 공장만 (본사 구성원 · 관리자는 다담 공장으로 본다) */
-export async function catalogCompanyOf(env, user, { manage = false } = {}) {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const notCatalog = () => new ForbiddenError('카탈로그를 쓸 수 있는 팩토리가 아닙니다', 'not_catalog_company');
+
+/**
+ * 부르는 사람의 카탈로그 팩토리 — { company, canManage, viewing, overseer }.
+ *   팩토리 구성원은 자기 팩토리 (재고를 쓰는 팩토리만). 본사 구성원 · 관리자(overseer)는 다담 공장.
+ *   want = 보려는 팩토리 id — overseer 만 다른 팩토리를 고를 수 있고 그때는 보기만 (viewing, canManage false).
+ */
+export async function catalogCompanyOf(env, user, { manage = false, company: want = '' } = {}) {
   const { company, canManage } = await plannerCompanyOf(env, user);
-  if (!company || company.kind !== 'hq') throw new ForbiddenError('철물 · 부속 카탈로그는 다담 공장만 봅니다', 'not_catalog_company');
+  if (!canHoldStock(company)) throw notCatalog();
+  // 본사 구성원 · 관리자 — plannerCompanyOf 가 다담 공장으로 바꿔 준 사람 (자기 구성원 업체가 아니다)
+  const m = (await activeMemberships(env, user))[0];
+  const overseer = !m || m.company_id !== company.id;
+  if (want && want !== company.id) {
+    if (!overseer || !UUID_RE.test(want)) throw notCatalog();
+    if (manage) throw new ForbiddenError('다른 팩토리의 카탈로그는 보기만 합니다', 'read_only');
+    const target = await selectOne(env, 'companies', { id: `eq.${want}`, select: 'id,kind,name,plan,status' });
+    if (!canHoldStock(target)) throw notCatalog();
+    return { company: target, canManage: false, viewing: true, overseer };
+  }
   if (manage && !canManage) throw new ForbiddenError('카탈로그는 대표 · 실장만 고칩니다', 'not_manager');
-  return { company, canManage: !!canManage };
+  return { company, canManage: !!canManage, viewing: false, overseer };
+}
+
+/** 본사 구성원 · 관리자가 고를 팩토리들 — 다담 공장(home) 먼저, 그다음 공급 회사를 넣어 둔 팩토리 (이름 차례) */
+async function catalogCompaniesOf(env, home) {
+  const rows = (await selectMany(env, 'part_vendors', { select: 'company_id', limit: '2000' })) || [];
+  const counts = new Map();
+  rows.forEach((r) => counts.set(r.company_id, (counts.get(r.company_id) || 0) + 1));
+  const ids = [...counts.keys()].filter((id) => id !== home.id && UUID_RE.test(String(id)));
+  const others = ids.length ? (await selectMany(env, 'companies', { id: `in.(${ids.join(',')})`, select: 'id,kind,name,plan,status', limit: '500' })) || [] : [];
+  const out = [{ id: home.id, name: home.name, kind: home.kind, vendors: counts.get(home.id) || 0 }];
+  others.filter(canHoldStock).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))
+    .forEach((c) => out.push({ id: c.id, name: c.name, kind: c.kind, vendors: counts.get(c.id) || 0 }));
+  return out;
 }
 
 const moneyOf = (v) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v.replace(/,/g, '')) : NaN);
@@ -200,9 +245,11 @@ async function signedPhotos(env, items) {
 }
 
 /** GET /parts/catalog */
-export async function partCatalog(env, { user }) {
-  const { company, canManage } = await catalogCompanyOf(env, user);
+export async function partCatalog(env, { user, query }) {
+  const home = await catalogCompanyOf(env, user);
+  const { company, canManage, viewing } = await catalogCompanyOf(env, user, { company: text(query && query.company) });
   return db(async () => {
+    const companies = home.overseer ? await catalogCompaniesOf(env, home.company) : null;
     const vendors = (await selectMany(env, 'part_vendors', { company_id: `eq.${company.id}`, select: 'id,name,site_url,memo', order: 'created_at.asc', limit: '200' })) || [];
     // 숨긴 상품은 대표 · 실장에게만 보인다 (다시 살릴 수 있게)
     const items = await itemsOf(env, company.id, canManage ? {} : { active: 'eq.true' });
@@ -210,10 +257,68 @@ export async function partCatalog(env, { user }) {
     const counts = new Map();
     items.forEach((it) => counts.set(it.vendor_id, (counts.get(it.vendor_id) || 0) + 1));
     return {
-      company: { id: company.id, name: company.name }, can_manage: canManage,
+      company: { id: company.id, name: company.name }, can_manage: canManage, viewing,
+      ...(companies ? { companies } : {}),
       vendors: vendors.map((v) => vendorOut(v, counts.get(v.id))),
       items: items.map((it) => itemOut(it, canManage, photos.get(it.photo_path))),
     };
+  });
+}
+
+/**
+ * 플래너 설비 자리 → 분류 글에서 찾는 낱말.
+ *   분류(category)는 공급 회사가 붙인 글이라 정해진 값이 없다 — 낱말이 들어 있으면 그 자리의 상품으로 본다.
+ */
+export const PLANNER_PART_KINDS = Object.freeze({
+  sink: Object.freeze(['씽크볼', '싱크볼']),
+  faucet: Object.freeze(['수전']),
+  hood: Object.freeze(['후드']),
+  cooktop: Object.freeze(['쿡탑', '가스레인지', '인덕션', '전기레인지']),
+});
+/** 플래너에 한 번에 주는 상품 수 · 찾는 글 길이 */
+export const PLANNER_PARTS_MAX = 60;
+export const PLANNER_PARTS_Q_MAX = 60;
+
+const partOut = (it, canManage, vendor, photo) => ({
+  id: it.id, vendor: vendor || '', brand: it.brand || '', name: it.name, category: it.category || '', sub_category: it.sub_category || '',
+  ref_price: it.ref_price === null || it.ref_price === undefined ? null : Number(it.ref_price), ref_price_on: it.ref_price_on || null,
+  buy_price: canManage && it.buy_price !== null && it.buy_price !== undefined ? Number(it.buy_price) : null, buy_price_on: canManage ? it.buy_price_on || null : null,
+  options: Array.isArray(it.options) ? it.options : [],
+  // 치수는 사람이 확인한 것만 (그림에서 읽은 값은 확인 전에는 도면에 쓰지 않는다)
+  width_mm: it.specs_checked === true ? it.width_mm ?? null : null, depth_mm: it.specs_checked === true ? it.depth_mm ?? null : null, height_mm: it.specs_checked === true ? it.height_mm ?? null : null,
+  photo_url: photo || null,
+});
+
+/** GET /planner/parts */
+export async function plannerParts(env, { user, query }) {
+  const { company, canManage } = await plannerCompanyOf(env, user);
+  const q = isPlainObject(query) ? query : {};
+  const kind = text(q.kind);
+  const words = Object.prototype.hasOwnProperty.call(PLANNER_PART_KINDS, kind) ? PLANNER_PART_KINDS[kind] : null;
+  const ids = text(q.ids) ? [...new Set(text(q.ids).split(',').map((s) => s.trim()).filter(Boolean))] : null;
+  if (ids) {
+    if (ids.length > PLANNER_PARTS_MAX || !ids.every((id) => UUID_RE.test(id))) throw new ValidationError(`상품 id 는 한 번에 ${PLANNER_PARTS_MAX}개까지입니다`, { field: 'ids' });
+  } else if (!words) throw new ValidationError('설비 종류(kind)는 sink · faucet · hood · cooktop 가운데 하나입니다', { field: 'kind' });
+  const find = nameKey(q.q).slice(0, PLANNER_PARTS_Q_MAX).split(' ').filter(Boolean);
+  const head = { company: { id: company.id, name: company.name }, money: !!canManage };
+  if (!canHoldStock(company)) return { ...head, catalog: false, total: 0, items: [] };
+  return db(async () => {
+    const all = await itemsOf(env, company.id, { active: 'eq.true' });
+    const vendors = new Map(((await selectMany(env, 'part_vendors', { company_id: `eq.${company.id}`, select: 'id,name', limit: '200' })) || []).map((v) => [v.id, v.name]));
+    const ofKind = (it) => !!words && words.some((w) => nameKey(it.category).includes(nameKey(w)));
+    let hit;
+    if (ids) hit = all.filter((it) => ids.includes(it.id));
+    else if (find.length) {
+      hit = all.filter((it) => {
+        const hay = [it.name, it.brand, it.category, it.sub_category, vendors.get(it.vendor_id)].map(nameKey).join(' ');
+        return find.every((w) => hay.includes(w));
+      });
+      // 그 설비 분류의 상품이 앞에 (차례는 그대로)
+      hit = [...hit.filter(ofKind), ...hit.filter((it) => !ofKind(it))];
+    } else hit = all.filter(ofKind);
+    const page = hit.slice(0, PLANNER_PARTS_MAX);
+    const photos = await signedPhotos(env, page);
+    return { ...head, catalog: true, total: hit.length, items: page.map((it) => partOut(it, canManage, vendors.get(it.vendor_id), photos.get(it.photo_path))) };
   });
 }
 
