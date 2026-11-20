@@ -8,8 +8,8 @@
  * 남의 주소를 서버가 대신 받으므로(SSRF) **허용 호스트만**, https 만, 리다이렉트도 매번 같은 검사, 크기·형식 제한.
  *
  * DB · 버킷은 database/appliance-models-images.sql. 그 SQL 을 아직 안 돌렸으면 409 로 그 파일을 알려 준다.
- * 2026-10-20 사장님 결정: 치수가 검증된 모델(appliance_models.verified = true)만 — 미검증은 409 model_unverified 로 거절,
- *   구매처에 설치 도면 가이드를 요청해 치수를 검증(검증 표시)한 뒤에야 가져올 수 있다.
+ * 2026-10-20 사장님 결정은 「치수가 검증된 모델만」이었다 — 2026-11-20 대표님 「미검증도 사진은 가져오기」로 풀었다.
+ *   치수 검증(verified)은 사진과 상관없이 따로 남는다 (설계 · 치수에만 쓴다).
  * ※ 제조사 사진 사용 약관 확인은 사장님 몫이다.
  */
 import { verifyJwt } from './auth.js';
@@ -18,10 +18,11 @@ import { DbError, ForbiddenError, NotFoundError, ValidationError, fetchObjectBas
 export const APPLIANCE_IMAGE_BUCKET = 'appliance-images';
 
 /**
- * 제조사 사진 호스트 — 수집기(scripts/fridge-catalog)가 내보내는 곳 중 **검증된 브랜드만 · 사장님 결정 2026-10-20**.
- *   삼성 · LG(www → static 으로 넘어간다, SKS 는 image5) · 위니아 · 리페르(assets-cdn.liebherr.com) · 데이코(www.dacorkorea.com)
- *   · 스메그(www.j-collection.co.kr — 스메그 국내 수입사 제이콜렉션).
- *   미검증 브랜드(가게나우 media3.bsh-group.com · 하이얼 · 마이디어 · 쿠쿠)는 넣지 않는다 — 치수 검증 뒤에 더한다.
+ * 제조사 사진 호스트 — 수집기(scripts/fridge-catalog · kitchen-catalog)가 내보내는 곳.
+ *   2026-10-20: 삼성 · LG(www → static 으로 넘어간다, SKS 는 image5) · 위니아 · 리페르(assets-cdn.liebherr.com) · 데이코(www.dacorkorea.com)
+ *     · 스메그(www.j-collection.co.kr — 스메그 국내 수입사 제이콜렉션).
+ *   2026-11-20 대표님 「(받는 곳 밖 사이트) 넣음」 — 카탈로그에 사진 주소가 있는 나머지 22곳. 그날 robots.txt 를 원문으로 확인:
+ *     이미지 경로를 막은 곳 없음 · robots 없음(404)이 11곳 · 4xx(403)인 4곳(쿠쿠 CDN 둘 · 마이디어 OSS · SK매직)은 RFC 9309 대로 막지 않은 것으로 본다.
  */
 export const APPLIANCE_IMAGE_HOSTS = [
   'images.samsung.com',
@@ -30,6 +31,27 @@ export const APPLIANCE_IMAGE_HOSTS = [
   'assets-cdn.liebherr.com',
   'www.dacorkorea.com',
   'www.j-collection.co.kr',
+  // 2026-11-20 — 싱크볼 · 수전 · 쿡탑 · 후드 · 밥솥 · 오븐 · 식세기 · 정수기 · 와인셀러 · 냉장고 제조사
+  'baekjosink.com', // 백조 · 아펠 · 블랑코 · 엘레치
+  'media3.bsh-group.com', // 가게나우
+  'lizens.co.kr', // 리젠스 · 알타이녹스 · 레지녹스
+  'static.navienhouse.com', // 나비엔 매직
+  'cdn.cuckoo.co.kr', 'cdn3.cuckoo.co.kr', // 쿠쿠
+  'www.haatz.com', // 하츠
+  'cuchencdn.wisacdn.com', // 쿠첸
+  'www.daelimbath.com', // 대림바스
+  'www.haier.co.kr', // 하이얼
+  'media.miele.com', // 밀레
+  'web-res.midea.com', 'iscrm-oss-hk.midea.com', // 마이디어
+  'www.electrolux.co.kr', // 일렉트로룩스
+  'kohler.scene7.com', // 콜러
+  'picopureal.wisacdn.com', // 퓨리얼
+  'www.hulec.co.kr', // 휴렉
+  'static.skmagic.com', // SK매직
+  'www.hdquming.com', // 현대큐밍
+  'www.fineappliances.co.kr', // 와인셀러
+  'www.ruhens.co.kr', // 루헨스
+  'www.kyowonwells.com', // 웰스
 ];
 
 export const APPLIANCE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
@@ -207,14 +229,7 @@ export async function copyApplianceImage(request, env) {
     throw e;
   }
   if (!row) throw new NotFoundError('가전 모델을 찾을 수 없습니다');
-  // 2026-10-20 사장님 결정: 치수가 검증된 모델(verified = true)만 사진을 가져온다 — 제조사 서버에 가기 전에, 호스트 검사보다 먼저.
-  if (row.verified !== true) {
-    throw new ApplianceImageError(
-      '치수가 검증된 모델만 사진을 가져올 수 있습니다. 구매처에 설치 도면 가이드를 요청해 치수를 확인한 뒤 검증 표시를 하세요',
-      409,
-      'model_unverified'
-    );
-  }
+  // 치수 검증 여부와 상관없이 가져온다 (2026-11-20 대표님 「미검증도 사진은 가져오기」 — 그 전에는 409 model_unverified)
   if (!row.image_source_url) throw new ApplianceImageError('이 모델에는 제조사 사진 주소(image_source_url)가 없습니다', 400, 'no_source');
 
   const { bytes, mimeType } = await fetchManufacturerImage(row.image_source_url);

@@ -106,6 +106,19 @@ export function partClassOf(partName, thickness) {
 }
 
 /**
+ * 자재 행의 부재 구분 — 행에 실려 온 값(row.partClass)이 먼저, 없으면 이름 · 두께로(partClassOf — 예전 그대로).
+ *   간편 플래너는 엔진이 재질까지 보고 정한 부재 구분을 행마다 싣는다 (2026-11-20 사장님 「멍가림판도 우라에 한데 뭉쳐서 …
+ *   몸통 MDF 18T도 도어재에 합쳐져야해」 — 멍가림판 3T = 뒷판(우라) · MDF 18T 몸통 판 = 도어(도어재)). 재단 배치의 원장 묶음과 같은 값이다.
+ *   그 칸이 없는 옛 동결본 · 상세설계 행은 예전 규칙 그대로라 이미 낸 지시서는 바뀌지 않는다.
+ */
+export const PART_CLASSES = Object.freeze(['본체', '도어', '뒷판']);
+export function partClassOfRow(row) {
+  const c = row && row.partClass;
+  if (typeof c === 'string' && PART_CLASSES.includes(c)) return c;
+  return partClassOf(row && row.part, row && row.thickness);
+}
+
+/**
  * 상판 업체에 발주하는 석재 상판 — 사내 재단 · 라벨에서 뺀다 (엔진 nesting-engine.js isOutsourcedTop 과 같은 규칙,
  * 2026-11-05 사장님 「석재 상판은 사내 재단 원장에서 뺀다」). MDF · PB 상판은 사내 재단 그대로. 발주는 상판 발주 요청서.
  */
@@ -117,7 +130,7 @@ export function isOutsourcedTopRow(row) {
 }
 
 export function isDoorClass(row) {
-  return partClassOf(row && row.part) === '도어';
+  return partClassOfRow(row) === '도어';
 }
 
 /**
@@ -160,7 +173,7 @@ export function rowRouteOf(row, proc = DEFAULT_PROCESSING) {
   if (isOutsourcedTopRow(row)) return 'top';
   if (isDoorClass(row)) return proc.door === 'in' ? 'in' : 'door';
   if (isOutsourcedCutRow(row)) return proc.door === 'in' ? 'in' : 'cut';
-  const key = partClassOf(row && row.part, row && row.thickness) === '뒷판' ? 'back' : 'body';
+  const key = partClassOfRow(row) === '뒷판' ? 'back' : 'body';
   return proc[key] === 'in' ? 'in' : 'cut';
 }
 /** 원장의 부재 구분(본체 · 도어 · 뒷판) → 가공 구분 칸 */

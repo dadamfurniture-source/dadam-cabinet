@@ -13,7 +13,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
-import { isAllowedImageUrl, sniffImageType, fetchManufacturerImage, APPLIANCE_IMAGE_MAX_BYTES } from '../src/appliance-image.js';
+import { isAllowedImageUrl, sniffImageType, fetchManufacturerImage, APPLIANCE_IMAGE_MAX_BYTES, APPLIANCE_IMAGE_HOSTS } from '../src/appliance-image.js';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '33333333-3333-4333-8333-333333333333';
@@ -66,7 +66,7 @@ beforeEach(() => {
       return new Response(null, { status: 302, headers: { Location: u.replace('https://www.lge.co.kr', 'https://static.lge.co.kr') } });
     }
     if (u.startsWith('https://static.lge.co.kr/') || u.startsWith('https://images.samsung.com/') || u.startsWith('https://www.winia.com/') ||
-        u.startsWith('https://assets-cdn.liebherr.com/')) {
+        u.startsWith('https://assets-cdn.liebherr.com/') || u.startsWith('https://media3.bsh-group.com/')) {
       const { status, body, headers } = state.image;
       return new Response(body, { status, headers: headers || {} });
     }
@@ -178,13 +178,18 @@ test('허용 호스트의 https 만', () => {
   ]) assert.equal(isAllowedImageUrl(bad), false, String(bad));
 });
 
-test('미검증 브랜드(가게나우 · 하이얼 · 마이디어 · 쿠쿠) 호스트는 허용 목록에 없다', () => {
-  for (const bad of [
+test('2026-11-20 더한 받는 곳은 허용, 이름이 비슷한 다른 호스트는 그대로 막는다', () => {
+  for (const ok of [
     'https://media3.bsh-group.com/Product_Shots/600x/1.webp',
-    'https://haier.co.kr/board_data/a.jpg',
     'https://www.haier.co.kr/board_data/a.jpg',
-    'https://www.midea.com/kr/a.jpg',
+    'https://web-res.midea.com/content/dam/a.webp',
     'https://cdn.cuckoo.co.kr/a.jpg',
+  ]) assert.equal(isAllowedImageUrl(ok), true, ok);
+  for (const bad of [
+    'https://haier.co.kr/board_data/a.jpg',
+    'https://www.midea.com/kr/a.jpg',
+    'https://baekjosink.com.evil.example/a.jpg',
+    'http://baekjosink.com/a.jpg',
   ]) assert.equal(isAllowedImageUrl(bad), false, bad);
 });
 
@@ -228,29 +233,32 @@ test('사진 칸이 없으면 409 sql_missing, 버킷이 없으면 409 sql_missi
   assert.ok(!calls.some((c) => c.method === 'PATCH'));
 });
 
-// ─── 6) 치수 검증된 모델만 (2026-10-20 사장님 결정) ───
+// ─── 6) 치수 검증과 상관없이 (2026-10-20 「검증된 모델만」 → 2026-11-20 대표님 「미검증도 사진은 가져오기」) ───
 
-test('verified 가 true 가 아니면 409 model_unverified — 제조사 서버 · 버킷 · 행 어디에도 가지 않는다', async () => {
-  for (const verified of [false, null, undefined, 'true']) {
+test('미검증(false · null · 없음) 모델도 사진을 가져온다 — model_unverified 로 거절하지 않는다', async () => {
+  for (const verified of [false, null, undefined]) {
     calls = [];
-    state.row = { ...state.row, verified };
+    state.row = { id: MODEL_ID, brand: 'LG', model_code: 'S834MEE111', verified, image_source_url: 'https://www.lge.co.kr/kr/images/x.png' };
+    state.image = { status: 200, body: PNG };
     const r = await post({ modelId: MODEL_ID });
-    assert.equal(r.status, 409, String(verified));
-    const out = await r.json();
-    assert.equal(out.code, 'model_unverified');
-    assert.match(out.error, /검증된 모델만/);
-    assert.match(out.error, /설치 도면 가이드/);
-    assert.equal(calls.filter((c) => /lge\.co\.kr/.test(c.url)).length, 0, '제조사 fetch 0');
-    assert.equal(calls.filter((c) => c.url.includes('/storage/v1/object/')).length, 0, '업로드 0');
-    assert.ok(!calls.some((c) => c.method === 'PATCH'));
+    assert.equal(r.status, 200, String(verified));
+    assert.equal((await r.json()).image_path, `${MODEL_ID}/photo.png`);
+    assert.ok(calls.some((c) => c.method === 'PATCH'));
   }
 });
 
-test('미검증이면 허용 호스트 검사보다 먼저 거절한다 — 원본이 미검증 브랜드 호스트여도 model_unverified', async () => {
-  state.row = { ...state.row, verified: false, image_source_url: 'https://media3.bsh-group.com/Product_Shots/600x/1.webp' };
-  const r = await post({ modelId: MODEL_ID });
-  assert.equal(r.status, 409);
-  assert.equal((await r.json()).code, 'model_unverified');
+test('2026-11-20 더한 받는 곳 — 가게나우(media3.bsh-group.com) 미검증 모델도 통과, 목록 밖 호스트는 그대로 거절', async () => {
+  state.row = { id: MODEL_ID, brand: '가게나우', model_code: 'RB289300', verified: false, image_source_url: 'https://media3.bsh-group.com/Product_Shots/600x/1.webp' };
+  state.image = { status: 200, body: PNG };
+  let r = await post({ modelId: MODEL_ID });
+  assert.equal(r.status, 200);
+  for (const h of ['baekjosink.com', 'lizens.co.kr', 'www.haatz.com', 'media.miele.com', 'cdn3.cuckoo.co.kr', 'www.kyowonwells.com']) {
+    assert.ok(APPLIANCE_IMAGE_HOSTS.includes(h), h);
+  }
+  state.row = { ...state.row, image_source_url: 'https://smartstore.naver.com/x.png' };
+  r = await post({ modelId: MODEL_ID });
+  assert.equal(r.status, 400);
+  assert.equal((await r.json()).code, 'image_host');
 });
 
 test('검증된 모델은 통과 — 리페르(assets-cdn.liebherr.com) 원본을 png 로 올린다', async () => {

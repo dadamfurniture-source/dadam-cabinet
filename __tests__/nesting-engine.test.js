@@ -281,7 +281,30 @@ describe('NestingEngine.plan — 옵션', () => {
     const classes = plan.sheets.map((s) => [s.material, s.thickness, s.partClass, s.parts.map((p) => p.partId).sort().join(',')]);
     expect(classes).toEqual([
       ['MDF', 3, '뒷판', 'back3#0'],
-      ['MDF', 18, '본체', 'back18#0,side#0,side#1'],
+      // MDF 18T 몸통 판은 도어재 원장 (2026-11-20) — 두꺼운 뒷판도 같은 원장 그대로
+      ['MDF', 18, '도어', 'back18#0,side#0,side#1'],
+    ]);
+    const pb = NestingEngine.plan([
+      { partId: 'side', part: '측판', material: 'PB', thickness: 18, w: 550, h: 500, qty: 2 },
+      { partId: 'back18', part: '뒷판', material: 'PB', thickness: 18, w: 414, h: 200, qty: 1 },
+    ]);
+    expect(pb.sheets.map((s) => [s.partClass, s.parts.length])).toEqual([['본체', 3]]);
+  });
+
+  test('멍가림판 MDF 3T 는 우라(얇은 뒷판)와 한 원장 · MDF 18T 몸통 판(휠라 · EP)은 도어와 한 원장 (2026-11-20)', () => {
+    const plan = NestingEngine.plan([
+      { partId: 'back3', part: '뒷판', material: 'MDF', thickness: 3, w: 970, h: 705, qty: 1 },
+      { partId: 'blind', part: '멍가림판', material: 'MDF', thickness: 3, w: 650, h: 705, qty: 1 },
+      { partId: 'door', part: '도어', material: 'MDF', thickness: 18, w: 446, h: 716, qty: 1 },
+      { partId: 'filler', part: '휠라(좌)', material: 'MDF', thickness: 18, w: 100, h: 720, qty: 1 },
+      { partId: 'ep', part: 'EP(우)', material: 'MDF', thickness: 18, w: 580, h: 720, qty: 1 },
+      { partId: 'side', part: '측판', material: 'PB', thickness: 15, w: 550, h: 720, qty: 1 },
+    ]);
+    const classes = plan.sheets.map((s) => [s.material, s.thickness, s.partClass, s.parts.map((p) => p.partId).sort().join(',')]);
+    expect(classes).toEqual([
+      ['MDF', 3, '뒷판', 'back3#0,blind#0'],
+      ['MDF', 18, '도어', 'door#0,ep#0,filler#0'],
+      ['PB', 15, '본체', 'side#0'],
     ]);
   });
 
@@ -310,6 +333,17 @@ describe('NestingEngine.plan — 옵션', () => {
     expect(NestingEngine.partClassOf('뒷판', 18)).toBe('본체');
     expect(NestingEngine.partClassOf('뒷판', 15)).toBe('본체');
     expect(NestingEngine.partClassOf('도어', 18)).toBe('도어');
+    // 재질 (2026-11-20 사장님 「멍가림판도 우라에 한데 뭉쳐서 … 몸통 MDF 18T도 도어재에 합쳐져야해」)
+    expect(NestingEngine.partClassOf('멍가림판', 3, 'MDF')).toBe('뒷판');
+    expect(NestingEngine.partClassOf('멍가림판', 3)).toBe('뒷판');
+    expect(NestingEngine.partClassOf('멍가림판')).toBe('본체');
+    expect(NestingEngine.partClassOf('휠라(좌)', 18, 'MDF')).toBe('도어');
+    expect(NestingEngine.partClassOf('EP(우)', 18, 'MDF')).toBe('도어');
+    expect(NestingEngine.partClassOf('측판', 18, 'MDF')).toBe('도어');
+    expect(NestingEngine.partClassOf('뒷판', 18, 'MDF')).toBe('도어');
+    expect(NestingEngine.partClassOf('측판', 15, 'MDF')).toBe('본체');
+    expect(NestingEngine.partClassOf('측판', 18, 'PB')).toBe('본체');
+    expect(NestingEngine.partClassOf('측판', 18)).toBe('본체');
   });
 });
 
