@@ -195,7 +195,8 @@ describe('0067 — 간편 플래너 설계가 모여 검토되는 길', () => {
     const list = /export const NOTIFICATION_KINDS = Object\.freeze\(\[([^\]]+)\]\)/.exec(
       messages
     )[1];
-    const inCode = [...list.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
+    // 뒤 번호 0074 가 밴드 만들기 요청 하나를 더한다 (db-migration-0074 시험이 본다)
+    const inCode = [...list.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).filter((k) => k !== 'stock_band_low');
     expect([...inCode].sort()).toEqual([...after].sort());
     expect(inCode[inCode.length - 1]).toBe('system_check_failed');
   });

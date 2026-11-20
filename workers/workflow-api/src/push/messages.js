@@ -17,7 +17,7 @@
  * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘 · 아침 브리핑 assistant_brief 는 0030,
  * 장부 알림 ledger_notice 는 0033, A/S 접수 as_request 는 0045, 제작 의뢰 셋 production_* 은 0050,
  * 제작 의뢰 거둠 production_cancelled 는 0053, 팩토리 대표 · 실장에게 가는 작업자 알림 셋 work_link_request ·
- * work_reply · work_report 는 0064, 설계 저장 · 학습 길 점검이 막힌 날 system_check_failed 는 0067).
+ * work_reply · work_report 는 0064, 설계 저장 · 학습 길 점검이 막힌 날 system_check_failed 는 0067, 밴드 만들기 요청 stock_band_low 는 0074).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -44,6 +44,7 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'work_reply',
   'work_report',
   'system_check_failed',
+  'stock_band_low',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -336,6 +337,8 @@ function workReport({ report, jobKind, startsAt } = {}) {
 export const LEDGER_URL = '/segan/ledger.html';
 /** 다담 본사 › 설계 · 학습 점검 (segan/hq-design-check.js) */
 export const HQ_DESIGN_CHECK_URL = '/segan/me.html#hq-design-check';
+/** 재고 › 기본 자재 — 밴드 재고 줄이 그 화면에 있다 */
+export const STOCK_BAND_URL = '/segan/me.html#stock-board';
 /** 확인할 사진 수 — 이보다 많으면 「N장 넘게」 */
 export const LEDGER_PENDING_MAX = 999;
 
@@ -459,6 +462,19 @@ function systemCheckFailed({ failed } = {}) {
   };
 }
 
+/**
+ * 밴드 만들기 요청 (2026-11-19 사장님 「8개가 남으면 새로운 밴드재고 만들기로 요청」) — 팩토리 대표 · 실장에게.
+ *   색 이름은 팩토리가 생산 설정에 적은 몸통 색 (고객 정보 아님), 수는 본.
+ */
+function stockBandLow({ color, qty, make } = {}) {
+  if (typeof color !== 'string' || color.length > 40 || !Number.isFinite(qty) || qty < 0 || !Number.isInteger(make) || make < 1) return null;
+  return {
+    title: '밴드 만들기',
+    body: `${color || '색 없음'} 밴드가 ${Math.floor(qty)}본 남았습니다. ${make}본을 만들어 주세요 — 재고에서 「만들었음」을 누르면 들어옵니다.`,
+    url: STOCK_BAND_URL,
+  };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -484,6 +500,7 @@ const BUILDERS = Object.freeze({
   work_reply: workReply,
   work_report: workReport,
   system_check_failed: systemCheckFailed,
+  stock_band_low: stockBandLow,
 });
 
 /**

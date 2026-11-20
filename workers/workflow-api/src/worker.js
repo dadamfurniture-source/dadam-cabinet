@@ -56,6 +56,7 @@
  *   GET|POST /stock/offcuts · PATCH /stock/offcuts/:id · GET /stock/offcuts/:id/events · POST /stock/offcuts/labels · GET /stock/summary — 자투리 · 재고 숫자 (src/stock-offcuts.js, DB 0059)
  *   GET|POST /stock/orders · POST /stock/orders/:id/receive · POST /stock/orders/:id/cancel — 재고 구매 발주 (src/stock-orders.js, DB 0062)
  *   GET /stock/needs · PUT /stock/links · POST /stock/needs/:orderId/issue · GET /stock/needs/:orderId/offcuts — 작업지시 자재 ↔ 재고 (src/stock-needs.js, DB 0063)
+ *   GET /stock/bands · POST /stock/bands/items · POST /stock/bands/requests/:id/made · …/cancel — 밴드 재고 · 밴드 만들기 요청 (src/stock-bands.js, DB 0074)
  *   GET  /company/schedules?from=&to= — 업체 업무 달력: 일정 표 · 상담 희망일 · 받을 날 · A/S 접수 (src/company-schedules.js)
  *   GET|POST /company/schedules/:id/workers — 납품 · 설치 · A/S 방문 일정 줄의 작업자 배정 (src/work/schedule-link.js)
  *   POST /company/work/assignments/:id/accept|revision|remove — 팩토리 대표 · 실장의 완료 보고 확인 · 보완요청 · 빼기
@@ -290,6 +291,7 @@ import { listStockItems, createStockItem, updateStockItem, addStockMove, listSto
 import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
 import { listStockOrders, createStockOrder, receiveStockOrder, cancelStockOrder } from './stock-orders.js';
 import { listStockNeeds, putStockLink, issueStockForOrder, listOffcutCandidates } from './stock-needs.js';
+import { listStockBands, createBandItems, makeBandRequest, cancelBandRequest } from './stock-bands.js';
 import { listCompanySchedules } from './company-schedules.js';
 import { listCompanySites, saveSiteGeo, setAsVisit } from './company-sites.js';
 import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
@@ -1689,6 +1691,11 @@ const router = createRouter([
   { method: 'GET',  path: '/stock/needs',                         auth: 'jwt', handler: workRoute((env, a) => listStockNeeds(env, a)) },
   { method: 'PUT',  path: '/stock/links',                         auth: 'jwt', handler: workRoute((env, a) => putStockLink(env, a)) },
   { method: 'POST', path: '/stock/needs/:orderId/issue',          auth: 'jwt', handler: workRoute((env, a) => issueStockForOrder(env, a), 201) },
+  // 밴드 재고 — 밴드 품목 · 「밴드 만들기」 요청 (src/stock-bands.js, DB 0074 — 2026-11-20 소부품 빼기)
+  { method: 'GET',  path: '/stock/bands',                         auth: 'jwt', handler: workRoute((env, a) => listStockBands(env, a)) },
+  { method: 'POST', path: '/stock/bands/items',                   auth: 'jwt', handler: workRoute((env, a) => createBandItems(env, a), 201) },
+  { method: 'POST', path: '/stock/bands/requests/:id/made',       auth: 'jwt', handler: workRoute((env, a) => makeBandRequest(env, a)) },
+  { method: 'POST', path: '/stock/bands/requests/:id/cancel',     auth: 'jwt', handler: workRoute((env, a) => cancelBandRequest(env, a)) },
   { method: 'GET',  path: '/stock/needs/:orderId/offcuts',        auth: 'jwt', handler: workRoute((env, a) => listOffcutCandidates(env, a)) },
   { method: 'GET',  path: '/company/schedules',                   auth: 'jwt', handler: workRoute((env, a) => listCompanySchedules(env, a)) },
   // 일정 줄에서 작업자 배정 · 완료 보고 확인 (src/work/schedule-link.js, DB 0064)

@@ -20,6 +20,8 @@
  * 자재가 어디서 오나  수주 → 설계 → 지금 작업지시서(새 판에 밀리지 않고 회수되지 않은 마지막 rev) → 그 문서의 스냅샷.
  *   판재: 재단 배치 요약 sheetsByMaterial { '재질_두께': 장수 } — 문서에 고정된 배치가 먼저, 없으면 스냅샷의 것. 배치가 없으면 판재 줄이 없다(has_plan false).
  *   철물: hardware_payload.hardware[] 를 분류 + 이름으로 모은다.
+ *   밴드: 재단 배치의 재고 밴드(bandStock — 소부품 「빼기」, 2026-11-20) 색마다 본 수. 짝표 없이 그 색의 밴드 품목(stock_items kind band · band_color)과 바로 짝 —
+ *         품목이 없으면 짝 없음. 출고 뒤 남은 밴드가 요청 수 이하면 「밴드 만들기」 요청 + 알림 (stock-bands.js bandReorderCheck).
  * 누가       stock.js 와 같다 (stockCompanyOf — 다담 공장 · active Expert · Agent 구성원).
  * 다른 업체   수주 · 짝표 · 품목 모두 company_id 로 거른다. 남의 수주 id 는 404, 남의 품목 id 는 422.
  * 고객 정보   싣지 않는다 — 수주 번호와 설계 이름까지. 금액도 없다.
@@ -28,6 +30,7 @@
 
 import { ConflictError, DbError, NotFoundError, ValidationError, callRpc, insertOne, restDelete, selectMany, selectOne, updateBy } from './supabase.js';
 import { stockCompanyOf, qtyOf, STOCK_ITEMS_LIMIT } from './stock.js';
+import { bandStripsOf, bandReorderCheck, colorLabel } from './stock-bands.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -42,6 +45,34 @@ export const KEY_MAX = 200;
 export const OPEN_STATUSES = Object.freeze(['confirmed', 'in_production']);
 /** 자투리 후보로 보여 주는 크기 — 자투리 화면의 「쓸 수 있는 것」과 같다 */
 export const CANDIDATE_MIN = Object.freeze({ long: 600, short: 400 });
+/** 밴드 키 — 색 (재고 밴드 품목과 바로 짝) */
+export function bandKey(color) {
+  const c = String(color == null ? '' : color);
+  return { key: `S|${clean(c)}`.slice(0, KEY_MAX), label: `밴드 · ${colorLabel(clean(c))}` };
+}
+
+/** 재단 배치의 재고 밴드 묶음 → 밴드 줄 (색마다 본) */
+export function bandNeeds(groups) {
+  return bandStripsOf(groups).map((g) => ({ ...bandKey(g.color), kind: 'band', need: g.strips, unit: '본' }));
+}
+
+/** 자재 목록 차례 — 판재 · 밴드 · 철물 */
+const KIND_ORDER = ['board', 'band', 'hardware'];
+
+/** 품목 — 밴드 색 칸까지. 칸이 아직 없으면(0074 전) 빼고 다시 읽는다 (밴드 줄은 짝 없음으로 보인다) */
+async function itemsWithBands(env, companyId) {
+  const q = { company_id: `eq.${companyId}`, select: 'id,kind,name,spec,unit,qty,expected_qty,active,band_color', limit: String(STOCK_ITEMS_LIMIT) };
+  try {
+    return await selectMany(env, 'stock_items', q);
+  } catch (e) {
+    if (!(e instanceof DbError && /42703|PGRST204/.test(String(e.message || '')) && String(e.message || '').includes('band_color'))) {
+      if (isMissing(e)) throw dbPending();
+      throw e;
+    }
+  }
+  return db(() => selectMany(env, 'stock_items', { ...q, select: 'id,kind,name,spec,unit,qty,expected_qty,active' }));
+}
+
 /** 나쁜 차례 */
 const RANK = { ok: 0, ignored: 0, expected: 1, unlinked: 2, short: 3 };
 const UNIT_NAME = { EA: '개', SET: '세트', PAIR: '쌍' };
@@ -215,7 +246,7 @@ async function docsOf(env, designIds) {
       superseded_by: 'is.null',
       status: 'neq.revoked',
       // 문서에 고정된 재단 배치의 요약만 꺼낸다 (배치 전체는 크다)
-      select: 'design_id,snapshot_id,rev,sheets:render_payload->cut_plan->summary->sheetsByMaterial',
+      select: 'design_id,snapshot_id,rev,sheets:render_payload->cut_plan->summary->sheetsByMaterial,bands:render_payload->cut_plan->bandStock->groups',
       order: 'rev.desc',
       limit: '500',
     })) || [];
@@ -230,7 +261,7 @@ async function snapshotsOf(env, ids) {
   const rows =
     (await selectMany(env, 'design_snapshots', {
       id: inList(ids),
-      select: 'id,hardware:hardware_payload->hardware,sheets:cut_plan_payload->summary->sheetsByMaterial',
+      select: 'id,hardware:hardware_payload->hardware,sheets:cut_plan_payload->summary->sheetsByMaterial,bands:cut_plan_payload->bandStock->groups',
       limit: '500',
     })) || [];
   for (const r of rows) out.set(r.id, r);
@@ -249,7 +280,7 @@ export async function listStockNeeds(env, { user }) {
       limit: String(NEEDS_ORDERS),
     }),
     db(() => selectMany(env, 'stock_links', { company_id: `eq.${company.id}`, select: 'match_key,kind,label,item_id,ignored', limit: '2000' })),
-    db(() => selectMany(env, 'stock_items', { company_id: `eq.${company.id}`, select: 'id,kind,name,spec,unit,qty,expected_qty,active', limit: String(STOCK_ITEMS_LIMIT) })),
+    itemsWithBands(env, company.id),
   ]);
   const list = orders || [];
   const designIds = [...new Set(list.map((o) => o.design_id).filter(isUuid))];
@@ -273,6 +304,7 @@ export async function listStockNeeds(env, { user }) {
       const doc = docs.get(o.design_id) || null;
       const snap = doc ? snaps.get(doc.snapshot_id) || null : null;
       const sheets = doc && isPlainObject(doc.sheets) ? doc.sheets : snap && isPlainObject(snap.sheets) ? snap.sheets : null;
+      const bands = doc && Array.isArray(doc.bands) ? doc.bands : snap && Array.isArray(snap.bands) ? snap.bands : null;
       return {
         id: o.id,
         order_no: o.order_no,
@@ -283,12 +315,14 @@ export async function listStockNeeds(env, { user }) {
         issued: issued.has(o.id),
         has_doc: !!doc,
         has_plan: !!sheets,
-        needs: doc ? [...boardNeeds(sheets), ...hardwareNeeds(snap && snap.hardware)] : [],
+        needs: doc ? [...boardNeeds(sheets), ...bandNeeds(bands), ...hardwareNeeds(snap && snap.hardware)] : [],
       };
     })
     .sort((a, b) => (a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0));
 
   const linkBy = new Map((links || []).map((l) => [l.match_key, l]));
+  // 밴드 — 그 색의 밴드 품목과 바로 짝 (짝표에 적지 않는다)
+  for (const it of items || []) if (it.kind === 'band' && it.active !== false) linkBy.set(bandKey(it.band_color).key, { match_key: bandKey(it.band_color).key, kind: 'band', item_id: it.id, ignored: false });
   const itemBy = new Map((items || []).map((i) => [i.id, i]));
   const done = allocate(rows, linkBy, itemBy);
   const brief = (id, withQty) => {
@@ -311,7 +345,7 @@ export async function listStockNeeds(env, { user }) {
       } else mats.set(l.key, { key: l.key, kind: l.kind, label: l.label, unit: l.unit, need: o.issued ? 0 : l.need, orders: 1 });
     }
   }
-  // 짝표에만 있고 지금 수주에는 안 나오는 자재도 싣는다 (짝을 고칠 수 있게)
+  // 짝표에만 있고 지금 수주에는 안 나오는 자재도 싣는다 (짝을 고칠 수 있게) — 밴드는 짝표에 없다
   for (const l of links || []) if (!mats.has(l.match_key)) mats.set(l.match_key, { key: l.match_key, kind: l.kind, label: l.label, unit: l.kind === 'board' ? '장' : '개', need: 0, orders: 0 });
 
   return {
@@ -334,7 +368,7 @@ export async function listStockNeeds(env, { user }) {
         const link = linkBy.get(m.key);
         return { ...m, ignored: !!(link && link.ignored), item: brief(link && link.item_id, false) };
       })
-      .sort((a, b) => (a.kind === b.kind ? a.label.localeCompare(b.label, 'ko') : a.kind === 'board' ? -1 : 1)),
+      .sort((a, b) => (a.kind === b.kind ? a.label.localeCompare(b.label, 'ko') : KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind))),
   };
 }
 
@@ -403,7 +437,9 @@ export async function issueStockForOrder(env, { user, params, body }) {
   }
   const r = Array.isArray(row) ? row[0] : row;
   if (!r || !r.id) throw new DbError('자재를 출고하지 못했습니다');
-  return { order_id: order.id, order_no: order.order_no, lines: lines.length, created_at: r.created_at };
+  // 밴드가 빠졌으면 남은 수를 보고 「밴드 만들기」 요청 (던지지 않는다 — 출고는 끝났다)
+  const requested = await bandReorderCheck(env, company.id, lines.map((l) => l.item_id), user.id);
+  return { order_id: order.id, order_no: order.order_no, lines: lines.length, created_at: r.created_at, band_requests: requested };
 }
 
 /** GET /stock/needs/:orderId/offcuts */
