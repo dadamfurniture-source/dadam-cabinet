@@ -291,7 +291,7 @@ test('색 목록 검증 — 아는 묶음(body · back)만, 이름 1 ~ 40자, 10
 test('재단기 설정 — 대표 · 실장이 생산 설정에 적고, 플래너 구성원 누구나 읽는다 (없으면 재단 엔진 기본값)', async () => {
   const db = makeDb();
   await withDb(db, async () => {
-    assert.deepEqual(await plannerCut(ENV, { user: u(STAFF) }), { company: { id: P1, name: '가나 팩토리' }, kerf: 4, trim: 10, small: 'place', updated_at: null });   // 소부품 기본 = 더하기 (2026-11-20)
+    assert.deepEqual(await plannerCut(ENV, { user: u(STAFF) }), { company: { id: P1, name: '가나 팩토리' }, kerf: 4, trim: 10, small: 'place', bandStock: { width: 60, length: 2440, material: 'PB', thickness: 15 }, updated_at: null });   // 소부품 기본 = 더하기 · 재고 밴드 모양은 늘 (설계마다 빼기를 고른다, 2026-11-20)
     await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { cut: { kerf: 4.4 } } });
     let r = await plannerCut(ENV, { user: u(STAFF) });
     assert.deepEqual([r.kerf, r.trim], [4.4, 10], '안 적은 칸은 기본값');
@@ -332,14 +332,14 @@ test('라우트 — POST /planner/prices · GET /planner/colors 는 로그인이
 
 // ── 소부품 더하기 · 빼기 · 밴드 재고 (2026-11-19 사장님 「소부품 더하기, 빼기로 구분 … 빼기는 밴드 재고 운영, 60*2440의 밴드를 18개 기본 재고로 만들고 8개가 남으면 새로운 밴드재고 만들기로 요청」) ──
 
-test('소부품 설정 — 기본은 더하기 · 60 × 2440 PB 15T · 18 · 8, 빼기로 고르면 플래너가 재고 밴드 칸을 받는다', async () => {
+test('소부품 설정 — 기본은 더하기 · 60 × 2440 PB 15T · 18 · 8, 재고 밴드 칸은 늘 받는다 (설계마다 빼기를 고를 수 있다)', async () => {
   assert.deepEqual({ ...DEFAULT_BAND }, { mode: 'place', width: 60, length: 2440, material: 'PB', thickness: 15, base: 18, reorder: 8 });
   assert.deepEqual(BAND_MODES, ['place', 'stock']);
   const db = makeDb();
   await withDb(db, async () => {
     let r = await plannerCut(ENV, { user: u(STAFF) });
     assert.equal(r.small, 'place');
-    assert.equal('bandStock' in r, false);
+    assert.deepEqual(r.bandStock, { width: 60, length: 2440, material: 'PB', thickness: 15 }, '더하기 팩토리도 설계마다 빼기를 고를 수 있다 (2026-11-20 「BOM에도 … 이 설계에만」)');
     await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { band: { mode: 'stock' } } });
     r = await plannerCut(ENV, { user: u(STAFF) });
     assert.deepEqual([r.small, r.bandStock], ['stock', { width: 60, length: 2440, material: 'PB', thickness: 15 }]);

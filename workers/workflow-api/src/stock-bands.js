@@ -166,7 +166,7 @@ export async function bandReorderCheck(env, companyId, itemIds = [], actorId = n
     const want = new Set((itemIds || []).filter(isUuid));
     const [settings, items] = await Promise.all([companySettings(env, companyId), bandItemsOf(env, companyId)]);
     const band = settings.settings.band;
-    if (band.mode !== 'stock') return 0;
+    // 팩토리 기본이 더하기여도 설계마다 빼기를 고를 수 있다 (2026-11-20) — 밴드 품목이 있으면 본다 (없으면 할 일이 없다)
     let opened = 0;
     for (const it of items) {
       if (it.active === false || (want.size && !want.has(it.id))) continue;
