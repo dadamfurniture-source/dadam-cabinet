@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { CHECK_LISTS, CHECK_LIST_VERSION, CHECK_ROLES, CHECK_SCOPES, frozenCheckList, checkListOfDoc, itemsFor, itemApplies } from '../src/work/check-items.js';
+import { CHECK_LISTS, CHECK_LIST_VERSION, CHECK_ROLES, CHECK_SCOPES, frozenCheckList, checkListOfDoc, itemsFor, itemApplies, cutPlanOfDoc } from '../src/work/check-items.js';
 import { ASSEMBLY_STEPS } from '../src/templates/work-order.js';
 
 const DOC = fs.readFileSync(new URL('../../../docs/design-rules/work-checks.md', import.meta.url), 'utf8');
@@ -50,7 +50,6 @@ test('v2 — 사장님 확정 (2026-11-06 주문 끝 완료를 따로 둠): v1 +
 test('v3 — 사장님 확정 (2026-11-17 철거 · 납품 지시서): v2 + 철거 · 납품 역할 · 새 문서는 v3', () => {
   const v2 = frozenCheckList('v2');
   const v3 = frozenCheckList('v3');
-  assert.equal(CHECK_LIST_VERSION, 'v3', '새 문서는 v3');
   assert.equal(v3.block, 'must');
   // 재단 · 엣지 · 조립 · 설치는 v2 그대로
   ['cut', 'edge', 'assembly', 'install'].forEach((r) => assert.deepEqual(itemsFor(v3, r), itemsFor(v2, r), `v3 의 ${r} = v2`));
@@ -62,6 +61,37 @@ test('v3 — 사장님 확정 (2026-11-17 철거 · 납품 지시서): v2 + 철�
   assert.deepEqual(Object.keys(v2.roles), ['cut', 'edge', 'assembly', 'install']);
   assert.deepEqual(Object.keys(v3.roles), [...CHECK_ROLES]);
   assert.deepEqual([...CHECK_ROLES], ['cut', 'edge', 'assembly', 'install', 'demolition', 'delivery']);
+});
+
+test('v4 — 사장님 「지금 로직에 맞게 변경」 (2026-11-20 소부품 더하기 · 빼기): 잔재 소부품 줄 → 「밴드를 재고에서 꺼냈다」(빼기 문서만) · 새 문서는 v4', () => {
+  const v3 = frozenCheckList('v3');
+  const v4 = frozenCheckList('v4');
+  assert.equal(CHECK_LIST_VERSION, 'v4', '새 문서는 v4');
+  assert.equal(v4.block, 'must');
+  assert.deepEqual(Object.keys(v4.roles), [...CHECK_ROLES]);
+  // 재단: 같은 자리에서 한 줄만 바뀐다
+  const keys = (l) => itemsFor(l, 'cut').map((x) => x.key);
+  assert.deepEqual(keys(v4), keys(v3).map((k) => (k === 'cut-order-small' ? 'cut-order-band' : k)));
+  const band = itemsFor(v4, 'cut').find((x) => x.key === 'cut-order-band');
+  assert.deepEqual([band.label, band.scope, band.at, band.when, band.must, band.photo], ['밴드를 재고에서 꺼냈다', 'order', 'end', 'band', true, 'none']);
+  assert.ok(!JSON.stringify(v4).includes('잔재에서 뽑았다'));
+  // 나머지 역할은 v3 그대로 · 옛 판(v1 ~ v3)의 소부품 줄은 그대로 (이미 낸 문서)
+  ['edge', 'assembly', 'install', 'demolition', 'delivery'].forEach((r) => assert.deepEqual(itemsFor(v4, r), itemsFor(v3, r), `v4 의 ${r} = v3`));
+  ['v1', 'v2', 'v3'].forEach((v) => assert.ok(itemsFor(frozenCheckList(v), 'cut').some((x) => x.key === 'cut-order-small'), v));
+});
+
+test('v4 조건 band — 문서의 재단 배치에 밴드 재고 본이 있을 때만 (빼기 팩토리), 더하기 · 옛 배치에는 없다', () => {
+  const band = itemsFor(frozenCheckList('v4'), 'cut').find((x) => x.when === 'band');
+  const stock = { sheets: [], smallMode: 'stock', bandStock: { width: 60, length: 2440, groups: [{ color: '화이트', strips: 1, cuts: [{ no: 1, used: 1200, pieces: [{ partId: 'p1', part: '밴드', len: 900 }] }] }] } };
+  assert.equal(itemApplies(band, null, null, stock), true);
+  assert.equal(itemApplies(band, null, null, { sheets: [], smallMode: 'place' }), false, '더하기');
+  assert.equal(itemApplies(band, null, null, { sheets: [] }), false, '옛 배치');
+  assert.equal(itemApplies(band, null, null, { sheets: [], bandStock: { groups: [{ cuts: [{ pieces: [] }] }] } }), false, '꺼낼 조각이 없으면');
+  assert.equal(itemApplies(band, null, null, null), false, '재단 배치 없음');
+  // 문서의 재단 배치 = 발행 때 고정한 것, 없으면 동결본
+  assert.equal(cutPlanOfDoc({ render_payload: { cut_plan: stock } }, { cut_plan_payload: null }), stock);
+  assert.equal(cutPlanOfDoc({ render_payload: {} }, { cut_plan_payload: stock }), stock);
+  assert.equal(cutPlanOfDoc(null, null), null);
 });
 
 test('v1 조건 — [확인 필요]가 있을 때만 · 콘센트를 넣었을 때만 (동결본)', () => {

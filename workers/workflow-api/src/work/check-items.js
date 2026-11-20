@@ -16,9 +16,13 @@
  *   v3 = 2026-11-17 사장님 확정 (「각 작업자에게 보낼 작업지시서 … 철거 · 납품 지시서를 새로」 — 철거 = 「철거 뒤 사진 확인」 · 납품 = 「납품 확인(수량 + 내린 뒤 사진)」):
  *        v2 + 역할 둘 — 철거(demolition) 「철거 후 사진」 · 납품(delivery) 「납품 수량 확인」 · 「하차 후 사진」. 재단 · 조립 · 설치 항목은 v2 그대로.
  *        필수가 남으면 철거 · 납품 작업 완료 보고도 막는다 (work/updates.js). DB 0068 이 work_checks.role 에 두 역할을 더했다.
+ *   v4 = 2026-11-20 사장님 「지금 로직에 맞게 변경」 (소부품 더하기 · 빼기 — 소부품은 이제 원장에 놓거나 밴드 재고에서 꺼낸다):
+ *        v3 에서 재단 「소부품(한 변 70 이하)을 잔재에서 뽑았다」를 빼고 「밴드를 재고에서 꺼냈다」(조건 band — 재단 배치에
+ *        밴드 재고 본이 있을 때만, 곧 빼기 팩토리)를 그 자리에. 더하기 팩토리 문서에는 이 줄이 없다. 나머지는 v3 그대로.
  *   범위 scope: sheet (원장마다 — 재단 배치 원장 no) · module (모듈마다 — 품목 i · 모듈 j) · order (주문에 한 번).
  *   when: door (도어 있는 모듈만) · drawer (서랍 있는 모듈만) — 종이의 「—」 칸과 같다.
- *         confirm (지시서 BOM 에 [확인 필요]가 있을 때만) · outlet (콘센트를 넣은 하부장이 있을 때만 — 부자재 「전기」).
+ *         confirm (지시서 BOM 에 [확인 필요]가 있을 때만) · outlet (콘센트를 넣은 하부장이 있을 때만 — 부자재 「전기」) ·
+ *         band (문서의 재단 배치에 밴드 재고 본이 있을 때만 — 소부품 빼기).
  *   at: start (주문 시작 전) · end (주문 끝) — 주문 범위 항목을 종이에 나눠 적을 때.
  *   paper: sign — 종이에서는 서명 칸으로 (시공 지시서 「설치 담당 · 검수 · 고객 확인」).
  *   must: 필수 · photo: none | opt | need. short = 종이 칸 머리 (긴 이름이 칸에 안 들어갈 때).
@@ -111,13 +115,23 @@ export const CHECK_LISTS = Object.freeze({
       item('dlv-order-photo', '하차 후 사진', 'order', { photo: 'need' }),
     ],
   })),
+  v4: list('must', Object.assign({}, V1, {
+    cut: V1.cut.map((x) => (x.key === 'cut-order-small' ? item('cut-order-band', '밴드를 재고에서 꺼냈다', 'order', { at: 'end', when: 'band' }) : x))
+      .concat([item('cut-order-done', '이 주문 재단 · 엣지 끝', 'order', { at: 'end', must: false, finish: true, short: '재단 끝' })]),
+    assembly: V1.assembly.concat([item('asm-order-done', '이 주문 조립 끝', 'order', { at: 'end', must: false, finish: true, short: '조립 끝' })]),
+    demolition: [item('demo-order-photo', '철거 후 사진', 'order', { photo: 'need' })],
+    delivery: [
+      item('dlv-order-count', '납품 수량 확인', 'order'),
+      item('dlv-order-photo', '하차 후 사진', 'order', { photo: 'need' }),
+    ],
+  })),
 });
 
 /** v2 까지의 역할 넷 — 문서에 고정하는 모양에 늘 있던 칸 (항목이 없어도 빈 목록으로 — 엣지) */
 const LEGACY_ROLES = Object.freeze(['cut', 'edge', 'assembly', 'install']);
 
 /** 새로 발행하는 문서에 고정하는 판 */
-export const CHECK_LIST_VERSION = 'v3';
+export const CHECK_LIST_VERSION = 'v4';
 
 /** 문서에 고정하는 모양 — { version, block, roles: { cut: [...], … } } (얕은 복사, 판 자체는 얼어 있다) */
 export function frozenCheckList(version = CHECK_LIST_VERSION) {
@@ -148,14 +162,28 @@ function snapshotRows(snapshot) {
   return { materials, hardware: hw };
 }
 
+/** 문서의 재단 배치 — 발행 때 고정한 것(render_payload.cut_plan), 없으면 동결본의 것 */
+export function cutPlanOfDoc(doc, snapshot) {
+  const rp = (doc && doc.render_payload) || {};
+  return rp.cut_plan !== undefined ? rp.cut_plan : (snapshot && snapshot.cut_plan_payload) || null;
+}
+
+/** 재단 배치에 밴드 재고 본이 있는가 (재단 엔진 small 'stock' 의 bandStock — 꺼낼 조각이 하나라도) */
+function planHasBandCuts(plan) {
+  const groups = plan && plan.bandStock && Array.isArray(plan.bandStock.groups) ? plan.bandStock.groups : [];
+  return groups.some((g) => g && Array.isArray(g.cuts) && g.cuts.some((c) => c && Array.isArray(c.pieces) && c.pieces.length > 0));
+}
+
 /**
- * 칸에 해당하는가 — 도어 · 서랍 (모듈), [확인 필요] · 콘센트 (동결본).
+ * 칸에 해당하는가 — 도어 · 서랍 (모듈), [확인 필요] · 콘센트 (동결본), 밴드 재고 (재단 배치).
  * @param {object} it      항목
  * @param {object} [module] 모듈 범위 칸의 모듈
  * @param {object} [snapshot] 동결본 (confirm · outlet)
+ * @param {object} [plan]  문서의 재단 배치 (band — cutPlanOfDoc)
  */
-export function itemApplies(it, module, snapshot) {
+export function itemApplies(it, module, snapshot, plan) {
   if (!it || !it.when) return true;
+  if (it.when === 'band') return planHasBandCuts(plan);
   if (it.when === 'door') return Number(module && module.doorCount) > 0;
   if (it.when === 'drawer') return Boolean(module && module.isDrawer);
   if (it.when === 'confirm') {
