@@ -1,0 +1,282 @@
+{
+  "title": "0073 밴드 재고 — 밴드 품목(kind band · 색마다 하나) · 밴드 만들기 요청(열린 요청 하나 · 만들었음 = 밴드 입고 + 원장 1장 출고 · 취소) · 알림 종류 stock_band_low (scripts/rls-probe.mjs --migration database/migrations/0073_band_stock.sql — 0059 · 0062 · 0067 적용 뒤). 바꾸기는 setup 에서만, 칸은 읽기 · 넣기 한 번 · 함수 한 번",
+  "ids": [
+    "company_x",
+    "company_y",
+    "band_white",
+    "band_none",
+    "band_off",
+    "sheet_pb",
+    "hw_item",
+    "band_y"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.stock_items (id, company_id, kind, name, spec, unit, qty, active, band_color) VALUES ({{band_white}}, {{company_x}}, 'band', '밴드 60×2440', 'PB 15T · 화이트', '본', 8, true, '화이트'), ({{band_none}}, {{company_x}}, 'band', '밴드 60×2440', 'PB 15T · 색 없음', '본', 0, true, ''), ({{band_off}}, {{company_x}}, 'band', '밴드 60×2440', 'PB 15T · 숨김', '본', 3, false, '숨김'), ({{band_y}}, {{company_y}}, 'band', '밴드 60×2440', 'PB 15T · 화이트', '본', 2, true, '화이트')",
+    "INSERT INTO public.stock_items (id, company_id, kind, name, spec, unit, qty, active) VALUES ({{sheet_pb}}, {{company_x}}, 'board', 'PB 15T 원장', '1220×2440', '장', 5, true), ({{hw_item}}, {{company_x}}, 'hardware', 'probe 경첩', '', '개', 10, true)",
+    "SELECT public.stock_band_request({{company_x}}, {{band_white}}, 18, {{x_owner_user}})",
+    "SELECT public.stock_band_request({{company_x}}, {{band_white}}, 18, {{x_owner_user}})",
+    "SELECT public.stock_band_request({{company_x}}, {{band_none}}, 18, NULL)",
+    "SELECT public.stock_band_make({{company_x}}, (select id from public.stock_band_requests where company_id = {{company_x}} and seq = 1), {{x_owner_user}}, {{sheet_pb}})",
+    "SELECT public.stock_band_cancel({{company_x}}, (select id from public.stock_band_requests where company_id = {{company_x}} and seq = 2), NULL)",
+    "SELECT public.stock_band_request({{company_x}}, {{band_white}}, 18, NULL)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "요청 읽기 — 서버만 (대표도 브라우저로는 못 읽는다). 같은 품목 두 번 열기는 하나, 번호는 차례 — 만들었음 · 취소 · 다시 열림",
+      "sql": "select string_agg(seq || ':' || state, ',' order by seq) from public.stock_band_requests where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "1:made,2:cancelled,3:requested"
+      }
+    },
+    {
+      "name": "만들었음 — 밴드 8 + 18 = 26 입고, 입고 예정은 다시 연 요청의 18",
+      "sql": "select qty || '/' || coalesce(expected_qty::text, '-') from public.stock_items where id = {{band_white}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "26.00/18.00"
+      }
+    },
+    {
+      "name": "만들었음 — 짝지은 원장 1장 출고 (5 → 4), 요청에 원장 품목이 적힌다",
+      "sql": "select (select qty from public.stock_items where id = {{sheet_pb}}) || '/' || (select (sheet_item_id = {{sheet_pb}})::text from public.stock_band_requests where company_id = {{company_x}} and seq = 1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "4.00/true"
+      }
+    },
+    {
+      "name": "만들었음 기록 — 밴드 입고 · 원장 출고 둘 다 BM-0001",
+      "sql": "select string_agg(m.kind || ':' || i.kind || ':' || m.qty, ',' order by i.kind) from public.stock_moves m join public.stock_items i on i.id = m.item_id where m.company_id = {{company_x}} and m.ref_label = 'BM-0001'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "in:band:18.00,out:board:1.00"
+      }
+    },
+    {
+      "name": "취소 — 입고 예정이 빠진다 (색 없음 품목 0개 · 예정 없음)",
+      "sql": "select qty || '/' || coalesce(expected_qty::text, '-') from public.stock_items where id = {{band_none}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0.00/-"
+      }
+    },
+    {
+      "name": "요청 함수 — 구성원은 못 부른다",
+      "sql": "select (public.stock_band_request({{company_x}}, {{band_none}}, 18, NULL)).seq",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "요청 — 열린 요청이 있으면 그것 (새 번호 없음)",
+      "sql": "select (public.stock_band_request({{company_x}}, {{band_white}}, 18, NULL)).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "3"
+      }
+    },
+    {
+      "name": "요청 — 밴드 품목이 아니면 거절 (원장 · 철물)",
+      "sql": "select (public.stock_band_request({{company_x}}, {{hw_item}}, 18, NULL)).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0002"
+      }
+    },
+    {
+      "name": "요청 — 숨긴 밴드 품목은 거절",
+      "sql": "select (public.stock_band_request({{company_x}}, {{band_off}}, 18, NULL)).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0002"
+      }
+    },
+    {
+      "name": "요청 — 다른 업체 품목은 거절",
+      "sql": "select (public.stock_band_request({{company_x}}, {{band_y}}, 18, NULL)).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0002"
+      }
+    },
+    {
+      "name": "요청 — 수 0 은 거절",
+      "sql": "select (public.stock_band_request({{company_x}}, {{band_none}}, 0, NULL)).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "만들었음 — 끝난 요청은 거절",
+      "sql": "select (public.stock_band_make({{company_x}}, (select id from public.stock_band_requests where company_id = {{company_x}} and seq = 1), NULL, NULL)).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "만들었음 — 원장 자리에 철물 품목은 거절",
+      "sql": "select (public.stock_band_make({{company_x}}, (select id from public.stock_band_requests where company_id = {{company_x}} and seq = 3), NULL, {{hw_item}})).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0002"
+      }
+    },
+    {
+      "name": "만들었음 — 원장 품목 없이도 된다 (밴드만 입고)",
+      "sql": "select (public.stock_band_make({{company_x}}, (select id from public.stock_band_requests where company_id = {{company_x}} and seq = 3), NULL, NULL)).state",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "made"
+      }
+    },
+    {
+      "name": "취소 — 끝난 요청은 거절",
+      "sql": "select (public.stock_band_cancel({{company_x}}, (select id from public.stock_band_requests where company_id = {{company_x}} and seq = 2), NULL)).seq",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "밴드 품목 — 같은 업체 · 같은 색은 하나뿐",
+      "sql": "insert into public.stock_items (company_id, kind, name, spec, unit, band_color) values ({{company_x}}, 'band', '밴드 둘째', 'PB 15T', '본', '화이트')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "밴드 품목 — 색 칸이 없으면 거절",
+      "sql": "insert into public.stock_items (company_id, kind, name, spec, unit) values ({{company_x}}, 'band', '밴드 색 없음 칸', 'PB 15T', '본')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "원장 품목에 색 칸은 거절",
+      "sql": "insert into public.stock_items (company_id, kind, name, spec, unit, band_color) values ({{company_x}}, 'board', 'PB 18T 원장', '', '장', '화이트')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 품목 종류는 거절",
+      "sql": "insert into public.stock_items (company_id, kind, name, spec, unit) values ({{company_x}}, 'part', 'probe 부품', '', '개')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "요청 — 한 품목에 열린 요청 둘은 거절 (직접 넣기)",
+      "sql": "insert into public.stock_band_requests (company_id, seq, item_id, qty) values ({{company_x}}, 99, {{band_none}}, 18), ({{company_x}}, 98, {{band_none}}, 18)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "요청 고치기 — 브라우저는 못 고친다",
+      "sql": "update public.stock_band_requests set qty = 1 where company_id = {{company_x}}",
+      "roles": [
+        "anon",
+        "x_owner"
+      ],
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "요청 지우기 — 서버도 못 지운다",
+      "sql": "delete from public.stock_band_requests where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "요청 표 RLS — 켜져 있다",
+      "sql": "select relrowsecurity from pg_class where oid = 'public.stock_band_requests'::regclass",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "알림 종류 — 밴드 만들기 요청을 넣을 수 있다",
+      "sql": "select pg_get_constraintdef(oid) like '%stock_band_low%' from pg_constraint where conname = 'notification_outbox_kind_check'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    }
+  ]
+}
