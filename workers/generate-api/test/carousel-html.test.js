@@ -86,3 +86,30 @@ test('꺾쇠 · 따옴표는 HTML 이 되지 않는다', () => {
   const h = slideHtml({ src: 'file:///a.jpg', tone: '<script>x</script> · y', index: 1, total: 1 });
   assert.doesNotMatch(h, /<script>x/);
 });
+
+test('붙박이장 · 수납장은 주방 말이 나오지 않는다', () => {
+  const tones = ['블랙 · 오크', '크림 · 월넛'];
+  const w = buildCaption({ title: '같은 붙박이장, 다른 색', tones, subject: 'wardrobe' });
+  assert.match(w, /내 방 사진으로도/);
+  assert.match(w, /#붙박이장 /);
+  assert.doesNotMatch(w, /주방/);
+  const s = buildCaption({ title: '같은 수납장, 다른 색', tones, subject: 'storage' });
+  assert.match(s, /내 집 사진으로도/);
+  assert.match(s, /#수납장 /);
+  assert.doesNotMatch(s, /주방/);
+  assert.match(
+    ctaHtml({ tones, subject: 'wardrobe' }),
+    /class="head">내 방 사진으로\n색을 바꿔 보세요</
+  );
+  assert.match(ctaHtml({ tones }), /내 주방 사진으로/);
+  assert.match(
+    ctaHtml({ tones, subject: 'wardrobe', headline: '직접 적은 글' }),
+    /class="head">직접 적은 글</
+  );
+  // 모르는 품목은 주방 말, 직접 적은 해시태그는 그대로
+  assert.match(buildCaption({ title: 't', tones, subject: 'nope' }), /내 주방 사진으로도/);
+  assert.match(
+    buildCaption({ title: 't', tones, subject: 'wardrobe', tags: ['하나'] }),
+    /\n#하나$/
+  );
+});

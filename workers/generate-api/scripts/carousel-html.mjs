@@ -86,18 +86,33 @@ ${title ? `<div class="title">${esc(title)}</div>` : ''}
   return page(body, css);
 }
 
+/** 품목마다 다른 말 — 고객이 찍어 올릴 곳(place)과 해시태그. 모르는 품목은 주방으로 본다. */
+export const SUBJECT_WORDS = {
+  kitchen: { place: '주방', tags: ['주방인테리어', '주방리모델링', '싱크대교체', '투톤주방'] },
+  wardrobe: { place: '방', tags: ['붙박이장', '드레스룸', '붙박이장시공', '침실인테리어'] },
+  storage: { place: '집', tags: ['수납장', '냉장고장', '홈카페장', '다이닝인테리어'] },
+};
+const COMMON_TAGS = ['아파트인테리어', '맞춤가구', '다담가구', 'SEGAN'];
+
+export function subjectWords(subject = 'kitchen') {
+  return SUBJECT_WORDS[subject] || SUBJECT_WORDS.kitchen;
+}
+
 /**
  * 마지막 장 — 사이트로 부르는 장.
  * @param {object} p
  * @param {string[]} p.tones  이 캐러셀의 색 조합 이름들
- * @param {string} [p.headline]
+ * @param {string} [p.subject='kitchen']  제목의 「내 ○○ 사진으로」를 정한다
+ * @param {string} [p.headline]  적으면 품목 말 대신 이 글
  * @param {string} [p.site]
  */
 export function ctaHtml({
   tones = [],
-  headline = '내 주방 사진으로\n색을 바꿔 보세요',
+  subject = 'kitchen',
+  headline,
   site = 'dadamfurniture.com/segan',
 } = {}) {
+  const head = headline || `내 ${subjectWords(subject).place} 사진으로\n색을 바꿔 보세요`;
   const css = `
 body{background:#ffffff;color:#2d2a26}
 .brand{position:absolute;left:72px;top:72px;font-size:34px;font-weight:300;letter-spacing:.34em}
@@ -114,7 +129,7 @@ body{background:#ffffff;color:#2d2a26}
     .join('');
   const body = `
 <div class="brand">SEGAN</div>
-<div class="head">${esc(headline)}</div>
+<div class="head">${esc(head)}</div>
 <div class="sub">방 사진 한 장을 올리면 맞춤 가구가 들어간 연출컷과 예상 견적을 만들어 드립니다.</div>
 <div class="list">${rows}</div>
 <div class="site">${esc(site)}</div>
@@ -131,37 +146,27 @@ const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
  * @param {string[]} p.tones
  * @param {string} [p.source='instagram']  utm_source
  * @param {string} [p.campaign]       utm_campaign — 예: kitchen-tones_2026-11
- * @param {string[]} [p.tags]
+ * @param {string} [p.subject='kitchen']  「내 ○○ 사진으로도」와 기본 해시태그를 정한다
+ * @param {string[]} [p.tags]         적으면 기본 해시태그 대신 이 목록
  */
 export function buildCaption({
   title,
   tones = [],
   source = 'instagram',
   campaign = 'tones',
+  subject = 'kitchen',
   tags,
 } = {}) {
+  const words = subjectWords(subject);
   const list = tones.map((t, i) => `${CIRCLED[i] || i + 1} ${t}`).join('  ');
   const link = `https://dadamfurniture.com/segan/?utm_source=${encodeURIComponent(source)}&utm_medium=social&utm_campaign=${encodeURIComponent(campaign)}`;
-  const hash = (
-    tags || [
-      '주방인테리어',
-      '주방리모델링',
-      '싱크대교체',
-      '투톤주방',
-      '아파트인테리어',
-      '맞춤가구',
-      '다담가구',
-      'SEGAN',
-    ]
-  )
-    .map((t) => `#${t}`)
-    .join(' ');
+  const hash = (tags || [...words.tags, ...COMMON_TAGS]).map((t) => `#${t}`).join(' ');
   return [
     `${title}. 방은 그대로 두고 가구 색만 바꿨습니다.`,
     list,
     '어느 쪽이 우리 집에 어울릴까요? 번호로 알려 주세요.',
     '',
-    '내 주방 사진으로도 해 볼 수 있습니다. 사진 한 장을 올리면 맞춤 가구가 들어간 연출컷과 예상 견적이 나옵니다.',
+    `내 ${words.place} 사진으로도 해 볼 수 있습니다. 사진 한 장을 올리면 맞춤 가구가 들어간 연출컷과 예상 견적이 나옵니다.`,
     link,
     '',
     '※ AI 로 연출한 이미지입니다. 실제 시공 사진이 아닙니다.',
