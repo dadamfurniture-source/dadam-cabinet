@@ -679,6 +679,8 @@
     companies: { title: '등록 업체', section: 'hqCompanies' },
     // 플랫폼 — 설계 · 학습 점검 (segan/hq-design-check.js)
     'hq-design-check': { title: '설계 · 학습 점검', section: 'hqDesignCheck' },
+    // 플랫폼 — 시공사례 고르기 (segan/hq-collection.js) — 본사가 고른 연출컷만 시공사례에
+    'hq-collection': { title: '시공사례 고르기', section: 'hqCollection' },
     // 플랫폼 — 팩토리 평가 (segan/partner-eval.js)
     'partner-eval': { title: '팩토리 평가', section: 'partnerEval' },
     // 플랫폼 — 완료 보고 (segan/done-reports.js)
@@ -761,6 +763,7 @@
   var SECTIONS = [
     'meDash',
     'hqDesignCheck',
+    'hqCollection',
     'hqCompanies',
     'partnerEval',
     'doneReports',
@@ -1587,6 +1590,9 @@
       // 플랫폼 › 설계 · 학습 점검 — 본사 대표 · 실장 (칸을 연 때만)
       case 'hq-design-check':
         return v.platform && available(key);
+      // 플랫폼 › 시공사례 고르기 — 본사 대표 · 실장 · 사이트 관리자 (칸을 연 때만)
+      case 'hq-collection':
+        return (v.platform || roles.admin === true) && available(key);
       // 플랫폼 › 팩토리 평가 — 사이트 관리자, 읽혔을 때만. 못 읽은 관리자에게는 PC 화면 줄 하나
       case 'partner-eval':
         return roles.admin === true && available(key);
@@ -1820,6 +1826,7 @@
     var Factory = window.SeganFactoryRequests;
     var HqCo = window.SeganHqCompanies;
     var HqCheck = window.SeganHqDesignCheck;
+    var HqColl = window.SeganHqCollection;
     var Eval = window.SeganPartnerEval;
     var Done = window.SeganDoneReports;
     var AsStat = window.SeganAsStatus;
@@ -1907,6 +1914,14 @@
           synced(HqCo && HqCo.load ? HqCo.load(auth.sb, auth.session, me) : null),
           // 설계 · 학습 점검 = 다담 본사 구성원 (segan/hq-design-check.js — 서버가 대표 · 실장만)
           synced(HqCheck && HqCheck.load ? HqCheck.load(auth.sb, auth.session, me) : null),
+          // 시공사례 고르기 = 다담 본사 구성원 · 사이트 관리자 (segan/hq-collection.js — 서버가 대표 · 실장 · 관리자만)
+          synced(
+            HqColl && HqColl.load
+              ? HqColl.load(auth.sb, auth.session, me, {
+                  admin: !!(auth.roles && auth.roles.admin),
+                })
+              : null
+          ),
           // 팩토리 평가 = 사이트 관리자 (segan/partner-eval.js — 플랫폼 › 팩토리 평가 화면)
           synced(
             Eval && Eval.load
@@ -1932,7 +1947,10 @@
             Appl && Appl.load
               ? Appl.load(auth.sb, auth.session, me, {
                   admin: !!(auth.roles && auth.roles.admin),
-                  member: !!(me && (me.company || me.hq_member === true || me.platform_member === true)),
+                  member: !!(
+                    me &&
+                    (me.company || me.hq_member === true || me.platform_member === true)
+                  ),
                 })
               : null
           ),

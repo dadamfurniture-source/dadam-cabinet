@@ -2012,6 +2012,34 @@ button.sm-num[aria-pressed='true'] {
   border-left: 0;
 }
 
+/* 시공사례 고르기 (segan/hq-collection.js) — 연출컷 칸 */
+.me-hc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.me-hc-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.me-hc-card .mk-note {
+  margin: 0;
+}
+.me-hc-photo {
+  aspect-ratio: 4 / 3;
+  background: var(--v5-photo);
+  overflow: hidden;
+}
+.me-hc-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .me-dc-photos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));

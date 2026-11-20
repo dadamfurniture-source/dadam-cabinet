@@ -5,7 +5,7 @@
      목록   generations (본인, 내부 확인용 internal_only 제외, 최신순 200개) — 같은 칸 · 같은 거르기
      이미지 js/storage-urls.js signUrls (버킷 generations) — 비공개 버킷도 본인 세션으로 열린다
      진행   진행 중(queued · analyzing · rendering · qc · variants, 12분 안)이면 5초마다 다시 읽는다
-     시공사례 collection_posts (본인 · source ai_render) 가 있으면 카드에 「시공사례」 표시
+     시공사례 collection_posts (본인 · source ai_render · 본사가 고른 것 hq_picked_at, DB 0075) 가 있으면 카드에 「시공사례」 표시
    하나를 누르면 만들기 ③ 결과 화면(./?g=<id>#result)으로 간다 — 연출컷 결과 화면은 그것 하나다.
    컷 · 예상 견적 · 「상담 신청」 · 공유 링크 · 시공사례에서 내리기 · 학습 동의 · 다시 생성 · 삭제는
    그 화면(segan/make.js)에 있다.
@@ -131,14 +131,15 @@
     });
   }
 
-  /** 시공사례에 자동으로 올라간 내 연출컷 — 못 읽으면 표시를 그리지 않는다 */
+  /** 시공사례에 공개된 내 연출컷 — 본사가 고른 것만 (예전 자동 게시 행은 공개되지 않는다, DB 0075). 못 읽으면 표시를 그리지 않는다 */
   async function loadPosts() {
     try {
       var res = await R.sb
         .from('collection_posts')
         .select('id, generation_id, storage_path')
         .eq('user_id', R.session.user.id)
-        .eq('source', 'ai_render');
+        .eq('source', 'ai_render')
+        .not('hq_picked_at', 'is', null);
       if (res.error) throw res.error;
       var map = {};
       (res.data || []).forEach(function (p) {

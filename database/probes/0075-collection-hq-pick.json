@@ -1,0 +1,60 @@
+{
+  "title": "0075 시공사례 본사가 고른 연출컷 — hq_picked_at · hq_picked_by 칸, 고른 게시물만 공개 탭 조건에 걸린다, 회원은 두 칸을 바꾸지 못한다(지킴이) (scripts/rls-probe.mjs)",
+  "ids": [
+    "gen_a",
+    "gen_b",
+    "post_picked",
+    "post_old",
+    "post_up"
+  ],
+  "users": [
+    "cust_user",
+    "hq_user"
+  ],
+  "setup": [
+    "INSERT INTO public.generations (id, user_id, category, options) VALUES ({{gen_a}}, {{cust_user}}, 'sink', '{}'), ({{gen_b}}, {{cust_user}}, 'wardrobe', '{}')",
+    "INSERT INTO public.collection_posts (id, user_id, image_url, category, source, generation_id, region, hq_picked_at, hq_picked_by) VALUES ({{post_picked}}, {{cust_user}}, 'https://probe.invalid/a.png', 'kitchen', 'ai_render', {{gen_a}}, '', now(), {{hq_user}}), ({{post_old}}, {{cust_user}}, 'https://probe.invalid/b.png', 'builtin', 'ai_render', {{gen_b}}, '', NULL, NULL), ({{post_up}}, {{cust_user}}, 'https://probe.invalid/u.jpg', 'kitchen', 'upload', NULL, '', NULL, NULL)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "cust": {
+      "role": "authenticated",
+      "user": "cust_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "공개 탭 조건 — 직접 올린 사진 + 본사가 고른 연출컷만 (예전 자동 게시 행은 빠진다), 누구나 같은 수",
+      "sql": "select count(*) from public.collection_posts p where p.id in ({{post_picked}}, {{post_old}}, {{post_up}}) and (p.source = 'upload' or p.hq_picked_at is not null)",
+      "expect": {
+        "*": 2
+      }
+    },
+    {
+      "name": "칸 권한 — 고른 때는 누구나, 고른 사람은 서버만",
+      "sql": "select has_column_privilege('anon', 'public.collection_posts', 'hq_picked_at', 'select') || '/' || has_column_privilege('authenticated', 'public.collection_posts', 'hq_picked_at', 'select') || '/' || has_column_privilege('anon', 'public.collection_posts', 'hq_picked_by', 'select') || '/' || has_column_privilege('authenticated', 'public.collection_posts', 'hq_picked_by', 'select')",
+      "expect": {
+        "*": "true/true/false/false"
+      }
+    },
+    {
+      "name": "칸 읽기 — 고른 때는 누구나 읽힌다",
+      "sql": "select (p.hq_picked_at is not null)::text from public.collection_posts p where p.id = {{post_picked}}",
+      "expect": {
+        "*": "true"
+      }
+    },
+    {
+      "name": "지킴이 — 회원 넣기 · 고치기에서 두 칸은 서버 값 (함수 본문에 두 칸이 있다)",
+      "sql": "select (position('NEW.hq_picked_at := NULL' in pg_get_functiondef('public.collection_posts_info_guard()'::regprocedure)) > 0 and position('NEW.hq_picked_at := OLD.hq_picked_at' in pg_get_functiondef('public.collection_posts_info_guard()'::regprocedure)) > 0)::text",
+      "expect": {
+        "*": "true"
+      }
+    }
+  ]
+}

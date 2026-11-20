@@ -132,9 +132,10 @@ export function collectionPath(mimeType) {
  * @param {object} env
  * @param {{id, userId, category, options}} job
  * @param {{images?: object}} ck
+ * @param {{force?: boolean}} [how]  force — 본사가 고른 게시(hq-collection.js): 자동 게시 스위치(COLLECTION_AUTO_POST)를 보지 않는다
  */
-export function collectionPostPlan(env, job, ck) {
-  if (env.COLLECTION_AUTO_POST !== 'on') return { ok: false, reason: 'off' };
+export function collectionPostPlan(env, job, ck, how = {}) {
+  if (!how.force && env.COLLECTION_AUTO_POST !== 'on') return { ok: false, reason: 'off' };
   const opts = (job && job.options) || {};
   if (opts.mode === 'planner') return { ok: false, reason: 'planner' };
   if (!job || !job.id || !job.userId) return { ok: false, reason: 'no_job' };
@@ -147,10 +148,11 @@ export function collectionPostPlan(env, job, ck) {
 
 /**
  * 대표 연출컷을 시공사례에 올린다. 던지지 않는다.
+ * @param {{force?: boolean, extra?: object}} [opts]  force — 스위치를 보지 않는다, extra — 행에 더 넣을 칸 (본사가 고른 때 · 사람)
  * @returns {Promise<{posted: boolean, reason?: string, path?: string}>}
  */
-export async function postToCollection(env, job, ck) {
-  const plan = collectionPostPlan(env, job, ck);
+export async function postToCollection(env, job, ck, opts = {}) {
+  const plan = collectionPostPlan(env, job, ck, opts);
   if (!plan.ok) return { posted: false, reason: plan.reason };
   let path = null;
   try {
@@ -171,6 +173,7 @@ export async function postToCollection(env, job, ck) {
         generation_id: job.id,
         ...collectionPostInfo(job),
         company_id: companyId,
+        ...(opts.extra || {}),
       },
       'generation_id'
     );

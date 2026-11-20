@@ -126,13 +126,15 @@
     };
   }
 
-  /** 화면 글 — { ai, title, company, place, color } (규칙은 머리말) */
+  /** 화면 글 — { ai, title, company, place, color } (규칙은 머리말).
+   *  연출컷(ai_render)은 2026-11-20 대표님 「표시 없이, 업체 칸만 AI 연출」 — 타일 「AI」 표 없음, 제목 「시공사례」,
+   *  업체 칸은 늘 「AI 연출」 (본사가 고른 연출컷만 시공사례에 나간다, DB 0075) */
   function labels(p) {
     var ai = p.source === 'ai_render';
     return {
-      ai: ai,
-      title: ai ? TEXT.ai : TEXT.title,
-      company: p.company_name || (ai ? TEXT.ai : ''),
+      ai: false,
+      title: TEXT.title,
+      company: ai ? TEXT.staticAi : p.company_name || '',
       place: p.place_label || '',
       color: p.door_color || '',
     };

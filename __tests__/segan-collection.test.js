@@ -70,10 +70,11 @@ async function load(options = {}) {
       if (q.op !== 'select') return { data: null, error: { message: 'no writes' } };
       if (opts.postsFail) return { data: null, error: { message: 'permission denied' } };
       const lt = q.filters.find((f) => f[0] === 'lt');
-      const neq = q.filters.filter((f) => f[0] === 'neq');
+      const or = q.filters.find((f) => f[0] === 'or');
       const list = opts.db
         .filter((r) => !lt || r.created_at < lt[2])
-        .filter((r) => neq.every((f) => r[f[1]] !== f[2]))
+        // 공개 탭 조건 — 직접 올린 사진 또는 본사가 고른 연출컷 (DB 0075)
+        .filter((r) => !or || r.source === 'upload' || !!r.hq_picked_at)
         .slice(0, q.limit);
       return { data: list, error: null };
     }
@@ -139,8 +140,8 @@ async function load(options = {}) {
                 q.filters.push(['lt', col, v]);
                 return chain;
               },
-              neq: (col, v) => {
-                q.filters.push(['neq', col, v]);
+              or: (expr) => {
+                q.filters.push(['or', expr]);
                 return chain;
               },
               in: (col, v) => {
@@ -267,8 +268,8 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
     expect(q.cols).not.toMatch(/user_id|storage_path|design_id|generation_id|region|consent|\*/);
     expect(q.order).toEqual(['created_at', { ascending: false }]);
     expect(q.limit).toBe(24);
-    // AI 연출컷은 시공사례에 두지 않는다 (2026-11-20 대표님)
-    expect(q.filters).toEqual([['neq', 'source', 'ai_render']]);
+    // 직접 올린 사진 + 본사가 고른 연출컷만 (2026-11-20 대표님, DB 0075)
+    expect(q.filters).toEqual([['or', 'source.eq.upload,hq_picked_at.not.is.null']]);
     expect(tiles()).toHaveLength(24);
     expect(tiles()[0].querySelector('img').getAttribute('src')).toContain('p0.jpg');
     expect($('clMore').hidden).toBe(false);
@@ -302,9 +303,9 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
     await moreAll();
     const q = of(calls, 'collection_posts');
     expect(q.map((x) => x.filters)).toEqual([
-      [['neq', 'source', 'ai_render']],
+      [['or', 'source.eq.upload,hq_picked_at.not.is.null']],
       [
-        ['neq', 'source', 'ai_render'],
+        ['or', 'source.eq.upload,hq_picked_at.not.is.null'],
         ['lt', 'created_at', rows(30)[23].created_at],
       ],
     ]);
@@ -381,14 +382,27 @@ describe('칸 — 폰 3칸 · PC 4칸 · 이미지는 늦게 받기', () => {
     expect(img.getAttribute('draggable')).toBe('false');
   });
 
-  test('AI 연출컷은 시공사례에 없다 — source ai_render 는 묻지 않고, 들어와도 「AI」 칸이 없다', async () => {
-    const db = rows(6).map((r, i) => (i === 1 ? { ...r, source: 'ai_render' } : r));
+  test('연출컷은 본사가 고른 것만 — 고르지 않은 것은 빠지고, 고른 것은 「AI」 표 없이 업체 칸 「AI 연출」', async () => {
+    const db = rows(6).map((r, i) =>
+      i === 1
+        ? { ...r, source: 'ai_render' } // 예전 자동 게시 — 본사가 고르지 않음
+        : i === 2
+          ? { ...r, source: 'ai_render', hq_picked_at: '2026-11-20T01:00:00Z', company_id: null }
+          : r
+    );
     const calls = await load({ db });
-    expect(of(calls, 'collection_posts')[0].filters).toEqual([['neq', 'source', 'ai_render']]);
+    expect(of(calls, 'collection_posts')[0].filters).toEqual([
+      ['or', 'source.eq.upload,hq_picked_at.not.is.null'],
+    ]);
     expect(tiles().some((t) => t.querySelector('img').getAttribute('src').includes('p1.jpg'))).toBe(
       false
     );
     expect(document.querySelector('.cl-mark')).toBeNull();
+    // 고른 연출컷(차례 2 → 화면 1번째 칸)은 제목 「시공사례」, 업체 칸 「AI 연출」, 「이 스타일로 연출컷」 없음
+    await openTile(1);
+    expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
+    expect(facts()).toContainEqual(['업체', 'AI 연출']);
+    expect(sheet().querySelector('a.pv-make')).toBeNull();
   });
 });
 
