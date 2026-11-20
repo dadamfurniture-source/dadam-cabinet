@@ -206,11 +206,13 @@ test('누가 쓰나 — 다담 공장 · Expert · Agent · MANAGER 팩토리 �
   const db = makeDb();
   await withDb(db, async () => {
     const a = await plannerAccess(ENV, { user: u(OWNER) });
-    assert.deepEqual(a, { company: { id: P1, name: '가나 팩토리', kind: 'partner', plan: 'expert' }, role: 'owner', can_manage: true });
+    assert.deepEqual(a, { company: { id: P1, name: '가나 팩토리', kind: 'partner', plan: 'expert' }, role: 'owner', can_manage: true, bom: true });
     assert.equal((await plannerAccess(ENV, { user: u(STAFF) })).can_manage, false);
-    assert.equal((await plannerAccess(ENV, { user: u(MGR) })).company.plan, 'manager');
+    // Manager 팩토리 — 설계 · 저장까지, BOM 은 없다 (2026-11-20)
+    const mg = await plannerAccess(ENV, { user: u(MGR) });
+    assert.deepEqual([mg.company.plan, mg.bom], ['manager', false]);
     const ad = await plannerAccess(ENV, { user: u(ADMIN) });
-    assert.deepEqual([ad.company.id, ad.role, ad.can_manage], [HQ, 'admin', true]);
+    assert.deepEqual([ad.company.id, ad.role, ad.can_manage, ad.bom], [HQ, 'admin', true, true]);
     // 다담 본사 구성원 — 다담 공장 설계 (직책 그대로, 대표 · 실장만 관리)
     const po = await plannerAccess(ENV, { user: u(P_OWNER) });
     assert.deepEqual([po.company.id, po.company.kind, po.role, po.can_manage], [HQ, 'hq', 'owner', true]);

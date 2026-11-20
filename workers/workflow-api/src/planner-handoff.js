@@ -43,7 +43,7 @@ import { assertSettingsEditor } from './production/service.js';
 import { createSnapshot } from './snapshots.js';
 import { isMissingRelation } from './work-order-data.js';
 import { uploadObject, RENDERS_BUCKET } from './storage.js';
-import { plannerCompanyOf } from './planner-drafts.js';
+import { assertPlannerBom, plannerCompanyOf } from './planner-drafts.js';
 
 /** 한 번에 받는 렌더 — 벽(품목)마다 정면 PNG + ISO SVG + 속 구조 정면도 SVG, 설계에 상판 탑뷰 · 배치 평면. PNG 는 장마다 4MB · SVG 는 2MB 까지 */
 export const RENDER_MAX = 24;
@@ -200,11 +200,17 @@ export async function senderCompanyOf(env, user) {
   } catch (e) {
     if (!(e instanceof ForbiddenError)) throw e;
   }
+  let sender = null;
   try {
     const { company, canManage } = await plannerCompanyOf(env, user);
-    if (company.kind === 'partner' && canManage) return company.id;
+    if (company.kind === 'partner' && canManage) sender = company;
   } catch (e) {
     if (!(e instanceof ForbiddenError)) throw e;
+  }
+  if (sender) {
+    // 보내기 · 지시서 미리보기는 BOM 을 싣는다 — Manager 팩토리는 설계 · 저장까지 (2026-11-20, planner-drafts.js assertPlannerBom)
+    assertPlannerBom(sender);
+    return sender.id;
   }
   throw new ForbiddenError(
     '플래너 설계는 본사 대표 · 실장 · 관리자, Manager · Expert · Agent 팩토리 대표 · 실장이 보냅니다',

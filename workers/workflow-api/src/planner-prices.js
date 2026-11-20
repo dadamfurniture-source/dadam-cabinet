@@ -33,7 +33,7 @@
  */
 
 import { DbError, ValidationError, selectMany } from './supabase.js';
-import { plannerCompanyOf } from './planner-drafts.js';
+import { assertPlannerBom, plannerCompanyOf } from './planner-drafts.js';
 import { companySettings } from './production/service.js';
 import { boardPriceKeyOf, HARDWARE_PRICE_KEYS } from './quote-sheet.js';
 import { boardKey, hardwareKey } from './stock-needs.js';
@@ -143,6 +143,7 @@ export function priceLines(body, stock, quote, listItems = []) {
 /** POST /planner/prices */
 export async function plannerPrices(env, { user, body }) {
   const { company, canManage } = await plannerCompanyOf(env, user);
+  assertPlannerBom(company); // BOM 요약 금액 — Manager 팩토리는 BOM 이 없다 (2026-11-20)
   const who = { id: company.id, name: company.name };
   // 줄 모양은 권한과 상관없이 본다 — 직원이 보내도 틀린 본문은 422
   if (!isPlainObject(body || {})) throw new ValidationError('본문은 객체여야 합니다');

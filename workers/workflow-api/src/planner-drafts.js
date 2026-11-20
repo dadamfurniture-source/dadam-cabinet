@@ -90,6 +90,26 @@ export function canUsePlanner(company) {
 }
 
 /**
+ * 플래너 BOM(BOM 창 · 단가 · 앱으로 보내기 · 지시서 미리보기)을 쓰는 협력업체 등급 (2026-11-20 사장님
+ * 「Manager 는 BOM 기능을 제외한 설계 저장 기능까지」). Manager 는 설계 · 저장(· 제작 의뢰)까지 — 구독 비교 Expert 칸 「BOM 산출」.
+ */
+export const PLANNER_BOM_PLANS = Object.freeze(['expert', 'agent']);
+
+/** 다담 공장 · active Expert · Agent */
+export function canUsePlannerBom(company) {
+  if (!canUsePlanner(company)) return false;
+  return company.kind === 'hq' || PLANNER_BOM_PLANS.includes(company.plan);
+}
+
+/** BOM 을 못 쓰는 팩토리면 403 plan_required { min_plan: 'expert' } (documents.js assertCompanyPlan 과 같은 모양) */
+export function assertPlannerBom(company) {
+  if (canUsePlannerBom(company)) return;
+  const err = new ForbiddenError('BOM · 앱으로 보내기는 Expert 등급 팩토리부터 쓸 수 있습니다', 'plan_required');
+  err.details = { min_plan: PLANNER_BOM_PLANS[0] };
+  throw err;
+}
+
+/**
  * 부르는 사람의 플래너 업체 — { company, role, canManage }. 구성원인 업체가 없으면 관리자는 다담 공장.
  * 다담 본사 구성원도 다담 공장 (본사는 플래너 업체가 아니다 — 관리자와 같은 자리, 직책은 그대로.
  * 2026-11-09 대표님 계정을 공장 대표에서 본사 대표로 옮겼다 — 그동안 저장한 설계가 다담 공장 것이다).
@@ -122,6 +142,8 @@ export async function plannerAccess(env, { user }) {
     company: { id: company.id, name: company.name, kind: company.kind, plan: company.plan || null },
     role,
     can_manage: canManage,
+    // BOM 창 · 앱으로 보내기를 보이나 (Manager 는 설계 · 저장까지 — canUsePlannerBom)
+    bom: canUsePlannerBom(company),
   };
 }
 

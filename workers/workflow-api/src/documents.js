@@ -229,6 +229,8 @@ export async function docPayloadOf(env, { docType, snapshot, designId, body = {}
   }
   // 철거 · 납품 지시서 — 필수 확인 목록만 고정한다 (철거 후 사진 · 납품 수량 확인 · 하차 후 사진). 사무실 글은 작업 줄의 메모로 (work_jobs.sheet_memo)
   if (SITE_ORDER_TYPES.includes(docType)) out.check_list = frozenCheckList();
+  // 현장 지시서 새 틀 (2026-11-20 사장님 「1.철거 : 배치 평면은 필요없음」 · 「납품 및 시공 : 설치 확인 필요없음, 크기 및 정렬, 정확도 개선」)
+  if (SITE_DOC_TYPES.includes(docType)) out.sheet_layout = SHEET_LAYOUT;
   return out;
 }
 

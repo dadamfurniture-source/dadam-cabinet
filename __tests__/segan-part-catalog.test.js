@@ -114,16 +114,20 @@ afterEach(() => {
 });
 
 describe('철물 · 부속 카탈로그 — 누가', () => {
-  test('다담 공장 · 본사 · 구매 · 재고를 쓰는 팩토리 구성원만 묻는다 — 그 밖의 등급 · 업체 없는 사람에게는 서버를 부르지 않는다', async () => {
+  test('다담 공장 · 본사 · Manager 이상 팩토리 구성원만 묻는다 — 그 밖의 등급 · 업체 없는 사람에게는 서버를 부르지 않는다', async () => {
     const M = mod();
+    // 2026-11-20 사장님 「Manager 도 카탈로그 메뉴 사용」
     const MANAGER_PLAN = { company: { id: 'c-2', plan: 'manager', role: 'owner' } };
-    expect([M.canSee(HQ), M.canSee(PLATFORM), M.canSee(PARTNER), M.canSee({ company: { plan: 'expert' } }), M.canSee(MANAGER_PLAN), M.canSee({}), M.canSee(null), M.canSee([])])
-      .toEqual([true, true, true, true, false, false, false, false]);
+    const STANDARD_PLAN = { company: { id: 'c-3', plan: 'standard', role: 'owner' } };
+    expect([M.canSee(HQ), M.canSee(PLATFORM), M.canSee(PARTNER), M.canSee({ company: { plan: 'expert' } }), M.canSee(MANAGER_PLAN), M.canSee(STANDARD_PLAN), M.canSee({}), M.canSee(null), M.canSee([])])
+      .toEqual([true, true, true, true, true, false, false, false, false]);
+    const mgr = await boot(MANAGER_PLAN);
+    expect(mgr.calls.map((c) => `${c.method} ${c.path}`)).toEqual(['GET /parts/catalog']);
     const partner = await boot(PARTNER);
     expect(partner.calls.map((c) => `${c.method} ${c.path}`)).toEqual(['GET /parts/catalog']);
     expect(partner.box.hidden).toBe(false);
     expect(partner.box.querySelector('#partCatalogCompany')).toBeNull();
-    for (const me of [MANAGER_PLAN, {}, null]) {
+    for (const me of [STANDARD_PLAN, {}, null]) {
       const { calls, box } = await boot(me);
       expect(calls).toHaveLength(0);
       expect(box.hidden).toBe(true);
@@ -389,7 +393,8 @@ describe('철물 · 부속 카탈로그 — 마이페이지에 이어진 곳', (
     expect(me).toContain("'part-catalog': {");
     expect(me).toContain("parts: ['partCatalog'],");
     expect(me).toContain("label: 'partCatalogTitle',");
-    expect(me).toMatch(/case 'part-catalog':\s+return \(v\.factory \|\| v\.platform\) && available\(key\);/);
+    expect(me).toMatch(/case 'part-catalog':\s+return \(v\.factory \|\| v\.platform \|\| CATALOG_PLANS\.indexOf\(v\.plan\) >= 0\) && available\(key\);/);
+    expect(me).toMatch(/var CATALOG_PLANS = \['manager', 'expert', 'agent'\];/);
     expect(me).toContain('synced(Parts && Parts.load ? Parts.load(auth.sb, auth.session, me) : null),');
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'part-catalog.js'),");
     expect(read('segan/shell.css')).toContain('.pc-row {');

@@ -203,10 +203,13 @@ test('금액은 대표 · 실장에게만 — 직원에게는 값이 실리지 �
   });
 });
 
-test('재고를 쓰지 않는 팩토리(Manager) · 재고 표나 단가 칸이 아직 없는 DB — 생산 설정 단가로', async () => {
+test('Manager 팩토리는 BOM 이 없다(403 plan_required) · 재고 표나 단가 칸이 아직 없는 DB — 생산 설정 단가로', async () => {
+  // 2026-11-20 사장님 「Manager 는 BOM 기능을 제외한 설계 저장 기능까지」 — BOM 요약 금액도 없다
   await withDb(makeDb(), async () => {
-    const r = await plannerPrices(ENV, { user: u(M_OWNER), body: { boards: [{ material: 'PB', thickness: 15 }] } });
-    assert.deepEqual([r.money, r.boards[0].unit_price, r.boards[0].source], [true, DEFAULT_QUOTE.pbSheet, 'settings']);
+    await assert.rejects(
+      () => plannerPrices(ENV, { user: u(M_OWNER), body: { boards: [{ material: 'PB', thickness: 15 }] } }),
+      (e) => e instanceof ForbiddenError && e.code === 'plan_required' && e.details.min_plan === 'expert'
+    );
   });
   for (const opt of [{ stock: false }, { price: false }]) {
     await withDb(makeDb(opt), async () => {

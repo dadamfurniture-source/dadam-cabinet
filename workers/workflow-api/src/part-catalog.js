@@ -33,7 +33,8 @@
  *     치수는 사람이 확인한 것(specs_checked)만 싣는다. 카탈로그를 못 쓰는 팩토리는 catalog false 와 빈 목록.
  *
  * 누가 (2026-11-19 사장님 「각 카탈로그는 각 공장에서 자료 올려서 각자 볼 수 있도록 해. 본사는 각 공장의 자료들 볼 수 있도록 해줘」):
- *   팩토리 구성원 = 자기 팩토리 카탈로그 (재고를 쓰는 팩토리 — 다담 공장 · active Expert · Agent, stock.js canHoldStock). 올리기 · 매입가 · 숨기기는 대표 · 실장.
+ *   팩토리 구성원 = 자기 팩토리 카탈로그 (플래너를 쓰는 팩토리 — 다담 공장 · active Manager · Expert · Agent, planner-drafts.js canUsePlanner.
+ *   2026-11-20 사장님 「Manager 도 카탈로그 메뉴 사용」 — 예전에는 재고를 쓰는 팩토리(Expert 이상)만). 올리기 · 매입가 · 숨기기는 대표 · 실장.
  *   다담 본사 구성원(· 관리자) = 다담 공장 카탈로그를 지금처럼 고치고, 다른 팩토리 것은 ?company= 로 보기만 한다 (그 팩토리의 매입가는 안 본다).
  *   쓰는 길(올리기 · 사진 · 고치기 · 거래명세표)은 company 를 받지 않는다 — 언제나 자기 카탈로그에 쓴다.
  *   그 밖은 403 not_catalog_company (화면에는 메뉴가 없다).
@@ -42,8 +43,10 @@
  */
 
 import { ConflictError, DbError, ForbiddenError, NotFoundError, TooLargeError, ValidationError, activeMemberships, insertMany, insertOne, selectMany, selectOne, updateBy } from './supabase.js';
-import { canHoldStock } from './stock.js';
-import { plannerCompanyOf, sniffPhoto } from './planner-drafts.js';
+import { canUsePlanner, plannerCompanyOf, sniffPhoto } from './planner-drafts.js';
+
+/** 카탈로그를 가지는 팩토리 — 플래너를 쓰는 팩토리와 같다 (다담 공장 · active Manager · Expert · Agent) */
+const canHoldCatalog = canUsePlanner;
 import { createSignedUrls, uploadObject } from './storage.js';
 
 /** 사진 버킷 — DB 0071 */
@@ -104,7 +107,7 @@ const notCatalog = () => new ForbiddenError('카탈로그를 쓸 수 있는 팩�
  */
 export async function catalogCompanyOf(env, user, { manage = false, company: want = '' } = {}) {
   const { company, canManage } = await plannerCompanyOf(env, user);
-  if (!canHoldStock(company)) throw notCatalog();
+  if (!canHoldCatalog(company)) throw notCatalog();
   // 본사 구성원 · 관리자 — plannerCompanyOf 가 다담 공장으로 바꿔 준 사람 (자기 구성원 업체가 아니다)
   const m = (await activeMemberships(env, user))[0];
   const overseer = !m || m.company_id !== company.id;
@@ -112,7 +115,7 @@ export async function catalogCompanyOf(env, user, { manage = false, company: wan
     if (!overseer || !UUID_RE.test(want)) throw notCatalog();
     if (manage) throw new ForbiddenError('다른 팩토리의 카탈로그는 보기만 합니다', 'read_only');
     const target = await selectOne(env, 'companies', { id: `eq.${want}`, select: 'id,kind,name,plan,status' });
-    if (!canHoldStock(target)) throw notCatalog();
+    if (!canHoldCatalog(target)) throw notCatalog();
     return { company: target, canManage: false, viewing: true, overseer };
   }
   if (manage && !canManage) throw new ForbiddenError('카탈로그는 대표 · 실장만 고칩니다', 'not_manager');
@@ -127,7 +130,7 @@ async function catalogCompaniesOf(env, home) {
   const ids = [...counts.keys()].filter((id) => id !== home.id && UUID_RE.test(String(id)));
   const others = ids.length ? (await selectMany(env, 'companies', { id: `in.(${ids.join(',')})`, select: 'id,kind,name,plan,status', limit: '500' })) || [] : [];
   const out = [{ id: home.id, name: home.name, kind: home.kind, vendors: counts.get(home.id) || 0 }];
-  others.filter(canHoldStock).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))
+  others.filter(canHoldCatalog).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))
     .forEach((c) => out.push({ id: c.id, name: c.name, kind: c.kind, vendors: counts.get(c.id) || 0 }));
   return out;
 }
@@ -301,7 +304,7 @@ export async function plannerParts(env, { user, query }) {
   } else if (!words) throw new ValidationError('설비 종류(kind)는 sink · faucet · hood · cooktop 가운데 하나입니다', { field: 'kind' });
   const find = nameKey(q.q).slice(0, PLANNER_PARTS_Q_MAX).split(' ').filter(Boolean);
   const head = { company: { id: company.id, name: company.name }, money: !!canManage };
-  if (!canHoldStock(company)) return { ...head, catalog: false, total: 0, items: [] };
+  if (!canHoldCatalog(company)) return { ...head, catalog: false, total: 0, items: [] };
   return db(async () => {
     const all = await itemsOf(env, company.id, { active: 'eq.true' });
     const vendors = new Map(((await selectMany(env, 'part_vendors', { company_id: `eq.${company.id}`, select: 'id,name', limit: '200' })) || []).map((v) => [v.id, v.name]));

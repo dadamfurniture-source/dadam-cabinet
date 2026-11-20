@@ -121,11 +121,12 @@
     return typeof v === 'number' && isFinite(v) ? v : null;
   }
 
-  /** 구매 · 재고를 쓰는 협력 팩토리 등급 (segan/me.js FACTORY_PLANS · 서버 stock.js STOCK_PLANS 와 같다) */
-  var FACTORY_PLANS = ['expert', 'agent'];
+  /** 카탈로그를 가지는 협력 팩토리 등급 — 플래너를 쓰는 팩토리 (segan/me.js CATALOG_PLANS · 서버 part-catalog.js canHoldCatalog 와 같다).
+   *  2026-11-20 사장님 「Manager 도 카탈로그 메뉴 사용」 — 예전에는 구매 · 재고를 쓰는 Expert · Agent 만 */
+  var FACTORY_PLANS = ['manager', 'expert', 'agent'];
 
   /**
-   * 이 칸을 읽어 볼 사람인가 — 다담 공장 구성원 · 다담 본사 구성원 · 구매 · 재고를 쓰는 협력 팩토리 구성원
+   * 이 칸을 읽어 볼 사람인가 — 다담 공장 구성원 · 다담 본사 구성원 · Manager 이상 협력 팩토리 구성원
    * (2026-11-19 사장님 「각 카탈로그는 각 공장에서 자료 올려서 각자 볼 수 있도록 해. 본사는 각 공장의 자료들 볼 수 있도록 해줘」).
    * 그 밖의 사람에게는 묻지도 않는다.
    */

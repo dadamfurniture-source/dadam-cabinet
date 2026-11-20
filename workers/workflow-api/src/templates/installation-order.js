@@ -15,7 +15,7 @@
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
 import { modulePosLabel } from './elevation.js';
-import { elevationBlock, renderBoxes, specialNotesBox, drawingTitle } from './work-order.js';
+import { elevationBlock, renderBoxes, specialNotesBox, drawingTitle, LAYOUT2_ELEV_SCALE } from './work-order.js';
 import { planSvg } from './countertop-order.js';
 import { countertopRequests, hasCountertop } from '../countertop.js';
 import { specialNotesOfDoc } from '../work/special-notes.js';
@@ -168,7 +168,7 @@ function coverSheet(doc, snapshot, site, worker) {
     <tbody>${summaryRows || tr(['-', '-', '-', '-'])}</tbody>
   </table>${fixturePartsBlock(items)}${designAppliancesBlock(design)}
 
-  ${installChecks(doc, snapshot)}<table class="sign">
+  ${layout2(doc) ? '' : installChecks(doc, snapshot)}<table class="sign">
     <tbody>
       ${tr(itemsFor(checkListOfDoc(doc), 'install', 'order').filter((x) => x.paper === 'sign').flatMap((x) => [esc(x.label), '']))}
     </tbody>
@@ -299,7 +299,7 @@ function drawingSheet(doc, snapshot, renderUrls, top) {
   const rp = doc.render_payload || {};
   const renders = Array.isArray(rp.renders) && rp.renders.length ? rp.renders : null;
   const isoRenders = Array.isArray(rp.iso_renders) ? rp.iso_renders : null;
-  const ctx = { items, renders, isoRenders, renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})) };
+  const ctx = { items, renders, isoRenders, renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})), elevScale: layout2(doc) ? LAYOUT2_ELEV_SCALE : 0 };
   const lines = materialsOf(snapshot).filter(isLineRow);
   const lineRows = lines
     .map((m) => tr([esc(m.part || ''), `${esc(m.material || '')} ${num(m.thickness)}T`, `${num(m.w)} × ${num(m.h)}`, num(m.qty), isOutsourcedTopRow(m) ? '상판 업체 시공' : esc(m.note || '')], ['', '', 'num', 'num', '']))
@@ -355,6 +355,22 @@ export function scheduleSheet(schedules, worker) {
 </div>`;
 }
 
+/** 새 틀 문서인가 (발행 때 고정한 render_payload.sheet_layout — documents.js SHEET_LAYOUT) */
+export const layout2 = (doc) => Number(doc && doc.render_payload && doc.render_payload.sheet_layout) >= 2;
+
+/**
+ * 새 틀 현장 문서의 표 줄맞춤 (2026-11-20 사장님 「표 · 칸 줄맞춤이 어긋남」) — 칸 너비를 고정한다:
+ *   머리 · 현장 표(이름 · 값 · 이름 · 값)는 이름 칸 18% · 값 칸 32%, 나머지 표는 같은 너비로 나누고 숫자 칸은 오른쪽 맞춤 그대로. 글자를 조금 키운다.
+ */
+export const SITE_LAYOUT2_CSS = `
+      table { table-layout: fixed; }
+      th, td { overflow-wrap: anywhere; }
+      table.meta td:nth-child(odd), table.site td:nth-child(odd) { width: 18%; font-weight: 700; background: #f5f5f5; }
+      table.meta td:nth-child(even), table.site td:nth-child(even) { width: 32%; }
+      body { font-size: 11pt; }
+      h2 { font-size: 13pt; }
+    `;
+
 /** 현장 문서(설치 · 철거 · 납품 지시서)의 인쇄 모양 — 빈칸 경고 · 글 상자 · 작은 글 */
 export const SITE_CSS = PRINT_CSS + `
       .missing { color: #c62828; font-weight: 700; }
@@ -376,7 +392,7 @@ export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = 
 
   return documentShell({
     title: `설치 작업지시서 ${doc.doc_no}`,
-    css: SITE_CSS,
+    css: layout2(doc) ? SITE_CSS + SITE_LAYOUT2_CSS : SITE_CSS,
     body,
   });
 }

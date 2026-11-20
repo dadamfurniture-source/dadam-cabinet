@@ -20,8 +20,8 @@
 
 import { esc, num, ymd, tr, thead, documentShell } from './html.js';
 import { PRINT_TOOLBAR } from './print-css.js';
-import { siteBlock, moduleSheet, scheduleSheet, itemLabel, isLineRow, SITE_CSS, isPlannerDesign, layoutBlock } from './installation-order.js';
-import { elevationBlock, renderBoxes, drawingTitle } from './work-order.js';
+import { siteBlock, moduleSheet, scheduleSheet, itemLabel, isLineRow, SITE_CSS, isPlannerDesign, layoutBlock, layout2, SITE_LAYOUT2_CSS } from './installation-order.js';
+import { elevationBlock, renderBoxes, drawingTitle, LAYOUT2_ELEV_SCALE } from './work-order.js';
 import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 
@@ -64,7 +64,8 @@ function drawingSheet(doc, snapshot, renderUrls) {
   if (!rp.drawing_version) return '';
   const urls = renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {}));
   if (doc.doc_type === 'demolition_order') {
-    if (!isPlannerDesign(snapshot)) return '';
+    // 새 틀 — 철거 지시서에는 배치 평면을 싣지 않는다 (2026-11-20 사장님 「1.철거 : 배치 평면은 필요없음」)
+    if (!isPlannerDesign(snapshot) || layout2(doc)) return '';
     return `
 <div class="sheet">
   <h2>배치 평면 <span class="hint">철거할 자리 — 벽 · 가전 자리</span></h2>
@@ -75,7 +76,7 @@ function drawingSheet(doc, snapshot, renderUrls) {
   const items = Array.isArray(design.items) ? design.items : [];
   if (!items.length) return '';
   const renders = Array.isArray(rp.renders) && rp.renders.length ? rp.renders : null;
-  const ctx = { items, renders, isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null, renderUrls: urls };
+  const ctx = { items, renders, isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null, renderUrls: urls, elevScale: layout2(doc) ? LAYOUT2_ELEV_SCALE : 0 };
   return `
 <div class="sheet">
   <h2>${drawingTitle(ctx)}</h2>
@@ -125,7 +126,7 @@ function coverSheet(doc, snapshot, site, worker, kind, memo, photos) {
     <tbody>${summaryRows || tr(['-', '-', '-'])}</tbody>
   </table>
 
-  ${checksBlock(doc, snapshot, kind)}
+  ${layout2(doc) && doc.doc_type === 'delivery_order' ? '' : checksBlock(doc, snapshot, kind)}
 </div>`;
 }
 
@@ -173,5 +174,5 @@ export function renderSiteOrder(doc, snapshot, { toolbar = true, site = null, sc
   ]
     .filter(Boolean)
     .join('\n');
-  return documentShell({ title: `${kind.title} ${doc.doc_no}`, css: SITE_ORDER_CSS, body });
+  return documentShell({ title: `${kind.title} ${doc.doc_no}`, css: layout2(doc) ? SITE_ORDER_CSS + SITE_LAYOUT2_CSS : SITE_ORDER_CSS, body });
 }

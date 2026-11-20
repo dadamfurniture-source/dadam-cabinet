@@ -150,8 +150,9 @@ test('누가 — 팩토리마다 자기 카탈로그 · 본사 구성원은 다�
     // 협력 팩토리(Agent)는 자기 카탈로그
     const partner = await catalogCompanyOf(ENV, u(PARTNER_OWNER), { manage: true });
     assert.deepEqual([partner.company.id, partner.canManage, partner.viewing, partner.overseer], [P1, true, false, false]);
-    // 재고를 쓰지 않는 등급(Manager)의 팩토리 · 구성원이 아닌 사람
-    await assert.rejects(() => partCatalog(ENV, { user: u(MANAGER_PLAN_OWNER) }), (e) => e instanceof ForbiddenError && e.code === 'not_catalog_company');
+    // Manager 팩토리도 자기 카탈로그 (2026-11-20 사장님 「Manager 도 카탈로그 메뉴 사용」) · 구성원이 아닌 사람은 못 본다
+    const mgr = await catalogCompanyOf(ENV, u(MANAGER_PLAN_OWNER), { manage: true });
+    assert.deepEqual([mgr.company.id, mgr.canManage, mgr.viewing], [P2, true, false]);
     await assert.rejects(() => partCatalog(ENV, { user: u(NOBODY) }), ForbiddenError);
     // 올리기 · 사진 · 고치기는 대표 · 실장만
     await assert.rejects(() => importParts(ENV, { user: u(STAFF), body: { vendor: VENDOR, items: ITEMS } }), (e) => e instanceof ForbiddenError && e.code === 'not_manager');
@@ -259,8 +260,11 @@ test('팩토리마다 — 협력 팩토리는 자기 것만 올리고 읽는다 
     const seen = await partCatalog(ENV, { user: u(HQ_PERSON), query: { company: P1 } });
     assert.deepEqual([seen.company.id, seen.can_manage, seen.viewing, seen.companies.length], [P1, false, true, 2]);
     assert.deepEqual(seen.items.map((x) => [x.name, x.buy_price, x.buy_price_on]), [['협력 레일', null, null]]);
-    // 재고를 안 쓰는 팩토리 · 없는 팩토리 · 이상한 값은 고르지 못한다
-    for (const id of [P2, PLATFORM, 'f0000000-0000-4000-8000-0000000000ff', "x'); drop"]) {
+    // Manager 팩토리도 고를 수 있다 (2026-11-20 — 카탈로그를 가지는 팩토리)
+    const mgrSeen = await partCatalog(ENV, { user: u(HQ_PERSON), query: { company: P2 } });
+    assert.deepEqual([mgrSeen.company.id, mgrSeen.can_manage, mgrSeen.viewing], [P2, false, true]);
+    // 본사(플랫폼) · 없는 팩토리 · 이상한 값은 고르지 못한다
+    for (const id of [PLATFORM, 'f0000000-0000-4000-8000-0000000000ff', "x'); drop"]) {
       await assert.rejects(() => partCatalog(ENV, { user: u(HQ_PERSON), query: { company: id } }), (e) => e.code === 'not_catalog_company', id);
     }
     // 쓰는 길은 언제나 자기 카탈로그 — 본사가 올리면 다담 공장에 들어간다
@@ -487,12 +491,12 @@ test('플래너 설비 상품 — 분류 낱말로 고르고 · 글로 찾고 ·
     const staff = await plannerParts(ENV, { user: u(STAFF), query: { ids: `${s1.id},${s1.id}` } });
     assert.deepEqual([staff.money, staff.items.length, staff.items[0].buy_price, staff.items[0].buy_price_on, staff.items[0].width_mm], [false, 1, null, null, 850]);
 
-    // 본사 구성원 = 다담 공장 · 협력 팩토리 = 자기 것 · 재고를 안 쓰는 팩토리 = 빈 목록
+    // 본사 구성원 = 다담 공장 · 협력 팩토리 = 자기 것 (Manager 팩토리도 — 아직 올린 게 없으면 빈 목록)
     assert.equal((await plannerParts(ENV, { user: u(HQ_PERSON), query: { kind: 'sink' } })).company.id, HQ);
     const partner = await plannerParts(ENV, { user: u(PARTNER_OWNER), query: { kind: 'sink' } });
     assert.deepEqual([partner.company.id, names(partner)], [P1, ['협력 팩토리 볼']]);
     assert.equal((await plannerParts(ENV, { user: u(PARTNER_OWNER), query: { ids: s1.id } })).total, 0);
-    assert.deepEqual(await plannerParts(ENV, { user: u(MANAGER_PLAN_OWNER), query: { kind: 'sink' } }), { company: { id: P2, name: '다라 팩토리' }, money: true, catalog: false, total: 0, items: [] });
+    assert.deepEqual(await plannerParts(ENV, { user: u(MANAGER_PLAN_OWNER), query: { kind: 'sink' } }), { company: { id: P2, name: '다라 팩토리' }, money: true, catalog: true, total: 0, items: [] });
     await assert.rejects(() => plannerParts(ENV, { user: u(NOBODY), query: { kind: 'sink' } }), ForbiddenError);
 
     // 검증 · 한도
@@ -550,12 +554,12 @@ test('장부의 파는 곳 — 상호를 다듬어 묶는다 · 마지막 읽음
       { key: 'n:마바상사', name: '(주)마바상사', biz_no: '1234567890', docs: 3, items: 3 },
       { key: 'n:자차철물', name: '자차 철물', biz_no: '', docs: 1, items: 1 },
     ]);
-    // 대표 · 실장만. 협력 팩토리는 자기 장부만 읽는다 · 재고를 안 쓰는 팩토리는 못 쓴다
+    // 대표 · 실장만. 협력 팩토리는 자기 장부만 읽는다 (Manager 팩토리는 장부가 없어 빈 목록)
     await assert.rejects(() => partLedgerSuppliers(ENV, { user: u(STAFF) }), (e) => e.code === 'not_manager');
     const other = await partLedgerSuppliers(ENV, { user: u(PARTNER_OWNER) });
     assert.equal(other.company.id, P1);
     assert.deepEqual(other.suppliers.map((s) => [s.key, s.docs, s.items]), [['n:마바상사', 1, 1]]);
-    await assert.rejects(() => partLedgerSuppliers(ENV, { user: u(MANAGER_PLAN_OWNER) }), (e) => e.code === 'not_catalog_company');
+    assert.deepEqual((await partLedgerSuppliers(ENV, { user: u(MANAGER_PLAN_OWNER) })).suppliers, []);
     await assert.rejects(() => importPartsFromLedger(ENV, { user: u(STAFF), body: { supplier_key: 'n:마바상사' } }), (e) => e.code === 'not_manager');
   });
   assert.equal(db.writes.length, 0);

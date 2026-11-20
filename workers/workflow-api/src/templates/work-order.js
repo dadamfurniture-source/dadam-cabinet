@@ -66,6 +66,7 @@ import { partDrawingsSheet } from './part-drawing.js';
 import { moduleSectionsSheet } from './module-section.js';
 import { isCornerItem, isoSvg, runLengths } from './isometric.js';
 import { cutPackV2, doorPackV2 } from './work-order-layout2.js';
+import { assemblyCards } from './assembly-layout2.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -130,6 +131,8 @@ function buildContext(doc, snapshot, renderUrls) {
     drawingVersion: Number(rp.drawing_version) || 0,
     // 지시서 새 판 (2026-11-20 사장님 「작업지시서 미리보기 … 정리」 — work-order-layout2.js). 발행 때 고정, 옛 문서는 0 (예전 틀 그대로)
     layoutVersion: Number(rp.sheet_layout) || 0,
+    // 새 틀 문서의 정면도 글자 배율 (「치수 숫자 더 크고 굵게」)
+    elevScale: Number(rp.sheet_layout) >= 2 ? LAYOUT2_ELEV_SCALE : 0,
     plannerDesign: design.source === 'planner-lite',
     renders: Array.isArray(rp.renders) ? rp.renders : null,
     isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
@@ -594,7 +597,7 @@ export function elevationBlock(ctx) {
           .join(' · ');
         return `<div class="elev-box">${isoSvg(item)}<div class="elev-cap">${label} · 아이소메트릭 (코너 · mm) · 번호 = 모듈 명세 번호${runs ? ` · <b>${esc(runs)}</b>` : ''}</div></div>`;
       }
-      const svg = elevationSvg(item);
+      const svg = elevationSvg(item, ctx.elevScale ? { textScale: ctx.elevScale } : {});
       if (!svg) return `<div class="elev-box"><div class="ph">모듈 없음</div><div>${label}</div></div>`;
       const infos = elevationModel(item).notes.filter((x) => x.level !== 'error');
       return `<div class="elev-box">${svg}<div class="elev-cap">${label} · 정면도 (mm)${infos.map((x) => ` · <span class="muted">${esc(x.text)}</span>`).join('')}</div></div>`;
@@ -1433,7 +1436,7 @@ function assemblySheet(ctx) {
 
 const FIELD_LABEL = { w: '가로', h: '세로', thickness: '두께', qty: '수량', finishCode: '마감', material: '자재' };
 
-function diffSheet(ctx) {
+export function diffSheet(ctx) {
   const title = '<div class="section-title">⑦ 이전 rev 와의 차이</div>';
   if (ctx.prevRev === undefined) {
     return `<div class="sheet">${title}<div class="muted">${ctx.isV2 ? '비교 자료 없음' : 'v1 발행 문서 — 비교 자료 없음 (재발행하면 이전 rev 와 비교한다)'}</div></div>`;
@@ -1727,7 +1730,7 @@ function doorOrderSheet(ctx) {
 
 // ── 꾸러미 머리 ──────────────────────────────────────────────────
 
-function packHeader(ctx, pack) {
+export function packHeader(ctx, pack) {
   const { doc } = ctx;
   const p = WORK_ORDER_PACKS[pack];
   const counts = workCounts(ctx);
@@ -1817,8 +1820,24 @@ const PACK_SECTIONS = {
  * 새 판 (sheet_layout 2 — work-order-layout2.js) 꾸러미: 재단 · 엣지 지시서와 도어재 발주서가 원장 그림 중심으로 바뀐다
  *   (정면도 · 부재 표 · 판재 도면 · 부재마다 엣지 쪽 없음, 도어재 외주 원장은 발주서에만). 나머지 꾸러미는 예전 틀.
  */
+/** 조립 새 틀 — 머리(전체 그림 · 특별 지시 · 주문 확인) + 모듈 카드(3D · 모듈 내용) + 줄 철물 + 바뀐 점. 모듈 명세 · 치수도 · 단면도 · 조립 순서 체크는 없다 */
+function assemblyHeadV2(ctx) {
+  return packHeader(ctx, 'assembly') + specialNotesBox(ctx.specialNotes, ['assembly']) + orderChecksBlock(ctx, 'assembly');
+}
+/** 모듈에 딸리지 않은 철물 (다리발 · 손잡이 목찬넬 · 줄 부재 철물) — 모듈 카드 뒤 한 표 */
+function lineHardwareV2(ctx) {
+  const rows = ctx.hardware.filter((h) => !h.moduleKey);
+  if (!rows.length) return '';
+  return `<div class="sheet"><div class="section-title">줄 · 설계 전체 철물</div><table class="compact">${thead(['분류', '품목', '규격', '수량', '비고'], ['', '', '', 'num', ''])}<tbody>${rows.map((h) => tr([esc(h.category || ''), esc(h.item || ''), esc(h.spec || ''), `${num(h.qty)} ${esc(h.unit || '')}`, esc(h.note || '')], ['', '', '', 'num', ''])).join('')}</tbody></table></div>`;
+}
+const ASSEMBLY_V2 = [assemblyHeadV2, assemblyCards, lineHardwareV2, diffSheet];
+
+/** 새 틀 정면도 글자 배율 — 그림용 값 */
+export const LAYOUT2_ELEV_SCALE = 1.35;
+
 const PACK_SECTIONS_V2 = Object.assign({}, PACK_SECTIONS, {
-  all: PACK_SECTIONS.all.map((fn) => (fn === doorOrderSheet ? doorPackV2 : fn)).map((fn, i) => (i === 3 ? (ctx) => cutPackV2(ctx) : fn)),
+  all: [PACK_SECTIONS.all[0], assemblyCards, (ctx) => cutPackV2(ctx), lineHardwareV2, diffSheet, doorPackV2, labelSheets, PACK_SECTIONS.all[PACK_SECTIONS.all.length - 1]],
+  assembly: ASSEMBLY_V2,
   cut: [(ctx) => cutPackV2(ctx)],
   'cut-vendor': [(ctx) => cutPackV2(ctx, { vendor: true })],
   door: [doorPackV2],
