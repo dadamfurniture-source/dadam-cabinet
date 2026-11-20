@@ -5,7 +5,7 @@
  *
  * my-designs.html 과 같은 데이터 · 호출인지 확인한다 (my-designs.html 은 고치지 않는다):
  *   generations 목록(같은 칸 · internal_only 거르기 · 최신순 200) · js/storage-urls.js 서명 · 5초 다시 읽기
- *   collection_posts(ai_render) 표시
+ *   collection_posts(ai_render · 본사가 고른 것, DB 0075) 표시
  * 하나를 누르면 만들기 ③ 결과 화면(make.html?g=<id>#result)으로 간다 — 결과 화면은 그것 하나다
  * (컷 · 견적 · 상담 신청 · 공유 · 내리기 · 학습 동의 · 다시 생성 · 삭제는 segan-make-result-manage.test.js).
  * 옛 주소 renders.html?g=<id> 는 목록을 그리기 전에 그 결과 주소로 넘긴다.
@@ -117,6 +117,10 @@ async function load(options = {}) {
           q.or = expr;
           return chain;
         },
+        not: (c, op, v) => {
+          q.filters.push(['not', c, op, v]);
+          return chain;
+        },
         order: (c, o) => {
           q.order = [c, o];
           return chain;
@@ -192,13 +196,17 @@ describe('목록 — my-designs.html 과 같은 읽기', () => {
   });
 
   test('진행 중 · 실패(환불 안내) · 시공사례 표시', async () => {
-    await load();
+    const calls = await load();
     expect(card(ID1).querySelector('.rd-badge').textContent).toBe('가구 배치 중 · 40%');
     expect(card(ID3).querySelector('.rd-badge').textContent).toBe('실패');
     expect(card(ID3).textContent).toContain('만들지 못한 연출컷의 크레딧은 돌려드립니다.');
     expect(card(ID2).querySelector('.rd-badge')).toBeNull();
     expect(card(ID2).textContent).toContain('붙박이장 연출컷');
     expect(card(ID2).textContent).toContain('시공사례');
+    // 본사가 고른(공개된) 연출컷만 묻는다 — 예전 자동 게시 행은 시공사례에 안 보이므로 표시하지 않는다 (DB 0075)
+    const mine = calls.posts.find((q) => q.filters.some((x) => x[1] === 'user_id'));
+    expect(mine.filters).toContainEqual(['eq', 'source', 'ai_render']);
+    expect(mine.filters).toContainEqual(['not', 'hq_picked_at', 'is', null]);
   });
 
   test('공유 중이면 「공유 중」 표시', async () => {
@@ -236,10 +244,12 @@ describe('하나 열기 = 만들기 ③ 결과 화면 (결과 화면은 하나)'
     );
     expect(window.SeganRenders.resultHref(ID2)).toBe(`make.html?g=${ID2}#result`);
     // make.html 은 만들기 — 상담 신청의 「결과로 돌아가기」와 같은 주소 모양
-    expect(new URL(`make.html?g=${ID2}#result`, 'https://x.example/segan/renders.html').pathname).toBe(
-      '/segan/make.html'
+    expect(
+      new URL(`make.html?g=${ID2}#result`, 'https://x.example/segan/renders.html').pathname
+    ).toBe('/segan/make.html');
+    expect(read('segan/consult.js')).toContain(
+      "'make.html?g=' + encodeURIComponent(C.id) + '#result'"
     );
-    expect(read('segan/consult.js')).toContain("'make.html?g=' + encodeURIComponent(C.id) + '#result'");
   });
 
   test('목록 화면에는 하나 열기 화면이 없다 (#rdDetail · 관리 칸 · 화면 안 확인 줄 없음)', async () => {
