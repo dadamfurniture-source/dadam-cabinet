@@ -498,10 +498,11 @@ describe('생산 설정 화면 — 다담 공장', () => {
     expect(bars[0].nextElementSibling.getAttribute('data-ps-group')).toBe('standards');
     // 마지막 묶음(견적) 다음에 플래너 색 목록, 그 뒤가 아래 저장 줄
     expect(bars[1].previousElementSibling.hasAttribute('data-ps-colors')).toBe(true);
-    // 색 목록 앞은 재단기 설정, 그 앞이 마지막 묶음(견적)
+    // 색 목록 앞은 재단기 설정, 그 앞이 소부품 · 밴드 재고(2026-11-20), 그 앞이 마지막 묶음(견적)
     const cut = bars[1].previousElementSibling.previousElementSibling;
     expect(cut.hasAttribute('data-ps-cut')).toBe(true);
-    expect(cut.previousElementSibling.getAttribute('data-ps-group')).toBe('quote');
+    expect(cut.previousElementSibling.hasAttribute('data-ps-band')).toBe(true);
+    expect(cut.previousElementSibling.previousElementSibling.getAttribute('data-ps-group')).toBe('quote');
     const [top, bottom] = bars.map((b) => b.querySelector('[data-ps="msg"]'));
     expect(top.getAttribute('role')).toBe('status');
     expect(top.hasAttribute('aria-hidden')).toBe(false);
@@ -526,6 +527,7 @@ describe('저장', () => {
     expect(sent[0].type).toBe('application/json');
     const body = sent[0].body;
     expect(Object.keys(body).sort()).toEqual([
+      'band',
       'colors',
       'costs',
       'countertop',
@@ -538,6 +540,7 @@ describe('저장', () => {
     ]);
     expect(body.colors).toEqual({ body: [], back: [] }); // 색 목록 칸이 비어 있다
     expect(body.cut).toEqual({}); // 재단기 설정 칸이 비어 있다 — 서버가 저장된 값을 그대로 둔다
+    expect(body.band).toEqual({ mode: 'place' }); // 소부품 — 고르기는 늘 실리고 빈 수 칸은 뺀다
     expect(body.standards.cutPerSheet).toBe(310);
     expect('cutPerJob' in body.standards).toBe(false);
     expect(body.standards.edgePerFace).toBe(102); // 손대지 않은 칸은 받은 값 그대로
@@ -1015,5 +1018,17 @@ describe('안 보이는 때', () => {
     expect(window.fetch).not.toHaveBeenCalled();
     expect($('productionSettings').hidden).toBe(true);
     expect($('partner').hidden).toBe(true);
+  });
+});
+
+// ── 소부품 · 밴드 재고 (2026-11-19 사장님 「소부품 더하기, 빼기로 구분 … 빼기는 밴드 재고 운영」) ──
+describe('소부품 · 밴드 재고 칸', () => {
+  test('bodyOf — 고르기는 place · stock 만, 수 칸은 적은 것만 숫자로, 칸이 없으면 싣지 않는다', () => {
+    const el = (attrs, value) => ({ getAttribute: (k) => attrs[k] || null, value });
+    const P = window.SeganProductionSettings;
+    const body = P.bodyOf([], {}, [], [], [el({ 'data-band': 'mode' }, 'stock'), el({ 'data-band': 'base' }, '18'), el({ 'data-band': 'reorder' }, ' 8 '), el({ 'data-band': 'width' }, ''), el({ 'data-band': 'material' }, 'MDF')]);
+    expect(body.band).toEqual({ mode: 'stock', base: 18, reorder: 8 });
+    expect(P.bodyOf([], {}, [], [], [el({ 'data-band': 'mode' }, 'x')]).band).toEqual({});
+    expect('band' in P.bodyOf([], {}, [], [], [])).toBe(false);
   });
 });
