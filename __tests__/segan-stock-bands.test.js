@@ -28,8 +28,10 @@ const BOARDS = [{ id: 'b1', name: 'PB 15T 원장', spec: '화이트', unit: '장
 const strip = (h) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
 describe('밴드 재고 칸', () => {
-  test('빼기 팩토리만 — 더하기 · 못 읽음이면 빈 글', () => {
-    expect(B.html(DATA({ mode: 'place' }), BOARDS, {})).toBe('');
+  test('보이는 때 — 빼기 팩토리 · 밴드 품목이 있거나 · 대표 · 실장 (설계마다 빼기, 2026-11-20). 더하기 팩토리의 품목 없는 직원 · 못 읽음이면 빈 글', () => {
+    expect(B.html(DATA({ mode: 'place', can_manage: false, items: [] }), BOARDS, {})).toBe('');
+    expect(B.html(DATA({ mode: 'place', can_manage: true, items: [] }), BOARDS, {})).toMatch(/data-sb-items/);
+    expect(B.html(DATA({ mode: 'place', can_manage: false }), BOARDS, {})).toMatch(/BM-0001/);
     expect(B.html(null, BOARDS, {})).toBe('');
   });
 

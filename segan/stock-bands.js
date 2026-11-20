@@ -67,9 +67,14 @@
     return (r && r.body && r.body.message) || TEXT.generic;
   }
 
-  /** 칸 한 장 — 빼기 팩토리가 아니면 빈 글 */
+  /** 보이는가 — 빼기 팩토리 · 밴드 품목이 있거나 · 대표 · 실장 (팩토리 기본이 더하기여도 설계마다 빼기를 고른다 — 2026-11-20 「BOM에도 … 이 설계에만」) */
+  function shown(d) {
+    return !!d && (d.mode === 'stock' || (Array.isArray(d.items) && d.items.length > 0) || !!d.can_manage);
+  }
+
+  /** 칸 한 장 — 보이지 않으면 빈 글 */
   function html(d, boards, state) {
-    if (!d || d.mode !== 'stock') return '';
+    if (!shown(d)) return '';
     var b = d.band || {};
     var off = state.busy ? ' disabled' : '';
     var items = Array.isArray(d.items) ? d.items : [];
@@ -122,7 +127,7 @@
   async function reload() {
     var r = await call('GET', '/stock/bands');
     J.data = r.ok ? r.body.data : null;
-    if (J.data && J.data.mode === 'stock') {
+    if (shown(J.data)) {
       var s = await call('GET', '/stock/items?kind=board');
       J.boards = s.ok && s.body.data && Array.isArray(s.body.data.items) ? s.body.data.items.filter(function (it) { return it.active !== false; }) : [];
     }
