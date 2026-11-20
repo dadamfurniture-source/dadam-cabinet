@@ -514,6 +514,9 @@ cutPlan = {
   offcuts: [ { sheetNo, kind, x, y, w, h, free } ],  // kind ∈ strip | sheet. free = 잘려 남은 쪽 치수. 60mm 이상만
   groups:  [ { key, material, thickness, partClass, sheetSize, sheetCount, firstSheetNo, needed, placed } ],
   smallParts:  [ { partId, part, material, thickness, partClass, w, h, qty, itemLabel } ],  // 한 변 ≤ 70 — 원판에 놓지 않는다
+  // opts.small 이 있을 때만 (2026-11-19 소부품 더하기 · 빼기): smallMode: 'place' | 'stock' — 이때 smallParts 는 [] (소부품도 원판에 놓는다),
+  //   stock 이면 bandStock: { width, length, material, thickness, kerf, groups: [ { material, thickness, color?, strips, parts: [ { partId, part, w, h, qty, itemLabel?, edge? } ],
+  //                        cuts: [ { no, used, pieces: [ { partId: "<row>#k", part, len } ] } ] } ] }  — 재고 밴드 본마다 자를 조각 (summary.bandStrips · bandParts)
   unallocated: [ { material, thickness, partClass, w, h, qty, parts, partIds } ],           // 원판보다 큰 부재 등
   skipped:     [ { partId, part, material, thickness, w, h, qty, reason } ],                 // 배치 안 함 — reason 'outsourced-top' = 석재 상판 (상판 업체 발주, 2026-11-05)
   summary: { sheetsByMaterial: {'PB_15': n}, sheetCount, totalYield, partsTotal, partsPlaced, smallCount, unallocatedCount, skippedCount }
