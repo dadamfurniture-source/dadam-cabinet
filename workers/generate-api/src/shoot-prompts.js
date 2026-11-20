@@ -4,7 +4,8 @@
  * 연출컷(prompts.js)은 고객이 올린 방 사진을 고친다. 이쪽은 사진 없이 한국 아파트의 한 장면을 새로 찍는다 —
  * SNS · 블로그에 올릴 「같은 주방, 다른 색」 시리즈의 바탕 사진이다.
  *
- * 한 장 = 품목 × 구조 × 평형 × 촬영(렌즈 · 자리) × 빛 × 소품 × 색 조합.
+ * 한 장 = 품목 × 구조 × 평형 × 촬영(렌즈 · 자리) × 빛 × 소품 × 색 조합 × 자재(상판 · 바닥 · 식탁).
+ *   - 자재 축은 2026-11-20 대표님 "식탁의 재질, 자재 종류도 다양하게". 가구 문 색은 색 조합이 정하고, 그 밖의 재질만 돌린다.
  *   - 색 조합은 prompts.js 의 TWO_TONES 그대로 (연출컷 투톤 추천안과 같은 여덟).
  *   - 손잡이는 CLAUDE.md 규칙 그대로 매립형. 문장은 prompts.js 의 HANDLES_LINE 과 같아야 한다 (시험이 본다).
  *   - 사람 · 글자 · 상표는 넣지 않는다. 「AI 연출」 표시는 올리기 전에 따로 찍는다 (그림 속 글자는 모델이 틀리게 쓴다).
@@ -32,19 +33,19 @@ export const SHOOT_SUBJECTS = {
         key: 'one-wall',
         label: '일자형',
         scene:
-          'A single-wall kitchen: one straight run about 3.6 m long with base cabinets under a honed stone countertop, wall cabinets above that reach the ceiling, an undermount sink with a matte tap and a flush induction hob under a slim concealed hood. A wooden dining table for four stands parallel to the run.',
+          'A single-wall kitchen: one straight run about 3.6 m long with base cabinets under a countertop, wall cabinets above that reach the ceiling, an undermount sink with a matte tap and a flush induction hob under a slim concealed hood. A dining table for four with chairs stands parallel to the run.',
       },
       {
         key: 'l-shape',
         label: 'ㄱ자형',
         scene:
-          'An L-shaped kitchen wrapping one corner: the long leg carries the hob and wall cabinets to the ceiling, the short leg carries the sink under a small frosted window that opens to the utility balcony. A tall unit with a built-in oven closes one end.',
+          'An L-shaped kitchen wrapping one corner: the long leg carries the hob and wall cabinets to the ceiling, the short leg carries the sink under a small frosted window that opens to the utility balcony. A tall unit with a built-in oven closes one end. A dining table with chairs stands on the open floor in front of the kitchen.',
       },
       {
         key: 'u-shape',
         label: 'ㄷ자형',
         scene:
-          'A U-shaped kitchen on three sides of the cook: base cabinets and countertop run along all three walls, wall cabinets to the ceiling on two of them, the third side kept open above the countertop toward the dining area.',
+          'A U-shaped kitchen on three sides of the cook: base cabinets and countertop run along all three walls, wall cabinets to the ceiling on two of them, the third side kept open above the countertop toward the dining area, where a dining table with chairs stands.',
       },
       {
         key: 'peninsula',
@@ -56,7 +57,7 @@ export const SHOOT_SUBJECTS = {
         key: 'island',
         label: '아일랜드형',
         scene:
-          'A wall of full-height tall cabinets with a built-in oven and an integrated refrigerator behind matching fronts, and in front of it a freestanding island with a waterfall stone countertop, an induction hob and three stools. Two small pendants hang over the island.',
+          'A wall of full-height tall cabinets with a built-in oven and an integrated refrigerator behind matching fronts, and in front of it a freestanding island whose countertop folds down one end as a waterfall, an induction hob and three stools. Two small pendants hang over the island.',
       },
     ],
   },
@@ -81,7 +82,7 @@ export const SHOOT_SUBJECTS = {
         key: 'dress-parallel',
         label: '드레스룸 11자',
         scene:
-          'A dressing room with two full-height wardrobe runs facing each other across a narrow aisle, a tall narrow window at the far end, an open hanging section on one side and closed doors on the other, and a small upholstered bench in the aisle.',
+          'A dressing room with two full-height wardrobe runs facing each other across a narrow aisle, a tall narrow window at the far end, an open hanging section on one side and closed doors on the other, and a small bench in the aisle.',
       },
       {
         key: 'desk-niche',
@@ -106,7 +107,7 @@ export const SHOOT_SUBJECTS = {
         key: 'home-cafe',
         label: '홈카페장',
         scene:
-          'A home-café station built into a wall of tall cabinets: a recessed open niche at counter height with a stone ledge holding an espresso machine, a kettle and a short row of cups, a shelf above it lit by a concealed LED strip, and deep drawers below.',
+          'A home-café station built into a wall of tall cabinets: a recessed open niche at counter height with a ledge holding an espresso machine, a kettle and a short row of cups, a shelf above it lit by a concealed LED strip, and deep drawers below.',
       },
       {
         key: 'dining-storage',
@@ -217,18 +218,124 @@ export const SHOOT_PROPS = {
   ],
 };
 
+/**
+ * 상판 · 벽 자재 (주방 · 수납장). 조리대와 그 위 벽, 니치 선반까지 같은 계열로.
+ */
+export const SHOOT_SURFACES = [
+  {
+    key: 'quartz-white',
+    label: '엔지니어드 스톤 · 화이트',
+    text: 'white engineered-stone countertop with fine grey veining and a 20 mm square edge; the backsplash is the same slab',
+  },
+  {
+    key: 'ceramic-beige',
+    label: '세라믹 · 베이지',
+    text: 'warm beige sintered-ceramic countertop with a thin 12 mm edge and a matte, slightly textured face; the backsplash is the same slab',
+  },
+  {
+    key: 'solid-surface',
+    label: '인조대리석 · 무광 화이트',
+    text: 'seamless matte white solid-surface countertop with an integrated moulded sink; the backsplash is small glazed off-white square tiles with fine grout lines',
+  },
+  {
+    key: 'stainless',
+    label: '스테인리스 · 헤어라인',
+    text: 'brushed stainless-steel countertop with a welded sink and fine hairline scratches that catch the light; the backsplash is plain painted wall with a low stainless upstand',
+  },
+  {
+    key: 'dark-stone',
+    label: '다크 스톤 · 혼드',
+    text: 'honed charcoal-grey stone countertop with soft white veining; the backsplash is the same stone',
+  },
+  {
+    key: 'terrazzo',
+    label: '테라조',
+    text: 'pale terrazzo countertop with small cream, grey and ochre chips; the backsplash is smooth hand-trowelled plaster in off-white',
+  },
+];
+
+/** 바닥재. */
+export const SHOOT_FLOORS = [
+  {
+    key: 'oak-plank',
+    label: '오크 마루',
+    text: 'pale oak wide-plank flooring with a matte finish',
+  },
+  {
+    key: 'porcelain',
+    label: '포세린 타일',
+    text: 'large-format 600 × 1200 mm matte beige-grey porcelain floor tiles with thin grout lines',
+  },
+  { key: 'herringbone', label: '헤링본 마루', text: 'natural oak herringbone parquet flooring' },
+  {
+    key: 'walnut-plank',
+    label: '월넛 톤 마루',
+    text: 'medium-brown walnut-tone plank flooring with a low sheen',
+  },
+];
+
+/** 식탁 · 의자 재질 (주방 · 수납장 장면의 식탁, 스툴, 의자). */
+export const SHOOT_TABLES = [
+  {
+    key: 'ceramic',
+    label: '세라믹 식탁',
+    text: 'a matte sintered-ceramic top in warm white on slim black steel legs, with chairs upholstered in oatmeal bouclé',
+  },
+  {
+    key: 'travertine',
+    label: '트래버틴 식탁',
+    text: 'an unfilled travertine top on a solid travertine plinth base, with dark-stained oak chairs',
+  },
+  {
+    key: 'oak-round',
+    label: '오크 원목 원형 식탁',
+    text: 'solid white oak with a round top on a single pedestal, with oak chairs with woven paper-cord seats',
+  },
+  {
+    key: 'walnut',
+    label: '월넛 원목 식탁',
+    text: 'solid walnut with visible grain and softly rounded edges, with black leather sling chairs',
+  },
+  {
+    key: 'terrazzo',
+    label: '테라조 식탁',
+    text: 'a terrazzo top with cream and grey chips on a powder-coated sand-coloured steel frame, with moulded plywood chairs',
+  },
+  {
+    key: 'glass-steel',
+    label: '유리 · 스테인리스 식탁',
+    text: 'a smoked glass top on a brushed stainless-steel trestle base, with tubular steel cantilever chairs with cane seats',
+  },
+];
+
+/** 곁가구 재질 (붙박이장 · 드레스룸 장면의 침대, 벤치, 의자, 협탁). */
+export const SHOOT_SOFT = [
+  { key: 'oak-linen', label: '오크 · 리넨', text: 'pale oak with natural linen upholstery' },
+  { key: 'walnut-leather', label: '월넛 · 가죽', text: 'walnut with tan leather upholstery' },
+  {
+    key: 'rattan-boucle',
+    label: '라탄 · 부클레',
+    text: 'rattan cane with cream bouclé upholstery',
+  },
+  {
+    key: 'steel-wool',
+    label: '블랙 스틸 · 울',
+    text: 'slim black steel with grey wool felt upholstery',
+  },
+];
+
 /** 「그림이 아니라 사진」 — 모델이 3D 렌더처럼 그리는 버릇을 막는 줄들. */
 const PHOTO_LINES = [
   'This is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.',
   'Exposure is natural: highlights roll off gently at the window, shadows keep real depth, nothing glows. No HDR look, no over-sharpening, no oversaturated colour.',
-  'Materials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, the stone has a honed surface with soft reflections, and there are small imperfections such as a slightly uneven curtain fold.',
+  'Materials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, the countertop reflects the room softly as its real material would, and there are small imperfections such as a slightly uneven curtain fold.',
   'The lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain.',
   'The room is lived-in but tidy, styled by a person: objects sit off-centre and nothing is perfectly symmetrical.',
   'Colour is graded neutral with white balance true to the light.',
 ];
 
 const ROOM_LINE =
-  'The room is finished like a recent Korean apartment: plain off-white walls, a flat white ceiling with a few small recessed downlights, pale wide-plank wood or large matte porcelain flooring, and an aluminium sliding window with sheer curtains through which neighbouring apartment towers are only faintly visible.';
+  'The room is finished like a recent Korean apartment: plain off-white walls, a flat white ceiling with a few small recessed downlights and an aluminium sliding window with sheer curtains through which neighbouring apartment towers are only faintly visible.';
 
 const CLEAN_LINE =
   'All doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances.';
@@ -254,7 +361,7 @@ const SUBJECT_CYCLE = ['kitchen', 'wardrobe', 'kitchen', 'storage'];
  * @param {number} [o.count=6]
  * @param {number} [o.seed=1]
  * @param {string[]} [o.subjects]  품목을 좁힐 때 (예: ['kitchen'])
- * @returns {{id:string, subject:string, layout:object, home:object, shot:object, light:object, props:string, tone:object}[]}
+ * @returns {{id:string, subject:string, layout:object, home:object, shot:object, light:object, props:string, tone:object, surface:object|null, floor:object, table:object}[]}
  */
 export function planShoots({ count = 6, seed = 1, subjects } = {}) {
   const cycle =
@@ -272,12 +379,20 @@ export function planShoots({ count = 6, seed = 1, subjects } = {}) {
   const lights = shuffled(SHOOT_LIGHTS, seed + 5);
   const homes = shuffled(SHOOT_HOMES, seed + 7);
   const tones = shuffled(TWO_TONES, seed + 9);
+  const surfaces = shuffled(SHOOT_SURFACES, seed + 13);
+  const floors = shuffled(SHOOT_FLOORS, seed + 19);
+  const tables = shuffled(SHOOT_TABLES, seed + 23);
+  const softs = shuffled(SHOOT_SOFT, seed + 29);
+  let dining = 0; // 주방 · 수납장 장면을 센다 — 상판과 식탁이 이 차례로 돈다
+  let rooms = 0; // 붙박이장 · 드레스룸 장면
   const out = [];
   for (let i = 0; i < count; i++) {
     const subject = order[i % order.length];
     const n = used[subject]++;
     const layout = layouts[subject][n % layouts[subject].length];
     const tone = tones[i % tones.length];
+    const isRoom = subject === 'wardrobe';
+    const d = isRoom ? rooms++ : dining++;
     out.push({
       id: `${String(i + 1).padStart(2, '0')}-${subject}-${layout.key}-${tone.key}`,
       subject,
@@ -287,6 +402,9 @@ export function planShoots({ count = 6, seed = 1, subjects } = {}) {
       light: lights[i % lights.length],
       props: props[subject][n % props[subject].length],
       tone,
+      surface: isRoom ? null : surfaces[d % surfaces.length],
+      floor: floors[i % floors.length],
+      table: isRoom ? softs[d % softs.length] : tables[d % tables.length],
     });
   }
   return out;
@@ -298,12 +416,18 @@ export function buildShootPrompt(s) {
   return [
     `An interior photograph of built-in furniture in ${s.home.room}.`,
     `SCENE: ${s.layout.scene}`,
-    `FINISH: ${subj.split(s.tone)}${s.subject === 'wardrobe' ? '' : ' Countertops and ledges are pale honed stone.'} Fronts are flat slab doors, matte.`,
+    `FINISH: ${subj.split(s.tone)} Fronts are flat slab doors, matte.`,
+    ...(s.surface
+      ? [`SURFACES: ${s.surface.text}. Every countertop and ledge in the picture is this material.`]
+      : []),
+    s.subject === 'wardrobe'
+      ? `LOOSE FURNITURE: any bed frame, bench, chair or side table in the picture is ${s.table.text}.`
+      : `LOOSE FURNITURE: any dining table, stools and chairs in the picture: ${s.table.text}. Stools follow the same materials.`,
     SHOOT_HANDLES_LINE,
     `CAMERA: ${s.shot.camera}`,
     `LIGHT: ${s.light.light}`,
     `STYLING: only a few everyday objects — ${s.props}.`,
-    `ROOM: ${ROOM_LINE}`,
+    `ROOM: ${ROOM_LINE} FLOOR: ${s.floor.text}.`,
     ...PHOTO_LINES,
     CLEAN_LINE,
   ].join('\n');

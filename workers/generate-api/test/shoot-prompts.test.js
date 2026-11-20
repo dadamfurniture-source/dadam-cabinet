@@ -7,6 +7,7 @@
  *   3) 목록은 시드가 같으면 같고, 시드가 다르면 다르다
  *   4) 12장을 짜면 구조 · 촬영 · 빛 · 색이 고르게 나온다 (대표님 "다양한 구조로") — 주방이 절반
  *   5) 색 바꿈 프롬프트는 가구 색만 바꾸고 나머지는 그대로 두라고 한다
+ *   6) 자재(상판 · 바닥 · 식탁)가 장마다 들어가고 고르게 돈다 (대표님 "식탁의 재질, 자재 종류도 다양하게")
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,6 +18,10 @@ import {
   SHOOT_SUBJECTS,
   SHOOT_SHOTS,
   SHOOT_LIGHTS,
+  SHOOT_SURFACES,
+  SHOOT_FLOORS,
+  SHOOT_TABLES,
+  SHOOT_SOFT,
   planShoots,
   buildShootPrompt,
   buildShootRecolourPrompt,
@@ -71,6 +76,43 @@ test('12장이면 구조 · 촬영 · 빛 · 색이 고르게 나온다', () => 
     uniq((s) => s.tone.key),
     TWO_TONES.length
   );
+});
+
+test('자재가 장마다 들어가고 고르게 돈다', () => {
+  const plan = planShoots({ count: 12, seed: 20261120 });
+  const dining = plan.filter((s) => s.subject !== 'wardrobe');
+  const rooms = plan.filter((s) => s.subject === 'wardrobe');
+  const kinds = (list, f) => new Set(list.map(f)).size;
+  assert.equal(
+    kinds(dining, (s) => s.surface.key),
+    SHOOT_SURFACES.length,
+    '상판 여섯 가지'
+  );
+  assert.equal(
+    kinds(dining, (s) => s.table.key),
+    SHOOT_TABLES.length,
+    '식탁 여섯 가지'
+  );
+  assert.equal(
+    kinds(plan, (s) => s.floor.key),
+    SHOOT_FLOORS.length,
+    '바닥 네 가지'
+  );
+  assert.equal(
+    kinds(rooms, (s) => s.table.key),
+    Math.min(rooms.length, SHOOT_SOFT.length)
+  );
+  assert.ok(
+    rooms.every((s) => s.surface === null),
+    '붙박이장에는 상판이 없다'
+  );
+  for (const s of plan) {
+    const p = buildShootPrompt(s);
+    assert.ok(p.includes(s.floor.text), `${s.id}: 바닥`);
+    assert.ok(p.includes(s.table.text), `${s.id}: 식탁 · 곁가구`);
+    if (s.surface) assert.ok(p.includes(s.surface.text), `${s.id}: 상판`);
+    else assert.doesNotMatch(p, /SURFACES:/);
+  }
 });
 
 test('품목을 좁히면 그 품목만 나온다', () => {
