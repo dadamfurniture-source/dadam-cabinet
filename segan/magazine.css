@@ -54,6 +54,8 @@
   margin: 0 calc(env(safe-area-inset-right) - max(var(--sg-px), env(safe-area-inset-right))) 0
     calc(env(safe-area-inset-left) - max(var(--sg-px), env(safe-area-inset-left)));
   overflow: hidden; /* 끝을 넘겨 끌 때(고무줄) 밀려난 책장이 본문 밖으로 나가지 않게 */
+  /* 그때 드러나는 자리도 책장 뒤판이다 (칸 높이만큼만 — 책 아래 글 자리는 비운다) */
+  background: linear-gradient(var(--bk-wood), var(--bk-wood-deep)) 0 0 / 100% var(--bk-h) no-repeat;
 }
 
 .bk-shelf {
