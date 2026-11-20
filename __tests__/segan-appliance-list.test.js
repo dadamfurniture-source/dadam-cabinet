@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, localStorage, jest, setTimeout, Element, Event */
 /**
- * SEGAN 「기준정보 › 가전 모델」 (segan/appliance-list.js + segan/me.html #applianceList)
+ * SEGAN 「구매 · 재고 › 가전 카탈로그」 (segan/appliance-list.js + segan/me.html #applianceList)
  *
- *   누가    사이트 관리자(is_admin)만. 관리자가 아니면 칸을 열지 않는다
+ *   누가    팩토리 · 본사 구성원과 사이트 관리자 (2026-11-20 사장님 「구매 · 재고 아래, 모든 팩토리 보기」). 그 밖이면 칸을 열지 않는다.
+ *           PC 관리 화면 링크 · 기준정보의 PC 화면 줄은 관리자에게만
+ *   더함    김치냉장고(냉장고 구분 보기) · 세탁기 · 건조기 · 조합 묶음(appliance_combos — DB 0073)
  *   데이터  Supabase 표 appliance_models — 종류 하나씩 읽기만 (화면을 열었을 때 처음 읽는다)
  *   화면    종류 단추 열넷 · 찾기 · 세부 구분 · 몇 개 · 모델 줄 · 더 보기 — 보기 · 찾기만 (2026-11-11 대표님 결정)
  *   넣기 · 고치기 · 지우기 · 사진 가져오기는 PC 화면(admin/appliances.html)에 그대로 — 링크 하나
@@ -34,6 +36,8 @@ const PLATFORM = ok({
   invites: [],
   platform_member: true,
 });
+/** 업체도 본사도 아닌 사람 */
+const NOBODY = ok({ company: null, application: null, members: [], invites: [] });
 
 const mod = () => {
   delete window.SeganApplianceList;
@@ -139,6 +143,8 @@ async function load(options = {}) {
     isAdmin: true,
     table: null,
     gate: null,
+    partner: PLATFORM,
+    combos: null,
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -171,15 +177,19 @@ async function load(options = {}) {
     paymentsApi: { url: PAY },
     accountApi: { url: ACC },
   };
-  const calls = { fetch: [], table: [] };
+  const calls = { fetch: [], table: [], combos: [] };
   window.supabase = {
     createClient: () => ({
       auth: { getSession: async () => ({ data: { session: opts.session } }) },
       rpc: async (name) =>
         name === 'is_admin' ? { data: opts.isAdmin, error: null } : { data: [], error: null },
       from: (table) => {
-        const q = { table, select: null, eq: [], order: [], writes: [] };
+        const q = { table, select: null, eq: [], order: [], writes: [], in: null };
         const answer = async () => {
+          if (table === 'appliance_combo_members') {
+            calls.combos.push(q);
+            return opts.combos ? opts.combos(q) : { data: [], error: null };
+          }
           if (table !== 'appliance_models') return { data: [], error: null };
           calls.table.push(q);
           const n = calls.table.length;
@@ -209,6 +219,10 @@ async function load(options = {}) {
             return chain;
           },
           limit: () => chain,
+          in: (k, v) => {
+            q.in = [k, v];
+            return chain;
+          },
           insert: () => {
             q.writes.push('insert');
             return chain;
@@ -231,7 +245,7 @@ async function load(options = {}) {
   window.fetch = jest.fn(async (url, init = {}) => {
     calls.fetch.push({ url, method: init.method || 'GET' });
     const reply = (r) => ({ ok: r.ok, status: r.status, json: async () => r.body });
-    if (url === ACC + '/partner/me') return reply(PLATFORM);
+    if (url === ACC + '/partner/me') return reply(opts.partner);
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
     if (url === WORK + '/work/me') return reply(ok({ ready: true, worker: null }));
@@ -307,7 +321,7 @@ describe('자리 · 이름', () => {
     expect(el.classList.contains('me-screen')).toBe(true);
     expect(el.previousElementSibling.id).toBe('asStatus');
     expect(el.getAttribute('aria-labelledby')).toBe('applianceListTitle');
-    expect(text(doc.getElementById('applianceListTitle'))).toBe('가전 모델');
+    expect(text(doc.getElementById('applianceListTitle'))).toBe('가전 카탈로그');
     expect(doc.getElementById('applianceListBody').parentElement).toBe(el);
     const srcs = [...doc.querySelectorAll('script[src]')].map(
       (s) => s.getAttribute('src').split('?')[0]
@@ -320,18 +334,19 @@ describe('자리 · 이름', () => {
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'appliance-list.js')");
   });
 
-  test('메뉴 — 기준정보 아래 앱 화면 줄, 바로 다음에 관리자 PC 화면 줄 (둘 다 처음엔 감춘다)', () => {
+  test('메뉴 — 구매 · 재고 아래 철물 · 부속 카탈로그 다음에 앱 화면 줄, 기준정보에 관리자 PC 화면 줄 (둘 다 처음엔 감춘다)', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const li = doc.querySelector('li[data-me-item="appliances"]');
     expect(li).not.toBeNull();
-    expect(li.closest('ul').id).toBe('meSubMaster');
+    expect(li.closest('ul').id).toBe('meSubStock');
+    expect(li.previousElementSibling.getAttribute('data-me-item')).toBe('part-catalog');
     expect(li.hasAttribute('hidden')).toBe(true);
     const a = li.querySelector('a');
     expect(a.getAttribute('href')).toBe('#appliances');
     expect(a.getAttribute('data-me-go')).toBe('appliances');
-    expect(text(a)).toBe('가전 모델');
-    const pc = li.nextElementSibling;
-    expect(pc.getAttribute('data-me-item')).toBe('hq-appliances');
+    expect(text(a)).toBe('가전 카탈로그');
+    const pc = doc.querySelector('li[data-me-item="hq-appliances"]');
+    expect(pc.closest('ul').id).toBe('meSubMaster');
     expect(pc.hasAttribute('hidden')).toBe(true);
     expect(pc.hasAttribute('data-need')).toBe(false);
     expect(pc.querySelector('a').getAttribute('href')).toBe('../admin/appliances.html');
@@ -345,8 +360,11 @@ describe('자리 · 이름', () => {
     const tabs = [
       ...pc.matchAll(/<button(?: type="button")? data-cat="([a-z_]+)"[^>]*>([^<]+)<\/button>/g),
     ].map((m) => [m[1], m[2].replace(/^[^가-힣A-Za-z]+/, '').trim()]);
-    expect(tabs.length).toBe(14);
+    expect(tabs.length).toBe(16);
     expect(A.CATEGORIES).toEqual(tabs);
+    // 앱 종류 단추 = PC 탭 + 김치냉장고(냉장고 구분 보기 — DB 종류가 아니다) 를 냉장고 다음에
+    expect(A.VIEWS).toEqual([tabs[0], ['kimchi', '김치냉장고'], ...tabs.slice(1)]);
+    expect(tabs.slice(-2)).toEqual([['washing_machine', '세탁기'], ['dryer', '건조기']]);
     // 세부 구분 — 종류마다 키 · 이름
     for (const [cat, subs] of Object.entries(A.SUBTYPES)) {
       for (const [k, v] of Object.entries(subs)) {
@@ -354,7 +372,7 @@ describe('자리 · 이름', () => {
       }
       expect(A.CATEGORIES.some((c) => c[0] === cat)).toBe(true);
     }
-    expect(Object.keys(A.SUBTYPES).length).toBe(12);
+    expect(Object.keys(A.SUBTYPES).length).toBe(14);
     expect(A.INSTALL_LABEL).toEqual({
       freestanding: '일반',
       kitchen_fit: '키친핏',
@@ -500,10 +518,11 @@ describe('화면', () => {
       eq: [['category', 'refrigerator']],
       order: ['brand', 'model_name'],
       writes: [],
+      in: null,
     });
     expect(seen('applianceList')).toBe(true);
     expect(qa('[data-act="cat"]').map(text)).toEqual(
-      window.SeganApplianceList.CATEGORIES.map((c) => c[1])
+      window.SeganApplianceList.VIEWS.map((c) => c[1])
     );
     expect(catBtn('refrigerator').getAttribute('aria-pressed')).toBe('true');
     expect(catBtn('hood').getAttribute('aria-pressed')).toBe('false');
@@ -531,7 +550,7 @@ describe('화면', () => {
     });
     expect(facts(c)).toEqual({ 크기: '480 × 520 × 850 mm' });
     expect(menu('appliances').hidden).toBe(false);
-    expect(menu('hq-appliances').hidden).toBe(true);
+    expect(menu('hq-appliances').hidden).toBe(false); // 관리자 — 기준정보의 PC 관리 화면 줄은 늘
   });
 
   test('사진 — 가져온 사진만 그린다. 원본 주소만 있으면 글로만 (제조사 서버에 묻지 않는다)', async () => {
@@ -560,7 +579,7 @@ describe('화면', () => {
       '넣기 · 고치기 · 지우기 · 사진 가져오기는 PC 관리 화면에서 합니다'
     );
     // 고치는 단추가 없다
-    expect(qa('button').map((b) => b.getAttribute('data-act'))).toEqual(Array(14).fill('cat'));
+    expect(qa('button').map((b) => b.getAttribute('data-act'))).toEqual(Array(17).fill('cat'));
   });
 
   test('마이페이지 다른 화면에 있을 때는 읽지 않는다 — 메뉴 줄로 들어오면 그때 읽는다', async () => {
@@ -719,9 +738,88 @@ describe('못 읽을 때', () => {
   });
 });
 
+describe('가전 카탈로그 — 팩토리 · 본사 구성원 · 김치냉장고 · 세탁 · 조합 (2026-11-20)', () => {
+  test('관리자가 아닌 본사 · 팩토리 구성원 — 칸을 열고 읽는다, PC 화면 링크 · 기준정보 PC 줄은 없다', async () => {
+    const FACTORY = ok({ company: { id: 'c-1', name: '예시 팩토리', plan: 'agent', role: 'staff', status: 'active' }, application: null, members: [], invites: [] });
+    for (const partner of [PLATFORM, FACTORY]) {
+      const calls = await load({ isAdmin: false, partner });
+      expect(calls.table.length).toBe(1);
+      expect(seen('applianceList')).toBe(true);
+      expect(names().length).toBe(3);
+      expect(part('pc')).toBeNull();
+      expect(menu('appliances').hidden).toBe(false);
+      expect(menu('hq-appliances').hidden).toBe(true);
+    }
+  }, 20000);
+
+  test('김치냉장고 — 냉장고를 한 번만 읽고 김치 구분만 보인다 (세부 구분 칸 없음)', async () => {
+    const calls = await load({
+      table: (cat) => ({
+        data:
+          cat === 'refrigerator'
+            ? FRIDGES().concat([am('k-1', 'refrigerator', '예시전자', '예시 김치 스탠드', { subtype: 'kimchi_stand', width_mm: 595, depth_mm: 700, height_mm: 1850 })])
+            : [],
+        error: null,
+      }),
+    });
+    expect(names().length).toBe(4);
+    await press(catBtn('kimchi'));
+    expect(calls.table.length).toBe(1);
+    expect(names()).toEqual(['예시전자 예시 김치 스탠드']);
+    expect($('alSub')).toBeNull();
+    expect(catBtn('kimchi').getAttribute('aria-pressed')).toBe('true');
+  }, 20000);
+
+  test('세탁기 · 건조기 — 그 종류를 읽고 구분 이름으로 거른다', async () => {
+    const calls = await load({
+      table: (cat) => ({
+        data:
+          cat === 'washing_machine'
+            ? [am('w-1', 'washing_machine', '예시전자', '예시 드럼 24kg', { subtype: 'drum', width_mm: 686, depth_mm: 790, height_mm: 990 }),
+              am('w-2', 'washing_machine', '예시전자', '예시 워시타워', { subtype: 'washtower', width_mm: 700, depth_mm: 830, height_mm: 1890 })]
+            : cat === 'refrigerator' ? FRIDGES() : [],
+        error: null,
+      }),
+    });
+    await press(catBtn('washing_machine'));
+    expect(calls.table.map((t) => t.eq[0][1])).toEqual(['refrigerator', 'washing_machine']);
+    expect(text(rows()[1].querySelector('small'))).toBe('워시타워 (세탁 + 건조 일체)');
+    pickSub('drum');
+    expect(names()).toEqual(['예시전자 예시 드럼 24kg']);
+  }, 20000);
+
+  test('조합 — 그 종류 모델이 드는 묶음을 읽어 줄마다 「조합」 (나란히 · 최대 · 사이 · 키트 / 쌓기). 표가 없으면 조합 칸 없이', async () => {
+    const calls = await load({
+      combos: () => ({
+        data: [
+          { model_id: 'f-1', appliance_combos: { id: 'cb-1', name: '예시 1도어 나란히', kind: 'side', gap_mm: 8, max_units: 3, kit_name: null, kit_code: null } },
+          { model_id: 'f-1', appliance_combos: { id: 'cb-1', name: '예시 1도어 나란히', kind: 'side', gap_mm: 8, max_units: 3 } },
+          { model_id: 'f-1', appliance_combos: { id: 'cb-2', name: '예시 <쌓기>', kind: 'stack', gap_mm: null, max_units: 2, kit_name: '', kit_code: 'KIT-1' } },
+          { model_id: 'f-2', appliance_combos: null },
+        ],
+        error: null,
+      }),
+    });
+    expect(calls.combos.length).toBe(1);
+    expect(calls.combos[0].in).toEqual(['model_id', ['f-1', 'f-2', 'f-3']]);
+    const [a, b] = rows();
+    expect(facts(a)['조합']).toBe('예시 1도어 나란히 (나란히 · 최대 3대 · 사이 8) / 예시 <쌓기> (쌓기 · 키트 KIT-1)');
+    expect(a.innerHTML).toContain('예시 &lt;쌓기&gt;');
+    expect(facts(b)['조합']).toBeUndefined();
+    // 표가 없다 (0073 전) — 목록은 그대로
+    await load({ combos: () => ({ data: null, error: { message: 'relation does not exist' } }) });
+    expect(names().length).toBe(3);
+    expect(facts(rows()[0])['조합']).toBeUndefined();
+    // 조합이 없는 종류는 묻지 않는다
+    const c2 = await load();
+    await press(catBtn('cooktop'));
+    expect(c2.combos.length).toBe(1);
+  }, 20000);
+});
+
 describe('안 보이는 때', () => {
-  test('관리자가 아닌 사람 · 로그인하지 않은 사람 — 칸을 열지 않고 표도 읽지 않는다. 메뉴 줄 둘 다 없다', async () => {
-    for (const o of [{ isAdmin: false }, { session: null }]) {
+  test('관리자도 구성원도 아닌 사람 · 로그인하지 않은 사람 — 칸을 열지 않고 표도 읽지 않는다. 메뉴 줄 둘 다 없다', async () => {
+    for (const o of [{ isAdmin: false, partner: NOBODY }, { session: null }]) {
       const calls = await load(o);
       expect(calls.table.length).toBe(0);
       expect(seen('applianceList')).toBe(false);

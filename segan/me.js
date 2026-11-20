@@ -684,7 +684,7 @@
     // 플랫폼 — A/S 현황 (segan/as-status.js)
     'as-status': { title: 'A/S 현황', section: 'asStatus' },
     // 기준정보 — 가전 모델 (segan/appliance-list.js — 보기 · 찾기)
-    appliances: { title: '가전 모델', section: 'applianceList' },
+    appliances: { title: '가전 카탈로그', section: 'applianceList' },
     // 기준정보 — 시공사례 (segan/gallery-view.js — 보기 · 찾기)
     'gallery-list': { title: '시공사례', section: 'galleryView' },
     // 기준정보 — 참고 이미지 (segan/theme-images-view.js — 보기 · 찾기)
@@ -1598,11 +1598,12 @@
         return roles.admin === true && available(key);
       case 'hq-as':
         return roles.admin === true && !rowOn('as-status', v, roles, ledger);
-      // 기준정보 › 가전 모델 — 사이트 관리자, 칸이 열렸을 때만 (보기 · 찾기). 못 연 관리자에게는 PC 화면 줄 하나
+      // 구매 · 재고 › 가전 카탈로그 — 팩토리 · 본사 구성원 · 사이트 관리자, 칸이 열렸을 때만 (보기 · 찾기 — 2026-11-20)
       case 'appliances':
-        return roles.admin === true && available(key);
+        return (roles.admin === true || v.member || v.platform) && available(key);
+      // 기준정보 › 가전 모델 관리 — 사이트 관리자, PC 화면 (넣기 · 고치기 · 사진 가져오기)
       case 'hq-appliances':
-        return roles.admin === true && !rowOn('appliances', v, roles, ledger);
+        return roles.admin === true;
       // 기준정보 › 시공사례 — 사이트 관리자, 칸이 열렸을 때만 (보기 · 찾기). 못 연 관리자에게는 PC 화면 줄 하나
       case 'gallery-list':
         return roles.admin === true && available(key);
@@ -1922,10 +1923,13 @@
                 })
               : null
           ),
-          // 가전 모델 = 사이트 관리자 (segan/appliance-list.js — 기준정보 › 가전 모델 화면, 열었을 때 읽는다)
+          // 가전 카탈로그 = 팩토리 · 본사 구성원 · 사이트 관리자 (segan/appliance-list.js — 구매 · 재고 › 가전 카탈로그 화면, 열었을 때 읽는다)
           synced(
             Appl && Appl.load
-              ? Appl.load(auth.sb, auth.session, me, { admin: !!(auth.roles && auth.roles.admin) })
+              ? Appl.load(auth.sb, auth.session, me, {
+                  admin: !!(auth.roles && auth.roles.admin),
+                  member: !!(me && (me.company || me.hq_member === true || me.platform_member === true)),
+                })
               : null
           ),
           // 시공사례 = 사이트 관리자 (segan/gallery-view.js — 기준정보 › 시공사례 화면, 열었을 때 읽는다)

@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026111906"></script>
+    <script src="../js/admin-access.js?v=2026112001"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: 'Noto Sans KR', sans-serif; background: #f6f3ee; min-height: 100vh; }
@@ -113,7 +113,7 @@
         <span>Admin Panel</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026111906"></script>
+      <script src="../js/admin-shell.js?v=2026112001"></script>
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
       </div>
@@ -145,6 +145,9 @@
         <button type="button" data-cat="food_disposer">🗑️ 음식물처리기</button>
         <button type="button" data-cat="water_purifier">💧 정수기</button>
         <button type="button" data-cat="wine_cellar">🍷 와인셀러</button>
+        <!-- 2026-11-20 사장님 「가전 카탈로그 … 세탁기」 — database/migrations/0073_appliance_laundry_combos.sql 을 먼저 적용 (건조기 종류 · 세탁 구분) -->
+        <button type="button" data-cat="washing_machine">🧺 세탁기</button>
+        <button type="button" data-cat="dryer">🌀 건조기</button>
       </div>
 
       <div class="toolbar">
@@ -216,6 +219,7 @@
               <option value="food_disposer">🗑️ 음식물처리기</option>
               <option value="water_purifier">💧 정수기 (언더싱크)</option>
               <option value="wine_cellar">🍷 와인셀러 (빌트인)</option>
+              <option value="dryer">🌀 건조기</option>
             </select>
           </div>
           <div class="field">
@@ -379,6 +383,9 @@
         food_disposer: { grinder: '분쇄 · 회수', grinder_microbial: '분쇄 + 미생물', microbial: '미생물 분해', dryer: '건조 · 분쇄건조' },
         water_purifier: { purify: '정수', cold: '냉정수', hot: '온정수', hot_cold: '냉온정수' },
         wine_cellar: { under_counter: '언더카운터', built_in: '빌트인' },
+        // 세탁기 · 건조기 (database/migrations/0073_appliance_laundry_combos.sql)
+        washing_machine: { drum: '드럼', top_load: '통돌이 (일반)', mini: '미니', combo: '세탁건조 일체', washtower: '워시타워 (세탁 + 건조 일체)' },
+        dryer: { heat_pump: '히트펌프', electric: '전기', gas: '가스' },
       };
       // 대량 수집 칸(구분 · 설치 방식 · 라인 · 코드 · 니치 · 뒤 여유 · 사진 원본)을 쓰는 종류 — 수집기가 모으는 종류
       const COLLECTED_CATS = [...Object.keys(SUBTYPES), 'faucet'];   // 수전은 세부 구분 없이 수집 칸만
@@ -500,7 +507,8 @@
         const filter = document.getElementById('subtypeFilter');
         filter.innerHTML = '<option value="">전체 구분</option>' + subtypeOptions(cat) + '<option value="_none">구분 없음</option>';
         filter.style.display = SUBTYPES[cat] ? '' : 'none';
-        document.getElementById('photoBulkBtn').style.display = cat === 'refrigerator' && canEdit ? '' : 'none';
+        // 사진 일괄 가져오기 — 모든 종류 (2026-11-20 가전 카탈로그 — 냉장고만이던 것을 넓혔다. 가져오는 것은 지금처럼 관리자가 누를 때만)
+        document.getElementById('photoBulkBtn').style.display = canEdit ? '' : 'none';
         document.querySelectorAll('.tabs button').forEach(b => {
           b.classList.toggle('active', b.dataset.cat === cat);
         });

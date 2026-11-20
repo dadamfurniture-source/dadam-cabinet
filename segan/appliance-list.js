@@ -1,5 +1,10 @@
 /* ============================================================
-   segan/appliance-list.js — 마이페이지 관리 › 기준정보 › 「가전 모델」 (segan/me.html #applianceList, 주소 #appliances)
+   segan/appliance-list.js — 마이페이지 관리 › 구매 · 재고 › 「가전 카탈로그」 (segan/me.html #applianceList, 주소 #appliances)
+
+   2026-11-20 사장님 「가전카달로그도 만들어서, 냉장고, 세탁기, 전자레인지, 오븐, 밥솥 등 도」 · 질문 창 「모델, 치수, 사진은 공용 카탈로그」 ·
+   「구매 · 재고 아래, 모든 팩토리 보기」 · 「냉장고, 세탁기 등의 경우 조합되거나 결합되는 경우의 수 모두 포함」 →
+     보는 사람 = 팩토리 · 본사 구성원과 사이트 관리자 (공용 카탈로그는 원래 누구나 읽는 표다), PC 관리 화면 링크는 관리자에게만.
+     김치냉장고(냉장고 구분 kimchi_stand · kimchi_lid 를 거른 보기) · 세탁기 · 건조기 · 조합 묶음(appliance_combos — DB 0073, 나란히 · 쌓기)을 더했다.
 
    PC 화면 admin/appliances.html(가전 모델 관리)의 「보기 · 찾기」만 마이페이지 안으로 옮긴 것.
    (마이페이지 B안 4단계 — 2026-11-11 대표님 결정: 남은 관리 화면은 앱에서 보기 · 찾기만.
@@ -37,7 +42,19 @@
     ['food_disposer', '음식물처리기'],
     ['water_purifier', '정수기'],
     ['wine_cellar', '와인셀러'],
+    ['washing_machine', '세탁기'],
+    ['dryer', '건조기'],
   ];
+  // 보기 — 종류 단추. 김치냉장고는 냉장고 종류를 구분으로 거른 보기다 (DB 종류가 아니다 — PC 화면에는 없다)
+  var KIMCHI = ['kimchi', '김치냉장고'];
+  var KIMCHI_SUBS = ['kimchi_stand', 'kimchi_lid'];
+  var VIEWS = CATEGORIES.slice(0, 1).concat([KIMCHI], CATEGORIES.slice(1));
+  /** 보기 → 읽는 DB 종류 */
+  function catOfView(view) {
+    return view === KIMCHI[0] ? 'refrigerator' : view;
+  }
+  // 조합 묶음이 있는 종류 (DB 0073 — 냉장고 나란히 · 세탁 쌓기)
+  var COMBO_CATS = ['refrigerator', 'washing_machine', 'dryer'];
   // 종류별 세부 구분 — admin/appliances.html SUBTYPES (DB 검사 appliance_models_subtype_chk 와 같은 목록)
   var SUBTYPES = {
     refrigerator: {
@@ -67,6 +84,14 @@
     },
     water_purifier: { purify: '정수', cold: '냉정수', hot: '온정수', hot_cold: '냉온정수' },
     wine_cellar: { under_counter: '언더카운터', built_in: '빌트인' },
+    washing_machine: {
+      drum: '드럼',
+      top_load: '통돌이 (일반)',
+      mini: '미니',
+      combo: '세탁건조 일체',
+      washtower: '워시타워 (세탁 + 건조 일체)',
+    },
+    dryer: { heat_pump: '히트펌프', electric: '전기', gas: '가스' },
   };
   var INSTALL_LABEL = { freestanding: '일반', kitchen_fit: '키친핏', built_in: '빌트인' };
   var PHOTO_BUCKET = 'appliance-images';
@@ -75,8 +100,8 @@
   var PAGE = 40;
 
   var TEXT = {
-    title: '가전 모델',
-    lead: '연출컷과 설계가 쓰는 가전 모델 목록입니다. 종류를 고르고 브랜드 · 모델명 · 코드로 찾습니다. 여기서는 보기만 합니다.',
+    title: '가전 카탈로그',
+    lead: '설계 · 연출컷이 쓰는 가전 모델 목록입니다. 종류를 고르고 브랜드 · 모델명 · 코드로 찾습니다. 여기서는 보기만 합니다.',
     category: '종류',
     search: '찾기',
     searchHint: '브랜드 · 모델명 · 라인 · 코드',
@@ -107,13 +132,22 @@
     niche: '장',
     pc: '넣기 · 고치기 · 지우기 · 사진 가져오기는 PC 관리 화면에서 합니다',
     pcLink: 'PC 가전 모델 관리 열기',
+    combo: '조합',
+    side: '나란히',
+    stack: '쌓기',
+    upTo: '최대',
+    units: '대',
+    between: '사이',
+    kit: '키트',
   };
 
   var A = {
     sb: null,
     ready: false,
     cat: CATEGORIES[0][0],
-    rows: {}, // 종류 → 읽은 줄
+    rows: {}, // DB 종류 → 읽은 줄
+    combos: {}, // 모델 id → 그 모델이 드는 조합 묶음 [{ id, name, kind, gap, max, kit }] (DB 0073 전이면 빈 것)
+    admin: false, // PC 관리 화면 링크를 보이나
     failed: '', // 지금 종류를 못 읽은 까닭
     busy: false,
     q: '',
@@ -144,7 +178,7 @@
   }
 
   function isCat(k) {
-    return CATEGORIES.some(function (c) {
+    return VIEWS.some(function (c) {
       return c[0] === k;
     });
   }
@@ -312,7 +346,7 @@
       '<div class="al-cats" role="group" aria-label="' +
       esc(TEXT.category) +
       '">' +
-      CATEGORIES.map(function (c) {
+      VIEWS.map(function (c) {
         return (
           '<button type="button" class="mk-btn dr-day al-cat" data-act="cat" data-cat="' +
           c[0] +
@@ -330,7 +364,7 @@
   }
 
   function toolsHtml() {
-    var subs = own(SUBTYPES, A.cat) ? SUBTYPES[A.cat] : null;
+    var subs = A.cat !== KIMCHI[0] && own(SUBTYPES, A.cat) ? SUBTYPES[A.cat] : null;
     return (
       '<div class="al-tools"><label class="mk-input al-field" for="alSearch"><span>' +
       esc(TEXT.search) +
@@ -372,6 +406,21 @@
     return v ? '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>' : '';
   }
 
+  /**
+   * 조합 글 — 「이름 (나란히 · 최대 3대 · 사이 8 · 키트 …)」 를 「 / 」 로 잇는다. 없으면 빈 글
+   * @param {object[]} list 그 모델이 드는 묶음 (A.combos[모델 id])
+   */
+  function comboText(list) {
+    return (list || [])
+      .map(function (c) {
+        var bits = [c.kind === 'stack' ? TEXT.stack : TEXT.side + ' · ' + TEXT.upTo + ' ' + c.max + TEXT.units];
+        if (c.gap !== null) bits.push(TEXT.between + ' ' + c.gap);
+        if (c.kit) bits.push(TEXT.kit + ' ' + c.kit);
+        return c.name + ' (' + bits.join(' · ') + ')';
+      })
+      .join(' / ');
+  }
+
   function rowHtml(r) {
     var url = photoUrl(r);
     var sub = subOf(r);
@@ -400,6 +449,7 @@
       fact(TEXT.capacity, r.cap === null ? '' : r.cap + ' L') +
       fact(TEXT.code, codeText(r)) +
       fact(TEXT.gap, [gapText(r), nicheText(r)].filter(Boolean).join(' · ')) +
+      fact(TEXT.combo, comboText(A.combos[r.id])) +
       '</dl>' +
       (!url && r.hasSource ? '<p class="dr-note">' + esc(TEXT.photoSrc) + '</p>' : '') +
       '</li>'
@@ -415,10 +465,10 @@
         esc(TEXT.retry) +
         '</button>'
       );
-    var rows = A.rows[A.cat];
+    var rows = viewRows(A.cat);
     if (!rows)
       return '<p class="mk-note" data-al="loading" role="status">' + esc(TEXT.loading) + '</p>';
-    var list = filtered(rows, A.q, A.sub, A.cat);
+    var list = filtered(rows, A.q, A.cat === KIMCHI[0] ? '' : A.sub, A.cat);
     var head =
       '<p class="me-pt-msg dr-status" data-al="count" role="status">' +
       esc(countText(list.length, rows.length)) +
@@ -440,6 +490,7 @@
   }
 
   function pcHtml() {
+    if (!A.admin) return '';
     return (
       '<p class="mk-note al-pc">' +
       esc(TEXT.pc) +
@@ -494,9 +545,55 @@
     A.ready = false;
   }
 
+  /** 보기의 줄 — 김치냉장고는 냉장고 줄에서 김치 구분만. 아직 안 읽었으면 null */
+  function viewRows(view) {
+    var rows = A.rows[catOfView(view)];
+    if (!rows || view !== KIMCHI[0]) return rows || null;
+    return rows.filter(function (r) {
+      return KIMCHI_SUBS.indexOf(r.subtype) >= 0;
+    });
+  }
+
+  /**
+   * 그 종류 모델들이 드는 조합 묶음 (DB 0073 — appliance_combo_members · appliance_combos, 누구나 읽기).
+   *   표가 없거나(0073 전) 못 읽으면 조합 칸 없이 그대로 — 목록은 막지 않는다.
+   */
+  async function fetchCombos(rows) {
+    var ids = rows.map(function (r) {
+      return r.id;
+    });
+    for (var i = 0; i < ids.length; i += 150) {
+      try {
+        var res = await A.sb
+          .from('appliance_combo_members')
+          .select('model_id,appliance_combos(id,name,kind,gap_mm,max_units,kit_name,kit_code)')
+          .in('model_id', ids.slice(i, i + 150));
+        if (!res || res.error || !Array.isArray(res.data)) return;
+        res.data.forEach(function (x) {
+          var c = x && x.appliance_combos;
+          var mid = x && String(x.model_id || '');
+          if (!c || !mid || !str(c.name)) return;
+          if (!A.combos[mid]) A.combos[mid] = [];
+          if (A.combos[mid].some(function (y) { return y.id === String(c.id); })) return;
+          A.combos[mid].push({
+            id: String(c.id),
+            name: str(c.name).trim(),
+            kind: c.kind === 'stack' ? 'stack' : 'side',
+            gap: num(c.gap_mm),
+            max: num(c.max_units) || 2,
+            kit: str(c.kit_name).trim() || str(c.kit_code).trim(),
+          });
+        });
+      } catch {
+        return;
+      }
+    }
+  }
+
   // ── 읽기 ───────────────────────────────────────────────
-  /** 그 종류를 읽는다 — 이미 읽었으면 다시 읽지 않는다 (force 면 다시) */
-  async function fetchCat(cat, force) {
+  /** 그 보기의 종류를 읽는다 — 이미 읽었으면 다시 읽지 않는다 (force 면 다시) */
+  async function fetchCat(view, force) {
+    var cat = catOfView(view);
     if (!A.ready || A.busy || !A.sb) return;
     if (A.rows[cat] && !force) return;
     A.busy = true;
@@ -517,16 +614,17 @@
     } catch {
       rows = null;
     }
+    if (rows && rows.length && COMBO_CATS.indexOf(cat) >= 0) await fetchCombos(rows);
     A.busy = false;
     if (rows) A.rows[cat] = rows;
-    else if (A.cat === cat) A.failed = message ? TEXT.fail + ' (' + message + ')' : TEXT.fail;
+    else if (catOfView(A.cat) === cat) A.failed = message ? TEXT.fail + ' (' + message + ')' : TEXT.fail;
     render();
   }
 
   /** 화면이 열려 있으면 지금 종류를 읽는다 — 마이페이지를 열 때마다 읽지 않으려고 주소로 가린다 */
   function ensure() {
     if (!A.ready || window.location.hash !== HASH) return;
-    if (!A.rows[A.cat] && !A.failed) fetchCat(A.cat, false);
+    if (!A.rows[catOfView(A.cat)] && !A.failed) fetchCat(A.cat, false);
   }
 
   function pickCat(cat) {
@@ -538,7 +636,7 @@
     A.failed = '';
     render();
     focusOn('[data-act="cat"][data-cat="' + cat + '"]');
-    if (!A.rows[cat])
+    if (!A.rows[catOfView(cat)])
       fetchCat(cat, false).then(function () {
         focusOn('[data-act="cat"][data-cat="' + cat + '"]');
       });
@@ -590,18 +688,23 @@
     window.addEventListener('hashchange', ensure);
   }
 
-  /** segan/me.js 가 업체 칸을 읽은 뒤 부른다. 관리자가 아니면 칸을 감춘 채 둔다 */
+  /**
+   * segan/me.js 가 업체 칸을 읽은 뒤 부른다. 볼 사람 — 사이트 관리자 · 팩토리 구성원 · 본사 구성원 (opts.admin · opts.member).
+   * 그 밖이면 칸을 감춘 채 둔다. PC 관리 화면 링크는 관리자에게만.
+   */
   async function load(sb, session, me, opts) {
     hide();
     A.sb = sb || null;
     A.cat = CATEGORIES[0][0];
     A.rows = {};
+    A.combos = {};
+    A.admin = !!(opts && opts.admin === true);
     A.failed = '';
     A.busy = false;
     A.q = '';
     A.sub = '';
     A.shown = PAGE;
-    if (!sb || !session || !(opts && opts.admin === true)) return;
+    if (!sb || !session || !(opts && (opts.admin === true || opts.member === true))) return;
     bind();
     A.ready = true;
     render();
@@ -610,7 +713,9 @@
 
   window.SeganApplianceList = {
     CATEGORIES: CATEGORIES,
+    VIEWS: VIEWS,
     SUBTYPES: SUBTYPES,
+    comboText: comboText,
     INSTALL_LABEL: INSTALL_LABEL,
     PAGE: PAGE,
     TEXT: TEXT,
