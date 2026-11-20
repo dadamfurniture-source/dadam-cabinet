@@ -126,6 +126,12 @@
   var CUT_KEYS = ['kerf', 'trim'];
   var CUT_LABELS = { kerf: '톱날 두께 (mm)', trim: '원장 가장자리 여백 (mm)' };
   var CUT_RE = /cut\.(kerf|trim)/;
+  // 소부품 더하기 · 빼기 (2026-11-19 사장님 「소부품 더하기, 빼기로 구분 … 빼기는 밴드 재고 운영, 60*2440의 밴드를 18개 기본 재고로 만들고 8개가 남으면 …」)
+  //   칸 이름은 서버 settings.band 와 같다 (workflow-api production/standards.js DEFAULT_BAND). 재질 · 두께(PB 15T)는 바꾸지 않는다
+  var BAND_NUM_KEYS = ['width', 'length', 'base', 'reorder'];
+  var BAND_LABELS = { mode: '소부품', width: '밴드 폭 (mm)', length: '밴드 길이 (mm)', base: '한 번에 만드는 수 (본)', reorder: '이만큼 남으면 만들기 요청 (본)' };
+  var BAND_MODES = [['place', '더하기 — 원장에 놓아 재단'], ['stock', '빼기 — 밴드 재고에서']];
+  var BAND_RE = /band\.(mode|width|length|base|reorder)/;
 
   var TEXT = {
     title: '생산 설정',
@@ -140,6 +146,7 @@
     quoteHelp:
       '아래 「견적」 묶음은 상세설계 견적(장당 계산: BOM 수량 × 실제 원가 × (1 + 마진율))에 쓰입니다. 바꾸면 다음 스냅샷부터 반영됩니다.',
     emptyHelp: '숫자 칸을 비우고 저장하면 그 값은 기본값으로 돌아갑니다.',
+    bandTitle: '소부품 · 밴드 재고',
     cutTitle: '재단기 설정',
     cutHelp:
       '간편 플래너가 재단 배치를 셈하고 CNC 파일을 만들 때 쓰는 값입니다 (mm, 0.1 단위). 칸을 비우고 저장하면 그 칸은 저장된 값 그대로 둡니다.',
@@ -215,6 +222,25 @@
     return typeof v === 'number' && isFinite(v) ? String(v) : '';
   }
 
+  /** 소부품 설정 칸에 적을 값 */
+  function bandValue(key) {
+    var v = obj(obj(J.settings).band)[key];
+    if (key === 'mode') return v === 'stock' ? 'stock' : 'place';
+    return typeof v === 'number' && isFinite(v) ? String(v) : '';
+  }
+  /** 소부품 칸들 → { mode, width, … } — 빈 수 칸은 뺀다 (서버가 저장된 값을 그대로 둔다) */
+  function bandOf(bandInputs) {
+    var out = {};
+    Array.prototype.forEach.call(bandInputs || [], function (i) {
+      var k = i.getAttribute('data-band');
+      var v = String(i.value == null ? '' : i.value).trim();
+      if (k === 'mode') {
+        if (v === 'place' || v === 'stock') out.mode = v;
+      } else if (BAND_NUM_KEYS.indexOf(k) >= 0 && v !== '') out[k] = Number(v);
+    });
+    return out;
+  }
+
   /** 재단기 설정 칸들 → { kerf, trim } — 빈 칸은 뺀다 (서버가 저장된 값을 그대로 둔다) */
   function cutOf(cutInputs) {
     var out = {};
@@ -250,7 +276,7 @@
    * 색 목록(colors)은 두 칸이 다 그려져 있을 때만 싣는다 — 싣지 않으면 서버가 저장된 목록을 그대로 둔다
    * 재단기 설정(cut)은 칸이 그려져 있을 때만 싣는다 (적은 칸만) — 싣지 않으면 서버가 저장된 값을 그대로 둔다
    */
-  function bodyOf(inputs, saved, areas, cutInputs) {
+  function bodyOf(inputs, saved, areas, cutInputs, bandInputs) {
     var body = {
       standards: {},
       crew: {},
@@ -286,6 +312,8 @@
       return CUT_KEYS.indexOf(i.getAttribute('data-cut')) >= 0;
     });
     if (hasCut) body.cut = cutOf(cutInputs);
+    // 소부품(band)도 칸이 그려져 있을 때만 — 싣지 않으면 서버가 저장된 값을 그대로 둔다
+    if (bandInputs && bandInputs.length) body.band = bandOf(bandInputs);
     return body;
   }
 
@@ -296,12 +324,15 @@
     var c = COLOR_RE.exec(str(message));
     if (c) return { group: 'colors', key: c[1] };
     var k = CUT_RE.exec(str(message));
-    return k ? { group: 'cut', key: k[1] } : null;
+    if (k) return { group: 'cut', key: k[1] };
+    var b = BAND_RE.exec(str(message));
+    return b ? { group: 'band', key: b[1] } : null;
   }
   /** 칸 이름 — 숫자 · 업체 칸은 LABELS, 색 목록은 COLOR_LABELS, 재단기 설정은 CUT_LABELS */
   function labelOf(f) {
     if (f.group === 'colors') return COLOR_LABELS[f.key];
     if (f.group === 'cut') return CUT_LABELS[f.key];
+    if (f.group === 'band') return BAND_LABELS[f.key];
     return LABELS[f.group][f.key];
   }
 
@@ -400,6 +431,38 @@
       '</div></div>'
     );
   }
+  /** 소부품 · 밴드 재고 — 더하기 · 빼기 고르기 + 밴드 본 · 수 (재단기 설정 위). 값 · 고르기만, 풀이는 AI 도우미 지식에 */
+  function bandHtml() {
+    var mode = bandValue('mode');
+    return (
+      '<div class="od-sec ps-sec" data-ps-band><h4 class="od-h">' +
+      esc(TEXT.bandTitle) +
+      '</h4><div class="ps-grid"><label class="mk-input ps-field" for="ps-band-mode"><span>' +
+      esc(BAND_LABELS.mode) +
+      '</span><select id="ps-band-mode" data-band="mode">' +
+      BAND_MODES.map(function (m) {
+        return '<option value="' + m[0] + '"' + (m[0] === mode ? ' selected' : '') + '>' + esc(m[1]) + '</option>';
+      }).join('') +
+      '</select></label>' +
+      BAND_NUM_KEYS.map(function (k) {
+        var id = 'ps-band-' + k;
+        return (
+          '<label class="mk-input ps-field" for="' +
+          id +
+          '"><span>' +
+          esc(BAND_LABELS[k]) +
+          '</span><input id="' +
+          id +
+          '" type="number" step="1" min="0" inputmode="numeric" data-band="' +
+          k +
+          '" value="' +
+          esc(bandValue(k)) +
+          '"></label>'
+        );
+      }).join('') +
+      '</div></div>'
+    );
+  }
   /** 재단기 설정 — 톱날 두께 · 원장 가장자리 여백 (묶음 일곱 아래, 색 목록 위) */
   function cutHtml() {
     return (
@@ -492,6 +555,7 @@
       '</p>' +
       barHtml(true) +
       GROUPS.map(groupHtml).join('') +
+      bandHtml() +
       cutHtml() +
       colorsHtml() +
       barHtml(false) +
@@ -520,13 +584,17 @@
     var box = $('productionSettings');
     return box ? box.querySelectorAll('input[data-cut]') : [];
   }
+  function bandInputs() {
+    var box = $('productionSettings');
+    return box ? box.querySelectorAll('[data-band]') : [];
+  }
   /** 짚은 칸의 표시와 그 아래 까닭 글을 지운다 (칸을 주지 않으면 모두) */
   function unflag(el) {
     var box = $('productionSettings');
     if (!box) return;
     var all = Array.prototype.slice
       .call(inputs())
-      .concat(Array.prototype.slice.call(colorAreas()), Array.prototype.slice.call(cutInputs()));
+      .concat(Array.prototype.slice.call(colorAreas()), Array.prototype.slice.call(cutInputs()), Array.prototype.slice.call(bandInputs()));
     Array.prototype.forEach.call(el ? [el] : all, function (i) {
       i.removeAttribute('aria-invalid');
       i.removeAttribute('aria-describedby');
@@ -558,7 +626,7 @@
     unflag();
     say(TEXT.working);
     try {
-      var r = await call('POST', '/production/settings', bodyOf(inputs(), J.saved, colorAreas(), cutInputs()));
+      var r = await call('POST', '/production/settings', bodyOf(inputs(), J.saved, colorAreas(), cutInputs(), bandInputs()));
       if (!r.ok) {
         say(flag(errText(r)));
         return;

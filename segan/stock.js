@@ -801,6 +801,8 @@
       '</h3><p class="mk-note">' +
       esc(TEXT.note[kind]) +
       '</p>' +
+      // 밴드 재고 칸 (2026-11-20 소부품 「빼기」 — segan/stock-bands.js 가 채운다, 빼기 팩토리가 아니면 비어 있다)
+      (kind === 'board' ? '<div data-st-bands hidden></div>' : '') +
       (J.canManage
         ? v.adding
           ? itemFormHtml(kind, false)
@@ -825,6 +827,9 @@
           '</p>');
     if (J.busy) b.setAttribute('aria-busy', 'true');
     else b.removeAttribute('aria-busy');
+    var bandSlot = kind === 'board' ? b.querySelector('[data-st-bands]') : null;
+    if (bandSlot && window.SeganStockBands && typeof window.SeganStockBands.mount === 'function')
+      window.SeganStockBands.mount(bandSlot, { base: J.base, token: token });
     b.hidden = false;
     var sec = $('partner');
     if (sec) sec.hidden = false;

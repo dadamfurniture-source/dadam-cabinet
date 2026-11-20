@@ -189,7 +189,7 @@
     if (!str(l.key) || STATES.indexOf(l.state) < 0 || need === null) return null;
     return {
       key: l.key,
-      kind: l.kind === 'board' ? 'board' : 'hardware',
+      kind: l.kind === 'board' ? 'board' : l.kind === 'band' ? 'band' : 'hardware',   // band = 재고 밴드 (2026-11-20 — 그 색 밴드 품목과 바로 짝)
       label: str(l.label).trim() || l.key,
       need: need,
       unit: str(l.unit).trim(),
@@ -221,7 +221,7 @@
     if (!str(m.key)) return null;
     return {
       key: m.key,
-      kind: m.kind === 'board' ? 'board' : 'hardware',
+      kind: m.kind === 'board' ? 'board' : m.kind === 'band' ? 'band' : 'hardware',
       label: str(m.label).trim() || m.key,
       unit: str(m.unit).trim(),
       need: num(m.need) || 0,
@@ -499,7 +499,7 @@
           ? '<a class="mk-btn" href="#stock-orders">' + esc(TEXT.toOrders) + '</a>'
           : '') +
         (o.lines.some(function (l) {
-          return l.state === 'unlinked';
+          return l.state === 'unlinked' && l.kind !== 'band';
         })
           ? btn('view', TEXT.toLinks, false, ' data-view="links"')
           : '') +
@@ -813,7 +813,10 @@
     var d = r.ok ? dataOf(r.body.data) : null;
     if (!d) return false;
     J.orders = d.orders;
-    J.materials = d.materials;
+    // 짝표에는 밴드가 없다 — 밴드는 그 색의 밴드 품목과 바로 짝 (기본 자재 › 밴드 재고에서 품목을 만든다)
+    J.materials = d.materials.filter(function (m) {
+      return m.kind !== 'band';
+    });
     J.canManage = d.canManage;
     return true;
   }
