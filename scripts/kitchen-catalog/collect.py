@@ -512,7 +512,8 @@ def plugin_brands():
 def main():
     plugins = plugin_brands()
     ap = argparse.ArgumentParser()
-    ap.add_argument("--brands", default=",".join(["samsung", "lg"] + list(plugins)))
+    # IN_KITCHEN = False 인 브랜드 파일(세탁기 · 건조기 — laundry_build.py)은 기본 실행에서 뺀다. --brands 로 이름을 주면 돈다
+    ap.add_argument("--brands", default=",".join(["samsung", "lg"] + [k for k, m in plugins.items() if getattr(m, "IN_KITCHEN", True)]))
     ap.add_argument("--sample", type=int, default=0, help="menu items per category (0 = all)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--delay", type=float, default=1.2)
