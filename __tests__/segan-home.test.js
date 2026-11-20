@@ -159,13 +159,16 @@ describe('홈 화면 (segan/index.html)', () => {
         .getAttribute('src')
         .replace(/^.*\//, '')
         .replace(/\.jpg$/, '');
-      expect(stem).toMatch(/^luxe-\d\d$/);
+      expect(stem).toMatch(/^(luxe|mix)-\d\d$/);
       const [place, ...color] = a.querySelector('span').textContent.split(' · ');
       expect(stat).toContain(
         `{ image_url: '../app/portfolio/${stem}.jpg', place: '${place}', color: '${color.join(' · ')}' }`
       );
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', `${stem}.avif`))).toBe(true);
     }
+    // 2026-11-20 대표님 「다양한 색상이 되도록」 — 여섯 장의 첫 색(도어 색)이 모두 다르다
+    const first = works.map((a) => a.querySelector('span').textContent.split(' · ')[1]);
+    expect(new Set(first).size).toBe(6);
   });
 
   test('매거진 네 글 · 소개 · 구독 줄 — 있는 화면으로 간다 (폰 아래 탭에서 뺀 두 화면은 여기서)', () => {
