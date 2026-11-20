@@ -129,3 +129,31 @@ test('색 바꿈은 가구 색만 바꾼다', () => {
   assert.match(p, /Keep everything else exactly as photographed/);
   assert.ok(p.includes(SHOOT_HANDLES_LINE));
 });
+
+test('색 조합마다 예림 도어 자재 — 이름 · 색값이 예림 목록과 같다', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { SHOOT_YERIM, SHOOT_TONES, shootTone } = await import('../src/shoot-prompts.js');
+  const yerim = JSON.parse(
+    readFileSync(new URL('../../../database/seed/yerim-lux.json', import.meta.url), 'utf8')
+  ).items;
+  for (const t of TWO_TONES) {
+    for (const word of [t.upper, t.lower]) {
+      const m = SHOOT_YERIM[word];
+      assert.ok(m, `${word}: 예림 자재가 없다`);
+      const it = yerim.find((x) => x.vendor_code === m.code);
+      assert.ok(it, `${m.code}: 예림 목록에 없다`);
+      assert.equal(it.color_name, m.name);
+      assert.equal(it.color_hex, m.hex);
+      assert.equal(it.category, 'door_material');
+    }
+  }
+  assert.equal(SHOOT_TONES.length, TWO_TONES.length);
+  const cw = shootTone('cream-walnut');
+  assert.equal(cw.tone, '매트 아이보리 · 카카오월넛');
+  assert.equal(shootTone('크림 · 월넛'), cw);
+  assert.deepEqual(cw.materials, ['SM-16', 'PW-23']);
+  // 프롬프트에는 색값이 들어가고, 자재 이름 · 상표는 들어가지 않는다
+  const p = buildShootPrompt(planShoots({ count: 1, seed: 3 })[0]);
+  assert.match(p, /colour #[0-9a-f]{6}/);
+  assert.doesNotMatch(p, /[가-힣]|yerim/i);
+});

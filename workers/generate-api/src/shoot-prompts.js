@@ -6,7 +6,9 @@
  *
  * 한 장 = 품목 × 구조 × 평형 × 촬영(렌즈 · 자리) × 빛 × 소품 × 색 조합 × 자재(상판 · 바닥 · 식탁).
  *   - 자재 축은 2026-11-20 대표님 "식탁의 재질, 자재 종류도 다양하게". 가구 문 색은 색 조합이 정하고, 그 밖의 재질만 돌린다.
- *   - 색 조합은 prompts.js 의 TWO_TONES 그대로 (연출컷 투톤 추천안과 같은 여덟).
+ *   - 색 조합은 prompts.js 의 TWO_TONES 여덟 그대로이되, 색마다 예림 LUX 도어 자재 하나를 잇는다 (SHOOT_YERIM →
+ *     SHOOT_TONES, 2026-11-20 대표님 "색상 이름을 예림에서 쓰는 자재와 같은 이름으로"). 사진에 찍는 이름이 자재 이름이고,
+ *     프롬프트에는 그 자재의 색값을 적는다. 그림 속 색은 빛에 따라 달라지므로 실제 자재와 꼭 같지는 않다.
  *   - 손잡이는 CLAUDE.md 규칙 그대로 매립형. 문장은 prompts.js 의 HANDLES_LINE 과 같아야 한다 (시험이 본다).
  *   - 사람 · 글자 · 상표는 넣지 않는다. 「AI 연출」 표시는 올리기 전에 따로 찍는다 (그림 속 글자는 모델이 틀리게 쓴다).
  *
@@ -14,6 +16,111 @@
  */
 
 import { TWO_TONES } from './prompts.js';
+
+/**
+ * 색 조합의 색 말 → 예림 LUX 도어 자재. 코드 · 이름 · 색값은 database/seed/yerim-lux.json 과 같아야 한다
+ * (test/shoot-prompts.test.js 가 맞춰 본다). text 는 프롬프트에 적는 말 — 자재 이름 · 상표는 그림에 넣지 않는다.
+ * 고른 기준: 도어 자재(door_material) 가운데 색값이 가장 가까운 것.
+ */
+export const SHOOT_YERIM = {
+  'cream white matte': {
+    code: 'SM-16',
+    name: '매트 아이보리',
+    hex: '#f5eddc',
+    text: 'ivory cream matte',
+  },
+  'walnut woodgrain': {
+    code: 'PW-23',
+    name: '카카오월넛',
+    hex: '#544135',
+    text: 'cocoa-brown walnut woodgrain with a vertical grain',
+  },
+  'matte black': { code: 'SM-08', name: '매트 블랙', hex: '#272727', text: 'matte black' },
+  'natural oak woodgrain': {
+    code: 'YPW-04',
+    name: '세이오크',
+    hex: '#cea875',
+    text: 'light honey oak woodgrain with a vertical grain',
+  },
+  'sage green matte': {
+    code: 'SM-15',
+    name: '매트 미스트그린',
+    hex: '#a5afa0',
+    text: 'pale misty grey-green matte, light and desaturated',
+  },
+  'navy blue matte': {
+    code: 'SM-12',
+    name: '매트 인디고',
+    hex: '#2e2f3f',
+    text: 'very dark indigo navy matte',
+  },
+  'warm beige matte': {
+    code: 'YPA-03',
+    name: '아크 샌드듄',
+    hex: '#cdc2b4',
+    text: 'sand beige matte',
+  },
+  'warm white matte': {
+    code: 'SM-02',
+    name: '매트 밀크화이트',
+    hex: '#fffef8',
+    text: 'milk white matte',
+  },
+  'smoked oak woodgrain': {
+    code: 'HW1064',
+    name: '오크딥',
+    hex: '#604b39',
+    text: 'deep brown oak woodgrain with a vertical grain',
+  },
+  'terracotta matte': {
+    code: 'YPA-09',
+    name: '아크 마멀레이드',
+    hex: '#d4612a',
+    text: 'burnt orange matte',
+  },
+  'soft grey matte': {
+    code: 'SM-20',
+    name: '매트 라이트그레이',
+    hex: '#bababa',
+    text: 'light neutral grey matte',
+  },
+  'pure white matte': {
+    code: 'SM-01',
+    name: '매트 화이트',
+    hex: '#fbfbfb',
+    text: 'pure white matte',
+  },
+  'greige matte': {
+    code: 'SM-21',
+    name: '매트 샌드그레이',
+    hex: '#d4cfc8',
+    text: 'pale sand-grey matte',
+  },
+};
+
+/**
+ * 촬영에 쓰는 색 조합 — TWO_TONES 와 같은 여덟(key 도 같다)에 예림 자재를 이은 것.
+ * upper · lower 는 프롬프트 말(색값 포함), tone 은 사진에 찍는 이름, plain 은 예전 이름(「크림 · 월넛」).
+ */
+export const SHOOT_TONES = TWO_TONES.map((t) => {
+  const u = SHOOT_YERIM[t.upper];
+  const l = SHOOT_YERIM[t.lower];
+  return {
+    key: t.key,
+    upper: `${u.text} (colour ${u.hex})`,
+    lower: `${l.text} (colour ${l.hex})`,
+    tone: `${u.name} · ${l.name}`,
+    plain: t.tone,
+    materials: [u.code, l.code],
+  };
+});
+
+/** 예전 이름(「크림 · 월넛」)이나 key 로 촬영용 색 조합을 찾는다. 없으면 undefined. */
+export function shootTone(keyOrPlain) {
+  return SHOOT_TONES.find(
+    (t) => t.key === keyOrPlain || t.plain === keyOrPlain || t.tone === keyOrPlain
+  );
+}
 
 /** prompts.js 의 HANDLES_LINE 과 같은 문장 (그쪽은 내보내지 않아 옮겨 적었다 — test/shoot-prompts.test.js 가 맞춰 본다). */
 export const SHOOT_HANDLES_LINE =
@@ -378,7 +485,7 @@ export function planShoots({ count = 6, seed = 1, subjects } = {}) {
   const shots = shuffled(SHOOT_SHOTS, seed + 3);
   const lights = shuffled(SHOOT_LIGHTS, seed + 5);
   const homes = shuffled(SHOOT_HOMES, seed + 7);
-  const tones = shuffled(TWO_TONES, seed + 9);
+  const tones = shuffled(SHOOT_TONES, seed + 9);
   const surfaces = shuffled(SHOOT_SURFACES, seed + 13);
   const floors = shuffled(SHOOT_FLOORS, seed + 19);
   const tables = shuffled(SHOOT_TABLES, seed + 23);

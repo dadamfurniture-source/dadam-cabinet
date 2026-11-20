@@ -24,6 +24,9 @@ export function esc(v) {
     .replace(/"/g, '&quot;');
 }
 
+/** 색 조합 이름이 이보다 길면(자재 이름 — 「매트 라이트그레이 · 카카오월넛」) 작은 글씨로, 게시 글은 한 줄에 하나씩. */
+const LONG_TONE = 11;
+
 /** 색 조합 이름 「세이지 · 크림」 → 「상부장 세이지 · 하부장 크림」 (품목이 주방일 때). */
 export function toneParts(tone, subject = 'kitchen') {
   const [a, b] = String(tone || '')
@@ -69,6 +72,7 @@ export function slideHtml({
 .title{position:absolute;left:56px;top:112px;color:#f6f3ee;font-size:64px;font-weight:300;letter-spacing:-.02em;line-height:1.2}
 .band{position:absolute;left:0;right:0;bottom:0;height:330px;background:linear-gradient(to top,rgba(20,18,16,.72),rgba(20,18,16,0))}
 .tone{position:absolute;left:56px;bottom:112px;color:#f6f3ee;font-size:68px;font-weight:300;letter-spacing:-.02em;line-height:1.15}
+.tone.long{font-size:50px;max-width:750px}
 .parts{position:absolute;left:58px;bottom:62px;color:rgba(246,243,238,.86);font-size:27px}
 .ai{position:absolute;right:56px;bottom:112px;color:#f6f3ee;font-size:23px;border:1px solid rgba(246,243,238,.7);padding:7px 16px 8px;letter-spacing:.04em}
 .site{position:absolute;right:56px;bottom:64px;color:rgba(246,243,238,.86);font-size:24px;letter-spacing:.02em}`;
@@ -79,7 +83,7 @@ export function slideHtml({
 <div class="count">${esc(index)} / ${esc(total)}</div>
 ${title ? `<div class="title">${esc(title)}</div>` : ''}
 <div class="band"></div>
-<div class="tone">${esc(tone)}</div>
+<div class="tone${String(tone || '').length > LONG_TONE ? ' long' : ''}">${esc(tone)}</div>
 <div class="parts">${esc(toneParts(tone, subject))}</div>
 <div class="ai">AI 연출 이미지</div>
 <div class="site">${esc(site)}</div>`;
@@ -158,7 +162,8 @@ export function buildCaption({
   tags,
 } = {}) {
   const words = subjectWords(subject);
-  const list = tones.map((t, i) => `${CIRCLED[i] || i + 1} ${t}`).join('  ');
+  const long = tones.some((t) => String(t).length > LONG_TONE);
+  const list = tones.map((t, i) => `${CIRCLED[i] || i + 1} ${t}`).join(long ? '\n' : '  ');
   const link = `https://dadamfurniture.com/segan/?utm_source=${encodeURIComponent(source)}&utm_medium=social&utm_campaign=${encodeURIComponent(campaign)}`;
   const hash = (tags || [...words.tags, ...COMMON_TAGS]).map((t) => `#${t}`).join(' ');
   return [
@@ -169,7 +174,7 @@ export function buildCaption({
     `내 ${words.place} 사진으로도 해 볼 수 있습니다. 사진 한 장을 올리면 맞춤 가구가 들어간 연출컷과 예상 견적이 나옵니다.`,
     link,
     '',
-    '※ AI 로 연출한 이미지입니다. 실제 시공 사진이 아닙니다.',
+    '※ AI 로 연출한 이미지입니다. 실제 시공 사진이 아닙니다. 화면의 색은 실제 자재와 다를 수 있습니다.',
     hash,
   ].join('\n');
 }

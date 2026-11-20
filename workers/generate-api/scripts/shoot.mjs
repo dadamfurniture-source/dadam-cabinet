@@ -16,7 +16,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { callGemini, imageModel } from '../src/gemini.js';
-import { TWO_TONES } from '../src/prompts.js';
+import { SHOOT_TONES } from '../src/shoot-prompts.js';
 import { planShoots, buildShootPrompt, buildShootRecolourPrompt } from '../src/shoot-prompts.js';
 
 function args(argv) {
@@ -111,7 +111,7 @@ async function main() {
     );
 
     // 색만 바꾼 장 — 이 장의 색을 뺀 나머지에서 차례로
-    const others = TWO_TONES.filter((t) => t.key !== s.tone.key);
+    const others = SHOOT_TONES.filter((t) => t.key !== s.tone.key);
     for (let v = 0; v < recolour && v < others.length; v++) {
       const tone = others[(i + v) % others.length];
       const r = await callGemini(env, {
