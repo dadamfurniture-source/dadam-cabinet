@@ -1339,11 +1339,13 @@
     try {
       var p = await S.sb
         .from('collection_posts')
-        .select('id, generation_id, storage_path')
+        .select('id, generation_id, storage_path, hq_picked_at')
         .eq('user_id', uid)
         .eq('source', 'ai_render')
         .eq('generation_id', g.id);
-      if (p && !p.error && Array.isArray(p.data)) post = p.data[0] || null;
+      // 본사가 고른 것(공개된 것)만 「시공사례에서 내리기」 — 예전 자동 게시 행은 시공사례에 안 보이므로 단추가 없다 (DB 0075)
+      if (p && !p.error && Array.isArray(p.data))
+        post = (p.data[0] && p.data[0].hq_picked_at && p.data[0]) || null;
     } catch {
       /* 못 읽으면 내리기를 그리지 않는다 */
     }

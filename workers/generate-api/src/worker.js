@@ -71,6 +71,12 @@ import {
 } from './share.js';
 import { OWNER_SIGNED_TTL_SEC, signImageUrls, toStorageRef } from './storage-urls.js';
 import { removeCollectionPostsFor } from './collection-post.js';
+import {
+  assertHqPicker,
+  listHqCollection,
+  pickHqCollection,
+  unpickHqCollection,
+} from './hq-collection.js';
 
 // Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
 export { GeminiProxy } from './proxy.js';
@@ -290,6 +296,10 @@ export default {
         return json(await copyApplianceImage(request, env), 200, headers);
       }
 
+      // 2026-11-20: 본사가 고른 연출컷만 시공사례에 (hq-collection.js, DB 0075)
+      const hqc = url.pathname.match(/^\/api\/hq\/collection(?:\/([0-9a-f-]{36}))?$/);
+      if (hqc) return json(await hqCollection(request, env, hqc[1], url), 200, headers);
+
       const m = url.pathname.match(/^\/api\/generate(?:\/([0-9a-f-]{36}))?(\/share|\/layout)?$/);
       if (!m) return json({ success: false, error: 'Not found', code: 'not_found' }, 404, headers);
       const [, id, sub] = m;
@@ -315,6 +325,24 @@ export default {
 };
 
 // ─── 핸들러 ───
+
+/**
+ * 본사 시공사례 고르기 (hq-collection.js) — 본인 토큰, 본사 대표 · 실장 · 사이트 관리자만.
+ *   GET 목록 (?before=) · POST /:id 올리기 · DELETE /:id 내리기
+ */
+async function hqCollection(request, env, id, url) {
+  const user = await verifyJwt(request, env);
+  await assertHqPicker(env, user);
+  if (!id && request.method === 'GET') {
+    return { success: true, ...(await listHqCollection(env, url.searchParams.get('before') || '')) };
+  }
+  if (id && request.method === 'POST') return { success: true, ...(await pickHqCollection(env, id, user)) };
+  if (id && request.method === 'DELETE') return { success: true, ...(await unpickHqCollection(env, id)) };
+  const err = new Error('Method not allowed');
+  err.statusCode = 405;
+  err.code = 'method';
+  throw err;
+}
 
 /**
  * POST /api/chat — 연출컷 ③ 상세 요청의 다음 한 마디 (2026-10-08).

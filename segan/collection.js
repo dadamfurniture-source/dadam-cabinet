@@ -4,8 +4,9 @@
    사진을 인스타그램처럼 정사각 칸으로 늘어놓는다 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2~3px (segan/shell.css .cl-grid).
    누구나(로그인 없이) 본다:
      collection_posts 최신순(created_at DESC), 24줄씩 키셋 (idx_collection_posts_created) — 공개 칸만 읽는다.
-       AI 연출컷(source 'ai_render')은 읽지 않는다 (2026-11-20 대표님 「연출컷으로 만든 사진은 올리지 말고」 —
-       새로 올리는 것도 workers/generate-api/wrangler.toml COLLECTION_AUTO_POST "off")
+       직접 올린 사진(source 'upload')과 본사가 고른 연출컷(hq_picked_at 있음, DB 0075)만 읽는다 —
+       2026-11-20 대표님 「연출컷은 본사에서 정하고 올릴 수 있도록」. 연출컷 자동 게시는 끔(COLLECTION_AUTO_POST "off"),
+       본사는 마이페이지 › 플랫폼 › 시공사례 고르기(segan/hq-collection.js)에서 올리고 내린다
        id · image_url · place_label · door_color · company_id · like_count · source · created_at (DB 0049)
      업체 이름은 RPC collection_post_companies (업체가 있는 게시물만, 쪽마다 한 번)
      로그인했으면 이 쪽에서 내가 좋아한 것 — collection_likes post_id (본인 줄만 읽힌다)
@@ -13,7 +14,7 @@
        (최신순이 끝까지 이어지고, 이미 그린 자리 사이로 새 줄이 끼어들지 않는다)
    처음 24장 · 24장씩 더 — 아래까지 내리면 저절로(IntersectionObserver), 없으면 「더 보기」 단추.
    누르면 사진 보기(장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷) — segan/collection-view.js (SeganPostView)
-   (예전에 올라간 AI 연출컷 행은 DB 에 남아 있다 — 사진 보기 SeganPostView 의 「AI」 표시는 내 좋아요 등 다른 화면이 쓴다)
+   (예전에 자동으로 올라간 연출컷 행은 DB 에 남아 있지만 본사가 고르기 전에는 안 보인다. 연출컷도 사진 위 표시 없이, 업체 칸 「AI 연출」)
    다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
    자재 칸은 여기서 뺐다 — 자재 글은 매거진으로 옮긴다 (/material 은 /segan/blog 로 넘긴다, _redirects).
    ============================================================ */
@@ -242,7 +243,7 @@
     var q = S.sb
       .from('collection_posts')
       .select(COLS)
-      .neq('source', 'ai_render')
+      .or('source.eq.upload,hq_picked_at.not.is.null')
       .order('created_at', { ascending: false })
       .limit(PAGE);
     if (S.cursor) q = q.lt('created_at', S.cursor);

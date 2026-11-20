@@ -164,14 +164,14 @@ describe('메뉴 — 「내 것」 에 좋아요', () => {
 });
 
 describe('좋아요 화면 — 시공사례와 같은 칸 · 30장씩', () => {
-  test('타일은 시공사례와 같다 (cl-grid · 단추 + lazy img · AI 표시)', async () => {
+  test('타일은 시공사례와 같다 (cl-grid · 단추 + lazy img · 연출컷도 사진 위 표시 없음)', async () => {
     await load();
     expect($('meLikes').classList.contains('cl-grid')).toBe(true);
     const img = tiles()[0].querySelector('img');
     expect(img.getAttribute('src')).toContain('l0.jpg');
     expect(img.getAttribute('loading')).toBe('lazy');
     expect([img.getAttribute('width'), img.getAttribute('height')]).toEqual(['400', '400']);
-    expect(tiles()[1].querySelector('.cl-mark').textContent).toBe('AI');
+    expect(tiles()[1].querySelector('.cl-mark')).toBeNull(); // 2026-11-20 대표님 「표시 없이, 업체 칸만 AI 연출」
     expect($('meLikeMore').hidden).toBe(true); // 3장 — 한 쪽이 덜 찼다
     expect($('meLikeEmpty').hidden).toBe(true);
   });
@@ -240,15 +240,15 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
     expect(sheet().querySelector('a.pv-make').getAttribute('href')).toBe('make.html?ref=' + uid(0));
   });
 
-  test('업체 없는 AI 연출컷 — 업체 「AI 연출컷」, 연출컷 단추 없음', async () => {
+  test('AI 연출컷 — 제목 「시공사례」 · 업체 「AI 연출」, 연출컷 단추 없음', async () => {
     await load();
     tiles()[1].click();
     await flush();
-    expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('AI 연출컷');
+    expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
     expect(facts()).toEqual([
       ['장소', '싱크대'],
       ['색상', '월넛'],
-      ['업체', 'AI 연출컷'],
+      ['업체', 'AI 연출'],
     ]);
     expect(sheet().querySelector('a.pv-make')).toBeNull();
   });

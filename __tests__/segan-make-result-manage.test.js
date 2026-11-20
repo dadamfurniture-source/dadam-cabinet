@@ -53,7 +53,14 @@ async function load(options = {}) {
     url: `/segan/?g=${ID}#result`,
     gets: [gen()],
     consent: false,
-    posts: [{ id: 'post-1', generation_id: ID, storage_path: 'ai/post-1.jpg' }],
+    posts: [
+      {
+        id: 'post-1',
+        generation_id: ID,
+        storage_path: 'ai/post-1.jpg',
+        hq_picked_at: '2026-11-20T01:00:00Z',
+      },
+    ],
     ...options,
   };
   const doc = new DOMParser().parseFromString(read('segan/make.html'), 'text/html');
