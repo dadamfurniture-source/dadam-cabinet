@@ -341,14 +341,13 @@ test('팩토리 직원 · 플래너를 못 쓰는 팩토리(Standard) 대표는 
   } finally { f.restore(); }
 });
 
-test('Manager 팩토리 대표는 보내지 못한다 — 403 plan_required (BOM 을 싣는다 — 설계 · 저장까지, 2026-11-20), 아무것도 쓰지 않는다', async () => {
+test('Manager 팩토리 대표도 보낸다 — 고객 확인서를 내려고 (2026-11-20 「확인서 열어 두기」), 그 팩토리 설계로', async () => {
   const f = fakeSupabase();
   try {
-    await assert.rejects(
-      () => receivePlannerDesign(ENV, { user: { id: M_OWNER }, body: body() }),
-      (e) => e instanceof ForbiddenError && e.code === 'plan_required' && e.details.min_plan === 'expert'
-    );
-    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.designFinds, 0);
+    const r = await receivePlannerDesign(ENV, { user: { id: M_OWNER }, body: body() });
+    assert.ok(r);
+    assert.equal(f.designPosts.length, 1);
+    assert.equal(f.designPosts[0].company_id, MANAGER_CO);
   } finally { f.restore(); }
 });
 

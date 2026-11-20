@@ -90,8 +90,8 @@ export function canUsePlanner(company) {
 }
 
 /**
- * 플래너 BOM(BOM 창 · 단가 · 앱으로 보내기 · 지시서 미리보기)을 쓰는 협력업체 등급 (2026-11-20 사장님
- * 「Manager 는 BOM 기능을 제외한 설계 저장 기능까지」). Manager 는 설계 · 저장(· 제작 의뢰)까지 — 구독 비교 Expert 칸 「BOM 산출」.
+ * 플래너 BOM(BOM 창 · 단가)을 쓰는 협력업체 등급 (2026-11-20 사장님 「Manager 는 BOM 기능을 제외한 설계 저장 기능까지」).
+ * Manager 는 설계 · 저장(· 제작 의뢰) · 앱으로 보내기(고객 확인서만 — 같은 날 「확인서 열어 두기」)까지 — 구독 비교 Expert 칸 「BOM 산출」.
  */
 export const PLANNER_BOM_PLANS = Object.freeze(['expert', 'agent']);
 
@@ -104,7 +104,7 @@ export function canUsePlannerBom(company) {
 /** BOM 을 못 쓰는 팩토리면 403 plan_required { min_plan: 'expert' } (documents.js assertCompanyPlan 과 같은 모양) */
 export function assertPlannerBom(company) {
   if (canUsePlannerBom(company)) return;
-  const err = new ForbiddenError('BOM · 앱으로 보내기는 Expert 등급 팩토리부터 쓸 수 있습니다', 'plan_required');
+  const err = new ForbiddenError('BOM 은 Expert 등급 팩토리부터 쓸 수 있습니다', 'plan_required');
   err.details = { min_plan: PLANNER_BOM_PLANS[0] };
   throw err;
 }
@@ -142,7 +142,7 @@ export async function plannerAccess(env, { user }) {
     company: { id: company.id, name: company.name, kind: company.kind, plan: company.plan || null },
     role,
     can_manage: canManage,
-    // BOM 창 · 앱으로 보내기를 보이나 (Manager 는 설계 · 저장까지 — canUsePlannerBom)
+    // BOM 창을 보이나 (Manager 는 없음 — canUsePlannerBom. 앱으로 보내기는 확인서만)
     bom: canUsePlannerBom(company),
   };
 }
