@@ -113,3 +113,17 @@ test('붙박이장 · 수납장은 주방 말이 나오지 않는다', () => {
     /\n#하나$/
   );
 });
+
+test('자재 이름처럼 긴 색 이름은 작은 글씨 · 게시 글은 한 줄에 하나', () => {
+  const tones = ['매트 라이트그레이 · 카카오월넛', '매트 미스트그린 · 매트 아이보리'];
+  const h = slideHtml({ src: 'a.jpg', tone: tones[0], index: 1, total: 2 });
+  assert.match(h, /class="tone long">매트 라이트그레이 · 카카오월넛</);
+  assert.match(h, /상부장 매트 라이트그레이 · 하부장 카카오월넛/);
+  assert.match(
+    slideHtml({ src: 'a.jpg', tone: '크림 · 월넛', index: 1, total: 2 }),
+    /class="tone">크림/
+  );
+  const c = buildCaption({ title: 't', tones });
+  assert.ok(c.includes('① 매트 라이트그레이 · 카카오월넛\n② 매트 미스트그린 · 매트 아이보리'));
+  assert.match(c, /색은 실제 자재와 다를 수 있습니다/);
+});
