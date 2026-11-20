@@ -69,7 +69,8 @@ test('원장 그림 — 엣지는 외곽선 안쪽 · 모서리에서 끊김, 0.
   assert.equal(marks.length, 2 + 8, '측판 두 변 한 줄 · 도어 네 변 두 줄');
   // 측판 윗변 — 외곽선(y 10)보다 안쪽, 양 끝은 모서리에서 떨어진다
   const top = marks[0];
-  assert.ok(top[1] > 10 && top[0] > 10 + 20 && top[2] < 10 + 550 - 20, JSON.stringify(top));
+  // 외곽선(y 10)에서 34 안쪽, 길이 = 변의 70% 가운데 (2026-11-20 사장님 「더 안쪽으로 · 변의 70% 길이」)
+  assert.deepEqual([top[1], top[0], top[2]], [10 + 34, 10 + 550 * 0.15, 10 + 550 * 0.85].map((v) => Math.round(v * 10) / 10), JSON.stringify(top));
   assert.match(svg, />#1 측판</);
   assert.match(svg, />550 × 708</);
   assert.match(svg, /font-weight="700">3</);

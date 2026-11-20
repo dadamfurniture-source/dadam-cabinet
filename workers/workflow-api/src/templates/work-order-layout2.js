@@ -112,21 +112,24 @@ export function bigSheetSvg(sheet, infoOf) {
   const unit = Math.max(W, H) / 2440;        // 원장 크기에 맞춘 그림 단위 (2440 원장 = 1)
   const line = 3 * unit;                      // 조각 외곽선
   const ew = 11 * unit;                       // 엣지 굵기
-  const inset = 16 * unit;                    // 엣지를 외곽선에서 안으로 물리는 값
-  const gap = 34 * unit;                      // 모서리에서 엣지를 끊는 길이
+  // 엣지 표시 — 외곽선에서 안으로 물리고(2026-11-20 사장님 「외곽변에서 더 안쪽으로 띄워주고」) 변 가운데 70% 만 (「변의 70% 길이 정도」 — 모서리에서 끊겨 보인다)
+  const inset = 34 * unit;                    // 엣지를 외곽선에서 안으로 물리는 값 (좁은 조각은 짧은 변의 18% 까지)
+  const EDGE_SPAN = 0.7;                      // 엣지 선 길이 = 변 길이 × 0.7, 가운데
   const rects = parts.map((p) => ({ p, r: rectOf(p) })).filter(({ r }) => r.w > 0 && r.h > 0);
   const cuts = guillotineCuts(rects.map(({ r }) => r), { x: trim, y: trim, w: W - trim * 2, h: H - trim * 2 });
 
   const edgeSegs = (r, sides, double) => {
-    const offs = double ? [inset * 0.75, inset * 0.75 + ew * 1.3] : [inset];
+    const base = Math.min(inset, Math.min(r.w, r.h) * 0.18);
+    const offs = double ? [base, base + ew * 1.3] : [base];
     const sw = double ? ew * 0.6 : ew;
+    const mw = (r.w * (1 - EDGE_SPAN)) / 2;   // 가로 변 양끝에서 비우는 길이
+    const mh = (r.h * (1 - EDGE_SPAN)) / 2;   // 세로 변 양끝에서 비우는 길이
     const out = [];
     for (const o of offs) {
-      const g = gap;
-      if (sides.T && r.w > g * 2.5) out.push([r.x + g, r.y + o, r.x + r.w - g, r.y + o]);
-      if (sides.B && r.w > g * 2.5) out.push([r.x + g, r.y + r.h - o, r.x + r.w - g, r.y + r.h - o]);
-      if (sides.L && r.h > g * 2.5) out.push([r.x + o, r.y + g, r.x + o, r.y + r.h - g]);
-      if (sides.R && r.h > g * 2.5) out.push([r.x + r.w - o, r.y + g, r.x + r.w - o, r.y + r.h - g]);
+      if (sides.T) out.push([r.x + mw, r.y + o, r.x + r.w - mw, r.y + o]);
+      if (sides.B) out.push([r.x + mw, r.y + r.h - o, r.x + r.w - mw, r.y + r.h - o]);
+      if (sides.L) out.push([r.x + o, r.y + mh, r.x + o, r.y + r.h - mh]);
+      if (sides.R) out.push([r.x + r.w - o, r.y + mh, r.x + r.w - o, r.y + r.h - mh]);
     }
     return out.map(([x1, y1, x2, y2]) => `<line class="edge-mark" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#000" stroke-width="${sw.toFixed(1)}" stroke-linecap="butt"/>`).join('');
   };
