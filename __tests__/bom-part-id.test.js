@@ -383,10 +383,10 @@ describe('엣지밴딩 — edges/edgeLen/edgeT/edgeCode + 요약 edgeBanding', (
 
   test('행 필드: 측판·밴드·천판·도어·뒷판', () => {
     const rows = extractRows({ items: [clone(FIXTURES.sink15)] });
-    const side = oneRow(rows, '상부장-상부장(1D)', '측판');       // 295×720 3면
-    expect(side.edge).toBe('3면');
-    expect(side.edges).toEqual(sides(true, false, true, true));
-    expect(side.edgeLen).toBe(720 + 295 + 295);
+    const side = oneRow(rows, '상부장-상부장(1D)', '측판');       // 295×720 앞 1면 (2026-11-20 사장님 「측판의 엣지는 앞면 하나만」)
+    expect(side.edge).toBe('1면(세로)');
+    expect(side.edges).toEqual(sides(true, false, false, false));
+    expect(side.edgeLen).toBe(720);
     expect(side.edgeT).toBe(0.6);
     expect(side.edgeCode).toBeNull();
     const band = oneRow(rows, '상부장-상부장(1D)', '밴드(보강목)'); // 570×70 2면(장)

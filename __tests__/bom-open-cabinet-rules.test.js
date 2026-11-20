@@ -4,6 +4,8 @@
  *   W500 × H450 × D570 →
  *     측판 450×570 2장 · 천지판 464×550 2장 · 뒷판 450×464 1장   (사장님 표기: 세로×가로 섞임)
  *   이 파일은 저장소 관례대로 **가로×세로**로 확인한다 — 같은 판이다.
+ *   2026-11-20 사장님 「기본 모듈의 깊이는 모두 550 … 그러면 오픈장은 기본 570」 — 상자 깊이 = 몸통 깊이 + 20 (FRONT_PLUS).
+ *   그래서 이 예(측판 570 · 천지판 550)는 몸통 깊이 550 에서 나온다.
  */
 
 const R = require('../js/detaildesign/bom-open-cabinet-rules.js');
@@ -12,18 +14,20 @@ const R = require('../js/detaildesign/bom-open-cabinet-rules.js');
 const sig = (p) => `${p.w}×${p.h}×${p.qty}`;
 const by = (parts, name) => parts.find((p) => p.part === name);
 
-describe('오픈장 — 사장님 예시 (W500 H450 D570)', () => {
-  const parts = R.partsOf({ W: 500, H: 450, D: 570 });
+describe('오픈장 — 사장님 예시 (W500 H450, 몸통 D550 → 상자 570)', () => {
+  const parts = R.partsOf({ W: 500, H: 450, D: 550 });
 
   test('부재는 측판·천지판·뒷판 세 줄이다 (도어·선반 없음)', () => {
     expect(parts.map((p) => p.part)).toEqual(['측판', '천지판', '뒷판']);
   });
 
-  test('측판 = 깊이 × 높이, 2장', () => {
+  test('측판 = (몸통 깊이 + 20) × 높이, 2장 — 측판 엣지 4면 (2026-11-20)', () => {
+    expect(R.RULES.FRONT_PLUS).toBe(20);
+    expect(by(parts, '측판').edge).toBe('4면');
     expect(sig(by(parts, '측판'))).toBe('570×450×2');
   });
 
-  test('천지판 = (W−36) × (D−20), 2장', () => {
+  test('천지판 = (W−36) × 몸통 깊이, 2장 (상자 깊이 − 뒷판 자리 20)', () => {
     expect(sig(by(parts, '천지판'))).toBe('464×550×2');
   });
 
@@ -44,7 +48,8 @@ describe('오픈장 — 규칙 자체', () => {
   test('두께 18 · 뒷판 자리 20 — 천지판이 깊이에서 물러난 만큼이 뒷판(18) + 여유(2)', () => {
     expect(R.RULES.T).toBe(18);
     expect(R.RULES.BACK_GAP).toBe(20);
-    const g = R.innerOf({ W: 500, H: 450, D: 570 });
+    const g = R.innerOf({ W: 500, H: 450, D: 550 });
+    expect([g.D, g.bodyD]).toEqual([570, 550]);
     expect(g.innerD + g.backT).toBe(568);   // 570 − 2 (여유)
   });
 
@@ -66,15 +71,16 @@ describe('오픈장 — 규칙 자체', () => {
     expect(R.warningsOf({ W: 30, H: 450, D: 570 }).join()).toMatch(/좁아/);
   });
 
-  test('깊이가 뒷판 자리보다 얕으면 경고한다', () => {
-    expect(R.warningsOf({ W: 500, H: 450, D: 15 }).join()).toMatch(/얕아/);
+  test('깊이가 뒷판 자리보다 얕으면 경고한다 (18T 상자는 + 20 이라 몸통 깊이가 있으면 늘 남는다 — 빌트인 오븐장으로)', () => {
+    expect(R.warningsOf({ W: 500, H: 450, D: 15, builtinOven: true }).join()).toMatch(/얕아/);
+    expect(R.warningsOf({ W: 500, H: 450, D: 15 }).join()).not.toMatch(/얕아/);
   });
 });
 
 describe('가전 칸 (전자레인지) — 2026-10-25 사장님: 오픈장 내경 ≥ 가전 외경 + 20', () => {
   const R = require('../js/detaildesign/bom-open-cabinet-rules.js');
-  // 키큰장 가운데 단 가전 칸 600 × 500 × 620 — 내경 564 × 464 × 600
-  const niche = { W: 600, H: 500, D: 620 };
+  // 가전 칸 600 × 500, 몸통 깊이 600 → 상자 620 — 내경 564 × 464 × 600
+  const niche = { W: 600, H: 500, D: 600 };
   test('여유가 20 이상이면 경고 없음 (딱 20 도 된다)', () => {
     expect(R.RULES.APPLIANCE_CLEARANCE).toBe(20);
     expect(R.applianceWarningsOf(niche, { W: 544, H: 444, D: 580 }, '전자레인지')).toEqual([]);

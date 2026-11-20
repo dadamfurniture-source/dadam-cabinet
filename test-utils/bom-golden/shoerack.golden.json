@@ -8,7 +8,7 @@
       "w": 295,
       "h": 705,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-u1-body:side-0",
@@ -16,10 +16,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1295,
+      "edgeLen": 705,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-u1",
@@ -208,7 +208,7 @@
       "w": 295,
       "h": 705,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-u2-body:side-0",
@@ -216,10 +216,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1295,
+      "edgeLen": 705,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-u2",
@@ -383,7 +383,7 @@
       "w": 350,
       "h": 708,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "목찬넬 따내기 상단 70×40",
       "finishCode": "",
       "partId": "0-l1-body:side-0",
@@ -391,10 +391,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1408,
+      "edgeLen": 708,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-l1",
@@ -558,7 +558,7 @@
       "w": 350,
       "h": 708,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "목찬넬 따내기 상단 70×40 + 중간 90×40 ×1",
       "finishCode": "",
       "partId": "0-l2-body:side-0",
@@ -566,10 +566,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1408,
+      "edgeLen": 708,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-l2",
@@ -808,7 +808,7 @@
       "w": 350,
       "h": 708,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "목찬넬 따내기 상단 70×40",
       "finishCode": "",
       "partId": "0-l3-body:side-0",
@@ -816,10 +816,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1408,
+      "edgeLen": 708,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-l3",
@@ -1098,7 +1098,7 @@
   },
   "edgeBanding": {
     "1": 15072,
-    "0.6": 62298
+    "0.6": 55738
   },
   "hardware": [
     {
@@ -1211,12 +1211,12 @@
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",
-    "상부장-상부장,측판,PB,15,295,705,2,3면,sakuri(15→3mm)",
+    "상부장-상부장,측판,PB,15,295,705,2,1면(세로),sakuri(15→3mm)",
     "상부장-상부장,천판,PB,15,870,277,1,1면(전),"
   ],
   "cncHead": [
     "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
-    "측판,PB,15,295,705,2,1,0,1,1",
+    "측판,PB,15,295,705,2,1,0,0,0",
     "천판,PB,15,870,277,1,1,0,0,0"
   ],
   "hardwareCsvHead": [

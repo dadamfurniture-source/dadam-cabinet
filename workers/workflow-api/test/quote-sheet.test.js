@@ -174,26 +174,27 @@ test('고정비 회수: 몸통 PB 1장마다 31,500원을 원가에 더하고 �
 
 const cabinetLines = (items) => items.filter((i) => /^(몸통|뒷판|도어|시공)/.test(i.name));
 
-test('표준 싱크대(sink15) 기본 설정 — 몸통 소비자 123,900 · 업체 111,500, 캐비닛 · 시공 m당 약 20만 원(부가세 포함)', () => {
+// 2026-11-20 사장님 「측판의 엣지는 앞면 하나만」 — 몸통 측판 엣지가 3면 → 앞 1면이라 엣지 원가가 줄어 몸통 값이 123,900 → 122,700 (업체 111,500 → 110,400)
+test('표준 싱크대(sink15) 기본 설정 — 몸통 소비자 122,700 · 업체 110,400, 캐비닛 · 시공 m당 약 20만 원(부가세 포함)', () => {
   const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
   const body = (items) => items.find((i) => i.name.startsWith('몸통'));
-  assert.equal(body(q.items).unit_price, 123900);
-  assert.equal(body(q.partner.items).unit_price, 111500);
+  assert.equal(body(q.items).unit_price, 122700);
+  assert.equal(body(q.partner.items).unit_price, 110400);
   // 캐비닛(몸통 + 뒷판 + 도어 + 시공) 소비자 공급가 ÷ 시공 7.6m × 1.1
   const cabinet = cabinetLines(q.items).reduce((s, i) => s + i.total, 0);
-  assert.equal(cabinet, 1381320);
-  assert.equal(Math.round((cabinet * 1.1) / 7.6), 199928);
-  assert.equal(q.subtotal, 2538120);
-  assert.equal(q.partner.subtotal, 2284020);
+  assert.equal(cabinet, 1375080);
+  assert.equal(Math.round((cabinet * 1.1) / 7.6), 199025);
+  assert.equal(q.subtotal, 2531880);
+  assert.equal(q.partner.subtotal, 2278300);
 });
 
-test('엣지 1롤 100m · 고정비 회수 31,500 — 예전 기본(200m · 32,800)과 표준 싱크대 견적이 같다', () => {
+// 2026-11-18 에 표준 싱크대 견적이 예전 기본과 같게 고정비 회수를 31,500 으로 맞췄다. 2026-11-20 측판 엣지가 앞 1면으로 줄어 엣지 몫이 작아져
+//   두 설정의 견적이 더는 딱 같지 않다 (몸통 122,700 대 123,000) — 고정비 회수 값은 사장님 값이라 여기서 다시 맞추지 않는다.
+test('엣지 1롤 100m · 고정비 회수 31,500 — 예전 기본(200m · 32,800)보다 엣지 원가 두 배 · 고정비 회수는 그만큼 적다', () => {
   assert.equal(DEFAULT_QUOTE.edgeRollMeters, 100);
   const now = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
   const old = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { edgeRollMeters: 200, fixedPerPbSheet: 32800 } } });
-  assert.deepEqual(now.items, old.items);
-  assert.deepEqual(now.partner.items, old.partner.items);
-  assert.equal(now.subtotal, old.subtotal);
+  assert.ok(Math.abs(now.subtotal - old.subtotal) / old.subtotal < 0.005, `${now.subtotal} vs ${old.subtotal}`);
   // 엣지 원가는 두 배 (m당 82.5 → 165원), 고정비 회수가 그만큼 준다
   assert.ok(Math.abs(now.cost.body.edge - old.cost.body.edge * 2) <= 1, `${now.cost.body.edge} vs ${old.cost.body.edge}`);
   assert.ok(now.cost.body.fixed < old.cost.body.fixed);

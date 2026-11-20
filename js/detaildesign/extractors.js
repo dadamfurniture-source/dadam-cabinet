@@ -1193,6 +1193,9 @@
           sides.T = sides.B = true;
         } else if (e.indexOf('2면') === 0) {
           if (tall) { sides.L = sides.R = true; } else { sides.T = sides.B = true; }
+        } else if (e.indexOf('1면(세로)') === 0) {
+          // 측판 앞변 — 높이 방향 변 하나 (판이 높든 낮든 L). 2026-11-20 사장님 「측판의 엣지는 앞면 하나만 바르면되. 천지판이 들어가는 부분은 안발라도 됨」
+          sides.L = true;
         } else if (e.indexOf('1면') === 0) {
           if (tall) sides.L = true; else sides.B = true;
         }
@@ -1836,7 +1839,7 @@
         addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind, standBack, braceCut, topPanel, braceOff) {
           const notchH = DrawerRules ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
           const carcass = (label, h, note, brace, cut) => {
-            this.add(materials, label, '측판', 'PB', T, modD, h, 2, '3면', note);
+            this.add(materials, label, '측판', 'PB', T, modD, h, 2, '1면(세로)', note);
             this.add(materials, label, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             if (topPanel) {
               // 2026-10-30 사장님 「지금 짜임에서 밴드만 천판으로」: 상판 밑이 아닌 몸통(키큰장 가운데 · 위 단)은 밴드 2 대신 천판 — 지판과 같은 판
@@ -2327,7 +2330,7 @@
          */
         addRiceCarcassParts(materials, name, dims, T) {
           const { W, H, D } = dims;
-          this.add(materials, name, '측판', 'PB', T, D, H, 2, '3면');
+          this.add(materials, name, '측판', 'PB', T, D, H, 2, '1면(세로)');
           this.add(materials, name, '지판', 'PB', T, W - T * 2, D, 1, '1면(전)');
           this.add(materials, name, '천판', 'PB', T, W - T * 2, D, 1, '1면(전)');
           this.addBackPanel(materials, name, W, H, false);
@@ -2338,7 +2341,7 @@
         /** EL장 몸통 — PB 측판(사쿠리)·천판·지판 + 뒷판, 도어 없음 (extractFridge 'el' 가지 그대로). sideNote 는 측판 비고에 덧붙인다. */
         addElParts(materials, name, dims, T, sideNote) {
           const { W, H, D } = dims;
-          this.add(materials, name, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)' + (sideNote ? ` · ${sideNote}` : ''));
+          this.add(materials, name, '측판', 'PB', T, D, H, 2, '1면(세로)', 'sakuri(15→3mm)' + (sideNote ? ` · ${sideNote}` : ''));
           this.add(materials, name, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
           this.add(materials, name, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
           this.addBackPanel(materials, name, W, H, true);
@@ -2519,7 +2522,7 @@
          * @param {{door:string, shelf:string}} notes 기본값으로 정한 행의 비고
          */
         addSimpleSakuriBox(materials, modLabel, mod, W, H, modD, T, rules, overlap, notes) {
-          this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', 'sakuri(15→3mm)');
+          this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '1면(세로)', 'sakuri(15→3mm)');
           this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
           this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
           this.addBackPanel(materials, modLabel, W, H, true);
@@ -2575,7 +2578,7 @@
             const modLabel = `${prefix}상부장-${name}`;
 
             // 측판 2개 (사쿠리홈)
-            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', 'sakuri(15→3mm)');
+            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '1면(세로)', 'sakuri(15→3mm)');
             // 천판 (사쿠리 반영 D-18)
             this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
             // 지판 (사쿠리 반영 D-18)
@@ -2893,7 +2896,7 @@
               dlog(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, upperH=${upperH}, lowerH=${lowerH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
 
               // --- 상부장 ---
-              this.add(materials, `${name}-상부장`, '측판', 'PB', T, modD, upperH, 2, '3면', 'sakuri(15→3mm)');
+              this.add(materials, `${name}-상부장`, '측판', 'PB', T, modD, upperH, 2, '1면(세로)', 'sakuri(15→3mm)');
               this.add(materials, `${name}-상부장`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.add(materials, `${name}-상부장`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${name}-상부장`, W, upperH, true);
@@ -2903,7 +2906,7 @@
               }
 
               // --- 하부장 ---
-              this.add(materials, `${name}-하부장`, '측판', 'PB', T, modD, lowerH, 2, '3면');
+              this.add(materials, `${name}-하부장`, '측판', 'PB', T, modD, lowerH, 2, '1면(세로)');
               this.add(materials, `${name}-하부장`, '천판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
               this.add(materials, `${name}-하부장`, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
               this.addBackPanel(materials, `${name}-하부장`, W, lowerH, false);
@@ -2923,7 +2926,7 @@
                   // 2026-10-20 사장님 카드 "싱크처럼 따냄": 측판 앞선에 목찬넬 따내기 — 상단 70×40, 서랍 사이 90×40 (2단은 서랍마다 위, 그 밖은 assignChannels)
                   const extMids = drawerCount === 2 ? 1 : DrawerRules.assignChannels(Math.min(drawerCount, 3)).filter(Boolean).length;
                   const extNotch = ` · ${DrawerRules.notchNote({ midCount: extMids })}`;
-                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', `sakuri(15→3mm)${extNotch}`);
+                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '1면(세로)', `sakuri(15→3mm)${extNotch}`);
                   // 2026-10-20 사장님 카드 "천판 빼기": 서랍모듈은 싱크처럼 천판 없이 밴드만 — 위는 위 몸통 지판이 막고, 앞 위는 상단 목찬넬 ㄴ자 자리
                   this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
@@ -2945,7 +2948,7 @@
                   this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}`, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, W - 30 - 13, 449, drawerCount, '-');
                   this.add(materials, `${name}`, '내부서랍 상판', 'PB', T, W - 30, 520, 1, '1면(전)');
-                  this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '3면');
+                  this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '1면(세로)');
                   this.add(materials, `${name}`, '내부서랍 지판', 'PB', T, W - 30 - 120, 500, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 밴드', 'PB', T, W - 30 - 120, ASM.BAND_W, 2, '2면(장)');
                   if (!innerRows.length) {
@@ -2998,7 +3001,7 @@
 
               dlog(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, H=${modH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
 
-              this.add(materials, `${name}`, '측판', 'PB', T, modD, modH, 2, '3면', 'sakuri(15→3mm)');
+              this.add(materials, `${name}`, '측판', 'PB', T, modD, modH, 2, '1면(세로)', 'sakuri(15→3mm)');
               this.add(materials, `${name}`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.add(materials, `${name}`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${name}`, W, modH, true);
@@ -3017,7 +3020,7 @@
                   // 2026-10-20 사장님 카드 "싱크처럼 따냄": 측판 앞선에 목찬넬 따내기 — 상단 70×40, 서랍 사이 90×40 (2단은 서랍마다 위, 그 밖은 assignChannels)
                   const extMids = drawerCount === 2 ? 1 : DrawerRules.assignChannels(Math.min(drawerCount, 3)).filter(Boolean).length;
                   const extNotch = ` · ${DrawerRules.notchNote({ midCount: extMids })}`;
-                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', `sakuri(15→3mm)${extNotch}`);
+                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '1면(세로)', `sakuri(15→3mm)${extNotch}`);
                   // 2026-10-20 사장님 카드 "천판 빼기": 서랍모듈은 싱크처럼 천판 없이 밴드만 — 위는 위 몸통 지판이 막고, 앞 위는 상단 목찬넬 ㄴ자 자리
                   this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
@@ -3039,7 +3042,7 @@
                   this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}`, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, W - 30 - 13, 449, drawerCount, '-');
                   this.add(materials, `${name}`, '내부서랍 상판', 'PB', T, W - 30, 520, 1, '1면(전)');
-                  this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '3면');
+                  this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '1면(세로)');
                   this.add(materials, `${name}`, '내부서랍 지판', 'PB', T, W - 30 - 120, 500, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 밴드', 'PB', T, W - 30 - 120, ASM.BAND_W, 2, '2면(장)');
                   if (!innerRows.length) {
@@ -3224,7 +3227,7 @@
             // 키큰장 (tall) — PB 구조
             const pf = prefix; // 같은 카테고리 복수 아이템 구분용
             if (modType === 'tall') {
-              this.add(materials, `${pf}키큰장`, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)');
+              this.add(materials, `${pf}키큰장`, '측판', 'PB', T, D, H, 2, '1면(세로)', 'sakuri(15→3mm)');
               this.add(materials, `${pf}키큰장`, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.add(materials, `${pf}키큰장`, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${pf}키큰장`, W, H, true);
@@ -3241,7 +3244,7 @@
             }
             // 상부장 (upper) — PB 구조
             else if (modType === 'upper') {
-              this.add(materials, `${pf}냉장고상부장`, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)');
+              this.add(materials, `${pf}냉장고상부장`, '측판', 'PB', T, D, H, 2, '1면(세로)', 'sakuri(15→3mm)');
               this.add(materials, `${pf}냉장고상부장`, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.add(materials, `${pf}냉장고상부장`, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${pf}냉장고상부장`, W, H, true);
@@ -3256,7 +3259,7 @@
             }
             // 하부장 (lower) — PB 구조
             else if (modType === 'lower') {
-              this.add(materials, `${pf}냉장고하부장`, '측판', 'PB', T, D, H, 2, '3면');
+              this.add(materials, `${pf}냉장고하부장`, '측판', 'PB', T, D, H, 2, '1면(세로)');
               this.add(materials, `${pf}냉장고하부장`, '천판', 'PB', T, W - T * 2, D, 1, '1면(전)');
               this.add(materials, `${pf}냉장고하부장`, '지판', 'PB', T, W - T * 2, D, 1, '1면(전)');
               this.addBackPanel(materials, `${pf}냉장고하부장`, W, H, false);

@@ -611,14 +611,15 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
       .toEqual(['0-oc1', '0-oc1', '0-oc1'].concat(Array(9).fill('0-rc1')));
   });
 
-  test('오픈장 — 측판 깊이 전체, 천지판 측판 사이 앞선 맞춤, 뒷판 측판 사이 뒤끝 맞춤 몸통 높이 전체', () => {
-    const m = mod('oc1');
+  test('오픈장 — 상자 깊이 = 몸통 + 20 (2026-11-20 「오픈장은 기본 570」): 뒤끝 = 몸통 뒤끝, 앞으로 20 · 천지판 앞선 맞춤 · 뒷판 측판 사이 뒤끝', () => {
+    const m = mod('oc1');   // 몸통 깊이 570 (픽스처) → 상자 590
     expect(m.kind).toBe('open');
-    expect(m.box).toEqual({ W: 500, H: 450, D: 570, T: 18 });
-    expect(box(m, '측판', 0)).toEqual({ min: [-250, 0, -285], max: [-232, 450, 285] });
-    expect(box(m, '측판', 1)).toEqual({ min: [232, 0, -285], max: [250, 450, 285] });
-    expect(box(m, '천지판', 0)).toEqual({ min: [-232, 0, -265], max: [232, 18, 285] });
-    expect(box(m, '천지판', 1)).toEqual({ min: [-232, 432, -265], max: [232, 450, 285] });
+    expect(m.box).toEqual({ W: 500, H: 450, D: 590, T: 18 });
+    expect(m.frontPlus).toBe(20);
+    expect(box(m, '측판', 0)).toEqual({ min: [-250, 0, -285], max: [-232, 450, 305] });
+    expect(box(m, '측판', 1)).toEqual({ min: [232, 0, -285], max: [250, 450, 305] });
+    expect(box(m, '천지판', 0)).toEqual({ min: [-232, 0, -265], max: [232, 18, 305] });
+    expect(box(m, '천지판', 1)).toEqual({ min: [-232, 432, -265], max: [232, 450, 305] });
     expect(box(m, '뒷판', 0)).toEqual({ min: [-232, 0, -285], max: [232, 450, -267] });
   });
 

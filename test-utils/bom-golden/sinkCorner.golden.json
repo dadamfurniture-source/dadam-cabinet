@@ -8,7 +8,7 @@
       "w": 295,
       "h": 720,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-corner-blind-upper-body:side-0",
@@ -16,10 +16,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1310,
+      "edgeLen": 720,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-corner-blind-upper",
@@ -283,7 +283,7 @@
       "w": 295,
       "h": 720,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-uc1-body:side-0",
@@ -291,10 +291,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1310,
+      "edgeLen": 720,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-uc1",
@@ -458,7 +458,7 @@
       "w": 650,
       "h": 708,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "",
       "finishCode": "",
       "partId": "0-corner-blind-lower-body:side-0",
@@ -466,10 +466,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2008,
+      "edgeLen": 708,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-corner-blind-lower",
@@ -708,7 +708,7 @@
       "w": 650,
       "h": 708,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "",
       "finishCode": "",
       "partId": "0-lc1-body:side-0",
@@ -716,10 +716,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2008,
+      "edgeLen": 708,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-lc1",
@@ -858,7 +858,7 @@
       "w": 650,
       "h": 708,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "",
       "finishCode": "",
       "partId": "0-lc2-body:side-0",
@@ -866,10 +866,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2008,
+      "edgeLen": 708,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-lc2",
@@ -1154,7 +1154,7 @@
   },
   "edgeBanding": {
     "1": 14110,
-    "0.6": 58929
+    "0.6": 48769
   },
   "hardware": [
     {
@@ -1286,12 +1286,12 @@
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",
-    "상부장-LT망장,측판,PB,15,295,720,2,3면,sakuri(15→3mm)",
+    "상부장-LT망장,측판,PB,15,295,720,2,1면(세로),sakuri(15→3mm)",
     "상부장-LT망장,천판,PB,15,760,277,1,1면(전),"
   ],
   "cncHead": [
     "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
-    "측판,PB,15,295,720,2,1,0,1,1",
+    "측판,PB,15,295,720,2,1,0,0,0",
     "천판,PB,15,760,277,1,1,0,0,0"
   ],
   "hardwareCsvHead": [

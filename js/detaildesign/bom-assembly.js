@@ -1302,7 +1302,13 @@
     const backH = bi ? bi.backH : H, backY = bi ? bi.backY : 0;
     if (side.qty !== 2 || (!split && tb.qty !== 2) || tb.thickness !== T || tb.h >= D
       || back.qty !== 1 || back.thickness !== T || back.w !== tb.w || back.h !== backH) return null;
-    const zBack = -D / 2, zFront = D / 2;
+    // 2026-11-20 사장님 「오픈장은 기본 570」 — 오픈 · 밥솥 상자는 몸통 깊이 + 20 (이웃 도어 자리, bom-open-cabinet-rules FRONT_PLUS).
+    //   뒤끝은 몸통 뒤끝 그대로(뒤는 띄운다), 앞으로 20 나온다 — 측판 길이가 몸통 깊이(mod.d) + 20 일 때만. 홈카페장 · 빌트인 오븐장 · 옛 행은 예전처럼 가운데
+    const bodyD = parseFloat(mod.d);
+    const FP = OpenRules && OpenRules.RULES && OpenRules.RULES.FRONT_PLUS;
+    const plus = !homecafe && !bi && FP && bodyD > 0 && Math.abs(D - bodyD - FP) < 0.5 ? FP : 0;
+    const zBack = -(D - plus) / 2, zFront = zBack + D;
+    const zBodyFront = zFront - plus;   // 몸통 앞선 — 상몰딩 · 밥솥장 위 목대 · 좌대가 이웃 장과 같은 자리
     const parts = [], unplaced = [];
     const hcShelves = [];   // 홈카페장 선반 — 아래에서 구조 자리(opts.shelfY) 순으로
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
@@ -1336,12 +1342,12 @@
       }
       if (/^pedestal:/.test(key.family) || key.family === 'kick') return;   // 아래에서 좌대 상자를 한꺼번에
       if (RICE_SHELF_FAMILIES.includes(key.family)) return;                 // 아래에서 밥솥장 슬라이딩 선반을 한꺼번에
-      if (key.family === 'rice:top-batten') { if (!placeRiceTopBattens(parts, row, { W, H, zFront, zBack })) skip(row, 'rice-top-batten-layout-unknown'); return; }
+      if (key.family === 'rice:top-batten') { if (!placeRiceTopBattens(parts, row, { W, H, zFront: zBodyFront, zBack })) skip(row, 'rice-top-batten-layout-unknown'); return; }
       if (key.family === 'molding') {
         // 2026-10-24 (키큰장 조합): 키큰장 맨 위 단을 상자로 바꿔도 상몰딩은 그 단이 낸다 — 몸통 단과 같은 자리
         //   (몸통 위 y H…H+몰딩H, 앞면 = 도어 앞면 z D/2+18, 뒷면 = 몸통 앞선 — shellOf 'molding')
         if (row.qty !== 1 || row.h !== W) { skip(row, 'molding-layout-unknown'); return; }
-        parts.push(makePart(row, 0, { o: [-W / 2, H, zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { molding: true }));
+        parts.push(makePart(row, 0, { o: [-W / 2, H, zBodyFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { molding: true }));
         return;
       }
       skip(row, 'not-yet');
@@ -1350,7 +1356,7 @@
     //   (sink.md §5.1 · 2026-10-20 카드 "뒤 맞춤": 상자 뒷면 = 몸통 뒷면, 앞 50 들어간 자리에 걸레받이 18T)
     const ped = keyed.filter((x) => x.key && /^pedestal:/.test(x.key.family));
     const kicks = keyed.filter((x) => x.key && x.key.family === 'kick');
-    const pd = ped.length ? placePedestal(parts, ped, W, D) : null;
+    const pd = ped.length ? placePedestal(parts, ped, W, D - plus) : null;
     if (ped.length && !pd) ped.forEach((x) => skip(x.row, 'pedestal-layout-unknown'));
     kicks.forEach(({ row }) => {
       if (!pd || row.qty !== 1 || row.h !== W || row.w !== pd.h) { skip(row, 'pedestal-layout-unknown'); return; }
@@ -1378,6 +1384,8 @@
         moduleId: String(mod.id),
         kind: homecafe ? 'homecafe' : 'open',
         box: { W, H, D, T },
+        // 상자가 몸통 앞으로 나온 길이 (2026-11-20 — 오픈 상자 + 20). 다리발 · 좌대는 몸통 깊이(D − frontPlus) 자리
+        ...(plus ? { frontPlus: plus } : {}),
         sakuri: false,
         place: (opts.place && opts.place[mk]) || null,
         parts,
@@ -1736,7 +1744,9 @@
           if (isTallTier(mod) || (m.kind !== 'lower' && !boxOnLegs(m, mod))) { push(m, { kind: 'leg', qty: n, at: null, pending: 'leg-tall-tier' }); return; }
           const b = m.box, half = C.LEG_SIZE / 2;
           const xs = [-b.W / 2 + C.LEG_INSET + half, b.W / 2 - C.LEG_INSET - half];
-          const zFront = b.D / 2 - C.KICK_SETBACK - C.KICK_T - half, zBack = -b.D / 2 + C.LEG_INSET + half;
+          // 오픈 상자는 몸통 앞으로 frontPlus 나와 있다 — 다리발은 몸통 깊이 자리 (이웃 하부장과 같은 줄, 2026-11-20)
+          const bodyD = b.D - (Number(m.frontPlus) || 0);
+          const zFront = bodyD / 2 - C.KICK_SETBACK - C.KICK_T - half, zBack = -bodyD / 2 + C.LEG_INSET + half;
           const leg = (x, z, tags) => push(m, { kind: 'leg', at: [x, -legH, z], size: [C.LEG_SIZE, legH, C.LEG_SIZE], tags });
           [[xs[0], zFront, 'leftFront'], [xs[0], zBack, 'leftBack'], [xs[1], zFront, 'rightFront'], [xs[1], zBack, 'rightBack']]
             .forEach(([x, z, side]) => leg(x, z, { side }));

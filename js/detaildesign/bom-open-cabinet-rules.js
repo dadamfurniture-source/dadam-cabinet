@@ -13,6 +13,15 @@
  *   뒷판   = (W − 2×18) × H        1장   ← 2.7T 가림판이 아니라 **18T 통판**이다
  *
  * 천지판이 깊이에서 20 짧은 자리에 18T 뒷판이 선다 (18 + 여유 2).
+ *
+ * ── 몸통 깊이 + 20 (2026-11-20 사장님) ───────────────────────────
+ * 「특수한 경우를 제외하고는 기본 모듈의 깊이는 모두 550 … 그러면 오픈장은 기본 570이 되고, 뒷판은 MDF 18T 통판으로 들어감」 ·
+ * 질문 창 「상부도 같은 식 — 측판 315 · 천지판 295」 · 「밥솥장도 같이」.
+ * 오픈 상자는 도어가 없어 이웃 장의 도어 자리 20 을 채운다 — 상자 깊이 = 몸통 깊이 D + FRONT_PLUS(20), 앞면이 이웃 도어 자리 끝과 맞는다.
+ *   측판   = (D + 20) × H  2장 · 천지판 = (W − 36) × D 2장 · 뒷판 그대로 (위 식의 D 자리에 D + 20).
+ *   예) 몸통 550 → 측판 570 · 천지판 550 (위 2026-09-19 예와 같은 판), 상부 295 → 315 · 295.
+ * 빌트인 오븐장(PB 15T)은 그대로다 (말씀에 없다 — 오븐 문이 앞에 온다).
+ * 엣지 (같은 날 「오픈장 측판은 4면 뒷판은 천지판이 닿는 각면(총 2면)」): 측판 4면 · 뒷판 2면(가로) · 천지판 그대로.
  * 측판은 깊이 전체를 덮으므로 뒷판은 측판 **사이**에 들어간다 — 그래서 가로가 W − 2×18 이다.
  *
  * 예 (W500 × H450 × D570):
@@ -55,7 +64,8 @@
     BACK_GAP: 20,                 // 천지판이 깊이에서 물러나는 값 (18T 뒷판 + 여유 2)
     // 엣지는 냉장고장 홈카페장(= 같은 "오픈장 규칙")과 같은 면을 쓴다. 오픈장은 앞이 트여 있어
     // 확정이 필요하면 여기만 고치면 BOM·도면이 함께 따라온다.
-    EDGE: Object.freeze({ side: '3면', topBottom: '2면(가로)', back: '2면(가로)' }),
+    EDGE: Object.freeze({ side: '4면', topBottom: '2면(가로)', back: '2면(가로)' }),   // 측판 4면 — 2026-11-20 사장님
+    FRONT_PLUS: 20,               // 상자 깊이 = 몸통 D + 20 (이웃 도어 자리 — 2026-11-20 사장님 「오픈장은 기본 570」)
     // 2026-10-25 사장님: 가전 칸(전자레인지) — DB 에 저장된 가전 외경 + 20 이 오픈장 내경의 최솟값이면 된다. 그 이상은 크게 관계없다.
     //   같은 날 검토 페이지 답 "제조사가 적은 여유가 있으면 그 값" — 모델에 설치 여유(위 · 옆 · 뒤)가 있으면 그 치수는 그 값 (applianceWarningsOf)
     APPLIANCE_CLEARANCE: 20,
@@ -97,8 +107,8 @@
   /** 상자 판 — 빌트인 오븐장이면 PB 15T, 아니면 18T MDF */
   function specOf(o) {
     return isBuiltinOven(o)
-      ? { label: BI.LABEL, material: BI.MATERIAL, T: BI.T, backGap: BI.BACK_GAP }
-      : { label: R.LABEL, material: R.MATERIAL, T: R.T, backGap: R.BACK_GAP };
+      ? { label: BI.LABEL, material: BI.MATERIAL, T: BI.T, backGap: BI.BACK_GAP, frontPlus: 0 }
+      : { label: R.LABEL, material: R.MATERIAL, T: R.T, backGap: R.BACK_GAP, frontPlus: R.FRONT_PLUS };
   }
 
   /**
@@ -107,11 +117,13 @@
    * @param o {W,H,D, builtinOven?}
    */
   function innerOf(o) {
-    const W = dim(o && o.W), H = dim(o && o.H), D = dim(o && o.D);
+    const W = dim(o && o.W), H = dim(o && o.H), bodyD = dim(o && o.D);
     const s = specOf(o);
+    // 상자 깊이 = 몸통 깊이 + 20 (2026-11-20, 빌트인 오븐장은 + 0). 몸통 깊이가 없으면 0 그대로
+    const D = bodyD ? bodyD + s.frontPlus : 0;
     const backH = isBuiltinOven(o) ? Math.floor(H * BI.BACK_H_RATIO) : H;
     return {
-      W, H, D,
+      W, H, D, bodyD,
       T: s.T,
       innerW: Math.max(0, W - 2 * s.T),          // 측판 사이
       innerH: Math.max(0, H - 2 * s.T),          // 천판·지판 사이
