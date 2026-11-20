@@ -1058,6 +1058,21 @@ function flatMaterialTable(ctx, rows) {
  * 배치와 자재표가 어긋나면(옛 스냅샷, 손으로 고친 행) 부재가 재단 종이에서 조용히 빠지지 않게 따로 싣는다.
  * 반환: [{ row, index, missing: [k…] }] (순수, 시험용으로 노출)
  */
+/**
+ * 재고 밴드 조각 (재단 배치 bandStock — 2026-11-20 소부품 「빼기」) — [{ color, no(본 번호), used, pieces [{ partId, part, len }] }] 를 본 차례로.
+ *   없으면 빈 배열 (옛 배치 · 더하기 팩토리)
+ */
+export function bandCutsOf(plan) {
+  const bs = plan && plan.bandStock && typeof plan.bandStock === 'object' ? plan.bandStock : null;
+  if (!bs || !Array.isArray(bs.groups)) return [];
+  const out = [];
+  bs.groups.forEach((g) => (g && Array.isArray(g.cuts) ? g.cuts : []).forEach((c, i) => {
+    if (!c || !Array.isArray(c.pieces)) return;
+    out.push({ color: g.color == null ? '' : String(g.color), no: Number(c.no) || i + 1, used: Number(c.used) || 0, pieces: c.pieces.filter((p) => p && typeof p.partId === 'string') });
+  }));
+  return out;
+}
+
 export function uncoveredInHouse(materials, plan, proc = DEFAULT_PROCESSING) {
   if (!plan || !Array.isArray(plan.sheets)) return [];
   const covered = new Set();
@@ -1069,6 +1084,8 @@ export function uncoveredInHouse(materials, plan, proc = DEFAULT_PROCESSING) {
     const q = qtyOf(sp);
     for (let k = 0; k < q; k++) covered.add(`${sp.partId}#${k}`);
   }
+  // 재고 밴드에서 꺼내는 조각 — 배치에 있는 것으로 본다
+  for (const c of bandCutsOf(plan)) for (const p of c.pieces) covered.add(String(p.partId));
   const out = [];
   materials.forEach((row, index) => {
     if (rowRouteOf(row, proc) !== 'in') return;
@@ -1220,6 +1237,18 @@ function cutSheets(ctx, { vendor = false } = {}) {
     ${counts.doorSheets.map((s) => cutSheetBlock(ctx, s, labelNo, { reference: true })).join('')}
   </div>`
     : '';
+  // 재고 밴드에서 꺼낼 것 (2026-11-20 소부품 「빼기」 — 사장님 「빼기는 밴드 재고 운영, 60*2440의 밴드」) — 색마다 본 수, 본마다 자를 길이 · 라벨 번호.
+  //   사내에서 쓰는 부재만 (그 행의 가공 구분대로). 외주처 종이에는 없다
+  const bandStock = !vendor && plan.bandStock && typeof plan.bandStock === 'object' ? plan.bandStock : null;
+  const bandCuts = bandStock ? bandCutsOf(plan).map((c) => ({ ...c, pieces: c.pieces.filter((p) => { const m = rowOfPiece(ctx, p); return m ? routeOf(ctx, m) === 'in' : true; }) })).filter((c) => c.pieces.length) : [];
+  const bandColors = [...new Set(bandCuts.map((c) => c.color))];
+  const bandBlock = bandCuts.length
+    ? `
+  <div class="sub-title">밴드 재고에서 꺼낼 것 <span class="muted">${esc(bandStock.material || '')} ${num(bandStock.thickness)}T · ${num(bandStock.width)} × ${num(bandStock.length)} 본 · ${bandColors.map((c) => `${esc(c || '색 없음')} ${num(bandCuts.filter((x) => x.color === c).length)}본`).join(' · ')} — 원장에서 켜지 않는다</span></div>
+  <table class="compact">${thead(['색', '본', '자를 것 (라벨 · 부품 · 길이)', '쓴 길이'], ['', 'num', '', 'num'])}<tbody>${bandCuts
+    .map((c) => tr([esc(c.color || '색 없음'), num(c.no), c.pieces.map((p) => `${pieceLabelText(ctx, [p.partId])} ${esc(p.part || '')} ${num(p.len)}`).join(' · '), num(c.used)], ['', 'num', '', 'num']))
+    .join('')}</tbody></table>`
+    : '';
   // 그 자재 · 두께 원장이 없는 소부품 · 미배치 — 맨 뒤에 한 번
   const loneSmall = smallRowsOf(smalls.filter((s) => !groups.some((g) => inGroup(g, s))));
   const loneUn = unRowsOf(unalloc.filter((u) => !groups.some((g) => inGroup(g, u))));
@@ -1233,7 +1262,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
   <div class="muted">굵은 실선 = 엣지 0.6 · 이중선 = 엣지 1.0 · 선 없음 = 엣지 없음 · 굵은 숫자 = 라벨 번호${ctx.labelOrder === 'cut' ? ' (재단 차례 — 원장 1 조각부터)' : ''}. 표의 변 길이는 부재 기준 (회전해도 같다).</div>
   ${doorNote}
   ${tabs}
-  ${vendor ? '' : orderChecksBlock(ctx, 'cut')}${groups.map(groupBlock).join('')}${doorRef}
+  ${vendor ? '' : orderChecksBlock(ctx, 'cut')}${groups.map(groupBlock).join('')}${doorRef}${bandBlock}
   ${loneSmall ? smallTable(loneSmall) : ''}
   ${loneUn ? unTable(loneUn) : ''}
   ${outsourcedBlock}
@@ -1483,6 +1512,8 @@ export function cutOrderOf(units, plan) {
   };
   (plan.sheets || []).forEach((s) => (Array.isArray(s.parts) ? s.parts : []).forEach((p) => take(p.partId)));
   (Array.isArray(plan.smallParts) ? plan.smallParts : []).forEach((sp) => { for (let k = 0; k < qtyOf(sp); k++) take(`${sp.partId}#${k}`); });
+  // 재고 밴드 — 본 차례 · 본 안 차례 (원장 조각 다음)
+  bandCutsOf(plan).forEach((c) => c.pieces.forEach((p) => take(p.partId)));
   (Array.isArray(plan.unallocated) ? plan.unallocated : []).forEach((u) => (Array.isArray(u.partIds) ? u.partIds : []).forEach(take));
   units.forEach((u) => take(u.id));
   return out;
