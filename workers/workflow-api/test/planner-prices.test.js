@@ -13,8 +13,8 @@ import { ForbiddenError, ValidationError, clearHqCompanyCache } from '../src/sup
 import { clearAdminCache } from '../src/reports/admin.js';
 import fs from 'node:fs';
 import { PRICE_LINES_MAX, SETTINGS_EDGE_T, SETTINGS_TOP_MATERIAL, plannerColors, plannerCut, plannerPrices, priceLines, stockPricesOf } from '../src/planner-prices.js';
-import { COLOR_NAMES_MAX, COLOR_NAME_MAX, mergeSettings, sanitizeSettings, writeCompanySettings } from '../src/production/service.js';
-import { CUT_LIMITS, DEFAULT_CUT, DEFAULT_QUOTE } from '../src/production/standards.js';
+import { COLOR_NAMES_MAX, COLOR_NAME_MAX, bandOf, mergeSettings, sanitizeSettings, writeCompanySettings } from '../src/production/service.js';
+import { BAND_MODES, CUT_LIMITS, DEFAULT_BAND, DEFAULT_CUT, DEFAULT_QUOTE } from '../src/production/standards.js';
 import { HARDWARE_PRICE_KEYS, areaSheets, boardPriceKeyOf, hardwareCounts } from '../src/quote-sheet.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -291,7 +291,7 @@ test('색 목록 검증 — 아는 묶음(body · back)만, 이름 1 ~ 40자, 10
 test('재단기 설정 — 대표 · 실장이 생산 설정에 적고, 플래너 구성원 누구나 읽는다 (없으면 재단 엔진 기본값)', async () => {
   const db = makeDb();
   await withDb(db, async () => {
-    assert.deepEqual(await plannerCut(ENV, { user: u(STAFF) }), { company: { id: P1, name: '가나 팩토리' }, kerf: 4, trim: 10, updated_at: null });
+    assert.deepEqual(await plannerCut(ENV, { user: u(STAFF) }), { company: { id: P1, name: '가나 팩토리' }, kerf: 4, trim: 10, small: 'place', updated_at: null });   // 소부품 기본 = 더하기 (2026-11-20)
     await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { cut: { kerf: 4.4 } } });
     let r = await plannerCut(ENV, { user: u(STAFF) });
     assert.deepEqual([r.kerf, r.trim], [4.4, 10], '안 적은 칸은 기본값');
@@ -328,4 +328,43 @@ test('라우트 — POST /planner/prices · GET /planner/colors 는 로그인이
   const b = await worker.fetch(new Request('https://w.example/planner/colors'), ENV, { waitUntil() {} });
   const c = await worker.fetch(new Request('https://w.example/planner/cut'), ENV, { waitUntil() {} });
   assert.deepEqual([a.status, b.status, c.status], [401, 401, 401]);
+});
+
+// ── 소부품 더하기 · 빼기 · 밴드 재고 (2026-11-19 사장님 「소부품 더하기, 빼기로 구분 … 빼기는 밴드 재고 운영, 60*2440의 밴드를 18개 기본 재고로 만들고 8개가 남으면 새로운 밴드재고 만들기로 요청」) ──
+
+test('소부품 설정 — 기본은 더하기 · 60 × 2440 PB 15T · 18 · 8, 빼기로 고르면 플래너가 재고 밴드 칸을 받는다', async () => {
+  assert.deepEqual({ ...DEFAULT_BAND }, { mode: 'place', width: 60, length: 2440, material: 'PB', thickness: 15, base: 18, reorder: 8 });
+  assert.deepEqual(BAND_MODES, ['place', 'stock']);
+  const db = makeDb();
+  await withDb(db, async () => {
+    let r = await plannerCut(ENV, { user: u(STAFF) });
+    assert.equal(r.small, 'place');
+    assert.equal('bandStock' in r, false);
+    await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { band: { mode: 'stock' } } });
+    r = await plannerCut(ENV, { user: u(STAFF) });
+    assert.deepEqual([r.small, r.bandStock], ['stock', { width: 60, length: 2440, material: 'PB', thickness: 15 }]);
+    // 밴드 칸이 없는 화면이 저장해도 그대로 · 한 칸만 보내면 다른 칸은 저장된 값
+    await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { quote: { pbSheet: 31000 } } });
+    await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { band: { reorder: 6 } } });
+    const saved = await writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { cut: { kerf: 4 } } });
+    assert.deepEqual(saved.settings.band, { mode: 'stock', width: 60, length: 2440, material: 'PB', thickness: 15, base: 18, reorder: 6 });
+    // 요청 수는 만드는 수보다 작아야 — 저장된 만드는 수와 견준다
+    await assert.rejects(() => writeCompanySettings(ENV, { companyId: P1, user: u(OWNER), body: { band: { reorder: 18 } } }), ValidationError);
+    // 다른 팩토리는 기본 그대로
+    assert.equal((await plannerCut(ENV, { user: u(OTHER_OWNER) })).small, 'place');
+  });
+});
+
+test('소부품 설정 검증 — mode 는 place · stock, 수 칸은 범위 안 정수, 재질 · 두께는 받지 않는다', () => {
+  assert.deepEqual(sanitizeSettings({ band: { mode: 'stock', width: '60', length: 2440, base: 18, reorder: 8 } }), { band: { mode: 'stock', width: 60, length: 2440, base: 18, reorder: 8 } });
+  for (const bad of [{ mode: 'none' }, { width: 29 }, { width: 60.5 }, { length: 3001 }, { base: 0 }, { reorder: 100 }, { material: 'MDF' }, { thickness: 18 }, { base: 8, reorder: 8 }]) {
+    assert.throws(() => sanitizeSettings({ band: bad }), ValidationError, JSON.stringify(bad));
+  }
+  assert.throws(() => sanitizeSettings({ band: [] }), ValidationError);
+  assert.deepEqual(mergeSettings(null).band, { ...DEFAULT_BAND });
+  assert.deepEqual(mergeSettings({ band: { mode: 'x', width: 999, base: 10, reorder: 12 } }).band, { ...DEFAULT_BAND, base: 10, reorder: 8 }, '모르는 값은 기본 · 요청 수가 만드는 수 이상이면 기본(만드는 수 − 1 이하)');
+  assert.deepEqual(bandOf({ base: 5, reorder: 7 }), { ...DEFAULT_BAND, base: 5, reorder: 4 });
+  // 엔진의 소부품 모드와 같은 이름
+  const engine = fs.readFileSync(new URL('../../../js/detaildesign/nesting-engine.js', import.meta.url), 'utf8');
+  BAND_MODES.forEach((m) => assert.match(engine, new RegExp(`id: '${m}'`)));
 });
