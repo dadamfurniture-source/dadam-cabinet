@@ -221,47 +221,47 @@ describe('고르기 창 — 시공사례 · 테마, 최대 5장', () => {
       ['order', 'created_at', { ascending: false }],
       ['limit', 300],
     ]);
-    // DB 사례(kitchen) 하나 + AI 연출 사진(kitchen) 9장 = 10장 (한 쪽 12장 안). builtin · AI 연출컷 · id 이상한 줄은 없다
-    expect(tileIds()).toEqual(
-      ['c:' + uid(1)].concat(
-        statics([
-          'luxe-01',
-          'luxe-02',
-          'luxe-03',
-          'luxe-04',
-          'luxe-05',
-          'luxe-06',
-          'luxe-07',
-          'luxe-08',
-          'luxe-09',
-        ])
-      )
+    // DB 사례(kitchen) 하나 + AI 연출 사진(kitchen) — 한 쪽 12장, 「더 보기」로 나머지. builtin · AI 연출컷 · id 이상한 줄은 없다
+    const kitchen = M.CASE_STATIC.filter((r) => r.category === 'kitchen').map(
+      (r) => 's:' + r.image_url.replace(/^.*\//, '').replace(/\.jpg$/, '')
     );
-    expect(inSheet('[data-pick-hint]').textContent).toBe('싱크대 사례 10 / 10');
+    expect(kitchen.length).toBeGreaterThan(11);
+    const all = ['c:' + uid(1)].concat(kitchen);
+    expect(tileIds()).toEqual(all.slice(0, 12));
+    expect(inSheet('[data-pick-hint]').textContent).toBe(`싱크대 사례 12 / ${all.length}`);
     expect(tiles()[0].textContent).toBe('다담가구 · 서울 성수');
-    expect(tiles()[1].textContent).toBe('아일랜드 주방 · 매트 화이트 · 세이오크');
+    expect(tiles()[1].textContent).toBe(M.CASE_STATIC[0].label);
     // 정적 사진은 가벼운 사본으로 그린다
     expect(tiles()[1].querySelector('.mk-pick-img').getAttribute('style')).toContain(
-      '../app/portfolio/display/luxe-01.jpg'
+      '../app/portfolio/display/mix-01.jpg'
     );
+    // 더 보기 — 나머지
+    inSheet('[data-pick-more]').click();
+    expect(tileIds()).toEqual(all);
     expect(inSheet('[data-pick-more]').hidden).toBe(true);
   });
 
-  test('붙박이장 — builtin 사례만 (AI 연출 사진 셋 · DB 하나)', async () => {
+  test('붙박이장 — builtin 사례만 (AI 연출 사진 · DB 하나)', async () => {
     const { M } = await load();
     await choose();
     $('mkNext').click();
     document.querySelector('[data-kind="wardrobe"]').click();
     $('mkNext').click();
     await openPicker(M);
-    expect(tileIds()).toEqual(['c:' + uid(2), 's:luxe-10', 's:luxe-11', 's:luxe-12']);
+    expect(tileIds()).toEqual(
+      ['c:' + uid(2)].concat(
+        M.CASE_STATIC.filter((r) => r.category === 'builtin')
+          .map((r) => 's:' + r.image_url.replace(/^.*\//, '').replace(/\.jpg$/, ''))
+          .slice(0, 11)
+      )
+    );
     expect(tiles()[0].textContent).toBe('다담가구');
   });
 
   test('시공사례를 못 읽으면 AI 연출 사진만 — 창을 다시 열면 다시 읽는다', async () => {
     const { M, calls } = await toRefs({ postsError: true });
     await openPicker(M);
-    expect(tileIds()[0]).toBe('s:luxe-01');
+    expect(tileIds()[0]).toBe('s:mix-01');
     sheet().querySelector('.sg-sheet-x').click();
     await settled();
     await openPicker(M);
@@ -457,17 +457,17 @@ describe('이 기기에 담기 — 로그인을 다녀와도 고른 참고 사�
     expect(first.M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Fmake.html');
     const saved = draft();
     expect(saved.step).toBe('refs');
-    expect(saved.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:luxe-01']);
+    expect(saved.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:mix-01']);
     expect(Object.keys(saved.refs[0]).sort()).toEqual(['id', 'label', 'src']);
     expect(window.fetch).not.toHaveBeenCalled();
 
     const back = await load({ session: SESSION, draft: saved });
     expect(visible($('mkRefsTitle'))).toBe(true);
-    expect(back.M.state.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:luxe-01']);
+    expect(back.M.state.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:mix-01']);
     expect($('mkRefCount').textContent).toBe('2 / 5');
     expect($('mkRefs').querySelectorAll('.mk-ref')).toHaveLength(2);
     expect($('mkRefs').querySelectorAll('.mk-ref-img')[1].getAttribute('style')).toContain(
-      'display/luxe-01.jpg'
+      'display/mix-01.jpg'
     );
   });
 
@@ -590,14 +590,19 @@ describe('정본과 같은 값', () => {
     const app = Function(
       `return ${read('segan/collection.js').match(/var STATIC = (\[[\s\S]*?\]);/)[1]}`
     )();
-    expect(app).toHaveLength(15);
+    expect(app).toHaveLength(36);
     expect(M.CASE_STATIC.map((r) => [r.image_url, r.label])).toEqual(
       app.map((r) => [r.image_url, r.place + ' · ' + r.color])
     );
-    expect(M.CASE_STATIC.map((r) => [r.image_url, r.category])).toEqual(
+    const byFile = Object.fromEntries(manifest.photos.map((p) => [p.file, p]));
+    expect(M.CASE_STATIC.map((r) => r.category)).toEqual(
+      M.CASE_STATIC.map((r) => byFile[r.image_url.replace(/^.*\//, '')].category)
+    );
+    expect(M.CASE_STATIC.map((r) => r.image_url.replace(/^.*\//, '')).sort()).toEqual(
       manifest.photos
-        .filter((p) => p.file !== 'luxe-hero.jpg')
-        .map((p) => ['../app/portfolio/' + p.file, p.category])
+        .map((p) => p.file)
+        .filter((f) => f !== 'luxe-hero.jpg')
+        .sort()
     );
     for (const r of M.CASE_STATIC) {
       const stem = r.image_url.replace(/^.*\//, '').replace(/\.jpg$/, '');

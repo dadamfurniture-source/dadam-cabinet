@@ -24,8 +24,8 @@ const COLS = 'id,image_url,place_label,door_color,company_id,like_count,source,c
 const uid = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
 
 /**
- * DB 줄 (최신순) — 0: 직접 올린 사진 · 장소 · 업체 있음, 1: AI 연출컷 · 업체 없음, 2: 직접 올린 사진 · 업체 없음,
- * 3: AI 연출컷 · 업체 있음, 그 뒤는 차례대로
+ * DB 줄 (최신순) — 모두 직접 올린 사진(탭은 AI 연출컷 source 'ai_render' 를 묻지 않는다, 2026-11-20).
+ * 0: 장소 · 색상 · 업체 있음, 1: 장소 · 색상 · 업체 없음, 2: 장소 · 색상 · 업체 없음, 3: 본사 업체, 그 뒤는 차례대로
  */
 function rows(n) {
   return Array.from({ length: n }, (_, i) => ({
@@ -35,7 +35,7 @@ function rows(n) {
     door_color: i === 1 ? '오크' : i === 0 ? '화이트' : '',
     company_id: i === 0 || i === 3 ? CO_P : null,
     like_count: i === 0 ? 4 : 0,
-    source: i % 4 === 1 || i === 3 ? 'ai_render' : 'upload',
+    source: 'upload',
     created_at: new Date(Date.UTC(2026, 10, 7, 12) - i * 60000).toISOString(),
   }));
 }
@@ -70,7 +70,11 @@ async function load(options = {}) {
       if (q.op !== 'select') return { data: null, error: { message: 'no writes' } };
       if (opts.postsFail) return { data: null, error: { message: 'permission denied' } };
       const lt = q.filters.find((f) => f[0] === 'lt');
-      const list = opts.db.filter((r) => !lt || r.created_at < lt[2]).slice(0, q.limit);
+      const neq = q.filters.filter((f) => f[0] === 'neq');
+      const list = opts.db
+        .filter((r) => !lt || r.created_at < lt[2])
+        .filter((r) => neq.every((f) => r[f[1]] !== f[2]))
+        .slice(0, q.limit);
       return { data: list, error: null };
     }
     if (q.table === 'collection_likes') {
@@ -133,6 +137,10 @@ async function load(options = {}) {
               },
               lt: (col, v) => {
                 q.filters.push(['lt', col, v]);
+                return chain;
+              },
+              neq: (col, v) => {
+                q.filters.push(['neq', col, v]);
                 return chain;
               },
               in: (col, v) => {
@@ -210,23 +218,37 @@ afterEach(async () => {
 });
 
 describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC', () => {
-  test('정적 사례 = AI 연출 사진 15장 (app/portfolio/luxe-manifest.json) — 장소 대신 품목, 색상 = 예림 자재 이름', async () => {
+  test('정적 사례 = AI 연출 사진 36장 (app/portfolio/luxe-manifest.json, 첫 사진 빼고 모두) — 장소 대신 품목, 색상 = 예림 자재 이름, 밝은 사진과 다양한 사진을 섞은 차례', async () => {
     await load();
     const manifest = JSON.parse(read('app/portfolio/luxe-manifest.json'));
-    const expected = manifest.photos
-      .filter((p) => p.file !== 'luxe-hero.jpg')
-      .map((p) => ({
-        image_url: '../app/portfolio/' + p.file,
+    const byFile = Object.fromEntries(manifest.photos.map((p) => [p.file, p]));
+    const stat = window.SeganCollection.STATIC;
+    expect(stat).toHaveLength(36);
+    expect(stat.map((s) => s.image_url.replace(/^.*\//, '')).sort()).toEqual(
+      manifest.photos
+        .map((p) => p.file)
+        .filter((f) => f !== 'luxe-hero.jpg')
+        .sort()
+    );
+    for (const s of stat) {
+      const file = s.image_url.replace(/^.*\//, '');
+      const p = byFile[file];
+      expect(s).toEqual({
+        image_url: '../app/portfolio/' + file,
         place: p.kind,
         color: p.materials.map((m) => m.name).join(' · '),
-      }));
-    expect(expected).toHaveLength(15);
-    expect(window.SeganCollection.STATIC).toEqual(expected);
-    for (const s of expected) {
-      const file = s.image_url.replace(/^.*\//, '');
+      });
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio', file))).toBe(true);
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', file))).toBe(true);
     }
+    // 밝은 사진(luxe)이 한쪽에 몰리지 않는다 — 앞 12장에 둘 다 있다
+    const head = stat.slice(0, 12).map((s) => s.image_url);
+    expect(head.some((u) => u.includes('/luxe-'))).toBe(true);
+    expect(head.some((u) => u.includes('/mix-'))).toBe(true);
+    // 품목이 고루 — 주방 · 붙박이장 · 수납장 · 화장대 · 서재
+    expect(new Set(manifest.photos.map((p) => p.category))).toEqual(
+      new Set(['kitchen', 'builtin', 'storage', 'interior', 'other'])
+    );
   });
 
   test('공개 칸만 읽는다 — user_id · storage_path · design_id · region · 학습 동의는 묻지 않는다', async () => {
@@ -237,7 +259,8 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
     expect(q.cols).not.toMatch(/user_id|storage_path|design_id|generation_id|region|consent|\*/);
     expect(q.order).toEqual(['created_at', { ascending: false }]);
     expect(q.limit).toBe(24);
-    expect(q.filters).toEqual([]);
+    // AI 연출컷은 시공사례에 두지 않는다 (2026-11-20 대표님)
+    expect(q.filters).toEqual([['neq', 'source', 'ai_render']]);
     expect(tiles()).toHaveLength(24);
     expect(tiles()[0].querySelector('img').getAttribute('src')).toContain('p0.jpg');
     expect($('clMore').hidden).toBe(false);
@@ -270,12 +293,18 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
     const calls = await load();
     await moreAll();
     const q = of(calls, 'collection_posts');
-    expect(q.map((x) => x.filters)).toEqual([[], [['lt', 'created_at', rows(30)[23].created_at]]]);
-    expect(tiles()).toHaveLength(45); // DB 30 + STATIC 15
+    expect(q.map((x) => x.filters)).toEqual([
+      [['neq', 'source', 'ai_render']],
+      [
+        ['neq', 'source', 'ai_render'],
+        ['lt', 'created_at', rows(30)[23].created_at],
+      ],
+    ]);
+    expect(tiles()).toHaveLength(66); // DB 30 + STATIC 36
     expect(tiles()[29].querySelector('img').getAttribute('src')).toContain('p29.jpg');
     // 정적 사진 타일은 가벼운 사본 (app/portfolio/display/)
     expect(tiles()[30].querySelector('img').getAttribute('src')).toBe(
-      '../app/portfolio/display/luxe-01.jpg'
+      '../app/portfolio/display/mix-01.jpg'
     );
     expect($('clState').textContent).toBe('마지막 사례입니다');
     expect($('clMore').hidden).toBe(true);
@@ -287,10 +316,10 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
 
   test('못 읽으면(권한 · 오류) · 라이브러리가 없으면 정적 사례만', async () => {
     await load({ postsFail: true });
-    expect(tiles()).toHaveLength(15);
+    expect(tiles()).toHaveLength(24); // 정적 36장 가운데 첫 쪽
     await load({ noSupabase: true });
-    expect(tiles()).toHaveLength(15);
-    expect(window.SeganCollection.state.posts).toHaveLength(15);
+    expect(tiles()).toHaveLength(24);
+    expect(window.SeganCollection.state.posts).toHaveLength(36);
   });
 });
 
@@ -344,12 +373,14 @@ describe('칸 — 폰 3칸 · PC 4칸 · 이미지는 늦게 받기', () => {
     expect(img.getAttribute('draggable')).toBe('false');
   });
 
-  test('AI 연출컷 타일 — 귀퉁이 「AI」 · 이름 「AI 연출컷」 (실제 시공 사진으로 오해하지 않게)', async () => {
-    await load();
-    expect(tiles()[1].classList.contains('cl-tile--ai')).toBe(true);
-    expect(tiles()[1].querySelector('.cl-mark').textContent).toBe('AI');
-    expect(tiles()[1].getAttribute('aria-label')).toBe('AI 연출컷 · 싱크대 크게 보기');
-    expect(tiles()[0].querySelector('.cl-mark')).toBeNull();
+  test('AI 연출컷은 시공사례에 없다 — source ai_render 는 묻지 않고, 들어와도 「AI」 칸이 없다', async () => {
+    const db = rows(6).map((r, i) => (i === 1 ? { ...r, source: 'ai_render' } : r));
+    const calls = await load({ db });
+    expect(of(calls, 'collection_posts')[0].filters).toEqual([['neq', 'source', 'ai_render']]);
+    expect(tiles().some((t) => t.querySelector('img').getAttribute('src').includes('p1.jpg'))).toBe(
+      false
+    );
+    expect(document.querySelector('.cl-mark')).toBeNull();
   });
 });
 
@@ -388,18 +419,15 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     expect(window.location.hash).toBe('');
   });
 
-  test('업체 글 — 업체 이름 · 업체 없는 AI 연출컷은 「AI 연출컷」 · 업체 없는 직접 올린 사진은 줄 없음 (다담가구를 붙이지 않는다)', async () => {
+  test('업체 글 — 업체 이름 · 본사는 「다담가구」 · 업체 없는 직접 올린 사진은 업체 줄 없음', async () => {
     await load();
-    await openTile(1); // AI 연출컷 · 업체 없음
-    expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('AI 연출컷');
+    await openTile(1); // 직접 올린 사진 · 장소 · 색상 · 업체 없음
+    expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
     expect(facts()).toEqual([
       ['장소', '싱크대'],
       ['색상', '오크'],
-      ['업체', 'AI 연출컷'],
     ]);
-    await openTile(3); // AI 연출컷 · 업체 있음 — 업체 이름, 제목은 AI 연출컷
-    expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('AI 연출컷');
-    // 본사 업체(DB 이름 「다담 공장」)는 고객에게 「다담가구」
+    await openTile(3); // 본사 업체(DB 이름 「다담 공장」)는 고객에게 「다담가구」
     expect(facts()).toContainEqual(['업체', '다담가구']);
     await openTile(2); // 직접 올린 사진 · 업체 없음 · 장소 없음 · 색상 없음 — 줄이 없다
     expect(sheet().querySelector('.pv-facts')).toBeNull();
@@ -411,29 +439,29 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     await moreAll();
     await openTile(30);
     expect(facts()).toEqual([
-      ['장소', '아일랜드 주방'],
-      ['색상', '매트 화이트 · 세이오크'],
+      ['장소', '일자형 주방'],
+      ['색상', '매트 딥그린 · 카카오월넛'],
       ['업체', 'AI 연출'],
     ]);
     expect(sheet().querySelector('.pv-photo img').getAttribute('src')).toBe(
-      '../app/portfolio/luxe-01.jpg'
+      '../app/portfolio/mix-01.jpg'
     );
     expect(likeBtn()).toBeNull();
   });
 
-  test('「이 스타일로 연출컷」 — 직접 올린 사진 make.html?ref=<id> · 자체 시공 make.html?ref=<파일 이름> · AI 연출컷은 없음', async () => {
+  test('「이 스타일로 연출컷」 — 직접 올린 사진 make.html?ref=<id> · AI 연출 사진 make.html?ref=<파일 이름> · AI 연출컷은 없음', async () => {
     await load();
     const make = () => sheet().querySelector('a.pv-make');
     await openTile(0);
     expect(make().getAttribute('href')).toBe('make.html?ref=' + uid(0));
     expect(make().textContent).toBe('이 스타일로 연출컷');
     await openTile(1);
-    expect(make()).toBeNull();
-    await openTile(3);
-    expect(make()).toBeNull();
+    expect(make().getAttribute('href')).toBe('make.html?ref=' + uid(1));
     await moreAll();
-    await openTile(44);
-    expect(make().getAttribute('href')).toBe('make.html?ref=luxe-15');
+    await openTile(65);
+    expect(make().getAttribute('href')).toBe('make.html?ref=mix-21');
+    // AI 연출컷(다른 화면에서 여는 경우)은 단추가 없다
+    expect(window.SeganPostView.refHref({ id: uid(9), source: 'ai_render' })).toBe('');
     // 만들기가 받는 모양 (segan/make.js takeLinkRefs · STATIC_STEM_RE · UUID_RE)
     const V = window.SeganPostView;
     expect(V.refHref({ id: 'not-a-uuid', source: 'upload' })).toBe('');
