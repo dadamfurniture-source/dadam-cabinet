@@ -5,46 +5,55 @@
      앱의 다른 화면은 v5 그대로(각진 모서리 · 그림자 없음 · 가는 선) — 이 파일 밖으로 가져가지 않는다.
      나무 · 빛 · 표지 종이 색은 바로 아래 --bk-* 에만 적는다 (그 밖의 색은 segan/shell.css 의 v5 토큰).
 
-   모습   선반 한 줄. 칸(.bk-cell)마다 책 하나 — 위에서 빛이 내려오고(.bk-glow) 책은 선반 턱 위에 선다.
-          책 아래에 분류 · 제목 · 한 줄 소개 · 읽는 시간. 남는 폭은 불 켜진 빈 칸으로 이어진다.
+   모습   선반 한 줄. 칸(.bk-cell)마다 책 하나 — 칸은 조명 든 나무 칸 사진 한 장(magazine/niche.*)이고
+          책은 그 바닥 위에 선다. 책 아래에 분류 · 제목 · 읽는 시간. 남는 폭은 같은 칸 사진이 빈 칸으로 이어진다.
+   표지   위 = 호수 · 「MAGAZINE · 분류」, 가운데 = 사진(magazine/cover-<글 이름>.*), 아래 = 영문 제호.
+          글자는 사진이 아니라 글이다. 사진이 없어도 종이 색 위에 같은 글이 보인다.
    끌기   폰은 브라우저 옆 스크롤(scroll-snap). 마우스 끌기 · 기울기 · 들어오기는 segan/blog.js.
    움직임 transform(translate · scale · rotate) · opacity 만. 멈춘 모습이 곧 최종 모습 (CLAUDE.md 모션 규칙).
    ============================================================ */
 
 :root {
-  --bk-wood: #c59664; /* 뒤판 */
-  --bk-wood-light: #dcb07e; /* 선반 턱 윗면 · 빛 받은 곳 */
-  --bk-wood-deep: #96673f; /* 틀 · 칸막이 */
-  --bk-wood-dark: #6f4a2c; /* 틀의 그늘진 면 */
+  --bk-wood: #c59664; /* 칸 사진이 실리기 전 바탕 */
+  --bk-wood-deep: #96673f;
   --bk-glow-rgb: 255, 226, 172; /* 칸 조명 */
-  --bk-shade-rgb: 52, 32, 16; /* 책 그늘 */
-  --bk-rail: #e6c79b; /* 책 앞 가는 봉 */
-  /* 표지 종이 · 글자 — 그림이 없을 때도 책으로 보인다 */
+  --bk-shade-rgb: 52, 32, 16; /* 책 그늘 · 어두운 사진 위 글자 밑 */
+  --bk-veil-rgb: 255, 250, 240; /* 밝은 사진 위 글자 밑 */
+  /* 표지 종이 · 글자 — 사진이 없을 때도 책으로 보인다. 글자 색은 그 표지 사진의 위 · 아래 밝기에 맞춘다 */
   --bk-paper-materials: #ece5d6;
   --bk-ink-materials: #2d2a26;
-  --bk-paper-edge-finish: #5d6b5a;
-  --bk-ink-edge-finish: #f3eee4;
+  --bk-paper-edge-finish: #cfd6c6;
+  --bk-ink-edge-finish: #2d2a26;
   --bk-paper-hardware: #0b2545;
   --bk-ink-hardware: #f3eee4;
   --bk-paper-kitchen-appliances: #a5674b;
   --bk-ink-kitchen-appliances: #f6efe4;
 
   --bk-cell: clamp(150px, 44vw, 208px); /* 칸 폭 — 폰에서 두 권 + 다음 책 조금 */
-  --bk-h: calc(var(--bk-cell) * 1.24); /* 칸 높이 */
-  --bk-lip: 10px; /* 선반 턱 */
-  --bk-frame: 8px; /* 틀 두께 */
+  --bk-h: calc(var(--bk-cell) * 1.25); /* 칸 높이 — 칸 사진(480 × 600)의 비율 그대로 */
 }
 
-/* PC — 책 넷이 한 줄에 꼭 맞는다 (본문 폭 1040 − 좌우 여백 48 씩 − 틀 둘. 16px 은 세로 스크롤 막대 몫) */
+/* PC — 책 넷이 한 줄에 꼭 맞는다 (본문 폭 1040 − 좌우 여백 48 씩. 16px 은 세로 스크롤 막대 몫) */
 @media (min-width: 1024px) {
   :root {
-    --bk-cell: calc((min(100vw - 16px, 1040px) - 96px - 2 * var(--bk-frame)) / 4);
-    --bk-h: calc(var(--bk-cell) * 1.16);
+    --bk-cell: calc((min(100vw - 16px, 1040px) - 96px) / 4);
   }
 
   .sg-main.bk-main {
     max-width: 1040px;
   }
+}
+
+/* 조명 든 나무 칸 사진 — 칸 · 남는 폭 · 고무줄로 드러나는 자리가 같은 사진을 쓴다 */
+.bk-case,
+.bk-niche,
+.bk-shelf::after {
+  background-color: var(--bk-wood);
+  background-image: url('magazine/niche.jpg');
+  background-image: image-set(
+    url('magazine/niche.webp') type('image/webp'),
+    url('magazine/niche.jpg') type('image/jpeg')
+  );
 }
 
 /* ── 책장 ── */
@@ -54,8 +63,11 @@
   margin: 0 calc(env(safe-area-inset-right) - max(var(--sg-px), env(safe-area-inset-right))) 0
     calc(env(safe-area-inset-left) - max(var(--sg-px), env(safe-area-inset-left)));
   overflow: hidden; /* 끝을 넘겨 끌 때(고무줄) 밀려난 책장이 본문 밖으로 나가지 않게 */
-  /* 그때 드러나는 자리도 책장 뒤판이다 (칸 높이만큼만 — 책 아래 글 자리는 비운다) */
-  background: linear-gradient(var(--bk-wood), var(--bk-wood-deep)) 0 0 / 100% var(--bk-h) no-repeat;
+  /* 그때 드러나는 자리도 빈 칸이다 (칸 높이만큼만 — 책 아래 글 자리는 비운다) */
+  background-color: transparent;
+  background-position: 0 0;
+  background-size: var(--bk-cell) var(--bk-h);
+  background-repeat: repeat-x;
 }
 
 .bk-shelf {
@@ -88,25 +100,15 @@
   scroll-snap-align: start;
 }
 
-/* 남는 폭 — 불 켜진 빈 칸 (칸 폭마다 같은 그림을 되풀이한다) */
+/* 남는 폭 — 불 켜진 빈 칸 (칸 폭마다 같은 사진을 되풀이한다) */
 .bk-shelf::after {
   content: '';
   flex: 1 0 0;
   align-self: flex-start;
   height: var(--bk-h);
-  background:
-    linear-gradient(var(--bk-wood-deep), var(--bk-wood-dark)) 0 0 / 100% var(--bk-frame) no-repeat,
-    linear-gradient(var(--bk-wood-light), var(--bk-wood-deep)) 0 100% / 100% var(--bk-lip) no-repeat,
-    linear-gradient(90deg, transparent calc(100% - 6px), var(--bk-wood-deep) calc(100% - 6px)) 0 0 /
-      var(--bk-cell) 100% repeat-x,
-    radial-gradient(
-        ellipse 78% 62% at 50% 0%,
-        rgba(var(--bk-glow-rgb), 0.92),
-        rgba(var(--bk-glow-rgb), 0.32) 48%,
-        rgba(var(--bk-glow-rgb), 0) 76%
-      )
-      0 0 / var(--bk-cell) 100% repeat-x,
-    linear-gradient(var(--bk-wood), var(--bk-wood-deep));
+  background-position: 0 0;
+  background-size: var(--bk-cell) 100%;
+  background-repeat: repeat-x;
 }
 
 /* 책 하나 — 칸 전체가 링크 */
@@ -124,29 +126,27 @@
   outline-offset: -2px;
 }
 
-/* 칸 — 뒤판 · 틀 · 칸막이 · 선반 턱 */
+/* 칸 — 사진 한 장 (틀 · 옆벽 · 바닥 · 위에서 내려오는 빛이 사진에 들어 있다) */
 .bk-niche {
   position: relative;
   display: block;
   height: var(--bk-h);
   overflow: hidden;
-  background:
-    linear-gradient(var(--bk-wood-deep), var(--bk-wood-dark)) 0 0 / 100% var(--bk-frame) no-repeat,
-    linear-gradient(var(--bk-wood-light), var(--bk-wood-deep)) 0 100% / 100% var(--bk-lip) no-repeat,
-    linear-gradient(90deg, transparent calc(100% - 6px), var(--bk-wood-deep) calc(100% - 6px)),
-    linear-gradient(var(--bk-wood), var(--bk-wood-deep));
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
 }
 
-/* 칸 조명 — 위 틀 밑에서 내려온다. 책에 손이 가면 한 겹 더 밝아진다 (opacity 만) */
+/* 칸 조명 — 사진의 빛 위에 한 겹. 책에 손이 가면 한 겹 더 밝아진다 (opacity 만) */
 .bk-glow,
 .bk-glow::after {
   position: absolute;
-  inset: var(--bk-frame) 6px var(--bk-lip) 0;
+  inset: 6% 8% 12%;
   background: radial-gradient(
-    ellipse 78% 62% at 50% 0%,
-    rgba(var(--bk-glow-rgb), 0.92),
-    rgba(var(--bk-glow-rgb), 0.32) 48%,
-    rgba(var(--bk-glow-rgb), 0) 76%
+    ellipse 80% 60% at 50% 0%,
+    rgba(var(--bk-glow-rgb), 0.38),
+    rgba(var(--bk-glow-rgb), 0.12) 50%,
+    rgba(var(--bk-glow-rgb), 0) 78%
   );
   pointer-events: none;
 }
@@ -158,25 +158,13 @@
   transition: opacity var(--sg-spring-ms) var(--sg-spring);
 }
 
-/* 책 앞 가는 봉 — 책이 앞으로 쏟아지지 않게 잡는다 (사진의 그 봉). 표지 아래 여백을 지나간다 */
-.bk-niche::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 6px;
-  bottom: calc(var(--bk-lip) + var(--bk-cell) * 0.034);
-  height: 2px;
-  background: linear-gradient(var(--bk-rail), var(--bk-wood-deep));
-  pointer-events: none;
-}
-
-/* 책이 서는 자리 — 선반 턱 위 가운데. 들림 · 누름 · 기울기는 표지가 아니라 이 자리가 움직인다 */
+/* 책이 서는 자리 — 칸 바닥 위 가운데. 들림 · 누름 · 기울기는 표지가 아니라 이 자리가 움직인다 */
 .bk-stand {
   position: absolute;
   left: 50%;
-  bottom: var(--bk-lip);
-  width: 64%;
-  margin-left: -32%;
+  bottom: calc(var(--bk-h) * 0.07);
+  width: 60%;
+  margin-left: -30%;
   transform-origin: 50% 100%;
   rotate: var(--bk-lean);
   transition:
@@ -184,17 +172,17 @@
     scale var(--sg-spring-ms) var(--sg-spring);
 }
 
-/* 책 그늘 — 선반에 떨어진 그늘 (opacity · scale 만 움직인다) */
+/* 책 그늘 — 바닥에 떨어진 그늘 (opacity · scale 만 움직인다) */
 .bk-stand::before {
   content: '';
   position: absolute;
-  left: -8%;
-  right: -8%;
-  bottom: -5px;
-  height: 14px;
+  left: -10%;
+  right: -10%;
+  bottom: -6px;
+  height: 16px;
   background: radial-gradient(
     ellipse at 50% 50%,
-    rgba(var(--bk-shade-rgb), 0.5),
+    rgba(var(--bk-shade-rgb), 0.6),
     rgba(var(--bk-shade-rgb), 0) 70%
   );
   transition:
@@ -202,71 +190,51 @@
     scale var(--sg-spring-ms) var(--sg-spring);
 }
 
-/* ── 표지 — 영문 제호 · 그림(없으면 호수) · 분류. 글자는 그림이 아니라 글이다 ── */
+/* ── 표지 — 위: 호수 · 분류, 가운데: 사진, 아래: 영문 제호. 글자는 사진이 아니라 글이다 ── */
 .bk-cover {
   position: relative;
   display: flex;
   flex-direction: column;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  padding: 9% 9% 13%;
+  padding: 8% 9% 9%;
   background: var(--bk-paper, var(--v5-paper));
   color: var(--bk-ink, var(--v5-ink));
   box-shadow:
     0 1px 0 rgba(var(--bk-shade-rgb), 0.25),
-    0 6px 14px rgba(var(--bk-shade-rgb), 0.28);
+    0 6px 14px rgba(var(--bk-shade-rgb), 0.34);
   container-type: inline-size;
 }
 
 .bk-cover--materials {
   --bk-paper: var(--bk-paper-materials);
   --bk-ink: var(--bk-ink-materials);
+  --bk-scrim-rgb: var(--bk-veil-rgb);
 }
 
 .bk-cover--edge-finish {
   --bk-paper: var(--bk-paper-edge-finish);
   --bk-ink: var(--bk-ink-edge-finish);
+  --bk-scrim-rgb: var(--bk-veil-rgb);
 }
 
 .bk-cover--hardware {
   --bk-paper: var(--bk-paper-hardware);
   --bk-ink: var(--bk-ink-hardware);
+  --bk-scrim-rgb: var(--bk-shade-rgb);
 }
 
 .bk-cover--kitchen-appliances {
   --bk-paper: var(--bk-paper-kitchen-appliances);
   --bk-ink: var(--bk-ink-kitchen-appliances);
+  --bk-scrim-rgb: var(--bk-shade-rgb);
 }
 
-/* 책등 쪽 접힌 자국 — 종이책처럼 */
-.bk-cover::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 5%;
-  background: linear-gradient(
-    90deg,
-    rgba(var(--bk-shade-rgb), 0.22),
-    rgba(var(--bk-shade-rgb), 0) 80%
-  );
-  pointer-events: none;
-}
-
-.bk-mast {
-  position: relative;
-  z-index: 1;
-  font-family: var(--v5-display);
-  font-size: 15cqw;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: 0.1em;
-  white-space: nowrap;
-}
-
-/* 그림 — 제호 아래를 채운다. 없으면 이 자리에 호수가 크게 보인다 */
+/* 사진 — 표지를 꽉 채운다. 없으면(못 실으면) 종이 색이 그대로 보인다 */
 .bk-art {
   position: absolute;
   inset: 0;
+  display: block;
 }
 
 .bk-art img {
@@ -276,30 +244,76 @@
   object-fit: cover;
 }
 
+/* 글자 밑 — 위 · 아래만 옅게 덮어 글이 읽히게 (사진 가운데는 그대로) */
+.bk-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    rgba(var(--bk-scrim-rgb, var(--bk-shade-rgb)), 0.4),
+    rgba(var(--bk-scrim-rgb, var(--bk-shade-rgb)), 0) 30%,
+    rgba(var(--bk-scrim-rgb, var(--bk-shade-rgb)), 0) 64%,
+    rgba(var(--bk-scrim-rgb, var(--bk-shade-rgb)), 0.46)
+  );
+}
+
+/* 책등 쪽 접힌 자국 — 종이책처럼 */
+.bk-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 1;
+  width: 5%;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--bk-shade-rgb), 0.24),
+    rgba(var(--bk-shade-rgb), 0) 80%
+  );
+  pointer-events: none;
+}
+
+/* 위 — 호수와 분류를 한 줄에, 아래에 가는 선 */
+.bk-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4%;
+  padding: 0 0 5%;
+  border-bottom: 1px solid currentColor;
+}
+
 .bk-no {
-  margin: auto 0 0;
   font-family: var(--v5-display);
-  font-size: 46cqw;
-  font-weight: 400;
+  font-size: 17cqw;
+  font-weight: 500;
   font-variant-numeric: lining-nums;
   line-height: 0.9;
-  letter-spacing: -0.02em;
-  opacity: 0.9;
+  letter-spacing: -0.01em;
 }
 
 .bk-tag {
-  position: relative;
-  z-index: 1;
-  margin: 6% 0 0;
-  padding: 6% 0 0;
-  border-top: 1px solid currentColor;
-  font-size: 7.6cqw;
+  font-size: 6.8cqw;
   font-weight: 400;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   white-space: nowrap;
 }
 
-/* ── 책 아래 글 ── */
+/* 아래 — 영문 제호 */
+.bk-mast {
+  position: relative;
+  z-index: 1;
+  margin: auto 0 0;
+  font-family: var(--v5-display);
+  font-size: 15cqw;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* ── 책 아래 글 — 분류 · 제목 · 읽는 시간 ── */
 .bk-info {
   display: block;
   padding: 14px 16px 6px 14px;
@@ -321,18 +335,6 @@
   text-decoration: underline;
   text-decoration-color: transparent;
   text-underline-offset: 4px;
-}
-
-.bk-dek {
-  display: -webkit-box;
-  margin: 6px 0 0;
-  overflow: hidden;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--v5-ink-60);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
 }
 
 .bk-time {
@@ -425,30 +427,10 @@
   }
 }
 
-/* ── 태블릿 · PC — 책장이 본문 안에 놓이고 좌우에 틀이 선다 ── */
+/* ── 태블릿 · PC — 책장이 본문 안에 놓인다 ── */
 @media (min-width: 768px) {
   .bk-case {
     margin: 0;
-    padding: 0 var(--bk-frame);
-  }
-
-  .bk-case::before,
-  .bk-case::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    z-index: 1;
-    width: var(--bk-frame);
-    height: var(--bk-h);
-    background: linear-gradient(90deg, var(--bk-wood-deep), var(--bk-wood-dark));
-  }
-
-  .bk-case::before {
-    left: 0;
-  }
-
-  .bk-case::after {
-    right: 0;
   }
 
   .bk-info {
@@ -457,20 +439,6 @@
 
   .bk-title {
     font-size: 16px;
-  }
-
-  .bk-dek {
-    font-size: 13.5px;
-    -webkit-line-clamp: 4;
-    line-clamp: 4;
-  }
-
-  .bk-nav--prev {
-    left: calc(var(--bk-frame) + 12px);
-  }
-
-  .bk-nav--next {
-    right: calc(var(--bk-frame) + 12px);
   }
 }
 
