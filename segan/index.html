@@ -15,13 +15,13 @@
     <meta name="theme-color" content="#F6F3EE" />
     <title>SEGAN</title>
     <!-- 옛 만들기 주소(?g= · ?ref= · #result …)로 들어오면 그리기 전에 make.html 로 넘긴다 -->
-    <script src="forward.js?v=2026112014"></script>
+    <script src="forward.js?v=2026112015"></script>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112014" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112014" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112014" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112014" />
+    <link rel="icon" href="icons/icon.svg?v=2026112015" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112015" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112015" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112015" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -31,17 +31,17 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112014" />
-    <link rel="stylesheet" href="home.css?v=2026112014" />
+    <link rel="stylesheet" href="shell.css?v=2026112015" />
+    <link rel="stylesheet" href="home.css?v=2026112015" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112014"></script>
+    <script src="../js/config.js?v=2026112015"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112014"></script>
-    <script src="shell.js?v=2026112014" defer blocking="render"></script>
+    <script src="motion.js?v=2026112015"></script>
+    <script src="shell.js?v=2026112015" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112014" defer></script>
+    <script src="guide.js?v=2026112015" defer></script>
   </head>
   <body class="sg-app" data-tab="home">
     <div data-segan-shell="header"></div>
@@ -94,13 +94,14 @@
           <h2 id="hmWorksTitle">연출 사례</h2>
           <a href="collection.html">전체 보기</a>
         </div>
-        <!-- AI 연출 사진 여섯 장 (segan/collection.js STATIC 과 같은 사진 · 이름) — 누르면 시공사례 탭 -->
+        <!-- AI 연출 사진 여섯 장 (segan/collection.js STATIC 과 같은 사진 · 이름) — 누르면 시공사례 탭.
+             2026-11-20 대표님 「다양한 색상이 되도록 섞어줘」 — 장마다 다른 도어 색 (딥그린 · 마멀레이드 · 블랙 · 스카이브리즈 · 타우니레드 · 미드나잇블루) -->
         <div class="hm-works">
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/luxe-01.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/mix-01.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/luxe-01.jpg"
+                src="../app/portfolio/display/mix-01.jpg"
                 alt=""
                 width="1000"
                 height="747"
@@ -109,13 +110,13 @@
                 draggable="false"
               />
             </picture>
-            <span>아일랜드 주방 · 매트 화이트 · 세이오크</span>
+            <span>일자형 주방 · 매트 딥그린 · 카카오월넛</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/luxe-10.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/mix-16.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/luxe-10.jpg"
+                src="../app/portfolio/display/mix-16.jpg"
                 alt=""
                 width="1000"
                 height="747"
@@ -124,13 +125,13 @@
                 draggable="false"
               />
             </picture>
-            <span>안방 붙박이장 · 매트 캐시미어 · 세이오크</span>
+            <span>홈카페장 · 아크 마멀레이드 · 매트 아이보리</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/luxe-02.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/mix-02.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/luxe-02.jpg"
+                src="../app/portfolio/display/mix-02.jpg"
                 alt=""
                 width="1000"
                 height="747"
@@ -139,13 +140,13 @@
                 draggable="false"
               />
             </picture>
-            <span>일자형 주방 · 매트 아이보리 · 슈가엘름</span>
+            <span>아일랜드 주방 · 매트 블랙 · 카타니아 오크</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/luxe-13.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/mix-12.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/luxe-13.jpg"
+                src="../app/portfolio/display/mix-12.jpg"
                 alt=""
                 width="1000"
                 height="747"
@@ -154,13 +155,13 @@
                 draggable="false"
               />
             </picture>
-            <span>홈카페장 · 매트 밀크화이트 · 세이오크</span>
+            <span>아이방 붙박이장 · 매트 스카이브리즈 · 슈가엘름</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/luxe-04.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/mix-05.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/luxe-04.jpg"
+                src="../app/portfolio/display/mix-05.jpg"
                 alt=""
                 width="1000"
                 height="747"
@@ -169,13 +170,13 @@
                 draggable="false"
               />
             </picture>
-            <span>ㄷ자형 주방 · 매트 캐시미어 · 프렌치오크</span>
+            <span>대면형 주방 · 매트 타우니레드 · 매트 샌드그레이</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/luxe-11.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/mix-15.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/luxe-11.jpg"
+                src="../app/portfolio/display/mix-15.jpg"
                 alt=""
                 width="1000"
                 height="747"
@@ -184,7 +185,7 @@
                 draggable="false"
               />
             </picture>
-            <span>드레스룸 · 매트 화이트 · 프렌치오크</span>
+            <span>작은방 붙박이장 · 아크 미드나잇블루 · 카카오월넛</span>
           </a>
         </div>
         <p class="hm-in hm-note">AI 로 연출한 이미지입니다.</p>
