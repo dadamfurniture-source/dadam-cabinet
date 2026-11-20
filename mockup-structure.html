@@ -5939,6 +5939,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const base = section === 'lower'
       ? { W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D }
       : { W: cfg.w || NEW_MODULE.W, H: cfg.moduleH || NEW_MODULE.H, D: cfg.h || NEW_MODULE.D };
+    // 2026-11-20 사장님 「특수한 경우를 제외하고는 기본 모듈의 깊이는 모두 550」 — 키큰장 몸통도 하부장과 같은 550 (sink.md §5 「키큰장 기본 깊이 = 550mm」).
+    //   섹션 깊이 650 은 배치 공간 깊이일 뿐 — 남는 깊이는 seatModuleDepth 가 뒤로 보낸다 (앞선 맞춤 · 뒤 띄움)
+    if (section === 'tall') base.D = NEW_MODULE.D;
     // W12-39: **배치 공간이 제한 기준이다** — 높이는 영역에서 받는다.
     //   예전엔 섹션 기본값(하부장 850)을 써서, 영역이 870 이어도 모듈은 850 이었다.
     //   높이 모델은 그 안에서 나뉜다: 870 = 다리발 150 + 상판 12 + 몸통 708.
