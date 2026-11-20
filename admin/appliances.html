@@ -420,16 +420,12 @@
       const hasPhotoCols = () => currentRows.some((r) => Object.prototype.hasOwnProperty.call(r, 'image_source_url'));
 
       /**
-       * 행의 사진 동작 (2026-10-20 사장님 결정: 치수가 검증된 모델만 사진을 가져온다).
-       *   검증(verified = true) + 원본 주소 → 「사진 가져오기」(이미 가져왔으면 「사진 다시」) 버튼
-       *   미검증 + 원본 주소 → 버튼 대신 짧은 안내 — 구매처에 설치 도면 가이드를 요청해 검증한 뒤. 워커도 model_unverified 로 거절한다.
+       * 행의 사진 동작 — 원본 주소가 있으면 치수 검증과 상관없이 「사진 가져오기」(이미 가져왔으면 「사진 다시」) 버튼
+       *   (2026-10-20 「검증된 모델만」 → 2026-11-20 대표님 「미검증도 사진은 가져오기」).
        *   원본 주소 없음 → 없음. 다른 전역에 기대지 않는 순수 함수 (__tests__/appliance-photo-verified.test.js 가 그대로 꺼내 돌린다)
        */
       function photoActionHtml(r) {
         if (!r || !r.image_source_url) return '';
-        if (r.verified !== true) {
-          return '<span class="photo-hint">치수 미검증 — 구매처에 설치 도면 가이드를 요청해 검증한 뒤 가져올 수 있습니다</span>';
-        }
         return `<button class="photo-copy" data-id="${r.id}" title="제조사 사진을 우리 Storage 로 복사 (연출컷 참고 사진)">${r.image_path ? '사진 다시' : '사진 가져오기'}</button>`;
       }
 
@@ -738,12 +734,12 @@
 
       document.getElementById('f-category').addEventListener('change', toggleCutoutFields);
 
-      // ── 사진 일괄 가져오기 — 지금 보이는 행(검색 · 구분 필터 뒤) 중 검증된 모델에 원본만 있는 것을 하나씩 (미검증은 건너뛴다) ──
+      // ── 사진 일괄 가져오기 — 지금 보이는 행(검색 · 구분 필터 뒤) 중 원본만 있는 것을 하나씩 (치수 검증과 상관없이 — 2026-11-20) ──
       document.getElementById('photoBulkBtn').addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         const shown = new Set([...document.querySelectorAll('#tbody button.photo-copy')].map((b) => b.dataset.id));
-        const todo = currentRows.filter((r) => shown.has(r.id) && r.verified === true && r.image_source_url && !r.image_path);
-        if (!todo.length) { alert('가져올 사진이 없습니다 — 보이는 행 중 치수가 검증되고 원본 주소만 있고 아직 안 가져온 모델이 없습니다.\n(미검증 모델은 구매처에 설치 도면 가이드를 요청해 검증한 뒤 가져올 수 있습니다)'); return; }
+        const todo = currentRows.filter((r) => shown.has(r.id) && r.image_source_url && !r.image_path);
+        if (!todo.length) { alert('가져올 사진이 없습니다 — 보이는 행 중 원본 주소만 있고 아직 안 가져온 모델이 없습니다.'); return; }
         if (!confirm(`보이는 모델 ${todo.length}개의 제조사 사진을 우리 Storage 로 가져옵니다.\n(제조사 사진 사용 약관은 따로 확인해 주세요)`)) return;
         btn.disabled = true;
         const fails = [];
