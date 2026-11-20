@@ -708,17 +708,35 @@
           </div>
           <div class="form-group">
             <label>등급</label>
-            <select id="modalTier">
+            <select id="modalTier" onchange="renderFactoryBox()">
               <option value="standard">Standard</option>
               <option value="manager">Manager</option>
               <option value="expert">Expert</option>
               <option value="agent">Agent</option>
             </select>
           </div>
+          <!-- 팩토리 — Manager 이상 업무 기능(플래너 · 프로젝트 …)은 사람 등급이 아니라 팩토리 등급을 본다 (2026-11-20) -->
           <div
             class="form-group"
+            id="modalFactory"
+            hidden
             style="background: #f7f4ef; border: 1px solid rgba(45, 42, 38, 0.1); padding: 12px"
           >
+            <label>팩토리</label>
+            <div id="modalFactoryInfo" style="font-size: 0.85rem"></div>
+            <div id="modalFactoryForm" hidden>
+              <div style="font-size: 0.8rem; color: rgba(45, 42, 38, 0.62); margin: 4px 0 8px">
+                이 회원은 팩토리가 없습니다. 플래너 · 프로젝트는 팩토리 등급을 봅니다 — 저장하면 고른 등급으로 팩토리를
+                만들고 이 회원을 대표로 넣습니다.
+              </div>
+              <input type="text" id="modalFactoryName" maxlength="100" placeholder="팩토리 이름" />
+              <div style="display: flex; gap: 8px; margin-top: 8px">
+                <input type="text" id="modalFactorySido" maxlength="20" placeholder="시 · 도" />
+                <input type="text" id="modalFactoryGugun" maxlength="40" placeholder="시 · 군 · 구" />
+              </div>
+            </div>
+          </div>
+          <div class="form-group" style="background: #f7f4ef; border: 1px solid rgba(45, 42, 38, 0.1); padding: 12px">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600">
               <input type="checkbox" id="modalDetailDesignApproved" style="width: auto" />
               <span>상세설계(CAD/BOM) 사용 승인</span>
@@ -1075,6 +1093,134 @@
 
         document.getElementById('userModal').classList.add('active');
         loadBilling(userId);
+        loadFactory(user);
+      }
+
+      // ── 팩토리 (회원 상세) ──
+      // 플래너 · 프로젝트 · 작업지시서 같은 업무 기능은 profiles.tier 가 아니라 팩토리(companies.plan)를 본다.
+      // 여기서 등급만 Manager 이상으로 올리면 팩토리가 없어 플래너가 막혔다 (2026-11-20 대표님).
+      // 그래서 Manager 이상으로 저장할 때 팩토리가 없으면 「팩토리 신청」 화면의 「팩토리로 만들기」와 같은 길
+      // (account-api POST /admin/partner/companies)로 같은 등급의 팩토리를 만든다. 팩토리 등급(companies.plan)이
+      // 생기면 DB 트리거(company_tier_sync)가 회원 등급을 맞춘다.
+      const FACTORY_PLANS = ['manager', 'expert', 'agent'];
+      const PLAN_NAME = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
+      const COMPANY_STATUS = { active: '이용 중', suspended: '정지', closed: '닫힘' };
+      // factoryOf = undefined(읽는 중) · null(대표인 팩토리 없음) · { error } · 팩토리
+      let factoryOf;
+      let factoryUserId = null;
+
+      function accountApiBase() {
+        return (window.DADAM_CONFIG && window.DADAM_CONFIG.accountApi && window.DADAM_CONFIG.accountApi.url) || '';
+      }
+
+      /** 계정 서버 — 실패면 서버의 한국어 문장을 담은 Error (code · status 도) */
+      async function accountApi(path, opts) {
+        const base = accountApiBase();
+        if (!base) throw new Error('계정 서버(accountApi.url)가 설정되지 않았습니다.');
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        const token = session && session.access_token;
+        if (!token) throw new Error('로그인이 필요합니다.');
+        const o = opts || {};
+        const res = await fetch(base + path, {
+          method: o.method || 'GET',
+          headers: Object.assign(
+            { Authorization: `Bearer ${token}` },
+            o.body ? { 'Content-Type': 'application/json' } : {}
+          ),
+          body: o.body ? JSON.stringify(o.body) : undefined,
+        });
+        let body = null;
+        try {
+          body = await res.json();
+        } catch (e) {
+          body = null;
+        }
+        if (!res.ok || !body || !body.success) {
+          const err = new Error((body && (body.error || body.message)) || `요청 실패 (${res.status})`);
+          err.code = body && body.code;
+          err.status = res.status;
+          throw err;
+        }
+        return body.data;
+      }
+
+      /** 이 회원이 대표인 협력업체 — 관리자 업체 목록의 대표 이메일로 찾는다 (직원 · 본사 구성원은 저장 때 409 로 안다) */
+      async function loadFactory(user) {
+        factoryOf = undefined;
+        factoryUserId = user.id;
+        for (const id of ['modalFactoryName', 'modalFactorySido', 'modalFactoryGugun'])
+          document.getElementById(id).value = '';
+        renderFactoryBox();
+        let found;
+        try {
+          const list = await accountApi('/admin/partner/companies');
+          const email = String(user.email || '').toLowerCase();
+          found = (email && (list || []).find((c) => String(c.owner_email || '').toLowerCase() === email)) || null;
+        } catch (e) {
+          found = { error: e.message };
+        }
+        if (factoryUserId !== user.id) return; // 그사이 다른 회원을 열었다
+        factoryOf = found;
+        renderFactoryBox();
+      }
+
+      /** 등급 칸에 맞춰 팩토리 칸을 그린다 — Standard 면 감춘다 */
+      function renderFactoryBox() {
+        const box = document.getElementById('modalFactory');
+        const info = document.getElementById('modalFactoryInfo');
+        const form = document.getElementById('modalFactoryForm');
+        if (!box) return;
+        const tier = document.getElementById('modalTier').value;
+        box.hidden = !FACTORY_PLANS.includes(tier);
+        form.hidden = true;
+        if (box.hidden) return;
+        if (factoryOf === undefined) {
+          info.textContent = '팩토리를 확인하는 중…';
+          return;
+        }
+        if (factoryOf && factoryOf.error) {
+          info.textContent = '팩토리를 읽지 못했습니다: ' + factoryOf.error;
+          return;
+        }
+        if (factoryOf) {
+          const plan = PLAN_NAME[factoryOf.plan] || factoryOf.plan || '-';
+          let t = `「${factoryOf.name}」 대표 · 팩토리 등급 ${plan} · ${COMPANY_STATUS[factoryOf.status] || factoryOf.status}`;
+          if (factoryOf.plan !== tier)
+            t += ` — 플래너 · 프로젝트는 팩토리 등급(${plan})을 따릅니다. 팩토리 등급은 결제 · 「팩토리 신청」에서 바뀝니다.`;
+          info.textContent = t;
+          return;
+        }
+        info.textContent = '';
+        form.hidden = false;
+        const user = usersData.find((u) => u.id === selectedUserId) || {};
+        const fill = (id, v) => {
+          const el = document.getElementById(id);
+          if (!el.value) el.value = v || '';
+        };
+        fill('modalFactoryName', user.company_name || user.name);
+        fill('modalFactorySido', user.sido);
+        fill('modalFactoryGugun', user.gugun);
+      }
+
+      /** 저장 때 만들 팩토리 — 팩토리 칸 입력이 보이지 않으면 null. 칸이 비면 Error */
+      function factoryToCreate(tier) {
+        if (!FACTORY_PLANS.includes(tier)) return null;
+        if (document.getElementById('modalFactoryForm').hidden) return null;
+        const v = (id) => document.getElementById(id).value.trim();
+        const body = {
+          user_id: selectedUserId,
+          name: v('modalFactoryName'),
+          plan: tier,
+          sido: v('modalFactorySido'),
+          gugun: v('modalFactoryGugun'),
+        };
+        if (!body.name || !body.sido || !body.gugun)
+          throw new Error(
+            '팩토리 이름 · 시·도 · 시·군·구를 넣어 주세요. 플래너 · 프로젝트는 팩토리가 있어야 열립니다.'
+          );
+        return body;
       }
 
       // ── 구독 · 결제 (회원 상세) ──
@@ -1291,17 +1437,53 @@ ${user.email}`
           payload.detaildesign_approved_by = approveDD ? currentUser.id : null;
         }
 
+        // Manager 이상인데 팩토리가 없으면 같은 등급의 팩토리를 먼저 만든다 (위 「팩토리 (회원 상세)」)
+        let factory;
+        try {
+          factory = factoryToCreate(effectiveTier);
+        } catch (e) {
+          alert(e.message);
+          return;
+        }
+        let created = null;
+        let factoryNote = '';
+        if (factory) {
+          try {
+            created = (await accountApi('/admin/partner/companies', { method: 'POST', body: factory })).company;
+          } catch (e) {
+            if (e.code !== 'already_member') {
+              alert('팩토리를 만들지 못했습니다: ' + e.message + '\n회원 정보는 바꾸지 않았습니다.');
+              return;
+            }
+            factoryNote =
+              '\n이미 다른 팩토리(또는 본사)의 구성원이라 팩토리는 만들지 않았습니다 — 플래너 · 프로젝트는 그 팩토리 등급을 따릅니다.';
+          }
+        }
+        // 팩토리를 만들었으면 등급은 트리거가 팩토리 등급(tier_source company)으로 맞췄다 — 손으로 덮지 않는다
+        if (created) {
+          delete payload.tier;
+          delete payload.tier_source;
+        }
+
         try {
           const { error } = await supabaseClient.from('profiles').update(payload).eq('id', selectedUserId);
 
           if (error) throw error;
 
-          alert('회원 정보가 수정되었습니다.');
+          alert(
+            created
+              ? `회원 정보를 저장하고 팩토리 「${created.name}」(${PLAN_NAME[created.plan] || created.plan})를 만들었습니다 — 플래너 · 프로젝트가 열립니다.`
+              : '회원 정보가 수정되었습니다.' + factoryNote
+          );
           closeModal();
           await loadUsers();
         } catch (error) {
           console.error('Error updating user:', error);
-          alert('수정 중 오류가 발생했습니다: ' + error.message);
+          alert(
+            (created ? `팩토리 「${created.name}」는 만들었지만 ` : '') +
+              '수정 중 오류가 발생했습니다: ' +
+              error.message
+          );
         }
       }
 
