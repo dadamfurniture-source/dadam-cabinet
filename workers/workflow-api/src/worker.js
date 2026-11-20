@@ -6,6 +6,7 @@
  * 라우트 (W11-2 범위):
  *   GET  /health
  *   POST /designs/:designId/snapshots   — 설계+BOM 동결 (멱등)
+ *   POST /planner/preview               — 간편 플래너 지시서 미리보기 (저장 없이 인쇄 틀 그대로, src/planner-preview.js)
  *   POST /planner/designs               — 간편 플래너 설계 받기 → 앱 설계 찾거나 만들고 동결 (본사 대표 · 실장 · 관리자, src/planner-handoff.js)
  *   GET /planner/access · /planner/drafts(…) · /planner/my-modules(…) · /planner/recommend — 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
  *   POST /planner/prices · GET /planner/colors — 플래너 BOM 요약의 품목 단가(대표 · 실장만) · 몸통 / 우라 색 목록 (src/planner-prices.js)
@@ -117,6 +118,7 @@ import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshotForViewer, previewQuote, quoteForViewer } from './snapshots.js';
 import { receivePlannerDesign } from './planner-handoff.js';
+import { previewPlannerDoc } from './planner-preview.js';
 import {
   LEARN_MAX_BYTES as PLANNER_LEARN_MAX_BYTES,
   getPhotoConsent,
@@ -1505,6 +1507,7 @@ const router = createRouter([
 
   { method: 'POST', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleCreateSnapshot },
   { method: 'POST', path: '/planner/designs', auth: 'jwt', handler: workRoute(receivePlannerDesign, 201) },
+  { method: 'POST', path: '/planner/preview', auth: 'jwt', handler: workRoute(previewPlannerDoc) },
   // 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
   { method: 'GET',    path: '/planner/access',                     auth: 'jwt', handler: workRoute(plannerAccess) },
   { method: 'GET',    path: '/planner/drafts',                     auth: 'jwt', handler: workRoute(listDrafts) },

@@ -470,20 +470,22 @@ export async function collectPrevRev(env, designId, curDigest) {
 }
 
 /** 발행 시 render_payload 에 합칠 v2 필드 전부. */
-export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
+export async function gatherWorkOrderPayload(env, { designId, snapshot, collect = null, prevRev: withPrev = true }) {
   const design = (snapshot && snapshot.design_payload) || {};
   const items = Array.isArray(design.items) ? design.items : [];
   const materials = materialsOf(snapshot);
   const digest = partsDigest(materials);
 
   const by = { contentHash: (snapshot && snapshot.content_hash) || null };
+  // collect = 그림 목록을 주는 함수 (간편 플래너 미리보기 — 본문의 그림), 없으면 design_renders · prevRev false = 이전 판 차이를 읽지 않는다
+  const take = collect || ((kind) => collectRenders(env, designId, items, kind, by));
   const [renders, isoRenders, planRenders, insideRenders, swatches, prevRev] = await Promise.all([
-    collectRenders(env, designId, items, 'front', by),
-    collectRenders(env, designId, items, 'iso', by),
-    collectRenders(env, designId, items, 'plan', by),
-    collectRenders(env, designId, items, 'inside', by),
+    take('front', items, by),
+    take('iso', items, by),
+    take('plan', items, by),
+    take('inside', items, by),
     collectSwatches(env, materials),
-    collectPrevRev(env, designId, digest),
+    withPrev ? collectPrevRev(env, designId, digest) : null,
   ]);
 
   const cutPlan = snapshot && snapshot.cut_plan_payload ? snapshot.cut_plan_payload : null;

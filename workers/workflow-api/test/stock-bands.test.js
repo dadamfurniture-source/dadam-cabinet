@@ -242,7 +242,7 @@ test('작업 자재 — 재고 밴드 색마다 본 수 줄, 그 색 밴드 품�
   assert.deepEqual([...new Set(d.materials.map((m) => m.kind))], ['board', 'band']);
 });
 
-test('출고 뒤 — 밴드가 요청 수 이하로 남으면 「밴드 만들기」 요청 + 알림 (한 번만), 더하기 팩토리 · 남은 수가 많으면 없음', async () => {
+test('출고 뒤 — 밴드가 요청 수 이하로 남으면 「밴드 만들기」 요청 + 알림 (한 번만), 기본이 더하기인 팩토리도 밴드 품목이 있으면 · 남은 수가 많으면 없음', async () => {
   const fake = fakeOf({ bandQty: 10 });
   const r = await call(fake, `/stock/needs/${O1}/issue`, STAFF_A, { method: 'POST', body: { lines: [{ item_id: BAND_W, qty: 2 }, { item_id: PB15, qty: 1 }] } });
   assert.equal(r.status, 201);
@@ -253,10 +253,10 @@ test('출고 뒤 — 밴드가 요청 수 이하로 남으면 「밴드 만들�
   const m = await call(fake, `/stock/items/${BAND_W}/moves`, STAFF_A, { method: 'POST', body: { kind: 'out', qty: 1 } });
   assert.equal(m.status, 201);
   assert.equal(fake.db.stock_band_requests.length, 1);
-  // 더하기 팩토리 — 요청 없음
+  // 기본이 더하기인 팩토리 — 설계마다 빼기를 고르므로 밴드 품목이 있으면 같이 본다 (2026-11-20)
   const place = fakeOf({ mode: 'place', bandQty: 3 });
   await call(place, `/stock/items/${BAND_W}/moves`, STAFF_A, { method: 'POST', body: { kind: 'out', qty: 1 } });
-  assert.equal(place.db.stock_band_requests.length, 0);
+  assert.equal(place.db.stock_band_requests.length, 1);
   // 남은 수가 많으면 없음
   const many = fakeOf({ bandQty: 30 });
   await call(many, `/stock/items/${BAND_W}/moves`, STAFF_A, { method: 'POST', body: { kind: 'out', qty: 1 } });

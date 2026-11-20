@@ -183,7 +183,8 @@ export async function plannerCut(env, { user }) {
     kerf: cut.kerf,
     trim: cut.trim,
     ...(small ? { small } : {}),
-    ...(small === 'stock' ? { bandStock: { width: band.width, length: band.length, material: band.material, thickness: band.thickness } } : {}),
+    // 재고 밴드 모양은 늘 준다 — 설계마다 더하기 · 빼기를 고를 수 있다 (2026-11-20 사장님 「BOM에도, 소부품 더하기, 빼기 정할 수 있게」 · 「이 설계에만」). small 은 팩토리 기본
+    ...(band ? { bandStock: { width: band.width, length: band.length, material: band.material, thickness: band.thickness } } : {}),
     updated_at: s.updated_at,
   };
 }

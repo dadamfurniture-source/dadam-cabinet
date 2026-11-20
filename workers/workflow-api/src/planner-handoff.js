@@ -170,7 +170,7 @@ async function saveRenders(env, designId, renders, contentHash) {
 }
 
 export const PLANNER_SOURCE = 'planner-lite';
-const REF_RE = /^[A-Za-z0-9_.:-]{1,128}$/;
+export const REF_RE = /^[A-Za-z0-9_.:-]{1,128}$/;
 const NAME_MAX = 120;
 
 const dbPending = () => new ConflictError('DB 0035 적용 전입니다 — 사장님이 database/migrations/0035 를 적용하면 플래너 설계를 받습니다', { code: 'db_pending' });
@@ -192,7 +192,7 @@ export function duplicatePartIds(materials) {
  * 설계를 넣을 업체 — 본사 대표 · 실장 · 관리자면 본사, 플래너를 쓰는 팩토리의 대표 · 실장이면 그 팩토리.
  * 본사 직원 · 팩토리 직원 · 플래너를 못 쓰는 팩토리는 403 not_planner_sender.
  */
-async function senderCompanyOf(env, user) {
+export async function senderCompanyOf(env, user) {
   const hq = await hqCompanyId(env);
   try {
     await assertSettingsEditor(env, user, hq);
@@ -213,7 +213,7 @@ async function senderCompanyOf(env, user) {
 }
 
 /** 같은 출처 · 같은 id 의 앱 설계 (없으면 null) */
-async function findDesign(env, hq, ref) {
+export async function findDesign(env, hq, ref) {
   try {
     return await selectOne(env, 'designs', {
       company_id: `eq.${hq}`,

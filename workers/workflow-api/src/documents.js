@@ -163,6 +163,70 @@ function withEarlyLine(instructions, reason) {
   return rest ? `${line}\n${rest}` : line;
 }
 
+/**
+ * 문서 종류마다 발행 때 고정하는 칸 — 현장 · 일정 · 그림 · 작업지시서 자료 · 라벨 차례 · 특별 지시 · 필수 확인 목록.
+ *   발행(issueDocument)과 간편 플래너 미리보기(planner-preview.js — 저장 없이 같은 틀로 그린다)가 같이 쓴다.
+ *   collect(kind, items, by) = 그 종류의 그림 목록 (발행 = design_renders, 미리보기 = 본문의 그림),
+ *   site = { site_info, schedules } 를 주면 읽지 않는다 · prevRev false 면 이전 판 차이를 읽지 않는다.
+ */
+export async function docPayloadOf(env, { docType, snapshot, designId, body = {}, collect = null, site = null, prevRev = true }) {
+  const out = {};
+  const take = collect || ((kind, items, by) => collectRenders(env, designId, items, kind, by));
+  const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
+  const by = { contentHash: snapshot.content_hash || null };
+  // CD-4: 설치 작업지시서는 발행 시점의 현장 정보·일정을 **문서 안에 동결**한다.
+  // 주소가 나중에 바뀌어도 이미 나간 지시서의 내용은 그대로여야 한다.
+  // (현장 정보는 설계에 붙어 있고 스냅샷에는 없다 — 주소 수정이 설계 rev 를
+  //  올리면 안 되기 때문이다)
+  if (SITE_DOC_TYPES.includes(docType)) {
+    out.site_info = site ? site.site_info : await getSiteInfo(env, designId);
+    out.schedules = site ? site.schedules : await listSchedulesForDoc(env, designId);
+  }
+  if (docType === 'installation_order') {
+    // 정면 렌더도 발행 때 고정 (2026-11-05 사장님 C · E — 설치 지시서에도 그림). 없으면 빈 목록
+    out.renders = await take('front', items, by);
+    const iso = await take('iso', items, by);
+    if (iso.some((r) => r.path)) out.iso_renders = iso;
+    // 상판 탑뷰 · 배치 평면 · 속 구조 정면도 (2026-11-19 사장님 「설치: 배치 평면 · 상판 탑뷰 · 모듈 속 정면도」) — 있을 때만 (다른 판의 그림뿐이면 그 사실만)
+    for (const [key, kind] of [['plan_renders', 'plan'], ['layout_renders', 'layout'], ['inside_renders', 'inside']]) {
+      const list = await take(kind, items, by);
+      if (list.some((r) => r.path || r.stale)) out[key] = list;
+    }
+    out.drawing_version = DRAWING_VERSION;
+  }
+  // 납품 지시서 — 벽마다 ISO · 3D 앞모습 (싣는 품목을 그림으로 알아보게), 철거 지시서 — 배치 평면 (2026-11-19). 발행 때 고정
+  if (SITE_ORDER_TYPES.includes(docType)) {
+    const kinds = docType === 'delivery_order' ? [['renders', 'front'], ['iso_renders', 'iso']] : [['layout_renders', 'layout']];
+    for (const [key, kind] of kinds) {
+      const list = await take(kind, items, by);
+      if (list.some((r) => r.path || r.stale)) out[key] = list;
+    }
+    out.drawing_version = DRAWING_VERSION;
+  }
+
+  // B5: 작업지시서 v2 — 정면 렌더·색 스와치·재단 배치·부재 요약·이전 rev 차이를 발행 시점에 동결한다.
+  // 렌더를 다시 찍거나 카탈로그가 바뀌어도 이미 나간 지시서는 그대로여야 한다 (work-order-data.js).
+  if (docType === 'work_order') {
+    Object.assign(out, await gatherWorkOrderPayload(env, { designId, snapshot, collect: collect || undefined, prevRev }));
+  }
+  // 라벨 번호 차례 — 재단 차례로 고정 (2026-11-05 사장님 A 「재단 차례」 — 원장 1 조각부터). 옛 문서는 이 칸이 없어 자재 행 차례 그대로
+  if (docType === 'work_order') out.label_order = 'cut';
+  // 작업자 필수 확인 목록 — 발행 때의 판을 고정한다 (src/work/check-items.js). 종이 칸과 작업자 포털 체크가 이 목록을 쓴다.
+  //   특별 지시(자동 + 사무실 글 body.notes, src/work/special-notes.js)도 이때 고정 — 재단 · 조립 · 설치 지시는 필수 확인 항목으로도 들어간다
+  if (docType === 'work_order' || docType === 'installation_order') {
+    if (body.notes !== undefined && body.notes !== null && (typeof body.notes !== 'object' || Array.isArray(body.notes))) {
+      throw new ValidationError('notes 는 { cut, assembly, door, top, install } 글 묶음이어야 합니다');
+    }
+    const roles = docType === 'work_order' ? ['cut', 'assembly', 'door', 'top'] : ['install'];
+    const notes = specialNotesOf(snapshot, body.notes, { roles, cutPlan: out.cut_plan || null });
+    out.special_notes = notes;
+    out.check_list = withNoteChecks(frozenCheckList(), notes);
+  }
+  // 철거 · 납품 지시서 — 필수 확인 목록만 고정한다 (철거 후 사진 · 납품 수량 확인 · 하차 후 사진). 사무실 글은 작업 줄의 메모로 (work_jobs.sheet_memo)
+  if (SITE_ORDER_TYPES.includes(docType)) out.check_list = frozenCheckList();
+  return out;
+}
+
 /** 문서 발행. customer_confirmation 이면 평문 토큰을 함께 돌려준다 (1회만). */
 export async function issueDocument(env, { user, body }) {
   const docType = body.doc_type;
@@ -209,60 +273,7 @@ export async function issueDocument(env, { user, body }) {
     issued_by: user.email || null,
   };
 
-  // CD-4: 설치 작업지시서는 발행 시점의 현장 정보·일정을 **문서 안에 동결**한다.
-  // 주소가 나중에 바뀌어도 이미 나간 지시서의 내용은 그대로여야 한다.
-  // (현장 정보는 설계에 붙어 있고 스냅샷에는 없다 — 주소 수정이 설계 rev 를
-  //  올리면 안 되기 때문이다)
-  if (SITE_DOC_TYPES.includes(docType)) {
-    renderPayload.site_info = await getSiteInfo(env, designId);
-    renderPayload.schedules = await listSchedulesForDoc(env, designId);
-  }
-  if (docType === 'installation_order') {
-    // 정면 렌더도 발행 때 고정 (2026-11-05 사장님 C · E — 설치 지시서에도 그림). 없으면 빈 목록
-    const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
-    const by = { contentHash: snapshot.content_hash || null };
-    renderPayload.renders = await collectRenders(env, designId, items, 'front', by);
-    const iso = await collectRenders(env, designId, items, 'iso', by);
-    if (iso.some((r) => r.path)) renderPayload.iso_renders = iso;
-    // 상판 탑뷰 · 배치 평면 · 속 구조 정면도 (2026-11-19 사장님 「설치: 배치 평면 · 상판 탑뷰 · 모듈 속 정면도」) — 있을 때만 (다른 판의 그림뿐이면 그 사실만)
-    for (const [key, kind] of [['plan_renders', 'plan'], ['layout_renders', 'layout'], ['inside_renders', 'inside']]) {
-      const list = await collectRenders(env, designId, items, kind, by);
-      if (list.some((r) => r.path || r.stale)) renderPayload[key] = list;
-    }
-    renderPayload.drawing_version = DRAWING_VERSION;
-  }
-  // 납품 지시서 — 벽마다 ISO · 3D 앞모습 (싣는 품목을 그림으로 알아보게), 철거 지시서 — 배치 평면 (2026-11-19). 발행 때 고정
-  if (SITE_ORDER_TYPES.includes(docType)) {
-    const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
-    const by = { contentHash: snapshot.content_hash || null };
-    const kinds = docType === 'delivery_order' ? [['renders', 'front'], ['iso_renders', 'iso']] : [['layout_renders', 'layout']];
-    for (const [key, kind] of kinds) {
-      const list = await collectRenders(env, designId, items, kind, by);
-      if (list.some((r) => r.path || r.stale)) renderPayload[key] = list;
-    }
-    renderPayload.drawing_version = DRAWING_VERSION;
-  }
-
-  // B5: 작업지시서 v2 — 정면 렌더·색 스와치·재단 배치·부재 요약·이전 rev 차이를 발행 시점에 동결한다.
-  // 렌더를 다시 찍거나 카탈로그가 바뀌어도 이미 나간 지시서는 그대로여야 한다 (work-order-data.js).
-  if (docType === 'work_order') {
-    Object.assign(renderPayload, await gatherWorkOrderPayload(env, { designId, snapshot }));
-  }
-  // 라벨 번호 차례 — 재단 차례로 고정 (2026-11-05 사장님 A 「재단 차례」 — 원장 1 조각부터). 옛 문서는 이 칸이 없어 자재 행 차례 그대로
-  if (docType === 'work_order') renderPayload.label_order = 'cut';
-  // 작업자 필수 확인 목록 — 발행 때의 판을 고정한다 (src/work/check-items.js). 종이 칸과 작업자 포털 체크가 이 목록을 쓴다.
-  //   특별 지시(자동 + 사무실 글 body.notes, src/work/special-notes.js)도 이때 고정 — 재단 · 조립 · 설치 지시는 필수 확인 항목으로도 들어간다
-  if (docType === 'work_order' || docType === 'installation_order') {
-    if (body.notes !== undefined && body.notes !== null && (typeof body.notes !== 'object' || Array.isArray(body.notes))) {
-      throw new ValidationError('notes 는 { cut, assembly, door, top, install } 글 묶음이어야 합니다');
-    }
-    const roles = docType === 'work_order' ? ['cut', 'assembly', 'door', 'top'] : ['install'];
-    const notes = specialNotesOf(snapshot, body.notes, { roles, cutPlan: renderPayload.cut_plan || null });
-    renderPayload.special_notes = notes;
-    renderPayload.check_list = withNoteChecks(frozenCheckList(), notes);
-  }
-  // 철거 · 납품 지시서 — 필수 확인 목록만 고정한다 (철거 후 사진 · 납품 수량 확인 · 하차 후 사진). 사무실 글은 작업 줄의 메모로 (work_jobs.sheet_memo)
-  if (SITE_ORDER_TYPES.includes(docType)) renderPayload.check_list = frozenCheckList();
+  Object.assign(renderPayload, await docPayloadOf(env, { docType, snapshot, designId, body }));
 
   const totals = quoteForDoc
     ? {
