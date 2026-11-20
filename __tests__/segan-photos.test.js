@@ -27,17 +27,19 @@ describe('SEGAN 앱 사진', () => {
     expect(hits).toEqual([]);
   });
 
-  test('앱이 쓰는 luxe 사진은 모두 manifest 에 있고 파일이 있다 (AI 연출 · 예림 자재 이름)', () => {
+  test('앱이 쓰는 연출 사진(luxe · mix)은 모두 manifest 에 있고 파일이 있다 (AI 연출 · 예림 자재 이름)', () => {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(ROOT, 'app/portfolio/luxe-manifest.json'), 'utf8')
     );
     const known = new Set(manifest.photos.map((p) => p.file.replace(/\.jpg$/, '')));
     const used = new Set();
     for (const [, s] of files) {
-      for (const m of s.matchAll(/portfolio\/(?:display\/)?(luxe-[a-z0-9]+)\.(?:jpg|avif)/g))
+      for (const m of s.matchAll(
+        /portfolio\/(?:display\/)?((?:luxe|mix)-[a-z0-9]+)\.(?:jpg|avif)/g
+      ))
         used.add(m[1]);
     }
-    expect(used.size).toBe(16);
+    expect(used.size).toBe(37); // 첫 사진 1 + 밝은 사진 15 + 다양한 사진 21
     for (const stem of used) {
       expect(known.has(stem)).toBe(true);
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', stem + '.jpg'))).toBe(true);

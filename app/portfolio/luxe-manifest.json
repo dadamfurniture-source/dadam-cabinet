@@ -1,5 +1,5 @@
 {
-  "note": "SEGAN 앱 사진 — AI 로 연출한 이미지(실제 시공 사진 아님). 2026-11-20 대표님 요청 「럭셔리하고 밝은 톤」. 문 색 이름은 예림 LUX 도어 자재(database/seed/yerim-lux.json).",
+  "note": "SEGAN 앱 사진 — AI 로 연출한 이미지(실제 시공 사진 아님). luxe-* = 2026-11-20 대표님 「럭셔리하고 밝은 톤」(홈 · 시공사례), mix-* = 같은 날 「시공사례는 다양한 색상 · 디자인 · 품목」. 문 색 이름은 예림 LUX 도어 자재(database/seed/yerim-lux.json).",
   "photos": [
     {
       "file": "luxe-hero.jpg",
@@ -352,6 +352,489 @@
       "model": "higgsfield gpt_image_2_6 (high · 2k)",
       "job_id": "908bbf52-e743-4ee1-a147-76c45d8eaa8f",
       "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A living room storage wall: floor-to-ceiling cabinets at both ends and a long floating low unit between them, with an open shelf niche above it lit by a concealed LED strip. A low cream sofa stands in front of it.\nFINISH: Tall door fronts: sand beige matte (colour #cdc2b4). The back and sides of open niches, the drawer fronts and any low units: natural French oak woodgrain with a vertical grain (colour #bca580). Fronts are flat slab doors, matte.\nSURFACES: honed warm-white stone on the low unit top.\nLOOSE FURNITURE: a low round travertine coffee table in front of the sofa.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen across a piece of furniture: a table edge or chair back sits soft and dark in the lower foreground and the built-in furniture is sharp behind it. 35 mm lens, f/5.6, camera at 1.2 m.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — two art books, a small ceramic sculpture and a trailing plant on the shelves.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-01.jpg",
+      "category": "kitchen",
+      "kind": "일자형 주방",
+      "style": "재팬디",
+      "label": "일자형 주방 · 매트 딥그린 · 카카오월넛",
+      "materials": [
+        {
+          "code": "SM-10",
+          "name": "매트 딥그린",
+          "hex": "#2f4952"
+        },
+        {
+          "code": "PW-23",
+          "name": "카카오월넛",
+          "hex": "#544135"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "e8384b4c-0e70-49b1-bf3e-19779ad89c1e",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A single-wall kitchen about 3.6 m long: base cabinets with an undermount sink and flush hob, and above them open walnut shelves on part of the wall plus wall cabinets to the ceiling on the rest. A small walnut dining table with two chairs stands nearby.\nFINISH: Base cabinet doors: deep teal-green matte (colour #2f4952), with vertically fluted (reeded) fronts. Wall cabinets and the open shelves: cocoa-brown walnut woodgrain with a vertical grain (colour #544135).\nSURFACES: honed warm-white quartz countertop and backsplash. DESIGN: Japandi — calm, natural, a paper pendant lamp, a linen runner.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: bright mid-afternoon daylight, slightly warm, soft directional shadows from the window side.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-02.jpg",
+      "category": "kitchen",
+      "kind": "아일랜드 주방",
+      "style": "모던",
+      "label": "아일랜드 주방 · 매트 블랙 · 카타니아 오크",
+      "materials": [
+        {
+          "code": "SM-08",
+          "name": "매트 블랙",
+          "hex": "#272727"
+        },
+        {
+          "code": "YPW-02",
+          "name": "카타니아 오크",
+          "hex": "#433027"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "c6b74344-5dd8-4d7b-9023-3abb32bbec19",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A wall of full-height tall cabinets with a built-in oven column, and in front of it a large island with a flush induction hob and three stools.\nFINISH: Tall wall cabinets: matte black (colour #272727). Island fronts: dark Catania oak woodgrain with a vertical grain (colour #433027).\nSURFACES: dark grey sintered stone island top with a slim 12 mm edge and a matching backsplash. DESIGN: modern, graphic contrast of black and dark oak, a black linear pendant, black steel stools.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: soft, even daylight from an overcast sky, gentle shadows, true colours, calm and bright.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-03.jpg",
+      "category": "kitchen",
+      "kind": "ㄱ자형 주방",
+      "style": "클래식",
+      "label": "ㄱ자형 주방 · 매트 인디고 · 매트 화이트",
+      "materials": [
+        {
+          "code": "SM-12",
+          "name": "매트 인디고",
+          "hex": "#2e2f3f"
+        },
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "31426bf1-f94d-45d2-b796-de3c8e761510",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: An L-shaped kitchen wrapping one corner: base cabinets on both legs, the sink under the window, wall cabinets to the ceiling on the long leg.\nFINISH: Base cabinets: deep indigo navy matte (colour #2e2f3f). Wall cabinets: pure white matte (colour #fbfbfb). All doors are recessed-panel frame doors (a slim square frame around a flat centre panel), still with no handles — they open from a finger groove along the top edge.\nSURFACES: white marble-look countertop with soft grey veining, a white zellige-style tile backsplash. DESIGN: modern classic — a brushed brass tap, a small round brass pendant, a vintage runner rug.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen from the next room through an open doorway: one door jamb, softly out of focus, frames a side of the picture. 35 mm lens, f/4, camera at 1.35 m.\nLIGHT: clear morning sun enters low through the window and lays soft warm patches across the floor; the rest of the room is evenly lit and bright.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-04.jpg",
+      "category": "kitchen",
+      "kind": "ㄷ자형 주방",
+      "style": "북유럽",
+      "label": "ㄷ자형 주방 · 매트 미스트그린 · 매트 아이보리",
+      "materials": [
+        {
+          "code": "SM-15",
+          "name": "매트 미스트그린",
+          "hex": "#a5afa0"
+        },
+        {
+          "code": "SM-16",
+          "name": "매트 아이보리",
+          "hex": "#f5eddc"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "39bebb72-7db6-4b90-ae3a-ee720fb0d7f9",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A U-shaped kitchen on three sides of the cook, the third side open toward a dining area with a round table.\nFINISH: Base cabinets and drawers: pale misty grey-green matte (colour #a5afa0). Wall cabinets: ivory cream matte (colour #f5eddc).\nSURFACES: speckled white terrazzo countertop and backsplash. DESIGN: Scandinavian — light ash dining table, white chairs, a pale wool rug, a few plants.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen across a piece of furniture: a table edge or chair back sits soft and dark in the lower foreground and the built-in furniture is sharp behind it. 35 mm lens, f/5.6, camera at 1.2 m.\nLIGHT: clear morning sun enters low through the window and lays soft warm patches across the floor; the rest of the room is evenly lit and bright.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-05.jpg",
+      "category": "kitchen",
+      "kind": "대면형 주방",
+      "style": "빈티지",
+      "label": "대면형 주방 · 매트 타우니레드 · 매트 샌드그레이",
+      "materials": [
+        {
+          "code": "SM-35",
+          "name": "매트 타우니레드",
+          "hex": "#6e4639"
+        },
+        {
+          "code": "SM-21",
+          "name": "매트 샌드그레이",
+          "hex": "#d4cfc8"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "e4bd37e9-b1b8-44e7-883c-663b6a4784fe",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A kitchen facing the living room: a back wall of cabinets with the hob, and in front of it a peninsula with the sink and a breakfast overhang with two stools.\nFINISH: Peninsula fronts: tawny brick-red matte (colour #6e4639). Back wall cabinets: pale sand-grey matte (colour #d4cfc8).\nSURFACES: warm beige travertine-look countertop. DESIGN: mid-century vintage — walnut stools with leather seats, a mushroom table lamp, a patterned rug.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: late-afternoon golden sun from a low angle, warm highlights on the floor and fronts, the room still bright; concealed LED strips glow faintly.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-06.jpg",
+      "category": "kitchen",
+      "kind": "일자형 주방",
+      "style": "내추럴",
+      "label": "일자형 주방 · 아크 플라워블루 · 매트 화이트",
+      "materials": [
+        {
+          "code": "YPA-06",
+          "name": "아크 플라워블루",
+          "hex": "#5a687f"
+        },
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "97e240b9-a406-431b-baee-870ad0774c4e",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A compact single-wall kitchen about 2.7 m long in a small apartment: base cabinets with sink and hob, wall cabinets to the ceiling, a slim tall pantry at one end. A small two-seat table stands by the window.\nFINISH: Base cabinets and the pantry: muted cornflower blue matte (colour #5a687f). Wall cabinets: pure white matte (colour #fbfbfb).\nSURFACES: white solid-surface countertop with an integrated sink. DESIGN: bright and practical, light oak floor, a small rattan pendant.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: soft, even daylight from an overcast sky, gentle shadows, true colours, calm and bright.\nROOM: a compact 59 m² Korean apartment with a 2.3 m ceiling, plain white walls and an aluminium sliding window with sheer curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-07.jpg",
+      "category": "kitchen",
+      "kind": "11자 주방",
+      "style": "인더스트리얼",
+      "label": "11자 주방 · 콘크리트 그레이 · 네이처 오크",
+      "materials": [
+        {
+          "code": "LC-011",
+          "name": "콘크리트 그레이",
+          "hex": "#c6c2c2"
+        },
+        {
+          "code": "YPW-01",
+          "name": "네이처 오크",
+          "hex": "#9c7b5b"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "2d814f32-0e81-410d-adb7-0fe823ca809d",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A galley kitchen with two parallel runs across a 1.2 m aisle: one with the sink under the window, the other with tall cabinets, a built-in oven and a hob.\nFINISH: Tall cabinets and wall cabinets: light grey concrete-texture matte (colour #c6c2c2). Base cabinets: natural mid-tone oak woodgrain with a vertical grain (colour #9c7b5b).\nSURFACES: brushed stainless steel countertop with an integrated sink. DESIGN: industrial loft — polished concrete floor, black metal pendant lights, open black steel shelf with jars.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen from the next room through an open doorway: one door jamb, softly out of focus, frames a side of the picture. 35 mm lens, f/4, camera at 1.35 m.\nLIGHT: soft, even daylight from an overcast sky, gentle shadows, true colours, calm and bright.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-08.jpg",
+      "category": "kitchen",
+      "kind": "아일랜드 주방",
+      "style": "하이글로시",
+      "label": "아일랜드 주방 · 글로시 화이트 · 윈체스터월넛",
+      "materials": [
+        {
+          "code": "SG-01",
+          "name": "글로시 화이트",
+          "hex": "#fbfbfb"
+        },
+        {
+          "code": "MFB-303",
+          "name": "윈체스터월넛",
+          "hex": "#a56c43"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "059546ae-7ad9-486d-860e-8740975bad4e",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: An open kitchen with a long wall of tall cabinets and a freestanding island with seating for four.\nFINISH: Tall wall cabinets: high-gloss white lacquer (colour #fbfbfb), reflecting the room softly. Island fronts and side panels: warm Winchester walnut woodgrain with a vertical grain (colour #a56c43).\nSURFACES: white quartz island top with a mitred waterfall edge. DESIGN: sleek contemporary, glossy and warm wood together, cream leather stools.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: bright mid-afternoon daylight, slightly warm, soft directional shadows from the window side.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-09.jpg",
+      "category": "kitchen",
+      "kind": "냉장고장",
+      "style": "재팬디",
+      "label": "냉장고장 · 매트 스모키올리브 · 피넛오크",
+      "materials": [
+        {
+          "code": "SM-22",
+          "name": "매트 스모키올리브",
+          "hex": "#474f44"
+        },
+        {
+          "code": "PW-22",
+          "name": "피넛오크",
+          "hex": "#9a8464"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "939a0858-556d-4d18-92e8-396295aaa9fa",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A wall of full-height cabinets built around a refrigerator, with tall pantry cabinets on both sides and an open niche at counter height between them holding a few jars.\nFINISH: Tall door fronts: smoky olive green matte (colour #474f44). The inside of the open niche and its shelf: peanut-brown oak woodgrain with a vertical grain (colour #9a8464).\nDESIGN: Japandi — warm wood, smoky olive, a ceramic jug with dried branches.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: A half-scene of one end of the furniture at eye level, composed off-centre with empty wall on one side. 50 mm lens, f/4.\nLIGHT: late-afternoon golden sun from a low angle, warm highlights on the floor and fronts, the room still bright; concealed LED strips glow faintly.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-10.jpg",
+      "category": "builtin",
+      "kind": "안방 붙박이장",
+      "style": "호텔식",
+      "label": "안방 붙박이장 · 매트 카페브라운 · 매트 아이보리",
+      "materials": [
+        {
+          "code": "SM-05",
+          "name": "매트 카페브라운",
+          "hex": "#6d5d51"
+        },
+        {
+          "code": "SM-16",
+          "name": "매트 아이보리",
+          "hex": "#f5eddc"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "c24034ab-5bc2-462d-9869-80322b01a117",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A built-in wardrobe filling one whole wall of the main bedroom, floor to ceiling, with tall hinged doors and a recessed niche in the middle that holds a low vanity ledge with a round mirror. A bed with layered linen bedding stands in front.\nFINISH: Wardrobe doors: cafe mocha brown matte (colour #6d5d51). The niche back and ledge: ivory cream matte (colour #f5eddc).\nDESIGN: boutique-hotel bedroom — upholstered headboard, warm wall lights, a bench at the foot of the bed.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: late-afternoon golden sun from a low angle, warm highlights on the floor and fronts, the room still bright; concealed LED strips glow faintly.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-11.jpg",
+      "category": "builtin",
+      "kind": "드레스룸",
+      "style": "부티크",
+      "label": "드레스룸 · 그레이쉬 오크 · 매트 다크그레이",
+      "materials": [
+        {
+          "code": "YPW-03",
+          "name": "그레이쉬 오크",
+          "hex": "#40352f"
+        },
+        {
+          "code": "SM-07",
+          "name": "매트 다크그레이",
+          "hex": "#3b3835"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "5f5875b7-95a6-4266-9bdf-0f50a26d2af1",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A walk-in dressing room in a U shape: tall wardrobes behind slim dark-framed glass doors with bronze-tinted glass so the hanging clothes show softly, a central island of drawers with a glass top displaying watches and folded scarves.\nFINISH: Wardrobe carcasses, shelves and the island drawers: greyish smoked oak woodgrain with a vertical grain (colour #40352f). The slim glass-door frames and plinths: dark charcoal grey matte (colour #3b3835).\nDESIGN: luxury boutique — LED strips inside each section, a round rug, a single armchair.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen from the next room through an open doorway: one door jamb, softly out of focus, frames a side of the picture. 35 mm lens, f/4, camera at 1.35 m.\nLIGHT: bright mid-afternoon daylight, slightly warm, soft directional shadows from the window side.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-12.jpg",
+      "category": "builtin",
+      "kind": "아이방 붙박이장",
+      "style": "키즈",
+      "label": "아이방 붙박이장 · 매트 스카이브리즈 · 슈가엘름",
+      "materials": [
+        {
+          "code": "SM-34",
+          "name": "매트 스카이브리즈",
+          "hex": "#abc5e2"
+        },
+        {
+          "code": "PW-20",
+          "name": "슈가엘름",
+          "hex": "#d8c8ba"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "152f9a5e-67b1-4a5e-9a2d-908bacf366f6",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A child's room wall of built-in wardrobes to the ceiling with a desk niche in the middle: a floating desktop, open shelves above with books and toys, and a low reading bench under the window.\nFINISH: Wardrobe doors: soft sky blue matte (colour #abc5e2), a few doors with a round cut-out porthole window. Desk, shelves and bench: very pale elm woodgrain, almost white, with a fine vertical grain (colour #d8c8ba).\nDESIGN: playful but calm — a small single bed with a striped blanket, a soft round rug.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: clear morning sun enters low through the window and lays soft warm patches across the floor; the rest of the room is evenly lit and bright.\nROOM: a compact 59 m² Korean apartment with a 2.3 m ceiling, plain white walls and an aluminium sliding window with sheer curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-13.jpg",
+      "category": "builtin",
+      "kind": "현관 신발장",
+      "style": "모던",
+      "label": "현관 신발장 · 매트 그레이 · 네이처 오크",
+      "materials": [
+        {
+          "code": "SM-06",
+          "name": "매트 그레이",
+          "hex": "#989494"
+        },
+        {
+          "code": "YPW-01",
+          "name": "네이처 오크",
+          "hex": "#9c7b5b"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "15d771d0-d580-4eeb-ac85-f53819add9b6",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A Korean apartment entrance hall: a full-height shoe cabinet wall that floats 25 cm above the floor with a concealed LED glow underneath, an open bench niche at sitting height with a cushion, and a full-length mirror door.\nFINISH: Shoe cabinet doors: warm mid grey matte (colour #989494). The bench niche lining and bench: natural mid-tone oak woodgrain with a vertical grain (colour #9c7b5b).\nSURFACES: large-format light grey porcelain tiles in the sunken entry area. DESIGN: clean modern entrance, a slim console hook rail, one pair of shoes neatly placed.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: soft, even daylight from an overcast sky, gentle shadows, true colours, calm and bright.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-14.jpg",
+      "category": "builtin",
+      "kind": "드레스룸",
+      "style": "로맨틱",
+      "label": "드레스룸 · 매트 로지핑크 · 매트 화이트",
+      "materials": [
+        {
+          "code": "SM-19",
+          "name": "매트 로지핑크",
+          "hex": "#f3e9de"
+        },
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "67795b34-423f-4a5c-ad6d-777488dbd2c7",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A dressing room with two full-height wardrobe runs facing each other, one side open with a hanging rail and shelves, the other with closed doors, a vanity table with a round mirror at the far end under the window.\nFINISH: Closed wardrobe doors and the vanity: pale rosy pink matte (colour #f3e9de). The open-section carcass and shelves: pure white matte (colour #fbfbfb).\nDESIGN: soft romantic — a velvet stool, a pale pink rug, a few dresses in cream and blush tones.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: clear morning sun enters low through the window and lays soft warm patches across the floor; the rest of the room is evenly lit and bright.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-15.jpg",
+      "category": "builtin",
+      "kind": "작은방 붙박이장",
+      "style": "모던 클래식",
+      "label": "작은방 붙박이장 · 아크 미드나잇블루 · 카카오월넛",
+      "materials": [
+        {
+          "code": "YPA-07",
+          "name": "아크 미드나잇블루",
+          "hex": "#2a293a"
+        },
+        {
+          "code": "PW-23",
+          "name": "카카오월넛",
+          "hex": "#544135"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "c401f4c2-1bd6-4948-8b65-185db9bb5886",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A small bedroom wall of built-in wardrobes to the ceiling with one open bay of walnut shelving lit by an LED strip, beside a single bed.\nFINISH: Wardrobe doors: very dark midnight blue matte (colour #2a293a). Open bay shelving and its back panel: cocoa-brown walnut woodgrain with a vertical grain (colour #544135).\nDESIGN: tailored and moody yet bright — a brass reading lamp, a camel throw, books on the walnut shelves.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: A half-scene of one end of the furniture at eye level, composed off-centre with empty wall on one side. 50 mm lens, f/4.\nLIGHT: bright mid-afternoon daylight, slightly warm, soft directional shadows from the window side.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-16.jpg",
+      "category": "storage",
+      "kind": "홈카페장",
+      "style": "레트로",
+      "label": "홈카페장 · 아크 마멀레이드 · 매트 아이보리",
+      "materials": [
+        {
+          "code": "YPA-09",
+          "name": "아크 마멀레이드",
+          "hex": "#d4612a"
+        },
+        {
+          "code": "SM-16",
+          "name": "매트 아이보리",
+          "hex": "#f5eddc"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "e6ae52a8-afff-4b0e-bcb8-f047affe3a24",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A home-café station built into a wall of tall cabinets: a recessed open niche at counter height with a ledge holding an espresso machine and cups, a shelf above lit by a concealed LED strip, and deep drawers below.\nFINISH: Tall door fronts and drawers: burnt orange marmalade matte (colour #d4612a). The niche lining and shelf: ivory cream matte (colour #f5eddc).\nSURFACES: cream terrazzo ledge. DESIGN: cheerful retro café — a few colourful mugs, a small fruit bowl.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: A half-scene of one end of the furniture at eye level, composed off-centre with empty wall on one side. 50 mm lens, f/4.\nLIGHT: clear morning sun enters low through the window and lays soft warm patches across the floor; the rest of the room is evenly lit and bright.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-17.jpg",
+      "category": "storage",
+      "kind": "거실 수납장",
+      "style": "모던",
+      "label": "거실 수납장 · 매트 다크그레이 · 소프트월넛",
+      "materials": [
+        {
+          "code": "SM-07",
+          "name": "매트 다크그레이",
+          "hex": "#3b3835"
+        },
+        {
+          "code": "MFB-304",
+          "name": "소프트월넛",
+          "hex": "#504029"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "4ebcbb8e-1f62-4863-b8cc-7fa173b948f9",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A living room media wall: floor-to-ceiling cabinets on both sides and a long floating low unit between them under a wall-mounted TV, with an open shelf niche lit by an LED strip. A low sofa stands in the foreground.\nFINISH: Tall cabinets and the low unit fronts: dark charcoal grey matte (colour #3b3835). The niche lining and floating shelf: soft dark walnut woodgrain with a vertical grain (colour #504029).\nDESIGN: modern living room — a grey bouclé sofa, a round marble coffee table, a large plant.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen across a piece of furniture: a table edge or chair back sits soft and dark in the lower foreground and the built-in furniture is sharp behind it. 35 mm lens, f/5.6, camera at 1.2 m.\nLIGHT: bright mid-afternoon daylight, slightly warm, soft directional shadows from the window side.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-18.jpg",
+      "category": "storage",
+      "kind": "다이닝 수납장",
+      "style": "클래식",
+      "label": "다이닝 수납장 · 아크 포레스트그린 · 네이처 오크",
+      "materials": [
+        {
+          "code": "YPA-10",
+          "name": "아크 포레스트그린",
+          "hex": "#2a422e"
+        },
+        {
+          "code": "YPW-01",
+          "name": "네이처 오크",
+          "hex": "#9c7b5b"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "367109f3-8c93-4119-9161-0b6b9264e386",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A dining room storage wall: tall cabinets at both ends with recessed-panel frame doors, a long sideboard between them with an open display niche above, beside an oval oak dining table with six chairs.\nFINISH: Tall frame doors and the sideboard fronts: deep forest green matte (colour #2a422e), opening from finger grooves with no handles. The display niche lining: natural mid-tone oak woodgrain with a vertical grain (colour #9c7b5b).\nSURFACES: green-veined marble sideboard top. DESIGN: refined classic — wall panel mouldings painted warm white, a brass chandelier, a ceramic vase.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: late-afternoon golden sun from a low angle, warm highlights on the floor and fronts, the room still bright; concealed LED strips glow faintly.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-19.jpg",
+      "category": "storage",
+      "kind": "세탁실장",
+      "style": "내추럴",
+      "label": "세탁실장 · 매트 버터스카치 · 매트 화이트",
+      "materials": [
+        {
+          "code": "SM-33",
+          "name": "매트 버터스카치",
+          "hex": "#cca47c"
+        },
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "864ee44f-5e85-4d94-965a-33a9fcf2cda7",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A Korean apartment utility room: a stacked washer and dryer set inside a tall cabinet bay, a deep utility sink in a base cabinet, tall broom cupboards and wall cabinets above.\nFINISH: Base cabinets and tall cupboards: warm butterscotch yellow matte (colour #cca47c). Wall cabinets: pure white matte (colour #fbfbfb).\nSURFACES: white solid-surface counter, white subway tile wall. DESIGN: tidy and cheerful — a woven laundry basket, a hanging rail with two linen shirts. The appliances are plain white with no visible brand.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: soft, even daylight from an overcast sky, gentle shadows, true colours, calm and bright.\nROOM: a compact 59 m² Korean apartment with a 2.3 m ceiling, plain white walls and an aluminium sliding window with sheer curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-20.jpg",
+      "category": "interior",
+      "kind": "화장대",
+      "style": "호텔식",
+      "label": "화장대 · 세라믹 문 브릭 · 매트 밀크화이트",
+      "materials": [
+        {
+          "code": "CP-04",
+          "name": "세라믹 문 브릭",
+          "hex": "#77462d"
+        },
+        {
+          "code": "SM-02",
+          "name": "매트 밀크화이트",
+          "hex": "#fffef8"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "7151bb8e-64ce-416c-a1d7-63139d5484cc",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A built-in vanity wall in a bedroom: a floating vanity counter with deep drawers, a large backlit mirror above, and tall cabinets on one side.\nFINISH: Drawer fronts and tall cabinet doors: brick-red ceramic-texture matte (colour #77462d). Vanity counter and side panels: milk white matte (colour #fffef8).\nDESIGN: hotel-like vanity — a fluted glass sconce, a velvet stool, a tray with perfume bottles with no labels.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: A half-scene of one end of the furniture at eye level, composed off-centre with empty wall on one side. 50 mm lens, f/4.\nLIGHT: bright mid-afternoon daylight, slightly warm, soft directional shadows from the window side.\nROOM: a newly finished Korean apartment, 2.4 m ceiling with a slim light cove, plain warm-white walls and a large window with sheer curtains through which neighbouring towers show softly.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "mix-21.jpg",
+      "category": "other",
+      "kind": "서재 책장",
+      "style": "클래식 서재",
+      "label": "서재 책장 · 카카오월넛 · 매트 블랙",
+      "materials": [
+        {
+          "code": "PW-23",
+          "name": "카카오월넛",
+          "hex": "#544135"
+        },
+        {
+          "code": "SM-08",
+          "name": "매트 블랙",
+          "hex": "#272727"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "3431a5ab-3f53-4168-aad7-f6674ca8b4f4",
+      "prompt": "An interior photograph of built-in furniture in a Korean apartment.\nSCENE: A home study: a full wall of built-in bookshelves to the ceiling with closed cabinets below, a ladder rail, and a built-in desk with a drawer bank under the window.\nFINISH: Bookshelves, desk and lower cabinet doors: cocoa-brown walnut woodgrain with a vertical grain (colour #544135). Thin shelf edges, the ladder rail and plinth: matte black (colour #272727).\nDESIGN: warm classic library — a leather armchair, a green banker's lamp, books and a few objects on the shelves.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: late-afternoon golden sun from a low angle, warm highlights on the floor and fronts, the room still bright; concealed LED strips glow faintly.\nROOM: a spacious 114 m² Korean apartment with a 2.5 m ceiling, a recessed light cove, warm plaster walls and wide windows with sheer linen curtains.\nThis is a real photograph taken on location by a professional interior photographer for a design magazine. It must not look like a 3D render or an illustration.\nExposure is natural: highlights at the windows roll off gently, shadows keep real depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain varies naturally and never repeats, stone shows real veining.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. White balance true to the light.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
     }
   ]
 }

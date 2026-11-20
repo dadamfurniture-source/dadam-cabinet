@@ -3,7 +3,9 @@
 
    사진을 인스타그램처럼 정사각 칸으로 늘어놓는다 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2~3px (segan/shell.css .cl-grid).
    누구나(로그인 없이) 본다:
-     collection_posts 최신순(created_at DESC), 24줄씩 키셋 (idx_collection_posts_created) — 공개 칸만 읽는다
+     collection_posts 최신순(created_at DESC), 24줄씩 키셋 (idx_collection_posts_created) — 공개 칸만 읽는다.
+       AI 연출컷(source 'ai_render')은 읽지 않는다 (2026-11-20 대표님 「연출컷으로 만든 사진은 올리지 말고」 —
+       새로 올리는 것도 workers/generate-api/wrangler.toml COLLECTION_AUTO_POST "off")
        id · image_url · place_label · door_color · company_id · like_count · source · created_at (DB 0049)
      업체 이름은 RPC collection_post_companies (업체가 있는 게시물만, 쪽마다 한 번)
      로그인했으면 이 쪽에서 내가 좋아한 것 — collection_likes post_id (본인 줄만 읽힌다)
@@ -11,7 +13,7 @@
        (최신순이 끝까지 이어지고, 이미 그린 자리 사이로 새 줄이 끼어들지 않는다)
    처음 24장 · 24장씩 더 — 아래까지 내리면 저절로(IntersectionObserver), 없으면 「더 보기」 단추.
    누르면 사진 보기(장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷) — segan/collection-view.js (SeganPostView)
-   AI 연출컷(source 'ai_render')은 타일 귀퉁이에 「AI」 — 실제 시공 사진으로 오해하지 않게.
+   (예전에 올라간 AI 연출컷 행은 DB 에 남아 있다 — 사진 보기 SeganPostView 의 「AI」 표시는 내 좋아요 등 다른 화면이 쓴다)
    다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
    자재 칸은 여기서 뺐다 — 자재 글은 매거진으로 옮긴다 (/material 은 /segan/blog 로 넘긴다, _redirects).
    ============================================================ */
@@ -23,13 +25,24 @@
   var COLS = 'id,image_url,place_label,door_color,company_id,like_count,source,created_at';
   var SELF = 'collection'; // 로그인 뒤 돌아올 곳 (segan/shell.js loginHref)
 
-  // AI 연출 사진 (app/portfolio/luxe-manifest.json, segan/ 에서 보므로 ../) — 장소 대신 품목, 색상 = 예림 도어 자재 이름.
+  // AI 연출 사진 36장 (app/portfolio/luxe-manifest.json, segan/ 에서 보므로 ../) — 장소 대신 품목, 색상 = 예림 도어 자재 이름.
+  // 밝은 luxe 15장과 다양한 색 · 디자인 · 품목 mix 21장을 고르게 섞은 차례 (2026-11-20).
   // 실제 시공 사진이 아니므로 지역 · 업체를 붙이지 않는다 (사진 보기의 업체 줄은 「AI 연출」)
   var STATIC = [
+    {
+      image_url: '../app/portfolio/mix-01.jpg',
+      place: '일자형 주방',
+      color: '매트 딥그린 · 카카오월넛',
+    },
     {
       image_url: '../app/portfolio/luxe-01.jpg',
       place: '아일랜드 주방',
       color: '매트 화이트 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-02.jpg',
+      place: '아일랜드 주방',
+      color: '매트 블랙 · 카타니아 오크',
     },
     {
       image_url: '../app/portfolio/luxe-02.jpg',
@@ -37,9 +50,24 @@
       color: '매트 아이보리 · 슈가엘름',
     },
     {
+      image_url: '../app/portfolio/mix-03.jpg',
+      place: 'ㄱ자형 주방',
+      color: '매트 인디고 · 매트 화이트',
+    },
+    {
       image_url: '../app/portfolio/luxe-03.jpg',
       place: 'ㄱ자형 주방',
       color: '매트 밀크화이트 · 매트 샌드그레이',
+    },
+    {
+      image_url: '../app/portfolio/mix-04.jpg',
+      place: 'ㄷ자형 주방',
+      color: '매트 미스트그린 · 매트 아이보리',
+    },
+    {
+      image_url: '../app/portfolio/mix-05.jpg',
+      place: '대면형 주방',
+      color: '매트 타우니레드 · 매트 샌드그레이',
     },
     {
       image_url: '../app/portfolio/luxe-04.jpg',
@@ -47,9 +75,24 @@
       color: '매트 캐시미어 · 프렌치오크',
     },
     {
+      image_url: '../app/portfolio/mix-06.jpg',
+      place: '일자형 주방',
+      color: '아크 플라워블루 · 매트 화이트',
+    },
+    {
       image_url: '../app/portfolio/luxe-05.jpg',
       place: '대면형 주방',
       color: '매트 화이트 · 아크 샌드듄',
+    },
+    {
+      image_url: '../app/portfolio/mix-07.jpg',
+      place: '11자 주방',
+      color: '콘크리트 그레이 · 네이처 오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-08.jpg',
+      place: '아일랜드 주방',
+      color: '글로시 화이트 · 윈체스터월넛',
     },
     {
       image_url: '../app/portfolio/luxe-06.jpg',
@@ -57,9 +100,19 @@
       color: '매트 샌드그레이 · 매트 화이트',
     },
     {
+      image_url: '../app/portfolio/mix-09.jpg',
+      place: '냉장고장',
+      color: '매트 스모키올리브 · 피넛오크',
+    },
+    {
       image_url: '../app/portfolio/luxe-07.jpg',
       place: '냉장고장',
       color: '매트 아이보리 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-10.jpg',
+      place: '안방 붙박이장',
+      color: '매트 카페브라운 · 매트 아이보리',
     },
     {
       image_url: '../app/portfolio/luxe-08.jpg',
@@ -67,9 +120,24 @@
       color: '매트 밀크화이트 · 프렌치오크',
     },
     {
+      image_url: '../app/portfolio/mix-11.jpg',
+      place: '드레스룸',
+      color: '그레이쉬 오크 · 매트 다크그레이',
+    },
+    {
+      image_url: '../app/portfolio/mix-12.jpg',
+      place: '아이방 붙박이장',
+      color: '매트 스카이브리즈 · 슈가엘름',
+    },
+    {
       image_url: '../app/portfolio/luxe-09.jpg',
       place: '주방 디테일',
       color: '매트 화이트 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-13.jpg',
+      place: '현관 신발장',
+      color: '매트 그레이 · 네이처 오크',
     },
     {
       image_url: '../app/portfolio/luxe-10.jpg',
@@ -77,9 +145,24 @@
       color: '매트 캐시미어 · 세이오크',
     },
     {
+      image_url: '../app/portfolio/mix-14.jpg',
+      place: '드레스룸',
+      color: '매트 로지핑크 · 매트 화이트',
+    },
+    {
+      image_url: '../app/portfolio/mix-15.jpg',
+      place: '작은방 붙박이장',
+      color: '아크 미드나잇블루 · 카카오월넛',
+    },
+    {
       image_url: '../app/portfolio/luxe-11.jpg',
       place: '드레스룸',
       color: '매트 화이트 · 프렌치오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-16.jpg',
+      place: '홈카페장',
+      color: '아크 마멀레이드 · 매트 아이보리',
     },
     {
       image_url: '../app/portfolio/luxe-12.jpg',
@@ -87,9 +170,24 @@
       color: '매트 아이보리 · 슈가엘름',
     },
     {
+      image_url: '../app/portfolio/mix-17.jpg',
+      place: '거실 수납장',
+      color: '매트 다크그레이 · 소프트월넛',
+    },
+    {
       image_url: '../app/portfolio/luxe-13.jpg',
       place: '홈카페장',
       color: '매트 밀크화이트 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-18.jpg',
+      place: '다이닝 수납장',
+      color: '아크 포레스트그린 · 네이처 오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-19.jpg',
+      place: '세탁실장',
+      color: '매트 버터스카치 · 매트 화이트',
     },
     {
       image_url: '../app/portfolio/luxe-14.jpg',
@@ -97,9 +195,19 @@
       color: '매트 샌드그레이 · 매트 밀크화이트',
     },
     {
+      image_url: '../app/portfolio/mix-20.jpg',
+      place: '화장대',
+      color: '세라믹 문 브릭 · 매트 밀크화이트',
+    },
+    {
       image_url: '../app/portfolio/luxe-15.jpg',
       place: '거실 수납장',
       color: '아크 샌드듄 · 프렌치오크',
+    },
+    {
+      image_url: '../app/portfolio/mix-21.jpg',
+      place: '서재 책장',
+      color: '카카오월넛 · 매트 블랙',
     },
   ];
 
@@ -134,6 +242,7 @@
     var q = S.sb
       .from('collection_posts')
       .select(COLS)
+      .neq('source', 'ai_render')
       .order('created_at', { ascending: false })
       .limit(PAGE);
     if (S.cursor) q = q.lt('created_at', S.cursor);
