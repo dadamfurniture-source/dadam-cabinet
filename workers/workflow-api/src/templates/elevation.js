@@ -254,12 +254,13 @@ function moduleCaption(e) {
  * 모듈 번호 = item.modules 의 순번(1부터) — ⑥ 조립 체크·⑪ 모듈 치수도와 같은 번호.
  * warnings=false 면 빨간 검증 경고를 빼고 그린다 — 고객 확인서용 (검증은 작업지시서가 맡는다).
  */
-export function elevationSvg(item, { warnings = true } = {}) {
+export function elevationSvg(item, { warnings = true, textScale = 1 } = {}) {
   const model = elevationModel(item);
   const { W, H, placed, positioned } = model;
   if (!placed.length || W <= 0) return '';
 
-  const fs = Math.min(110, Math.max(55, W / 38));
+  // textScale — 새 틀 문서(sheet_layout 2)의 큰 글자 (2026-11-20 사장님 「치수 · 글자가 겹치거나 작음」). 이름 · 치수는 자리에 맞을 때만 쓰므로 커져도 겹치지 않는다
+  const fs = Math.min(110, Math.max(55, W / 38)) * (Number(textScale) > 0 ? Number(textScale) : 1);
   const floor = placed.filter((e) => e.line === 'floor');
   const upper = placed.filter((e) => e.line === 'upper');
   // 세로 치수의 대표: 일반 하부(없으면 바닥 첫 모듈) · 첫 상부. 둘이 세로로 겹치면 열을 하나 더 쓴다

@@ -49,7 +49,7 @@ test('시공 지시서 「설비」 표 — 고른 상품이 있을 때만, 글�
 
 test('이어진 곳 — 시공 지시서 설치 품목 아래 · 상판 발주서 타공 줄의 모델 칸', () => {
   const read = (p) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
-  assert.match(read('../src/templates/installation-order.js'), /<\/table>\$\{fixturePartsBlock\(items\)\}\$\{designAppliancesBlock\(design\)\}\s+\$\{installChecks\(doc, snapshot\)\}/);   // 고른 상품이 없으면 출력이 한 글자도 달라지지 않게 붙여 쓴다
+  assert.match(read('../src/templates/installation-order.js'), /<\/table>\$\{fixturePartsBlock\(items\)\}\$\{designAppliancesBlock\(design\)\}\s+\$\{layout2\(doc\) \? '' : installChecks\(doc, snapshot\)\}/);   // 고른 상품이 없으면 출력이 한 글자도 달라지지 않게 붙여 쓴다
   assert.match(read('../src/countertop.js'), /const partNames = fixturePartNames\(multiWall \? plannerWalls\.map\(\(x\) => x\.it\) : \[item\]\);/);
   const tpl = read('../src/templates/countertop-order.js');
   assert.match(tpl, /part \? `\$\{esc\(part\)\} <span class="muted">설계에서 고른 상품<\/span>`/);

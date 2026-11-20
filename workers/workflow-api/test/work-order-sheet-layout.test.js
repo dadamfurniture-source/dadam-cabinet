@@ -16,7 +16,7 @@ const snapshotWith = (processing) => fx.snapshot({ design_payload: { ...fx.desig
 const docV2 = (rp = {}) => fx.doc({ render_payload: { ...fx.doc().render_payload, label_order: 'cut', drawing_version: 1, sheet_layout: 2, ...rp } });
 const sheetNos = (html) => [...html.matchAll(/원장 #(\d+)/g)].map((m) => Number(m[1]));
 
-test('발행 칸 — 작업지시서는 새 판(sheet_layout 2)을 고정한다, 그 밖의 문서에는 없다', async () => {
+test('발행 칸 — 작업지시서 · 현장 지시서는 새 판(sheet_layout 2)을 고정한다', async () => {
   assert.equal(SHEET_LAYOUT, 2);
   const snapshot = fx.snapshot();
   const collect = (kind, items) => items.map((it, i) => ({ item_index: i, item_unique_id: i + 1, path: null }));
@@ -27,7 +27,7 @@ test('발행 칸 — 작업지시서는 새 판(sheet_layout 2)을 고정한다,
     const wo = await docPayloadOf(env, { docType: 'work_order', snapshot, designId: null, collect, site: { site_info: null, schedules: [] }, prevRev: false });
     assert.equal(wo.sheet_layout, 2);
     const dv = await docPayloadOf(env, { docType: 'delivery_order', snapshot, designId: null, collect, site: { site_info: null, schedules: [] }, prevRev: false });
-    assert.equal('sheet_layout' in dv, false);
+    assert.equal(dv.sheet_layout, 2, '현장 지시서도 새 틀 (2026-11-20)');
   } finally { globalThis.fetch = original; }
 });
 
@@ -85,4 +85,85 @@ test('재단선 — 톱이 끝까지 지나가는 자리만 (조각을 가르지
   const crosses = (c, r) => (c.x1 === c.x2 ? c.x1 > r.x && c.x1 < r.x + r.w && Math.max(c.y1, c.y2) > r.y && Math.min(c.y1, c.y2) < r.y + r.h : c.y1 > r.y && c.y1 < r.y + r.h && Math.max(c.x1, c.x2) > r.x && Math.min(c.x1, c.x2) < r.x + r.w);
   assert.ok(cuts.every((c) => rects.every((r) => !crosses(c, r))));
   assert.deepEqual(guillotineCuts([{ x: 0, y: 0, w: 10, h: 10 }], { x: 0, y: 0, w: 100, h: 100 }), []);
+});
+
+// ── 조립 새 틀 (src/templates/assembly-layout2.js) ─────────────────
+import { moduleIsoSvg, notchLinesOf, moduleInfoRows } from '../src/templates/assembly-layout2.js';
+
+const SPEC_MOD = {
+  moduleKey: 'w/floor/m1|0-lower-0',
+  box: { W: 900, H: 708, D: 550, T: 15 },
+  parts: [
+    { part: '측판', cut: { w: 550, h: 708 }, box: { min: [-450, 0, -275], max: [-435, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
+    { part: '측판', cut: { w: 550, h: 708 }, box: { min: [435, 0, -275], max: [450, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
+    { part: '지판', cut: { w: 870, h: 550 }, box: { min: [-435, 0, -275], max: [435, 15, 275] } },
+    { part: '도어', cut: { w: 446, h: 678 }, box: { min: [-448, 0, 275], max: [-2, 678, 293] } },
+  ],
+  hardware: [{ kind: 'leg', item: '조절 다리발', spec: '150mm', at: [-400, -150, 230], size: [42, 150, 42] }],
+};
+
+test('조립 3D — 조립 명세 판 자리 그대로, 도어는 점선 · 다리발, 굵은 W · H · D 몸통 치수', () => {
+  const svg = moduleIsoSvg(SPEC_MOD);
+  assert.match(svg, /^<svg class="mod-iso"/);
+  assert.equal((svg.match(/<polygon /g) || []).length, (3 + 1 + 1) * 3, '판 3 + 도어 1 + 다리발 1 — 면 셋씩');
+  assert.equal((svg.match(/stroke-dasharray/g) || []).length, 3, '도어 세 면은 점선');
+  for (const t of ['W 900', 'H 708', 'D 550']) assert.match(svg, new RegExp(`font-weight="700"[^>]*>${t}<`));
+  assert.equal(moduleIsoSvg({ parts: [] }), '');
+});
+
+test('모듈 내용 — 색상 · 부재 · 목찬넬 따내기 · 다리발 · 철물 (같은 것끼리 더함) · 전기', () => {
+  assert.deepEqual(notchLinesOf(SPEC_MOD), ['목찬넬 따내기 — 측판 위 앞 40 × 70'], '양쪽 측판 같은 자리는 한 줄');
+  const rows = [
+    { part: '측판', material: 'PB', thickness: 15, w: 550, h: 708, qty: 2, partClass: '본체', color: '화이트' },
+    { part: '도어', material: 'MDF', thickness: 18, w: 446, h: 678, qty: 2, partClass: '도어', finishCode: 'PET-1' },
+    { part: '뒷판', material: 'MDF', thickness: 3, w: 899, h: 707, qty: 1, partClass: '뒷판', color: '오크' },
+  ];
+  const hw = [{ category: '경첩', item: 'H052', spec: '2구', qty: 2 }, { category: '경첩', item: 'H052', spec: '2구', qty: 2 }, { category: '전기', item: '콘센트', spec: '2구', qty: 1 }];
+  const info = Object.fromEntries(moduleInfoRows({ rows, hardware: hw, mod: SPEC_MOD, colorName: (c) => `이름 ${c}` }));
+  assert.equal(info['색상'], '몸통 화이트 / 도어 이름 PET-1 / 우라 오크');
+  assert.match(info['부재'], /측판 550×708 PB15T × 2/);
+  assert.match(info['목찬넬 따내기'], /측판 위 앞 40 × 70/);
+  assert.equal(info['다리발 · 좌대'], '다리발 150mm × 1');
+  assert.equal(info['철물'], '경첩 H052 2구 × 4');
+  assert.equal(info['전기 · 가전'], '콘센트 2구 × 1');
+});
+
+test('조립 새 틀 — 모듈 명세 표 · 치수도 · 조립 순서 체크 없음, 옛 문서는 그대로', () => {
+  const html = renderWorkOrder(docV2(), snapshotWith(null), { toolbar: false, pack: 'assembly' });
+  const body = html.slice(html.indexOf('<body>'));
+  assert.doesNotMatch(body, /class="section-title">[^<]*(모듈 명세|모듈 치수도|조립 순서 체크|모듈 단면도)/);
+  const old = renderWorkOrder(fx.doc(), snapshotWith(null), { toolbar: false, pack: 'assembly' });
+  assert.match(old.slice(old.indexOf('<body>')), /조립 순서 체크/);
+});
+
+// ── 현장 지시서 새 틀 (시공 · 납품 · 철거) ─────────────────────────
+import { renderInstallationOrder } from '../src/templates/installation-order.js';
+import { renderSiteOrder } from '../src/templates/site-order.js';
+import { elevationSvg } from '../src/templates/elevation.js';
+
+test('현장 새 틀 — 시공 · 납품은 확인 칸 없음 · 철거는 배치 평면 없음 · 표 칸 너비 고정, 옛 문서는 그대로', () => {
+  const snap = fx.snapshot({ design_payload: { ...fx.design(), source: 'planner-lite' } });
+  const rp = (type, extra = {}) => ({ site_info: { address: '합성시 1' }, schedules: [], check_list: fx.doc().render_payload.check_list, drawing_version: 1, layout_renders: [{ item_index: 0, item_unique_id: 1, path: 'p/layout' }], ...extra });
+  const docOf = (type, extra) => ({ ...fx.doc(), doc_type: type, render_payload: rp(type, extra) });
+  const urls = new Map([['p/layout', 'data:image/svg+xml;base64,AA==']]);
+  const inst2 = renderInstallationOrder(docOf('installation_order', { sheet_layout: 2 }), snap, { toolbar: false });
+  const inst1 = renderInstallationOrder(docOf('installation_order'), snap, { toolbar: false });
+  assert.doesNotMatch(inst2, /<h2>설치 확인<\/h2>/);
+  assert.match(inst2, /table-layout: fixed/);
+  assert.doesNotMatch(inst1, /table-layout: fixed/, '옛 문서 모양 그대로');
+  const dlv2 = renderSiteOrder(docOf('delivery_order', { sheet_layout: 2, check_list: { version: 'v4', block: 'must', roles: { delivery: [{ key: 'dlv-order-count', label: '납품 수량 확인', scope: 'order', must: true, photo: 'none' }] } } }), snap, { toolbar: false });
+  assert.doesNotMatch(dlv2, /납품 수량 확인 ☐/);
+  const dem2 = renderSiteOrder(docOf('demolition_order', { sheet_layout: 2 }), snap, { toolbar: false, renderUrls: urls });
+  const dem1 = renderSiteOrder(docOf('demolition_order'), snap, { toolbar: false, renderUrls: urls });
+  assert.doesNotMatch(dem2, /<h2>배치 평면/);
+  assert.match(dem1, /<h2>배치 평면/);
+});
+
+test('정면도 글자 배율 — 새 틀은 크게, 기본은 그대로', () => {
+  const item = fx.design().items[0];
+  const fsOf = (svg) => Math.max(...[...svg.matchAll(/font-size="([\d.]+)"/g)].map((m) => Number(m[1])));
+  const a = elevationSvg(item);
+  const b = elevationSvg(item, { textScale: 1.35 });
+  assert.ok(fsOf(b) > fsOf(a) * 1.3);
+  assert.equal(elevationSvg(item, { textScale: 1 }), a);
 });
