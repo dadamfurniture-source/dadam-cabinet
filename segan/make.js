@@ -105,23 +105,83 @@
     study: ['other'],
     bedroom: ['builtin'],
   };
-  // 자체 시공 사진 — segan/collection.js STATIC 과 같은 사진 · 지역 (분류는 ai-design.html CASE_STATIC 과 같다)
+  // AI 연출 사진 — segan/collection.js STATIC 과 같은 사진 (app/portfolio/luxe-manifest.json). 칸 이름은 품목 · 문 색
   var CASE_STATIC = [
-    { image_url: '../app/portfolio/kitchen-n1-1.jpg', region: '서울 논현', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n1-2.jpg', region: '서울 성수', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n1-3.jpg', region: '서울 성수', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n1-4.jpg', region: '서울 반포', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n3-2.jpg', region: '성남 분당', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n3-3.jpg', region: '인천 송도', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n4-1.jpg', region: '성남 판교', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n6-1.jpg', region: '고양 일산', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n6-2.jpg', region: '용인 수지', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n6-3.jpg', region: '고양 일산', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n7-1.jpg', region: '하남 위례', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n7-2.jpg', region: '수원 광교', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n7-3.jpg', region: '서울 마포', category: 'kitchen' },
-    { image_url: '../app/portfolio/kitchen-n7-4.jpg', region: '수원 광교', category: 'kitchen' },
-    { image_url: '../app/portfolio/funiture-n4-1.jpg', region: '서울 논현', category: 'builtin' },
+    {
+      image_url: '../app/portfolio/luxe-01.jpg',
+      label: '아일랜드 주방 · 매트 화이트 · 세이오크',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-02.jpg',
+      label: '일자형 주방 · 매트 아이보리 · 슈가엘름',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-03.jpg',
+      label: 'ㄱ자형 주방 · 매트 밀크화이트 · 매트 샌드그레이',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-04.jpg',
+      label: 'ㄷ자형 주방 · 매트 캐시미어 · 프렌치오크',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-05.jpg',
+      label: '대면형 주방 · 매트 화이트 · 아크 샌드듄',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-06.jpg',
+      label: '아일랜드 주방 · 매트 샌드그레이 · 매트 화이트',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-07.jpg',
+      label: '냉장고장 · 매트 아이보리 · 세이오크',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-08.jpg',
+      label: '11자 주방 · 매트 밀크화이트 · 프렌치오크',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-09.jpg',
+      label: '주방 디테일 · 매트 화이트 · 세이오크',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-10.jpg',
+      label: '안방 붙박이장 · 매트 캐시미어 · 세이오크',
+      category: 'builtin',
+    },
+    {
+      image_url: '../app/portfolio/luxe-11.jpg',
+      label: '드레스룸 · 매트 화이트 · 프렌치오크',
+      category: 'builtin',
+    },
+    {
+      image_url: '../app/portfolio/luxe-12.jpg',
+      label: '드레스룸 · 매트 아이보리 · 슈가엘름',
+      category: 'builtin',
+    },
+    {
+      image_url: '../app/portfolio/luxe-13.jpg',
+      label: '홈카페장 · 매트 밀크화이트 · 세이오크',
+      category: 'storage',
+    },
+    {
+      image_url: '../app/portfolio/luxe-14.jpg',
+      label: '다이닝 수납장 · 매트 샌드그레이 · 매트 밀크화이트',
+      category: 'storage',
+    },
+    {
+      image_url: '../app/portfolio/luxe-15.jpg',
+      label: '거실 수납장 · 아크 샌드듄 · 프렌치오크',
+      category: 'storage',
+    },
   ];
 
   var MAX_BYTES = 20 * 1024 * 1024;
@@ -487,7 +547,7 @@
     return {
       id: 's:' + stem,
       src: row.image_url,
-      label: caseLabel(row.region),
+      label: row.label,
       category: row.category,
     };
   }

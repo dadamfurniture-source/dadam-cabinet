@@ -1,0 +1,357 @@
+{
+  "note": "SEGAN 앱 사진 — AI 로 연출한 이미지(실제 시공 사진 아님). 2026-11-20 대표님 요청 「럭셔리하고 밝은 톤」. 문 색 이름은 예림 LUX 도어 자재(database/seed/yerim-lux.json).",
+  "photos": [
+    {
+      "file": "luxe-hero.jpg",
+      "category": "kitchen",
+      "kind": "아일랜드 주방",
+      "label": "아일랜드 주방 · 매트 화이트 · 세이오크",
+      "materials": [
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        },
+        {
+          "code": "YPW-04",
+          "name": "세이오크",
+          "hex": "#cea875"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "fe738c4a-d18c-4ed7-894c-72e4e80e91d1",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A wall of full-height tall cabinets with a built-in oven and an integrated refrigerator behind matching fronts, and in front of it a freestanding island whose countertop folds down one end as a waterfall, an induction hob and three stools. Two small pendants hang over the island.\nFINISH: Wall cabinets and any tall units: pure white matte (colour #fbfbfb). Base cabinets, drawers and any island or peninsula: light honey oak woodgrain with a vertical grain (colour #cea875). Fronts are flat slab doors, matte.\nSURFACES: white sintered stone slab with soft grey Calacatta-like veining, 20 mm square edge, the island countertop folding down as a waterfall; the backsplash is the same slab.\nLOOSE FURNITURE: three slim pale oak stools with ivory bouclé seats.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a low ceramic bowl of lemons on the island and one small branch in a glass vase near the hob.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring with a matte finish.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nCOMPOSITION: wide and calm; the lower third of the frame is quiet floor and the plain island front, with no busy objects, because a title will sit over the lower left.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-01.jpg",
+      "category": "kitchen",
+      "kind": "아일랜드 주방",
+      "label": "아일랜드 주방 · 매트 화이트 · 세이오크",
+      "materials": [
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        },
+        {
+          "code": "YPW-04",
+          "name": "세이오크",
+          "hex": "#cea875"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "539cf7eb-51b3-47f7-9e5b-4fa744422fa5",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A wall of full-height tall cabinets with a built-in oven and an integrated refrigerator behind matching fronts, and in front of it a freestanding island whose countertop folds down one end as a waterfall, an induction hob and three stools. Two small pendants hang over the island.\nFINISH: Wall cabinets and any tall units: pure white matte (colour #fbfbfb). Base cabinets, drawers and any island or peninsula: light honey oak woodgrain with a vertical grain (colour #cea875). Fronts are flat slab doors, matte.\nSURFACES: white sintered stone slab with soft grey Calacatta-like veining, 20 mm edge, waterfall on the island; the backsplash is the same slab.\nLOOSE FURNITURE: three pale oak stools with ivory bouclé seats.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a ceramic bowl of green apples and a linen tea towel.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-02.jpg",
+      "category": "kitchen",
+      "kind": "일자형 주방",
+      "label": "일자형 주방 · 매트 아이보리 · 슈가엘름",
+      "materials": [
+        {
+          "code": "SM-16",
+          "name": "매트 아이보리",
+          "hex": "#f5eddc"
+        },
+        {
+          "code": "PW-20",
+          "name": "슈가엘름",
+          "hex": "#d8c8ba"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "2eaff050-50e1-48d1-b8bc-6c0452628106",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A single-wall kitchen: one straight run about 3.6 m long with base cabinets under a countertop, wall cabinets above that reach the ceiling, an undermount sink with a matte tap and a flush induction hob under a slim concealed hood. A dining table for four with chairs stands parallel to the run.\nFINISH: Wall cabinets and any tall units: ivory cream matte (colour #f5eddc). Base cabinets, drawers and any island or peninsula: very pale elm woodgrain, almost white, with a fine vertical grain (colour #d8c8ba). Fronts are flat slab doors, matte.\nSURFACES: warm ivory honed quartz with a faint fleck, 12 mm slim edge; the backsplash is the same quartz.\nLOOSE FURNITURE: a round travertine dining table with four cream upholstered chairs.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a wooden board with a loaf of bread, a small olive tree in a stone pot.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: light greige porcelain tiles in large 1200 mm format.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-03.jpg",
+      "category": "kitchen",
+      "kind": "ㄱ자형 주방",
+      "label": "ㄱ자형 주방 · 매트 밀크화이트 · 매트 샌드그레이",
+      "materials": [
+        {
+          "code": "SM-02",
+          "name": "매트 밀크화이트",
+          "hex": "#fffef8"
+        },
+        {
+          "code": "SM-21",
+          "name": "매트 샌드그레이",
+          "hex": "#d4cfc8"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "b2b7a2e8-761e-4aeb-bee2-c5e5c1f98aa1",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: An L-shaped kitchen wrapping one corner: the long leg carries the hob and wall cabinets to the ceiling, the short leg carries the sink under a small frosted window that opens to the utility balcony. A tall unit with a built-in oven closes one end. A dining table with chairs stands on the open floor in front of the kitchen.\nFINISH: Wall cabinets and any tall units: milk white matte (colour #fffef8). Base cabinets, drawers and any island or peninsula: pale sand-grey matte (colour #d4cfc8). Fronts are flat slab doors, matte.\nSURFACES: honed travertine-look sintered stone in warm beige, 20 mm edge; the backsplash is the same stone.\nLOOSE FURNITURE: a pale oak dining table with four white oak chairs with woven seats.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen from the next room through an open doorway: one door jamb, softly out of focus, frames a side of the picture. 35 mm lens, f/4, camera at 1.35 m.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a glass carafe of water and a stack of two white plates.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: pale oak herringbone parquet.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-04.jpg",
+      "category": "kitchen",
+      "kind": "ㄷ자형 주방",
+      "label": "ㄷ자형 주방 · 매트 캐시미어 · 프렌치오크",
+      "materials": [
+        {
+          "code": "SM-03",
+          "name": "매트 캐시미어",
+          "hex": "#e3e1d6"
+        },
+        {
+          "code": "PW-21",
+          "name": "프렌치오크",
+          "hex": "#bca580"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "84caa129-88c9-4c85-ae97-3279605ba0aa",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A U-shaped kitchen on three sides of the cook: base cabinets and countertop run along all three walls, wall cabinets to the ceiling on two of them, the third side kept open above the countertop toward the dining area, where a dining table with chairs stands.\nFINISH: Wall cabinets and any tall units: soft cashmere off-white matte (colour #e3e1d6). Base cabinets, drawers and any island or peninsula: natural French oak woodgrain with a vertical grain (colour #bca580). Fronts are flat slab doors, matte.\nSURFACES: white marble-look sintered stone with fine grey veining, 20 mm edge; the backsplash is the same slab.\nLOOSE FURNITURE: a long white marble dining table with light oak chairs.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen across a piece of furniture: a table edge or chair back sits soft and dark in the lower foreground and the built-in furniture is sharp behind it. 35 mm lens, f/5.6, camera at 1.2 m.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a few white tulips in a ceramic jug and a brass-coloured tray.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-05.jpg",
+      "category": "kitchen",
+      "kind": "대면형 주방",
+      "label": "대면형 주방 · 매트 화이트 · 아크 샌드듄",
+      "materials": [
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        },
+        {
+          "code": "YPA-03",
+          "name": "아크 샌드듄",
+          "hex": "#cdc2b4"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "b0a7155c-ebd6-4ff2-bb53-387e9750f2ef",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A kitchen facing the living room: a back wall of wall and base cabinets with the hob, and in front of it a peninsula with the sink and a breakfast overhang with two stools, so the cook looks toward the living room.\nFINISH: Wall cabinets and any tall units: pure white matte (colour #fbfbfb). Base cabinets, drawers and any island or peninsula: sand beige matte (colour #cdc2b4). Fronts are flat slab doors, matte.\nSURFACES: light grey marble-look sintered stone with soft veining, 20 mm edge, waterfall at the open end of the peninsula; the backsplash is the same slab.\nLOOSE FURNITURE: two light oak stools with cream leather seats.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a small bowl of oranges and a coffee cup on a saucer.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: light greige porcelain tiles in large format.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-06.jpg",
+      "category": "kitchen",
+      "kind": "아일랜드 주방",
+      "label": "아일랜드 주방 · 매트 샌드그레이 · 매트 화이트",
+      "materials": [
+        {
+          "code": "SM-21",
+          "name": "매트 샌드그레이",
+          "hex": "#d4cfc8"
+        },
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "8588a0ac-d333-4972-944c-f4330f1231f5",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A long kitchen wall of full-height tall cabinets with a built-in oven column, and in front of it a 3 m island with the sink and an overhang for four stools along one side. A slim linear pendant hangs over the island.\nFINISH: Wall cabinets and any tall units: pale sand-grey matte (colour #d4cfc8). Base cabinets, drawers and any island or peninsula: pure white matte (colour #fbfbfb). Fronts are flat slab doors, matte.\nSURFACES: white sintered stone slab with soft warm-grey veining, 20 mm edge, waterfall at both ends of the island.\nLOOSE FURNITURE: four pale oak counter stools with low backs.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a ceramic vase with a single green branch and a wooden tray with two glasses.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-07.jpg",
+      "category": "kitchen",
+      "kind": "냉장고장",
+      "label": "냉장고장 · 매트 아이보리 · 세이오크",
+      "materials": [
+        {
+          "code": "SM-16",
+          "name": "매트 아이보리",
+          "hex": "#f5eddc"
+        },
+        {
+          "code": "YPW-04",
+          "name": "세이오크",
+          "hex": "#cea875"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "6b049d08-66f4-4ab1-bada-15b1e7443c5b",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A wall of full-height cabinets built around a refrigerator: the refrigerator sits flush between tall pantry cabinets with a bridging cabinet above it, so the whole wall reads as one flat plane to the ceiling.\nFINISH: Tall door fronts: ivory cream matte (colour #f5eddc). The back and sides of open niches, the drawer fronts and any low units: light honey oak woodgrain with a vertical grain (colour #cea875). Fronts are flat slab doors, matte.\nSURFACES: warm ivory honed quartz on any low ledge.\nLOOSE FURNITURE: none in frame.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: A half-scene of one end of the furniture at eye level, composed off-centre with empty wall on one side. 50 mm lens, f/4.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a ceramic jug with a few olive branches on a low ledge.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-08.jpg",
+      "category": "kitchen",
+      "kind": "11자 주방",
+      "label": "11자 주방 · 매트 밀크화이트 · 프렌치오크",
+      "materials": [
+        {
+          "code": "SM-02",
+          "name": "매트 밀크화이트",
+          "hex": "#fffef8"
+        },
+        {
+          "code": "PW-21",
+          "name": "프렌치오크",
+          "hex": "#bca580"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "73abfcce-9f89-403c-9abd-332eb6593bdc",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A galley kitchen with two parallel runs facing each other across a 1.2 m aisle: one run with the sink under the window and base cabinets, the other with tall cabinets, a built-in oven and a flush hob; wall cabinets to the ceiling above the hob run.\nFINISH: Wall cabinets and any tall units: milk white matte (colour #fffef8). Base cabinets, drawers and any island or peninsula: natural French oak woodgrain with a vertical grain (colour #bca580). Fronts are flat slab doors, matte.\nSURFACES: white marble-look sintered stone with fine grey veining, 20 mm edge; the backsplash is the same slab.\nLOOSE FURNITURE: none in frame.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen from the next room through an open doorway: one door jamb, softly out of focus, frames a side of the picture. 35 mm lens, f/4, camera at 1.35 m.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a small herb pot by the sink and a wooden chopping board leaning on the backsplash.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: pale oak herringbone parquet.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-09.jpg",
+      "category": "kitchen",
+      "kind": "주방 디테일",
+      "label": "주방 디테일 · 매트 화이트 · 세이오크",
+      "materials": [
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        },
+        {
+          "code": "YPW-04",
+          "name": "세이오크",
+          "hex": "#cea875"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "33981291-e919-4979-ac8c-4cd06404c224",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A wall of full-height tall cabinets with a built-in oven and an integrated refrigerator behind matching fronts, and in front of it a freestanding island whose countertop folds down one end as a waterfall, an induction hob and three stools. Two small pendants hang over the island.\nFINISH: Wall cabinets and any tall units: pure white matte (colour #fbfbfb). Base cabinets, drawers and any island or peninsula: light honey oak woodgrain with a vertical grain (colour #cea875). Fronts are flat slab doors, matte.\nSURFACES: white sintered stone slab with soft grey Calacatta-like veining, 20 mm edge, the waterfall corner of the island in focus.\nLOOSE FURNITURE: one pale oak stool with an ivory bouclé seat, softly out of focus.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: A close detail where the two finishes meet, with both colours clearly in frame and one styled object nearby. 85 mm lens at f/2.8, shallow depth of field, the rest of the room melting into blur.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a ceramic cup of coffee and a small linen napkin on the stone.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-10.jpg",
+      "category": "builtin",
+      "kind": "안방 붙박이장",
+      "label": "안방 붙박이장 · 매트 캐시미어 · 세이오크",
+      "materials": [
+        {
+          "code": "SM-03",
+          "name": "매트 캐시미어",
+          "hex": "#e3e1d6"
+        },
+        {
+          "code": "YPW-04",
+          "name": "세이오크",
+          "hex": "#cea875"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "17177f19-b3bc-496b-8ad4-02163774673e",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A built-in wardrobe filling one whole wall of the main bedroom, floor to ceiling, with tall hinged doors and one open niche bay of shelves at one end. A low bed with linen bedding and a bedside table stand in front, off to one side.\nFINISH: Door fronts: soft cashmere off-white matte (colour #e3e1d6). Open-shelf niches, visible side panels and the drawer fronts: light honey oak woodgrain with a vertical grain (colour #cea875). Fronts are flat slab doors, matte.\nLOOSE FURNITURE: a low pale oak bed frame with white linen bedding and an ivory bouclé bench at its foot.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a folded cream throw and a small ceramic lamp on the bedside table.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-11.jpg",
+      "category": "builtin",
+      "kind": "드레스룸",
+      "label": "드레스룸 · 매트 화이트 · 프렌치오크",
+      "materials": [
+        {
+          "code": "SM-01",
+          "name": "매트 화이트",
+          "hex": "#fbfbfb"
+        },
+        {
+          "code": "PW-21",
+          "name": "프렌치오크",
+          "hex": "#bca580"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "e19e553e-fcda-4897-8c1d-cb43386a061c",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A walk-in dressing room in an L shape: full-height wardrobes on two walls, part with closed doors and part open with a hanging rail of clothes in muted tones, a bank of drawers at waist height and soft LED strips recessed under the shelves.\nFINISH: Door fronts: pure white matte (colour #fbfbfb). Open-shelf niches, visible side panels and the drawer fronts: natural French oak woodgrain with a vertical grain (colour #bca580). Fronts are flat slab doors, matte.\nLOOSE FURNITURE: a round ivory bouclé ottoman in the middle of the room.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen from the next room through an open doorway: one door jamb, softly out of focus, frames a side of the picture. 35 mm lens, f/4, camera at 1.35 m.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — clothes in cream, camel and white tones on the rail and two folded knits on the drawer top.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: pale oak herringbone parquet.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-12.jpg",
+      "category": "builtin",
+      "kind": "드레스룸",
+      "label": "드레스룸 · 매트 아이보리 · 슈가엘름",
+      "materials": [
+        {
+          "code": "SM-16",
+          "name": "매트 아이보리",
+          "hex": "#f5eddc"
+        },
+        {
+          "code": "PW-20",
+          "name": "슈가엘름",
+          "hex": "#d8c8ba"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "7cecd879-0bf2-4c22-b4fa-31f497858d8b",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A dressing room with two full-height wardrobe runs facing each other across a narrow aisle, a tall narrow window at the far end, an open hanging section on one side and closed doors on the other, and a small bench in the aisle.\nFINISH: Door fronts: ivory cream matte (colour #f5eddc). Open-shelf niches, visible side panels and the drawer fronts: very pale elm woodgrain, almost white, with a fine vertical grain (colour #d8c8ba). Fronts are flat slab doors, matte.\nLOOSE FURNITURE: a slim pale oak bench with a cream linen cushion.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: One-point architectural view with the camera square to the main run of furniture. 24 mm tilt-shift lens on a full-frame camera, on a tripod at 1.25 m, f/8. Every vertical line is perfectly straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a few light-toned garments on the open rail and a pair of white sneakers under the bench.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-13.jpg",
+      "category": "storage",
+      "kind": "홈카페장",
+      "label": "홈카페장 · 매트 밀크화이트 · 세이오크",
+      "materials": [
+        {
+          "code": "SM-02",
+          "name": "매트 밀크화이트",
+          "hex": "#fffef8"
+        },
+        {
+          "code": "YPW-04",
+          "name": "세이오크",
+          "hex": "#cea875"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "ff7d07b8-f05e-4998-a29c-ba3f37784ef0",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A home-café station built into a wall of tall cabinets: a recessed open niche at counter height with a ledge holding an espresso machine, a kettle and a short row of cups, a shelf above it lit by a concealed LED strip, and deep drawers below.\nFINISH: Tall door fronts: milk white matte (colour #fffef8). The back and sides of open niches, the drawer fronts and any low units: light honey oak woodgrain with a vertical grain (colour #cea875). Fronts are flat slab doors, matte.\nSURFACES: white marble-look sintered stone on the niche ledge, with soft grey veining.\nLOOSE FURNITURE: none in frame.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: A half-scene of one end of the furniture at eye level, composed off-centre with empty wall on one side. 50 mm lens, f/4.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — an unbranded stainless espresso machine, a glass jar of coffee beans and three white cups.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-14.jpg",
+      "category": "storage",
+      "kind": "다이닝 수납장",
+      "label": "다이닝 수납장 · 매트 샌드그레이 · 매트 밀크화이트",
+      "materials": [
+        {
+          "code": "SM-21",
+          "name": "매트 샌드그레이",
+          "hex": "#d4cfc8"
+        },
+        {
+          "code": "SM-02",
+          "name": "매트 밀크화이트",
+          "hex": "#fffef8"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "6f1cde82-478e-426c-abc6-15d3b784ed8c",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A dining room storage wall: tall cabinets at both ends and a long low sideboard between them with an open display niche above, beside a dining table with four chairs.\nFINISH: Tall door fronts: pale sand-grey matte (colour #d4cfc8). The back and sides of open niches, the drawer fronts and any low units: milk white matte (colour #fffef8). Fronts are flat slab doors, matte.\nSURFACES: honed travertine-look stone on the sideboard top.\nLOOSE FURNITURE: a pale oak dining table with four cream upholstered chairs.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Two-point view from a corner of the room so the furniture recedes in depth. 28 mm lens on a full-frame camera, on a tripod at 1.3 m, f/8, verticals kept straight.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — a ceramic vase with dried pampas on the sideboard and a framed soft abstract print leaning in the niche.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: pale oak herringbone parquet.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    },
+    {
+      "file": "luxe-15.jpg",
+      "category": "storage",
+      "kind": "거실 수납장",
+      "label": "거실 수납장 · 아크 샌드듄 · 프렌치오크",
+      "materials": [
+        {
+          "code": "YPA-03",
+          "name": "아크 샌드듄",
+          "hex": "#cdc2b4"
+        },
+        {
+          "code": "PW-21",
+          "name": "프렌치오크",
+          "hex": "#bca580"
+        }
+      ],
+      "made": "2026-11-20",
+      "model": "higgsfield gpt_image_2_6 (high · 2k)",
+      "job_id": "908bbf52-e743-4ee1-a147-76c45d8eaa8f",
+      "prompt": "An interior photograph of built-in furniture in a bright, luxurious Korean apartment.\nSCENE: A living room storage wall: floor-to-ceiling cabinets at both ends and a long floating low unit between them, with an open shelf niche above it lit by a concealed LED strip. A low cream sofa stands in front of it.\nFINISH: Tall door fronts: sand beige matte (colour #cdc2b4). The back and sides of open niches, the drawer fronts and any low units: natural French oak woodgrain with a vertical grain (colour #bca580). Fronts are flat slab doors, matte.\nSURFACES: honed warm-white stone on the low unit top.\nLOOSE FURNITURE: a low round travertine coffee table in front of the sofa.\nHANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.\nCAMERA: Seen across a piece of furniture: a table edge or chair back sits soft and dark in the lower foreground and the built-in furniture is sharp behind it. 35 mm lens, f/5.6, camera at 1.2 m.\nLIGHT: bright, high-key natural daylight on a clear late morning. Soft sunlight fills the room through the large windows, whites stay clean and luminous, shadows are soft and gentle. Concealed LED strips are on and faintly warm. The whole picture feels light, airy and calm.\nSTYLING: only a few objects — two art books, a small ceramic sculpture and a trailing plant on the shelves.\nROOM: a spacious, newly finished high-end Korean apartment with a 2.6 m ceiling, a slim recessed linear light cove along the ceiling edge, warm white plaster walls and large floor-to-ceiling windows dressed in sheer white linen, through which a bright sky and distant apartment towers show only softly. FLOOR: wide pale oak plank flooring.\nMOOD: quiet luxury — generous space, refined natural materials, very few objects, nothing cluttered, every line precise.\nThis is a real photograph taken on location by a professional interior photographer for a high-end design magazine. It must not look like a 3D render or an illustration.\nExposure is bright but natural: highlights at the windows roll off gently without blowing out, shadows keep soft depth. No HDR look, no over-sharpening, no oversaturated colour.\nMaterials behave like real ones: matte fronts show a faint soft sheen and 2-3 mm reveals between doors, woodgrain runs vertically with natural variation and never repeats, stone shows real veining and a soft reflection.\nThe lens leaves its trace: true perspective for the stated focal length, a faint vignette and fine sensor grain. Colour is graded clean and neutral-warm with white balance true to daylight.\nAll doors and drawers are closed. No people, no pets, no text, no logos, no watermark and no brand names on appliances."
+    }
+  ]
+}

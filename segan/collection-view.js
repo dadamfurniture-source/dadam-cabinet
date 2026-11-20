@@ -31,7 +31,8 @@
   var TEXT = {
     ai: 'AI 연출컷',
     title: '시공사례',
-    hq: '다담가구', // 자체 시공 사진(STATIC) — 다담가구가 시공한 사진
+    hq: '다담가구',
+    staticAi: 'AI 연출', // AI 연출 사진(STATIC) — 실제 시공이 아니므로 업체 대신
     place: '장소',
     color: '색상',
     company: '업체',
@@ -106,7 +107,7 @@
     return p;
   }
 
-  /** 자체 시공 사진 (segan/collection.js STATIC — { image_url: '../app/portfolio/<이름>.jpg', region }) */
+  /** AI 연출 사진 (segan/collection.js STATIC — { image_url: '../app/portfolio/<이름>.jpg', place, color }) */
   function fromStatic(s) {
     var file = String(s.image_url || '').replace(/^.*\//, '');
     var stem = file.replace(/\.jpg$/i, '');
@@ -114,10 +115,10 @@
       id: '',
       image_url: STATIC_FULL + file,
       thumb: STATIC_THUMB + file,
-      place_label: str(s.region),
-      door_color: '',
-      company_name: TEXT.hq,
-      company_kind: 'hq',
+      place_label: str(s.place),
+      door_color: str(s.color),
+      company_name: TEXT.staticAi,
+      company_kind: '',
       source: 'upload',
       like_count: 0,
       created_at: null,

@@ -7,7 +7,7 @@
        id · image_url · place_label · door_color · company_id · like_count · source · created_at (DB 0049)
      업체 이름은 RPC collection_post_companies (업체가 있는 게시물만, 쪽마다 한 번)
      로그인했으면 이 쪽에서 내가 좋아한 것 — collection_likes post_id (본인 줄만 읽힌다)
-     DB 사례를 다 받은 뒤에 자체 시공 사진(STATIC — 사이트 collection.html 과 같은 목록)을 붙인다
+     DB 사례를 다 받은 뒤에 AI 연출 사진(STATIC — app/portfolio/luxe-manifest.json)을 붙인다
        (최신순이 끝까지 이어지고, 이미 그린 자리 사이로 새 줄이 끼어들지 않는다)
    처음 24장 · 24장씩 더 — 아래까지 내리면 저절로(IntersectionObserver), 없으면 「더 보기」 단추.
    누르면 사진 보기(장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷) — segan/collection-view.js (SeganPostView)
@@ -23,23 +23,84 @@
   var COLS = 'id,image_url,place_label,door_color,company_id,like_count,source,created_at';
   var SELF = 'collection'; // 로그인 뒤 돌아올 곳 (segan/shell.js loginHref)
 
-  // collection.html STATIC 과 같은 목록 (segan/ 에서 보므로 ../)
+  // AI 연출 사진 (app/portfolio/luxe-manifest.json, segan/ 에서 보므로 ../) — 장소 대신 품목, 색상 = 예림 도어 자재 이름.
+  // 실제 시공 사진이 아니므로 지역 · 업체를 붙이지 않는다 (사진 보기의 업체 줄은 「AI 연출」)
   var STATIC = [
-    { image_url: '../app/portfolio/kitchen-n1-1.jpg', region: '서울 논현' },
-    { image_url: '../app/portfolio/kitchen-n1-2.jpg', region: '서울 성수' },
-    { image_url: '../app/portfolio/kitchen-n1-3.jpg', region: '서울 성수' },
-    { image_url: '../app/portfolio/kitchen-n1-4.jpg', region: '서울 반포' },
-    { image_url: '../app/portfolio/kitchen-n3-2.jpg', region: '성남 분당' },
-    { image_url: '../app/portfolio/kitchen-n3-3.jpg', region: '인천 송도' },
-    { image_url: '../app/portfolio/kitchen-n4-1.jpg', region: '성남 판교' },
-    { image_url: '../app/portfolio/kitchen-n6-1.jpg', region: '고양 일산' },
-    { image_url: '../app/portfolio/kitchen-n6-2.jpg', region: '용인 수지' },
-    { image_url: '../app/portfolio/kitchen-n6-3.jpg', region: '고양 일산' },
-    { image_url: '../app/portfolio/kitchen-n7-1.jpg', region: '하남 위례' },
-    { image_url: '../app/portfolio/kitchen-n7-2.jpg', region: '수원 광교' },
-    { image_url: '../app/portfolio/kitchen-n7-3.jpg', region: '서울 마포' },
-    { image_url: '../app/portfolio/kitchen-n7-4.jpg', region: '수원 광교' },
-    { image_url: '../app/portfolio/funiture-n4-1.jpg', region: '서울 논현' },
+    {
+      image_url: '../app/portfolio/luxe-01.jpg',
+      place: '아일랜드 주방',
+      color: '매트 화이트 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-02.jpg',
+      place: '일자형 주방',
+      color: '매트 아이보리 · 슈가엘름',
+    },
+    {
+      image_url: '../app/portfolio/luxe-03.jpg',
+      place: 'ㄱ자형 주방',
+      color: '매트 밀크화이트 · 매트 샌드그레이',
+    },
+    {
+      image_url: '../app/portfolio/luxe-04.jpg',
+      place: 'ㄷ자형 주방',
+      color: '매트 캐시미어 · 프렌치오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-05.jpg',
+      place: '대면형 주방',
+      color: '매트 화이트 · 아크 샌드듄',
+    },
+    {
+      image_url: '../app/portfolio/luxe-06.jpg',
+      place: '아일랜드 주방',
+      color: '매트 샌드그레이 · 매트 화이트',
+    },
+    {
+      image_url: '../app/portfolio/luxe-07.jpg',
+      place: '냉장고장',
+      color: '매트 아이보리 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-08.jpg',
+      place: '11자 주방',
+      color: '매트 밀크화이트 · 프렌치오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-09.jpg',
+      place: '주방 디테일',
+      color: '매트 화이트 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-10.jpg',
+      place: '안방 붙박이장',
+      color: '매트 캐시미어 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-11.jpg',
+      place: '드레스룸',
+      color: '매트 화이트 · 프렌치오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-12.jpg',
+      place: '드레스룸',
+      color: '매트 아이보리 · 슈가엘름',
+    },
+    {
+      image_url: '../app/portfolio/luxe-13.jpg',
+      place: '홈카페장',
+      color: '매트 밀크화이트 · 세이오크',
+    },
+    {
+      image_url: '../app/portfolio/luxe-14.jpg',
+      place: '다이닝 수납장',
+      color: '매트 샌드그레이 · 매트 밀크화이트',
+    },
+    {
+      image_url: '../app/portfolio/luxe-15.jpg',
+      place: '거실 수납장',
+      color: '아크 샌드듄 · 프렌치오크',
+    },
   ];
 
   var S = {

@@ -15,13 +15,13 @@
     <meta name="theme-color" content="#F6F3EE" />
     <title>SEGAN</title>
     <!-- 옛 만들기 주소(?g= · ?ref= · #result …)로 들어오면 그리기 전에 make.html 로 넘긴다 -->
-    <script src="forward.js?v=2026112011"></script>
+    <script src="forward.js?v=2026112012"></script>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112011" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112011" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112011" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112011" />
+    <link rel="icon" href="icons/icon.svg?v=2026112012" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112012" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112012" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112012" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -31,31 +31,31 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112011" />
-    <link rel="stylesheet" href="home.css?v=2026112011" />
+    <link rel="stylesheet" href="shell.css?v=2026112012" />
+    <link rel="stylesheet" href="home.css?v=2026112012" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112011"></script>
+    <script src="../js/config.js?v=2026112012"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112011"></script>
-    <script src="shell.js?v=2026112011" defer blocking="render"></script>
+    <script src="motion.js?v=2026112012"></script>
+    <script src="shell.js?v=2026112012" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112011" defer></script>
+    <script src="guide.js?v=2026112012" defer></script>
   </head>
   <body class="sg-app" data-tab="home">
     <div data-segan-shell="header"></div>
 
     <main class="hm" id="main">
-      <!-- 첫 사진 한 장 — 위 막대(유리) 밑으로 들어간다. 사진은 자체 시공 사례 (시공사례 탭과 같은 사진) -->
+      <!-- 첫 사진 한 장 — 위 막대(유리) 밑으로 들어간다. 사진은 AI 연출 (app/portfolio/luxe-manifest.json) -->
       <section class="hm-hero" aria-labelledby="hmTitle">
         <picture>
-          <source srcset="../app/portfolio/display/kitchen-n4-1.avif" type="image/avif" />
+          <source srcset="../app/portfolio/display/luxe-hero.avif" type="image/avif" />
           <img
-            src="../app/portfolio/display/kitchen-n4-1.jpg"
+            src="../app/portfolio/display/luxe-hero.jpg"
             alt=""
-            width="1220"
-            height="508"
+            width="1920"
+            height="1086"
             decoding="async"
             fetchpriority="high"
             draggable="false"
@@ -66,7 +66,6 @@
           <p class="hm-lead">방 사진 한 장으로 맞춤 가구 연출컷을 받아 보세요.</p>
           <a class="hm-cta" href="make.html">방 사진 올리기</a>
         </div>
-        <small class="hm-credit">사진 @BAUS KITCHEN</small>
       </section>
 
       <div class="hm-in">
@@ -92,102 +91,103 @@
 
       <section class="hm-sec" aria-labelledby="hmWorksTitle">
         <div class="hm-in hm-head">
-          <h2 id="hmWorksTitle">시공사례</h2>
+          <h2 id="hmWorksTitle">연출 사례</h2>
           <a href="collection.html">전체 보기</a>
         </div>
-        <!-- 자체 시공 사진 여섯 장 (segan/collection.js STATIC 과 같은 사진 · 지역) — 누르면 시공사례 탭 -->
+        <!-- AI 연출 사진 여섯 장 (segan/collection.js STATIC 과 같은 사진 · 이름) — 누르면 시공사례 탭 -->
         <div class="hm-works">
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/kitchen-n7-1.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/luxe-01.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/kitchen-n7-1.jpg"
+                src="../app/portfolio/display/luxe-01.jpg"
                 alt=""
-                width="1220"
-                height="508"
+                width="1000"
+                height="747"
                 loading="lazy"
                 decoding="async"
                 draggable="false"
               />
             </picture>
-            <span>하남 위례 · 주방</span>
+            <span>아일랜드 주방 · 매트 화이트 · 세이오크</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/kitchen-n1-1.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/luxe-10.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/kitchen-n1-1.jpg"
+                src="../app/portfolio/display/luxe-10.jpg"
                 alt=""
-                width="1220"
-                height="508"
+                width="1000"
+                height="747"
                 loading="lazy"
                 decoding="async"
                 draggable="false"
               />
             </picture>
-            <span>서울 논현 · 주방</span>
+            <span>안방 붙박이장 · 매트 캐시미어 · 세이오크</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/kitchen-n6-1.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/luxe-02.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/kitchen-n6-1.jpg"
+                src="../app/portfolio/display/luxe-02.jpg"
                 alt=""
-                width="1220"
-                height="508"
+                width="1000"
+                height="747"
                 loading="lazy"
                 decoding="async"
                 draggable="false"
               />
             </picture>
-            <span>고양 일산 · 주방</span>
+            <span>일자형 주방 · 매트 아이보리 · 슈가엘름</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/kitchen-n3-2.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/luxe-13.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/kitchen-n3-2.jpg"
+                src="../app/portfolio/display/luxe-13.jpg"
                 alt=""
-                width="1220"
-                height="508"
+                width="1000"
+                height="747"
                 loading="lazy"
                 decoding="async"
                 draggable="false"
               />
             </picture>
-            <span>성남 분당 · 주방</span>
+            <span>홈카페장 · 매트 밀크화이트 · 세이오크</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/funiture-n4-1.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/luxe-04.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/funiture-n4-1.jpg"
+                src="../app/portfolio/display/luxe-04.jpg"
                 alt=""
-                width="1220"
-                height="508"
+                width="1000"
+                height="747"
                 loading="lazy"
                 decoding="async"
                 draggable="false"
               />
             </picture>
-            <span>서울 논현 · 붙박이 가구</span>
+            <span>ㄷ자형 주방 · 매트 캐시미어 · 프렌치오크</span>
           </a>
           <a class="hm-work" href="collection.html" data-reveal>
             <picture>
-              <source srcset="../app/portfolio/display/kitchen-n7-3.avif" type="image/avif" />
+              <source srcset="../app/portfolio/display/luxe-11.avif" type="image/avif" />
               <img
-                src="../app/portfolio/display/kitchen-n7-3.jpg"
+                src="../app/portfolio/display/luxe-11.jpg"
                 alt=""
-                width="1220"
-                height="508"
+                width="1000"
+                height="747"
                 loading="lazy"
                 decoding="async"
                 draggable="false"
               />
             </picture>
-            <span>서울 마포 · 주방</span>
+            <span>드레스룸 · 매트 화이트 · 프렌치오크</span>
           </a>
         </div>
+        <p class="hm-in hm-note">AI 로 연출한 이미지입니다.</p>
       </section>
 
       <section class="hm-sec hm-in" aria-labelledby="hmBlogTitle">
