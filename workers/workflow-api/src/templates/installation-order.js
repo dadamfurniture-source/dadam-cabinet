@@ -22,7 +22,7 @@ import { specialNotesOfDoc } from '../work/special-notes.js';
 import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 import { SITE_NOTE } from '../work/reveal.js';
-import { fixturePartsOfItem, fixturePartText } from '../fixture-parts.js';
+import { fixturePartsOfItem, fixturePartText, designAppliancesOf } from '../fixture-parts.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -110,6 +110,21 @@ export function fixturePartsBlock(items) {
   </table>`;
 }
 
+/**
+ * 가전 — 설계에 들어갈 가전 (간편 플래너 배치 단계 「가전」 → design.appliances, 2026-11-20 사장님).
+ * 설계 가전이 없으면 칸째 없다 (옛 설계 · 고르지 않은 설계의 지시서는 그대로다).
+ */
+export function designAppliancesBlock(design) {
+  const rows = designAppliancesOf(design).map((a) => tr([esc(a.label), esc(a.text), esc(a.combo || a.size || '-'), `${a.qty}`]));
+  if (!rows.length) return '';
+  return `
+  <h2>가전 <span class="hint">설계에 들어갈 가전</span></h2>
+  <table>
+    ${thead(['품목', '모델', '크기 · 조합', '수량'])}
+    <tbody>${rows.join('')}</tbody>
+  </table>`;
+}
+
 function coverSheet(doc, snapshot, site, worker) {
   const design = snapshot.design_payload || {};
   const items = Array.isArray(design.items) ? design.items : [];
@@ -151,7 +166,7 @@ function coverSheet(doc, snapshot, site, worker) {
   <table>
     ${thead(['품목', '분류', 'W × H × D (mm)', '모듈 수'])}
     <tbody>${summaryRows || tr(['-', '-', '-', '-'])}</tbody>
-  </table>${fixturePartsBlock(items)}
+  </table>${fixturePartsBlock(items)}${designAppliancesBlock(design)}
 
   ${installChecks(doc, snapshot)}<table class="sign">
     <tbody>
