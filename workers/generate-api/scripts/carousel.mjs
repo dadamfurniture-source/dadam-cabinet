@@ -153,7 +153,7 @@ async function main() {
   }));
   pages.push({
     name: `${String(slides.length + 1).padStart(2, '0')}-cta`,
-    html: ctaHtml({ tones, headline: spec.headline }),
+    html: ctaHtml({ tones, subject: spec.subject || 'kitchen', headline: spec.headline }),
   });
 
   const { child, ready } = launch(findChrome(), path.join(tmp, 'profile'));
@@ -210,6 +210,7 @@ async function main() {
     title: spec.title,
     tones,
     campaign: spec.campaign,
+    subject: spec.subject || 'kitchen',
     tags: spec.tags,
   });
   await writeFile(path.join(out, 'caption.txt'), caption);
