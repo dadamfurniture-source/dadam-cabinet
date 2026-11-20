@@ -38,8 +38,8 @@ describe('assembly-rules 표', () => {
       SAKURI_PANEL_D_MINUS: 18,
       SAKURI_SHELF_D_MINUS: 34,
       WARDROBE_SHELF_D_MINUS: 88,
-      BAND_W: 70,
-      BRACE_W: 70,
+      BAND_W: 60,    // 2026-11-20 사장님 「항상 60」 (70 → 60)
+      BRACE_W: 60,
       BRACE_W_MIN_UPPER: 700,
       BRACE_W_MIN_LOWER: 800,
     });
@@ -101,9 +101,9 @@ describe('상부장 보강목 폭 60', () => {
   global.dlog = global.dlog || (() => {});
   const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
   const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
-  test('규칙 표 — UPPER_BAND_W 60, BAND_W 70', () => {
+  test('규칙 표 — UPPER_BAND_W 60, BAND_W 60 (2026-11-20 70 → 60)', () => {
     expect(R.CARCASS.UPPER_BAND_W).toBe(60);
-    expect(R.CARCASS.BAND_W).toBe(70);
+    expect(R.CARCASS.BAND_W).toBe(60);
     expect(R.CARCASS.UPPER_BAND_T).toBe(15);
   });
   test.each(['sink15', 'sink18', 'vanity', 'storage'])('%s — 밴드(보강목) 행은 (W − 2T) × 60', (name) => {
@@ -112,7 +112,7 @@ describe('상부장 보강목 폭 60', () => {
     bands.forEach((r) => expect(r.h).toBe(60));
     bands.forEach((r) => expect(r.thickness).toBe(15));   // 2026-10-20 사장님 "15T 고정" — 몸통이 18T 여도
     const lower = rows.filter((r) => r.part === '밴드');
-    lower.forEach((r) => expect(Math.min(r.w, r.h)).toBe(70));
+    lower.forEach((r) => expect(Math.min(r.w, r.h)).toBe(60));
     if (name.indexOf('sink') === 0) expect(bands.length).toBeGreaterThan(0);
   });
 });

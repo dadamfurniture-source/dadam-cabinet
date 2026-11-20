@@ -41,7 +41,8 @@
     LABEL: Object.freeze({ sink: '개수대', cooktop: '가스대', hood: '후드장', spice: '양념망장' }),
     // 설비가 서는 줄 — 개수대 · 가스대 · 양념망장은 하부, 후드장은 상부
     POS: Object.freeze({ sink: 'lower', cooktop: 'lower', hood: 'upper', spice: 'lower' }),
-    // 개수대 · 가스대 밴드 — 앞 50 눕힘 · 뒤는 보통 밴드 폭(assembly-rules CARCASS.BAND_W 70)을 세운다
+    // 개수대 · 가스대 밴드 — 앞 50 눕힘 · 뒤는 보통 밴드 폭(assembly-rules CARCASS.BAND_W 60)을 세운다
+    //   (2026-11-20 사장님 「개수대, 가스대는 50으로」 · 「앞 50 그대로 · 뒤 세움 60」)
     BAND: Object.freeze({ FRONT_W: 50, BACK: 'stand' }),
     // 쿡탑 종류 (그림 · 표시) — 상판 위에 놓인다
     COOKTOPS: Object.freeze(['induction', 'gas']),

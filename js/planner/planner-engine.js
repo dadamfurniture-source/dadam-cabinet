@@ -83,7 +83,7 @@ const MASTER_RULES = {
   SINK_BAND_W_MIN_UPPER: 700,   // 상부장 W ≥ 700 → 처짐방지목 1장 (extractors.js BOM_BRACE_W_MIN_UPPER)
   SINK_BAND_W_MIN_LOWER: 800,   // 하부장·키큰장 단 W ≥ 800 → 1장 (BOM_BRACE_W_MIN_LOWER)
   // W9-101 은 OBJ 측정 60 을 썼는데 마스터·BOM 은 70 이다 — 원장이 두 값을 나란히 놓자 60 이 3D 만의 값이었다.
-  BAND_BRACE_W: 70,             // 처짐방지목 폭 (sink.md '밴드(처짐방지) 70 x bandH')
+  BAND_BRACE_W: 60,             // 처짐방지목 폭 (assembly-rules CARCASS.BRACE_W — 2026-11-20 사장님 「항상 60」, 70 → 60)
   BAND_BRACE_THICK: 15,         // 처짐방지목 두께 (15T PB 동일)
   // W9-95: 가전 X 정밀 분할 + 먹장 자동
   BLANK_THRESHOLD: 350,         // 세그먼트 W < 350 → 'blank' 자동 (도어 최소와 동일)

@@ -91,7 +91,7 @@ describe('위 서랍 + 아래 도어 — 브리지 · BOM · 조립', () => {
     expect(r.part('목찬넬(중간 전면)').map((x) => [x.w, x.h, x.qty])).toEqual([[72, 900, 1]]);
     expect(r.part('측판').length).toBe(1);
     // 708 − 지판 15 − (중간 목찬넬 190 + 따내기 90) = 413 (2026-11-05 사장님 「아래 도어 칸에만」)
-    expect(r.part('밴드(처짐방지)').map((x) => [x.w, x.h, x.qty])).toEqual([[70, 413, 1]]);
+    expect(r.part('밴드(처짐방지)').map((x) => [x.w, x.h, x.qty])).toEqual([[60, 413, 1]]);
     expect(r.rows.some((x) => /\[확인 필요\]|레일 여유 부족/.test(x.note || ''))).toBe(false);
   });
 
