@@ -117,6 +117,24 @@ const flush = async () => {
 const tiles = () => [...document.querySelectorAll('#meLikes .cl-tile')];
 const likeCalls = (calls) => calls.rpc.filter((c) => c[0] === 'collection_my_likes');
 const sheet = () => document.querySelector('.sg-sheet-wrap--sheet .sg-sheet');
+/** 사진 전체 화면 */
+const full = () => document.querySelector('.sg-sheet-wrap.pv-full-wrap .sg-sheet');
+const cells = () => [...document.querySelectorAll('#meLikes .cl-cell')];
+const hearts = () => [...document.querySelectorAll('#meLikes .cl-like')];
+const closeAll = async () => {
+  while (window.SeganShell && window.SeganShell.sheet.current()) {
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    await flush();
+  }
+};
+/** 사진 보기 시트까지 — 사진을 누르고(전체 화면) 그 안의 「정보」를 누른다 */
+const openSheet = async (i) => {
+  await closeAll();
+  tiles()[i].click();
+  await flush();
+  full().querySelector('.pv-full-info').click();
+  await flush();
+};
 const facts = () =>
   [...sheet().querySelectorAll('.pv-facts > div')].map((d) => [
     d.querySelector('dt').textContent,
@@ -224,11 +242,54 @@ describe('좋아요 화면 — 시공사례와 같은 칸 · 30장씩', () => {
   });
 });
 
-describe('사진 보기 — 시공사례와 같은 시트', () => {
-  test('누르면 장소 · 색상 · 업체, ♡ 눌림 · 수, 이 스타일로 연출컷', async () => {
+describe('칸 — 시공사례와 같다: 아래쪽 줄의 ♡ · 사진을 누르면 전체 화면', () => {
+  test('좋아한 사진이라 ♡ 는 눌린 채로, 색상이 있으면 글도', async () => {
+    await load();
+    expect(hearts().map((h) => h.getAttribute('aria-pressed'))).toEqual(['true', 'true', 'true']);
+    expect(cells()[1].querySelector('.cl-color').textContent).toBe('월넛');
+    expect(cells()[0].querySelector('.cl-color')).toBeNull();
+  });
+
+  test('사진을 누르면 사진만 전체 화면 — 시트는 「정보」를 눌러야 열린다', async () => {
     await load();
     tiles()[0].click();
     await flush();
+    expect(full().querySelector('.pv-full-img').getAttribute('src')).toContain('l0.jpg');
+    expect(sheet()).toBeNull();
+    full().querySelector('.pv-full-info').click();
+    await flush();
+    expect(sheet()).not.toBeNull();
+  });
+
+  test('칸의 ♡ 로 풀면 delete eq post_id — 다시 누를 수 있게 그 자리에 둔다, 다시 누르면 insert', async () => {
+    const calls = await load();
+    hearts()[0].click();
+    await flush();
+    const del = calls.queries.filter((q) => q.table === 'collection_likes' && q.op === 'delete');
+    expect(del.map((q) => q.filters)).toEqual([[['eq', 'post_id', uid(0)]]]);
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('false');
+    expect(tiles()).toHaveLength(3);
+    expect(full()).toBeNull();
+    // 풀어 둔 채 「정보」를 열면 빈 ♡ 로 열리고, 그대로 닫으면 목록에서 빠진다
+    await openSheet(0);
+    expect(sheet().querySelector('.pv-like').getAttribute('aria-pressed')).toBe('false');
+    await closeAll();
+    expect(tiles()).toHaveLength(2);
+    // 다음 칸 — 풀었다가 다시 누르면 insert
+    hearts()[0].click();
+    await flush();
+    hearts()[0].click();
+    await flush();
+    const ins = calls.queries.filter((q) => q.table === 'collection_likes' && q.op === 'insert');
+    expect(ins.map((q) => q.row)).toEqual([{ user_id: ME, post_id: uid(1) }]);
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('사진 보기 — 시공사례와 같은 시트', () => {
+  test('누르면 장소 · 색상 · 업체, ♡ 눌림 · 수, 이 스타일로 연출컷', async () => {
+    await load();
+    await openSheet(0);
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
     expect(facts()).toEqual([
       ['장소', '대구 북구 · 주방 0'],
@@ -242,8 +303,7 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
 
   test('AI 연출컷 — 제목 「시공사례」 · 업체 「AI 연출」, 연출컷 단추 없음', async () => {
     await load();
-    tiles()[1].click();
-    await flush();
+    await openSheet(1);
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
     expect(facts()).toEqual([
       ['장소', '싱크대'],
@@ -255,8 +315,7 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
 
   test('♡ 를 풀면 delete eq post_id, 닫으면 목록에서 뺀다 · 다시 누르고 닫으면 남는다', async () => {
     const calls = await load();
-    tiles()[0].click();
-    await flush();
+    await openSheet(0);
     sheet().querySelector('.pv-like').click();
     await flush();
     const del = calls.queries.filter((q) => q.table === 'collection_likes' && q.op === 'delete');
@@ -267,8 +326,7 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
     expect(tiles()).toHaveLength(2);
     expect(tiles()[0].querySelector('img').getAttribute('src')).toContain('l1.jpg');
     // 다음 타일 — 풀었다가 다시 누르고 닫으면 남는다 (insert { user_id, post_id })
-    tiles()[0].click();
-    await flush();
+    await openSheet(0);
     sheet().querySelector('.pv-like').click();
     await flush();
     sheet().querySelector('.pv-like').click();
@@ -282,8 +340,7 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
 
   test('다 빼면 안내 글', async () => {
     await load({ likes: liked(1) });
-    tiles()[0].click();
-    await flush();
+    await openSheet(0);
     sheet().querySelector('.pv-like').click();
     await flush();
     sheet().querySelector('.sg-sheet-x').click();

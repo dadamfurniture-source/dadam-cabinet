@@ -189,7 +189,12 @@ const flush = async () => {
 const of = (calls, table, op = 'select') =>
   calls.queries.filter((q) => q.table === table && q.op === op);
 const sheet = () => document.querySelector('.sg-sheet-wrap--sheet .sg-sheet');
-const dialog = () => document.querySelector('.sg-sheet-wrap--dialog .sg-sheet');
+/** 가운데 작은 창 (로그인 권하기) — 사진 전체 화면도 같은 층을 쓰므로 그것은 뺀다 */
+const dialog = () => document.querySelector('.sg-sheet-wrap--dialog:not(.pv-full-wrap) .sg-sheet');
+/** 사진 전체 화면 */
+const full = () => document.querySelector('.sg-sheet-wrap.pv-full-wrap .sg-sheet');
+const cells = () => [...document.querySelectorAll('#clTiles .cl-cell')];
+const hearts = () => [...document.querySelectorAll('#clTiles .cl-like')];
 /** 사진 보기의 [이름, 값] 줄 */
 const facts = () =>
   [...sheet().querySelectorAll('.pv-facts > div')].map((d) => [
@@ -197,8 +202,23 @@ const facts = () =>
     d.querySelector('dd').textContent,
   ]);
 const likeBtn = () => sheet().querySelector('.pv-like');
-const openTile = async (i) => {
+/** 열린 창을 모두 닫는다 — 전체 화면이 열려 있는 동안에는 다른 사진을 누를 수 없다 (화면을 덮는다) */
+const closeAll = async () => {
+  while (window.SeganShell && window.SeganShell.sheet.current()) {
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    await flush();
+  }
+};
+/** 사진을 누른다 → 사진만 전체 화면 */
+const openFull = async (i) => {
+  await closeAll();
   tiles()[i].click();
+  await flush();
+};
+/** 사진 보기 시트까지 — 사진을 누르고(전체 화면) 그 안의 「정보」를 누른다 */
+const openTile = async (i) => {
+  await openFull(i);
+  full().querySelector('.pv-full-info').click();
   await flush();
 };
 const moreAll = async () => {
@@ -360,7 +380,7 @@ describe('칸 — 폰 3칸 · PC 4칸 · 이미지는 늦게 받기', () => {
       /grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/
     );
     // 타일은 정사각 · 꽉 채움, 라운드 · 섀도 없음
-    expect(rule('.cl-tile')).toMatch(/aspect-ratio:\s*1 \/ 1/);
+    expect(rule('.cl-cell')).toMatch(/aspect-ratio:\s*1 \/ 1/);
     expect(rule('.cl-tile img')).toMatch(/object-fit:\s*cover/);
     expect(css).not.toMatch(/box-shadow\s*:/);
   });
@@ -403,6 +423,218 @@ describe('칸 — 폰 3칸 · PC 4칸 · 이미지는 늦게 받기', () => {
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
     expect(facts()).toContainEqual(['업체', 'AI 연출']);
     expect(sheet().querySelector('a.pv-make')).toBeNull();
+  });
+});
+
+describe('칸 아래쪽 줄 — 색상 글 · ♡ (2026-11-20 대표님 「하단에 색상 정보 간단하게 · 좋아요 하트」)', () => {
+  test('칸 = 사진 단추 + 아래쪽 줄. 색상이 있으면 글, DB 게시물이면 ♡ — 둘 다 없으면 줄도 없다', async () => {
+    await load();
+    await moreAll();
+    const cap = (i) => cells()[i].querySelector('.cl-cap');
+    // 0: 색상 「화이트」 + ♡
+    expect(cells()[0].querySelector('button.cl-tile[data-open="0"]')).not.toBeNull();
+    expect(cap(0).querySelector('.cl-color').textContent).toBe('화이트');
+    const heart = cap(0).querySelector('button.cl-like');
+    expect(heart.getAttribute('data-like')).toBe('0');
+    expect(heart.getAttribute('type')).toBe('button');
+    expect(heart.getAttribute('aria-label')).toBe('좋아요');
+    expect(heart.getAttribute('aria-pressed')).toBe('false');
+    expect(heart.querySelector('svg.pv-heart')).not.toBeNull();
+    // 2: 색상 없음 — ♡ 만
+    expect(cap(2).querySelector('.cl-color')).toBeNull();
+    expect(cap(2).querySelector('.cl-like')).not.toBeNull();
+    // ♡ 는 사진 단추 안에 넣지 않는다 (단추 안 단추가 되지 않게)
+    expect(document.querySelector('.cl-tile .cl-like')).toBeNull();
+    // 정적 사진(AI 연출) — 색상 글만. DB 게시물이 아니라 좋아요를 저장할 곳이 없다
+    const first = cells()[30];
+    expect(first.querySelector('.cl-color').textContent).toBe(
+      window.SeganCollection.STATIC[0].color
+    );
+    expect(first.querySelector('.cl-like')).toBeNull();
+    expect(hearts()).toHaveLength(30);
+    // 색상도 없고 좋아요도 못 하는 사진은 줄이 없다
+    expect(
+      window.SeganPostView.tileHTML(
+        window.SeganPostView.fromStatic({ image_url: '../app/portfolio/x.jpg', place: '주방' }),
+        0
+      )
+    ).not.toContain('cl-cap');
+  });
+
+  test('내가 좋아한 사진은 눌린 ♡ 로 그린다', async () => {
+    await load({ session: SESSION, liked: [uid(2)] });
+    expect(
+      hearts()
+        .map((h) => h.getAttribute('aria-pressed'))
+        .slice(0, 4)
+    ).toEqual(['false', 'false', 'true', 'false']);
+  });
+
+  test('♡ 를 누르면 사진은 열리지 않고 바로 저장 — insert { user_id, post_id }, 다시 누르면 delete', async () => {
+    const calls = await load({ session: SESSION });
+    hearts()[0].click();
+    await flush();
+    expect(full()).toBeNull();
+    expect(sheet()).toBeNull();
+    expect(of(calls, 'collection_likes', 'insert').map((q) => q.row)).toEqual([
+      { user_id: ME, post_id: uid(0) },
+    ]);
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('true');
+    expect(window.SeganCollection.state.liked[uid(0)]).toBe(true);
+    // 「정보」 시트의 ♡ 도 같은 상태 · 수로 열린다
+    await openTile(0);
+    expect(likeBtn().getAttribute('aria-pressed')).toBe('true');
+    expect(likeBtn().querySelector('.pv-count').textContent).toBe('5');
+    // 시트에서 풀면 칸의 ♡ 도 풀린다
+    likeBtn().click();
+    await flush();
+    expect(of(calls, 'collection_likes', 'delete').map((q) => q.filters)).toEqual([
+      [['eq', 'post_id', uid(0)]],
+    ]);
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('false');
+    await closeAll();
+    hearts()[0].click();
+    await flush();
+    hearts()[0].click();
+    await flush();
+    expect(of(calls, 'collection_likes', 'insert')).toHaveLength(2);
+    expect(of(calls, 'collection_likes', 'delete')).toHaveLength(2);
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('false');
+  });
+
+  test('못 넣으면 ♡ 를 되돌리고 알린다 · 로그인 전이면 로그인을 권한다', async () => {
+    await load({ session: SESSION, insertError: { code: '42501', message: 'denied' } });
+    hearts()[0].click();
+    await flush();
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('false');
+    expect($('clState').textContent).toBe(
+      '좋아요를 저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.'
+    );
+    expect($('clState').getAttribute('role')).toBe('status');
+    const calls = await load();
+    hearts()[0].click();
+    await flush();
+    expect(dialog().textContent).toContain('로그인하면 좋아요를 저장할 수 있습니다');
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('false');
+    expect(of(calls, 'collection_likes', 'insert')).toEqual([]);
+  });
+
+  test('모습 — 줄은 사진 위 아래쪽에 얹고 글 자리를 눌러도 사진이 눌린다, ♡ 는 44px · 눌림은 채운 하트', () => {
+    const css = read('segan/shell.css');
+    const block = (sel) =>
+      css.match(new RegExp(`\\n${sel.replace(/[.[\]='-]/g, '\\$&')} \\{([^}]*)\\}`))[1];
+    expect(block('.cl-cap')).toMatch(/position:\s*absolute;/);
+    expect(block('.cl-cap')).toMatch(/bottom:\s*0;/);
+    expect(block('.cl-cap')).toMatch(/pointer-events:\s*none;/);
+    expect(block('.cl-like')).toMatch(/pointer-events:\s*auto;/);
+    expect(block('.cl-like')).toMatch(/width:\s*44px;/);
+    expect(block('.cl-like')).toMatch(/height:\s*44px;/);
+    expect(block(".cl-like[aria-pressed='true'] .pv-heart")).toMatch(/fill:\s*currentColor;/);
+    // 색상 글은 간단하게 — 두 줄까지
+    expect(block('.cl-color')).toMatch(/-webkit-line-clamp:\s*2;/);
+  });
+});
+
+describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클릭하면 사진만 볼 수 있게 전체 화면」)', () => {
+  test('사진을 누르면 전체 화면 — 원본 사진 · 「닫기」 · 「정보」뿐, 시트는 열리지 않는다. 주소는 그대로', async () => {
+    await load();
+    await openFull(0);
+    const box = full();
+    expect(box).not.toBeNull();
+    expect(sheet()).toBeNull();
+    expect(box.getAttribute('role')).toBe('dialog');
+    expect(box.getAttribute('aria-modal')).toBe('true');
+    expect(box.querySelector('.sg-sheet-title').textContent).toBe('시공사례');
+    const img = box.querySelector('img.pv-full-img');
+    expect(img.getAttribute('src')).toContain('p0.jpg');
+    expect(img.getAttribute('alt')).toBe('시공사례 · 인천 연수구 · 주방 0 · 다담 협력 주방');
+    expect(img.getAttribute('draggable')).toBe('false');
+    // 사진 말고는 단추 둘 — 글 · 좋아요 · 연출컷은 여기에 없다
+    expect([...box.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['닫기', '정보']);
+    expect(box.querySelector('.pv-facts, .pv-like, .pv-make, a')).toBeNull();
+    expect(window.location.pathname + window.location.hash).toBe('/segan/collection.html');
+    expect(window.SeganCollection.state.sheet.isOpen()).toBe(true);
+  });
+
+  test('정적 사진(AI 연출)은 가벼운 사본이 아니라 원본을 크게 보인다', async () => {
+    await load({ db: [] });
+    await openFull(0);
+    const src = full().querySelector('.pv-full-img').getAttribute('src');
+    expect(src).toBe(window.SeganCollection.STATIC[0].image_url);
+    expect(src).not.toContain('/display/');
+  });
+
+  test('사진을 누르면 단추를 감췄다 보였다 (사진만 본다) · 사진 바깥을 누르면 닫는다', async () => {
+    await load();
+    await openFull(0);
+    const img = full().querySelector('.pv-full-img');
+    img.click();
+    expect(full().classList.contains('pv-full--bare')).toBe(true);
+    img.click();
+    expect(full().classList.contains('pv-full--bare')).toBe(false);
+    full().querySelector('.pv-full').click(); // 사진 바깥의 어두운 자리
+    await flush();
+    expect(full()).toBeNull();
+    expect(window.SeganCollection.state.sheet).toBeNull();
+  });
+
+  test('닫기 · Esc · 뒤로 가기가 닫는다', async () => {
+    await load();
+    await openFull(1);
+    full().querySelector('.sg-sheet-x').click();
+    await flush();
+    expect(full()).toBeNull();
+    await openFull(1);
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    await flush();
+    expect(full()).toBeNull();
+    await openFull(1);
+    window.history.back();
+    await new Promise((r) => setTimeout(r, 50));
+    await flush();
+    expect(full()).toBeNull();
+    expect(window.location.pathname).toBe('/segan/collection.html');
+  });
+
+  test('「정보」 → 사진 보기 시트가 그 위에 열린다. 시트를 닫아도 전체 화면은 남는다', async () => {
+    await load();
+    await openFull(0);
+    full().classList.add('pv-full--bare');
+    full().querySelector('.pv-full-info').click();
+    await flush();
+    expect(sheet()).not.toBeNull();
+    expect(full()).not.toBeNull();
+    expect(full().classList.contains('pv-full--bare')).toBe(false); // 돌아왔을 때 단추가 보이게
+    expect(facts()).toContainEqual(['색상', '화이트']);
+    sheet().querySelector('.sg-sheet-x').click();
+    await flush();
+    expect(sheet()).toBeNull();
+    expect(full()).not.toBeNull();
+  });
+
+  test('모습 — 화면 가득 · 위 막대와 아래 탭을 덮고 「정보」 시트보다는 아래, 사진은 잘리지 않게', () => {
+    const css = read('segan/shell.css');
+    const block = (sel) =>
+      css.match(new RegExp(`\\n${sel.replace(/[.-]/g, '\\$&')} \\{([^}]*)\\}`))[1];
+    const wrap = block('.sg-sheet-wrap.pv-full-wrap');
+    expect(wrap).toMatch(/z-index:\s*65;/); // 아래 탭 40 < 65 < 시트 70
+    expect(wrap).toMatch(/padding:\s*0;/);
+    expect(wrap).toMatch(/background:\s*var\(--v5-dark\);/);
+    const box = block('.sg-sheet-wrap.pv-full-wrap .sg-sheet');
+    expect(box).toMatch(/max-width:\s*none;/);
+    expect(box).toMatch(/height:\s*100%;/);
+    const img = block('.pv-full-img');
+    expect(img).toMatch(/max-width:\s*100%;/);
+    expect(img).toMatch(/max-height:\s*100%;/);
+    expect(img).toMatch(/object-fit:\s*contain;/);
+    expect(img).toMatch(/-webkit-touch-callout:\s*none;/); // 길게 눌러 저장 막기
+    // 감추기는 opacity 만 움직인다
+    expect(css).toMatch(
+      /\n\.pv-full-info \{\s*position:\s*absolute;[^}]*transition:\s*opacity 0\.2s ease;/
+    );
+    expect(css).toMatch(
+      /\.pv-full--bare \.sg-sheet-head,\s*\.pv-full--bare \.pv-full-info \{\s*visibility:\s*hidden;\s*opacity:\s*0;/
+    );
   });
 });
 

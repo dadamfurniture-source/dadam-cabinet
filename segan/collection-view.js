@@ -16,8 +16,15 @@
      AI 연출컷은 타일 귀퉁이에 「AI」, 사진 보기 제목도 「AI 연출컷」 — 실제 시공 사진으로 오해하지 않게
    「이 스타일로 연출컷」 — 만들기(./)를 그 사진을 참고 사진으로 담고 연다 (segan/make.js takeLinkRefs)
      DB 게시물 ./?ref=<게시물 id> · 자체 시공 ./?ref=<파일 이름> · AI 연출컷은 단추 없음 (만들기가 AI 연출컷 ref 를 건너뛴다)
+   타일 (2026-11-20 대표님 「하단에 색상 정보 간단하게 · 좋아요 하트」 「사진 클릭하면 사진만 전체 화면」)
+     칸(.cl-cell) = 사진 단추(.cl-tile — 누르면 전체 화면) + 아래쪽 줄(.cl-cap — 색상 글 · ♡ 단추)
+     색상이 없으면 글 없이, 좋아요를 저장할 수 없는 사진(DB 게시물이 아닌 것)은 ♡ 없이 — 둘 다 없으면 줄도 없다
+   전체 화면 (full) — 사진만 화면 가득. SeganShell.sheet 의 가운데 창 층(kind 'dialog')을 화면 가득 채워 쓴다
+     (뒤로 가기 · Esc · 닫기가 닫는다, 주소 그대로). 사진을 누르면 「닫기」 · 「정보」를 감췄다 보였다 — 사진만 본다.
+     사진 바깥(어두운 자리)을 누르면 닫는다. 「정보」 → 아래의 사진 보기 시트
    사진 보기 — SeganShell.sheet kind 'sheet' (폰 아래 시트 · PC 1100px~ 오른쪽 옆 패널, 뒤로 가기가 닫는다, 주소 그대로)
-   좋아요 (♡ — aria-pressed) — 로그인한 사람만, 본인 줄만 (DB 0049 RLS)
+     장소 · 색상 · 업체 · 좋아요 · 「이 스타일로 연출컷」 — 전체 화면의 「정보」에서 연다
+   좋아요 (♡ — aria-pressed) — 로그인한 사람만, 본인 줄만 (DB 0049 RLS). 타일의 ♡ 와 사진 보기의 ♡ 가 같은 일을 한다
      누르기  collection_likes insert { user_id, post_id } (이미 있으면 23505 — 좋아한 것으로 본다)
      풀기    collection_likes delete .eq('post_id', id)
      숫자는 먼저 바꿔 보이고, 실패하면 되돌린다. 로그인 전이면 가운데 작은 창으로 로그인을 권한다 (kind 'dialog')
@@ -39,6 +46,7 @@
     like: '좋아요',
     make: '이 스타일로 연출컷',
     open: '크게 보기',
+    info: '정보',
     likeFail: '좋아요를 저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.',
     loginTitle: '로그인',
     loginBody: '로그인하면 좋아요를 저장할 수 있습니다',
@@ -157,11 +165,37 @@
     return '';
   }
 
-  /** 타일 하나 — 누르면 크게 (data-open = 목록 안 차례) */
-  function tileHTML(p, i) {
+  /** 좋아요를 저장할 수 있는 사진인가 — DB 게시물만 (id 가 있다) */
+  function canLike(p) {
+    return !!(p && p.id && UUID_RE.test(p.id));
+  }
+
+  /**
+   * 타일 하나 — 칸(.cl-cell) 안에 사진 단추(누르면 전체 화면, data-open = 목록 안 차례)와
+   * 아래쪽 줄(색상 글 · ♡ 단추 data-like = 같은 차례). o.liked = 내가 좋아한 사진
+   */
+  function tileHTML(p, i, o) {
     var l = labels(p);
+    var like = canLike(p);
+    var cap =
+      l.color || like
+        ? '<div class="cl-cap">' +
+          (l.color ? '<span class="cl-color">' + esc(l.color) + '</span>' : '') +
+          (like
+            ? '<button type="button" class="cl-like" data-like="' +
+              i +
+              '" aria-pressed="' +
+              (o && o.liked ? 'true' : 'false') +
+              '" aria-label="' +
+              esc(TEXT.like) +
+              '">' +
+              HEART +
+              '</button>'
+            : '') +
+          '</div>'
+        : '';
     return (
-      '<button type="button" class="cl-tile' +
+      '<div class="cl-cell"><button type="button" class="cl-tile' +
       (l.ai ? ' cl-tile--ai' : '') +
       '" data-open="' +
       i +
@@ -175,7 +209,9 @@
       TILE +
       '" loading="lazy" decoding="async" draggable="false" />' +
       (l.ai ? '<span class="cl-mark" aria-hidden="true">AI</span>' : '') +
-      '</button>'
+      '</button>' +
+      cap +
+      '</div>'
     );
   }
 
@@ -274,6 +310,126 @@
     return w > 0 && h > 0 ? { w: w, h: h } : { w: 1, h: 1 };
   }
 
+  /** 내가 좋아한 사진인가 — o.liked 는 값이거나, 열 때마다 다시 묻는 함수 */
+  function likedOf(o) {
+    return !!(o && (typeof o.liked === 'function' ? o.liked() : o.liked));
+  }
+
+  /**
+   * ♡ 한 번 — 먼저 바꿔 보이고(st.liked · st.count → paint), 못 넣으면 되돌리고 fail 을 부른다.
+   * 로그인 전이면 로그인을 권하고 끝. 넣는 동안(aria-busy)은 다시 누르지 못한다
+   * @returns {Promise<boolean>} 저장됐나
+   */
+  async function flipLike(p, o, st, btn, paint, fail) {
+    o = o || {};
+    if (!o.userId) {
+      askLogin(o.loginHref);
+      return false;
+    }
+    if (st.busy) return false;
+    st.busy = true;
+    if (btn) btn.setAttribute('aria-busy', 'true');
+    var next = !st.liked;
+    st.liked = next;
+    st.count = Math.max(0, st.count + (next ? 1 : -1));
+    paint();
+    var r = await setLike(o.sb, o.userId, p.id, next);
+    if (!r.ok) {
+      st.liked = !next;
+      st.count = Math.max(0, st.count + (next ? -1 : 1));
+      paint();
+      if (typeof fail === 'function') fail();
+    } else {
+      p.like_count = st.count;
+      if (typeof o.onLike === 'function') o.onLike(p, st.liked);
+    }
+    st.busy = false;
+    if (btn) btn.removeAttribute('aria-busy');
+    return !!r.ok;
+  }
+
+  /**
+   * 타일의 ♡ 를 눌렀다 — 단추의 aria-pressed 가 지금 상태다.
+   * @param {Element} btn  .cl-like
+   * @param {object} p     그 사진
+   * @param {{ sb?, userId?: string, loginHref?: string, onLike?: function(object, boolean), onFail?: function() }} o
+   */
+  function likeTile(btn, p, o) {
+    o = o || {};
+    if (!btn || !canLike(p) || btn.getAttribute('aria-busy') === 'true')
+      return Promise.resolve(false);
+    var st = {
+      liked: btn.getAttribute('aria-pressed') === 'true',
+      count: num(p.like_count),
+      busy: false,
+    };
+    return flipLike(
+      p,
+      o,
+      st,
+      btn,
+      function () {
+        btn.setAttribute('aria-pressed', st.liked ? 'true' : 'false');
+      },
+      o.onFail
+    );
+  }
+
+  /**
+   * 사진만 전체 화면으로 — 가운데 창 층을 화면 가득 채운다 (segan/shell.css .pv-full-wrap).
+   * 사진을 누르면 「닫기」 · 「정보」를 감췄다 보였다, 사진 바깥을 누르면 닫는다. 「정보」 → 사진 보기 시트(open)
+   * @param {object} p  사진 한 장
+   * @param {object} o  open 과 같다 (+ onFullClose: 전체 화면이 닫힐 때)
+   * @returns 창 손잡이 (SeganShell.sheet.open) — 셸이 없으면 null
+   */
+  function full(p, o) {
+    o = o || {};
+    var sheet = sheetApi();
+    if (!sheet || !p) return null;
+    var size = sizeOf(o.img);
+    var box = document.createElement('div');
+    box.className = 'pv-full';
+    box.innerHTML =
+      '<img class="pv-full-img" src="' +
+      esc(p.image_url || p.thumb) +
+      '" alt="' +
+      esc(nameOf(p)) +
+      '" width="' +
+      size.w +
+      '" height="' +
+      size.h +
+      '" decoding="async" draggable="false" />' +
+      '<button type="button" class="pv-full-info">' +
+      esc(TEXT.info) +
+      '</button>';
+    guardImages(box);
+    var h = sheet.open({
+      kind: 'dialog',
+      title: labels(p).title,
+      body: box,
+      onClose: function (why) {
+        if (typeof o.onFullClose === 'function') o.onFullClose(why);
+      },
+    });
+    if (!h) return null;
+    if (h.el && h.el.parentNode) h.el.parentNode.classList.add('pv-full-wrap');
+    box.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest('.pv-full-info')) {
+        if (h.el) h.el.classList.remove('pv-full--bare');
+        open(p, o);
+        return;
+      }
+      // 사진 = 단추를 감췄다 보였다 (사진만 본다) · 사진 바깥의 어두운 자리 = 닫기
+      if (t && t.tagName === 'IMG') {
+        if (h.el) h.el.classList.toggle('pv-full--bare');
+        return;
+      }
+      h.close('backdrop');
+    });
+    return h;
+  }
+
   /**
    * 사진 보기를 연다.
    * @param {object} p  사진 한 장 (fromRow · fromLike · fromStatic)
@@ -287,8 +443,8 @@
     if (!sheet || !p) return null;
     var l = labels(p);
     var size = sizeOf(o.img);
-    var st = { liked: !!o.liked, count: num(p.like_count), busy: false };
-    var canLike = !!p.id && UUID_RE.test(p.id);
+    var st = { liked: likedOf(o), count: num(p.like_count), busy: false };
+    var likeable = canLike(p);
     var href = refHref(p);
 
     var box = document.createElement('article');
@@ -307,7 +463,7 @@
       '" height="' +
       size.h +
       '" decoding="async" draggable="false" /></div>' +
-      (canLike
+      (likeable
         ? '<div class="pv-bar"><button type="button" class="pv-like" aria-pressed="false">' +
           HEART +
           '<span class="pv-like-text">' +
@@ -334,34 +490,13 @@
     }
     paint();
     if (btn)
-      btn.addEventListener('click', async function () {
-        if (!o.userId) {
-          askLogin(o.loginHref);
-          return;
-        }
-        if (st.busy) return;
-        st.busy = true;
-        btn.setAttribute('aria-busy', 'true');
+      btn.addEventListener('click', function () {
         if (err) err.hidden = true;
-        var next = !st.liked;
-        st.liked = next;
-        st.count = Math.max(0, st.count + (next ? 1 : -1));
-        paint();
-        var r = await setLike(o.sb, o.userId, p.id, next);
-        if (!r.ok) {
-          st.liked = !next;
-          st.count = Math.max(0, st.count + (next ? -1 : 1));
-          paint();
-          if (err) {
-            err.textContent = TEXT.likeFail;
-            err.hidden = false;
-          }
-        } else {
-          p.like_count = st.count;
-          if (typeof o.onLike === 'function') o.onLike(p, st.liked);
-        }
-        st.busy = false;
-        btn.removeAttribute('aria-busy');
+        flipLike(p, o, st, btn, paint, function () {
+          if (!err) return;
+          err.textContent = TEXT.likeFail;
+          err.hidden = false;
+        });
       });
 
     return sheet.open({
@@ -399,6 +534,9 @@
     myLikes: myLikes,
     setLike: setLike,
     askLogin: askLogin,
+    canLike: canLike,
+    likeTile: likeTile,
+    full: full,
     open: open,
     guardImages: guardImages,
   };

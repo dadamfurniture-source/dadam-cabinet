@@ -5721,16 +5721,88 @@ button.sm-num[aria-pressed='true'] {
     calc(env(safe-area-inset-left) - max(var(--sg-px), env(safe-area-inset-left)));
 }
 
+/* 칸 — 사진 단추(.cl-tile) + 아래쪽 줄(.cl-cap: 색상 글 · ♡) */
+.cl-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--v5-photo);
+}
+
 .cl-tile {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   padding: 0;
   border: 0;
   overflow: hidden;
-  background: var(--v5-photo);
+  background: transparent;
   cursor: pointer;
+}
+
+/* 아래쪽 줄 — 사진 위에 얹는다. 글 자리를 눌러도 사진이 눌린다 (♡ 만 따로 눌린다) */
+.cl-cap {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  min-height: 44px;
+  padding: 0 0 0 8px;
+  background: linear-gradient(rgba(45, 42, 38, 0), rgba(45, 42, 38, 0.64));
+  color: var(--v5-on-dark);
+  pointer-events: none;
+}
+
+/* 색상 — 간단하게 두 줄까지 (폰 3칸에서는 「매트 딥그린 · 카카오월넛」이 한 줄에 안 든다) */
+.cl-color {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  margin: 0 0 7px;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  text-align: left;
+  word-break: keep-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* ♡ — 누르는 곳 44px, 눌림은 채운 하트 */
+.cl-like {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--v5-on-dark);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.cl-like .pv-heart {
+  width: 20px;
+  height: 20px;
+}
+
+.cl-like[aria-pressed='true'] .pv-heart {
+  fill: currentColor;
+}
+
+.cl-like:focus-visible {
+  outline: 2px solid var(--v5-on-dark);
+  outline-offset: -6px;
 }
 
 .cl-tile img,
@@ -5875,6 +5947,116 @@ button.sm-num[aria-pressed='true'] {
 
 .pv-login .sg-btn {
   margin-top: 16px;
+}
+
+/* ── 사진 전체 화면 (segan/collection-view.js full) — 사진만 화면 가득 ──
+   가운데 창 층(.sg-sheet-wrap--dialog)을 화면 가득 채워 쓴다. 위 막대 · 아래 탭을 덮고, 「정보」 시트(z 70)보다는 아래.
+   머리(제목 · 닫기)와 「정보」는 사진 위에 얹고, 사진을 누르면(.pv-full--bare) 감춘다 — opacity 만 움직인다 */
+.sg-sheet-wrap.pv-full-wrap {
+  z-index: 65;
+  justify-content: center;
+  padding: 0;
+  background: var(--v5-dark);
+}
+
+.sg-sheet-wrap.pv-full-wrap .sg-sheet {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  background: transparent;
+  color: var(--v5-on-dark);
+}
+
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-head {
+  position: absolute;
+  top: env(safe-area-inset-top);
+  right: 0;
+  left: 0;
+  z-index: 1;
+  justify-content: flex-end;
+  border: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* 제목은 읽어 주기만 (창 이름) — 화면에는 사진만 */
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-x,
+.pv-full-info {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--v5-on-dark-42);
+  background: rgba(45, 42, 38, 0.5);
+  color: var(--v5-on-dark);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-x {
+  margin: 8px 4px 0 0;
+}
+
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-body {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.pv-full {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.pv-full-img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pv-full-info {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transition: opacity 0.2s ease;
+}
+
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-x:focus-visible,
+.pv-full-info:focus-visible {
+  outline: 2px solid var(--v5-on-dark);
+  outline-offset: 2px;
+}
+
+/* 사진만 — 머리 · 「정보」를 감춘다 (다시 누르면 보인다) */
+.pv-full--bare .sg-sheet-head,
+.pv-full--bare .pv-full-info {
+  visibility: hidden;
+  opacity: 0;
 }
 
 /* 겹창이 열린 동안 뒤 화면은 넘어가지 않는다 — 시트 · 옆 패널 · 가운데 창 */
@@ -6485,6 +6667,15 @@ body.sg-locked .sg-tabbar {
   /* 시공사례 · 좋아요 — PC 는 4칸 */
   .cl-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .cl-cap {
+    padding-left: 12px;
+  }
+
+  .cl-color {
+    margin-bottom: 11px;
+    font-size: 12.5px;
   }
 
   .sg-header {
