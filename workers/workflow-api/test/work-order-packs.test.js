@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { partClassOf, isDoorClass, isOutsourcedTopRow, pieceBaseId, gatherWorkOrderPayload, workOrderTotals } from '../src/work-order-data.js';
+import { partClassOf, partClassOfRow, isDoorClass, isOutsourcedTopRow, pieceBaseId, gatherWorkOrderPayload, workOrderTotals } from '../src/work-order-data.js';
 import {
   renderWorkOrder,
   normalizePack,
@@ -48,6 +48,15 @@ test('partClassOf — 재단 배치(nesting-engine)와 같은 규칙으로 사�
   }
   assert.equal(partClassOf('뒷판', 18), '본체');
   assert.equal(partClassOf('뒷판', 3), '뒷판');
+  // 행에 실려 온 부재 구분이 먼저 (2026-11-20 — 간편 플래너가 엔진이 재질까지 보고 정한 값을 싣는다), 없으면 예전 규칙 그대로
+  const rowOf = (part, thickness, material) => ({ part, thickness, material, partClass: NestingEngine.partClassOf(part, thickness, material) });
+  for (const [n, t, m] of [['멍가림판', 3, 'MDF'], ['휠라(좌)', 18, 'MDF'], ['측판', 18, 'MDF'], ['측판', 18, 'PB'], ['뒷판', 3, 'MDF']]) {
+    assert.equal(partClassOfRow(rowOf(n, t, m)), NestingEngine.partClassOf(n, t, m), `${n} ${t} ${m}`);
+  }
+  assert.deepEqual([partClassOfRow(rowOf('멍가림판', 3, 'MDF')), partClassOfRow(rowOf('휠라(좌)', 18, 'MDF'))], ['뒷판', '도어']);
+  assert.equal(isDoorClass(rowOf('휠라(좌)', 18, 'MDF')), true, 'MDF 18T 몸통 판은 도어재 발주로');
+  assert.equal(isDoorClass({ part: '휠라(좌)', thickness: 18, material: 'MDF' }), false, '칸이 없는 옛 행은 예전 그대로');
+  assert.equal(partClassOfRow({ part: '측판', thickness: 18, partClass: '모름' }), '본체', '모르는 값은 버린다');
   // 석재 상판 — 엔진과 같은 판정
   for (const r of [{ slot: 'top', part: '상판', material: '인조대리석' }, { part: '상판', material: '세라믹' }, { slot: 'top', part: '상판', material: '엔지니어드 스톤' }, { slot: 'top', part: '상판', material: 'MDF' }, { part: '측판', material: '인조대리석' }]) {
     assert.equal(isOutsourcedTopRow(r), NestingEngine.isOutsourcedTop(r), JSON.stringify(r));
