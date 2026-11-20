@@ -1,0 +1,199 @@
+{
+  "title": "0073 가전 카탈로그 — 건조기 종류 · 세탁기 / 건조기 구분 · 조합 묶음(appliance_combos · appliance_combo_members)은 누구나 읽고 사이트 관리자만 쓴다, 묶음 방식과 모델 자리가 맞아야 한다, 가져오기 함수는 서버만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "m_wash",
+    "m_dry",
+    "m_fr_a",
+    "m_fr_b",
+    "c_stack",
+    "c_side"
+  ],
+  "users": [
+    "admin_user",
+    "plain_user"
+  ],
+  "setup": [
+    "INSERT INTO public.admin_roles (user_id, role) VALUES ({{admin_user}}, 'admin')",
+    "INSERT INTO public.appliance_models (id, category, subtype, brand, model_name, model_code, model_codes, width_mm, depth_mm, height_mm) VALUES ({{m_wash}}, 'washing_machine', 'drum', 'probe 브랜드', 'probe 드럼 세탁기', 'PRB-W1', ARRAY['PRB-W1'], 686, 790, 990), ({{m_dry}}, 'dryer', 'heat_pump', 'probe 브랜드', 'probe 건조기', 'PRB-D1', ARRAY['PRB-D1'], 686, 790, 990), ({{m_fr_a}}, 'refrigerator', 'one_door', 'probe 브랜드', 'probe 1도어 냉장', 'PRB-F1', ARRAY['PRB-F1'], 595, 690, 1853), ({{m_fr_b}}, 'refrigerator', 'kimchi_stand', 'probe 브랜드', 'probe 1도어 김치', 'PRB-K1', ARRAY['PRB-K1'], 595, 690, 1853)",
+    "INSERT INTO public.appliance_combos (id, brand, name, family, kind, gap_mm, max_units, kit_name, kit_code) VALUES ({{c_stack}}, 'probe 브랜드', 'probe 세탁 + 건조 쌓기', 'laundry', 'stack', NULL, 2, 'probe 직렬 키트', 'PRB-KIT'), ({{c_side}}, 'probe 브랜드', 'probe 1도어 나란히', 'fridge', 'side', 8, 3, NULL, NULL)",
+    "INSERT INTO public.appliance_combo_members (combo_id, model_id, role) VALUES ({{c_stack}}, {{m_wash}}, 'lower'), ({{c_stack}}, {{m_dry}}, 'upper'), ({{c_side}}, {{m_fr_a}}, 'any'), ({{c_side}}, {{m_fr_b}}, 'any')"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "plain": {
+      "role": "authenticated",
+      "user": "plain_user"
+    },
+    "admin": {
+      "role": "authenticated",
+      "user": "admin_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 appliance_combos — 누구나 (가짜 2묶음)",
+      "sql": "select count(*) from public.appliance_combos where id in ({{c_stack}}, {{c_side}})",
+      "expect": {
+        "*": 2
+      }
+    },
+    {
+      "name": "읽기 appliance_combo_members — 누구나 (가짜 4줄)",
+      "sql": "select count(*) from public.appliance_combo_members where combo_id in ({{c_stack}}, {{c_side}})",
+      "expect": {
+        "*": 4
+      }
+    },
+    {
+      "name": "넣기 appliance_combos — 사이트 관리자 · 서버만",
+      "sql": "insert into public.appliance_combos (brand, name, family, kind) values ('probe 브랜드', 'probe 셋째 묶음', 'fridge', 'side')",
+      "expect": {
+        "admin": "ok",
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "고치기 appliance_combos — 사이트 관리자 · 서버만 (그 밖의 로그인 사람은 0줄)",
+      "sql": "update public.appliance_combos set gap_mm = 10 where id = {{c_side}}",
+      "expect": {
+        "anon": "deny",
+        "plain": "rows:0",
+        "admin": "rows:1",
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "지우기 appliance_combo_members — 사이트 관리자 · 서버만 (그 밖의 로그인 사람은 0줄)",
+      "sql": "delete from public.appliance_combo_members where combo_id = {{c_side}} and model_id = {{m_fr_b}}",
+      "expect": {
+        "anon": "deny",
+        "plain": "rows:0",
+        "admin": "rows:1",
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "넣기 appliance_combo_members — 사이트 관리자 · 서버만",
+      "sql": "insert into public.appliance_combo_members (combo_id, model_id, role) values ({{c_side}}, {{m_wash}}, 'any')",
+      "expect": {
+        "admin": "ok",
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "지킴이 — 나란히 묶음에 아래(lower) 자리는 거절",
+      "sql": "insert into public.appliance_combo_members (combo_id, model_id, role) values ({{c_side}}, {{m_dry}}, 'lower')",
+      "expect": {
+        "service_role": "err:22023"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "지킴이 — 쌓기 묶음에 아무 자리(any)는 거절",
+      "sql": "insert into public.appliance_combo_members (combo_id, model_id, role) values ({{c_stack}}, {{m_fr_a}}, 'any')",
+      "expect": {
+        "service_role": "err:22023"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "묶음 — 쌓기는 두 대만 (max_units 3 거절)",
+      "sql": "insert into public.appliance_combos (brand, name, family, kind, max_units) values ('probe 브랜드', 'probe 세 대 쌓기', 'laundry', 'stack', 3)",
+      "expect": {
+        "service_role": "err:23514"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "묶음 — 모르는 갈래는 거절",
+      "sql": "insert into public.appliance_combos (brand, name, family, kind) values ('probe 브랜드', 'probe 다른 갈래', 'kitchen', 'side')",
+      "expect": {
+        "service_role": "err:23514"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "묶음 — 같은 브랜드에 같은 이름은 하나 (앞뒤 빈칸 · 대소문자 무시)",
+      "sql": "insert into public.appliance_combos (brand, name, family, kind) values ('probe 브랜드', '  PROBE 1도어 나란히 ', 'fridge', 'side')",
+      "expect": {
+        "service_role": "err:23505"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "모델 — 건조기 종류 · 세탁기 구분은 받는다",
+      "sql": "insert into public.appliance_models (category, subtype, brand, model_name, model_code, model_codes, width_mm, depth_mm, height_mm) values ('dryer', 'electric', 'probe 브랜드', 'probe 전기 건조기', 'PRB-D2', ARRAY['PRB-D2'], 600, 600, 850), ('washing_machine', 'washtower', 'probe 브랜드', 'probe 워시타워', 'PRB-WT', ARRAY['PRB-WT'], 700, 830, 1890)",
+      "expect": {
+        "service_role": "ok"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "모델 — 세탁기에 건조기 구분은 거절",
+      "sql": "insert into public.appliance_models (category, subtype, brand, model_name, model_code, model_codes, width_mm, depth_mm, height_mm) values ('washing_machine', 'heat_pump', 'probe 브랜드', 'probe 틀린 구분', 'PRB-X1', ARRAY['PRB-X1'], 600, 600, 850)",
+      "expect": {
+        "service_role": "err:23514"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "가져오기 함수 — 서버만 · 모델 코드로 찾아 새 묶음 1개",
+      "sql": "select (public.import_appliance_combos('[{\"brand\": \"probe 브랜드\", \"name\": \"probe 가져온 쌓기\", \"family\": \"laundry\", \"kind\": \"stack\", \"kit_code\": \"PRB-KIT2\", \"members\": [{\"code\": \"PRB-W1\", \"role\": \"lower\"}, {\"code\": \"PRB-D1\", \"role\": \"upper\"}, {\"code\": \"PRB-NONE\", \"role\": \"upper\"}]}]'::jsonb) ->> 'inserted')",
+      "expect": {
+        "service_role": "1",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "가져오기 함수 — 쌓기에 위 모델을 못 찾으면 건너뛴다",
+      "sql": "select (public.import_appliance_combos('[{\"brand\": \"probe 브랜드\", \"name\": \"probe 짝 없는 쌓기\", \"family\": \"laundry\", \"kind\": \"stack\", \"members\": [{\"code\": \"PRB-W1\", \"role\": \"lower\"}, {\"code\": \"PRB-NONE\", \"role\": \"upper\"}]}]'::jsonb) ->> 'skipped')",
+      "expect": {
+        "service_role": "1"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "RLS — 두 표 모두 켜져 있다",
+      "sql": "select bool_and(relrowsecurity) from pg_class where oid in ('public.appliance_combos'::regclass, 'public.appliance_combo_members'::regclass)",
+      "expect": {
+        "service_role": "true"
+      },
+      "roles": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "지킴이 함수 — 아무 역할도 직접 부르지 못한다",
+      "sql": "select has_function_privilege('anon', 'public.appliance_combo_members_guard()', 'EXECUTE') or has_function_privilege('authenticated', 'public.appliance_combo_members_guard()', 'EXECUTE')",
+      "expect": {
+        "service_role": "false"
+      },
+      "roles": [
+        "service_role"
+      ]
+    }
+  ]
+}
