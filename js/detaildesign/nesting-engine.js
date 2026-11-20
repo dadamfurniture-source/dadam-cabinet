@@ -66,20 +66,31 @@
   /** 「뒷판」 원판 묶음은 이 두께 미만만 — 얇은 뒷판 · 서랍밑판(MDF 3T). 생산 부하(workers/workflow-api production/workload.js)의 뒷판 기준과 같다. */
   const THIN_BACK_LIMIT = 5;
 
+  /** 도어재 원장으로 가는 몸통 판 — MDF 18T 이상 (2026-11-20 사장님 「몸통 MDF 18T도 도어재에 합쳐져야해」) */
+  const MDF_DOOR_BOARD_RE = /^MDF/i;
+  const MDF_DOOR_BOARD_MIN_T = 18;
+
   /**
    * 원판을 나누는 부재 구분 — ai-design-report.js getPartType 과 같은 규칙 (본체/도어/뒷판 원판 분리).
    *   두께를 알면 5T 이상 뒷판(오픈 상자 · 밥솥장 · 홈카페장 18T 뒷판)은 같은 두께 몸통 판과 한 원장 —
    *   2026-11-05 사장님 「MDF 18T 뒷판은 18T 몸통 판과 같은 원장」 (작업지시서 손보기 F). 두께를 모르면 예전처럼 이름만 본다.
    */
-  function partClassOf(partName, thickness) {
+  /**
+   *   재질을 알면 (2026-11-20 사장님 「멍가림판도 우라에 한데 뭉쳐서 같이 계산되도록 합쳐줘. 몸통 MDF 18T도 도어재에 합쳐져야해」):
+   *   얇은 멍가림판(MDF 3T)은 우라(뒷판) 원장, MDF 18T 이상 몸통 판(휠라 · EP · 오픈장 · 밥솥장 · 홈카페장 상자 · 두꺼운 뒷판)은 도어재 원장.
+   *   멍가림판은 이름만으로도 얇으면 뒷판이다 (재질 칸이 없어도). 재질을 모르면 MDF 규칙은 쓰지 않는다 (예전 그대로).
+   */
+  function partClassOf(partName, thickness, material) {
     const s = String(partName || '');
     if (/도어/.test(s)) return '도어';
-    if (/뒷판|서랍밑판/.test(s)) {
-      const t = num(thickness);
-      return t >= THIN_BACK_LIMIT ? '본체' : '뒷판';
+    const t = num(thickness);
+    const mdfDoorBoard = MDF_DOOR_BOARD_RE.test(String(material || '').trim()) && t >= MDF_DOOR_BOARD_MIN_T;
+    if (/뒷판|서랍밑판|멍가림판/.test(s)) {
+      if (t >= THIN_BACK_LIMIT) return mdfDoorBoard ? '도어' : '본체';
+      return /멍가림판/.test(s) && !(t > 0) ? '본체' : '뒷판';
     }
     if (/몰딩|걸레받이|목찬넬|마감/.test(s)) return '도어';
-    return '본체';
+    return mdfDoorBoard ? '도어' : '본체';
   }
 
   /**
@@ -883,7 +894,7 @@
    *   kerf        number           톱날 (전역 CUT_KERF → 4)
    *   trim        number           가장자리 트림, 네 변 각각 (기본 10)
    *   noRotateMaterials [RegExp|string]  회전 금지 자재 (기본 무늬목·우드·결 PET)
-   *   partClass   fn(partName, thickness)  원판 그룹을 가르는 부재 구분 (기본 partClassOf)
+   *   partClass   fn(partName, thickness, material)  원판 그룹을 가르는 부재 구분 (기본 partClassOf)
    *   strategy    'standard' | 'material' | 'cuts'  재단 방식 (STRATEGIES). 없으면 지금 방식 그대로 — 결과가 바뀌지 않는다
    *   colorOf     fn(row) → 색 이름  색이 다른 판을 한 원판에 섞지 않는다 (묶음 키에 색). 없으면 색을 보지 않는다
    *   searchBudget number          묶음마다 만들어 볼 후보 수 (strategy 가 있을 때만 — 기본은 묶음 크기에 따라 14 ~ 전부)
@@ -979,7 +990,7 @@
         part: String(m.part || ''),
         material: String(m.material || ''),
         thickness: num(m.thickness),
-        partClass: classOf(m.part, num(m.thickness)),
+        partClass: classOf(m.part, num(m.thickness), m.material),
         w, h, qty,
         edge: typeof m.edge === 'string' ? m.edge : '',
         itemLabel: typeof m.itemLabel === 'string' ? m.itemLabel : '',

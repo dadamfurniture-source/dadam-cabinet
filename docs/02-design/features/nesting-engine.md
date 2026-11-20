@@ -24,7 +24,7 @@ const cutPlan = NestingEngine.plan(materials, opts);
 
 - `materials`: `bom.materials` 행 (`{partId, part, material, thickness, w, h, qty, edge, itemLabel, grain?}`). B1 이후 모든 행에 `partId` 가 있다.
 - 전역 스크립트(`detaildesign.html`, `data-constants.js` 뒤 · `ai-design-report.js` 앞)와 CommonJS(`require`) 이중 노출. DOM·전역 상태를 건드리지 않는다.
-- 보조: `NestingEngine.partClassOf(partName)` (본체/도어/뒷판), `basePartId('x#3') → 'x'`, `rotatableOf(row)`, `DEFAULTS`, `NO_ROTATE_MATERIALS`.
+- 보조: `NestingEngine.partClassOf(partName, thickness, material)` (본체/도어/뒷판 — 5T 이상 뒷판은 몸통 원장(2026-11-05), **얇은 멍가림판은 뒷판(우라) · MDF 18T 이상 몸통 판(휠라 · EP · 오픈장 상자 · 두꺼운 뒷판)은 도어(도어재)** — 2026-11-20 사장님 「멍가림판도 우라에 한데 뭉쳐서 … 몸통 MDF 18T도 도어재에 합쳐져야해」, 재질을 모르면 MDF 규칙은 쓰지 않는다. `plan()` 은 행의 재질을 넘긴다. 앱 지시서는 플래너가 행마다 실어 보낸 `partClass` 를 먼저 쓴다 — `workers/workflow-api/src/work-order-data.js partClassOfRow`), `basePartId('x#3') → 'x'`, `rotatableOf(row)`, `DEFAULTS`, `NO_ROTATE_MATERIALS`.
 - 재단 방식 (2026-11-17): `NestingEngine.STRATEGIES` (`[{id, label}]` — 표준 · 부재 최적화 · 최소 재단), `NestingEngine.compare(materials, opts)` (세 방식을 한 번에 — `{plans, rows}`), `NestingEngine.cutCount(sheet)` (낸 원판 한 장을 자르는 횟수). §3-1.
 
 ### 옵션
@@ -36,7 +36,7 @@ const cutPlan = NestingEngine.plan(materials, opts);
 | `kerf` | 전역 `CUT_KERF` → 4 | 톱날. 조각 사이·스트립 사이 |
 | `trim` | 10 | 네 변 가장자리 트림. 배치 가능 영역 = `(w-2·trim) × (h-2·trim)`, 좌표는 원판 좌상단 기준 절대값 |
 | `noRotateMaterials [RegExp\|string]` | 무늬목 · 우드 · wood · 결 PET · PET(우드/결) | 자재 이름으로 회전 금지 |
-| `partClass fn(partName)` | `partClassOf` | 원판을 섞지 않는 그룹을 가르는 부재 구분 |
+| `partClass fn(partName, thickness, material)` | `partClassOf` | 원판을 섞지 않는 그룹을 가르는 부재 구분 |
 | `strategy` | — (지금 방식 그대로) | 재단 방식 `standard` · `material` · `cuts` (§3-1). 모르는 값은 `RangeError` |
 | `colorOf fn(row)` | — (색을 보지 않는다) | 판의 색 이름. 색이 다른 판을 한 원판에 섞지 않는다 (묶음 키에 색) |
 | `searchBudget` | 묶음 크기에 따라 14 ~ 204 | 묶음마다 만들어 볼 후보 배치 수 (`strategy` 가 있을 때만) |

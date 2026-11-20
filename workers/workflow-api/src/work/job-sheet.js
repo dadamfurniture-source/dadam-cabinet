@@ -28,7 +28,7 @@
  */
 
 import { ConflictError, NotFoundError, ValidationError, assertDesignAccess, selectMany, selectOne } from '../supabase.js';
-import { isMissingRelation, partClassOf } from '../work-order-data.js';
+import { isMissingRelation, partClassOfRow } from '../work-order-data.js';
 import { createSignedUrls } from '../storage.js';
 import { getSiteInfo, listSchedulesForDoc } from '../site-info.js';
 import { hasCountertop } from '../countertop.js';
@@ -210,7 +210,7 @@ export async function orderSheetsOf(reader, { designId, pinned = null }) {
     const snap = await reader.snapOf(doc.snapshot_id);
     const bom = snap ? snap.bom_payload : null;
     const mats = bom && Array.isArray(bom.materials) ? bom.materials : [];
-    applies.door = mats.some((m) => partClassOf(m.part, Number(m.thickness)) === '도어');
+    applies.door = mats.some((m) => partClassOfRow(m) === '도어');
     applies.top = !!hasCountertop(bom);
   }
   return ORDER_SHEETS.map((o) => ({

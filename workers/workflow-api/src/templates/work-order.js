@@ -50,6 +50,7 @@ import {
   doorRowsForHinge,
   moduleNameOf,
   partClassOf,
+  partClassOfRow,
   isDoorClass,
   isOutsourcedCutRow,
   isOutsourcedTopRow,
@@ -1289,7 +1290,7 @@ function edgeSheets(ctx) {
   const groups = new Map();
   rows.forEach((r) => {
     const m = r.row;
-    const partClass = partClassOf(m.part, m.thickness);
+    const partClass = partClassOfRow(m);
     const key = `${m.material || ''}|${m.thickness ?? ''}|${partClass}`;
     if (!groups.has(key)) groups.set(key, { material: m.material, thickness: m.thickness, partClass, list: [] });
     groups.get(key).list.push(r);
