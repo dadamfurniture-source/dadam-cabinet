@@ -106,9 +106,10 @@ test('미리보기 — 작업지시서 꾸러미를 인쇄 틀 그대로, 아무
 test('미리보기 — 그림은 본문 SVG 를 data: 주소로 싣는다 (ISO · 배치 평면 · 속 구조)', async () => {
   const f = fakeSupabase();
   try {
-    const r = await previewPlannerDoc(ENV, { user: { id: OWNER }, body: body({ doc_type: 'demolition_order', pack: undefined }) });
+    // 납품 지시서 — 벽 ISO 그림 (철거 지시서는 새 틀에서 배치 평면을 싣지 않는다 — 2026-11-20)
+    const r = await previewPlannerDoc(ENV, { user: { id: OWNER }, body: body({ doc_type: 'delivery_order', pack: undefined }) });
     assert.equal(r.pack, null);
-    assert.match(r.html, /data:image\/svg\+xml;base64,/, '배치 평면 그림');
+    assert.match(r.html, /data:image\/svg\+xml;base64,/, 'ISO 그림');
     const asm = await previewPlannerDoc(ENV, { user: { id: OWNER }, body: body({ pack: 'all' }) });
     assert.match(asm.html, /data:image\/svg\+xml;base64,/);
   } finally { f.restore(); }
@@ -172,8 +173,8 @@ test('발행과 미리보기는 같은 칸 — docPayloadOf 가 문서 종류마
   try {
     const keys = async (docType) => Object.keys(await docPayloadOf(ENV, { docType, snapshot, designId: null, collect, site, prevRev: false })).sort();
     assert.deepEqual(await keys('work_order'), ['check_list', 'cut_plan', 'drawing_version', 'iso_renders', 'label_order', 'labor', 'parts_digest', 'prev_rev', 'renders', 'sheet_layout', 'special_notes', 'swatches', 'work_order_version'].sort());
-    assert.deepEqual(await keys('delivery_order'), ['check_list', 'drawing_version', 'iso_renders', 'schedules', 'site_info']);
-    assert.deepEqual(await keys('demolition_order'), ['check_list', 'drawing_version', 'schedules', 'site_info']);
+    assert.deepEqual(await keys('delivery_order'), ['check_list', 'drawing_version', 'iso_renders', 'schedules', 'sheet_layout', 'site_info']);
+    assert.deepEqual(await keys('demolition_order'), ['check_list', 'drawing_version', 'schedules', 'sheet_layout', 'site_info']);
   } finally { f.restore(); }
 });
 

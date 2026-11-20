@@ -16,7 +16,7 @@ const snapshotWith = (processing) => fx.snapshot({ design_payload: { ...fx.desig
 const docV2 = (rp = {}) => fx.doc({ render_payload: { ...fx.doc().render_payload, label_order: 'cut', drawing_version: 1, sheet_layout: 2, ...rp } });
 const sheetNos = (html) => [...html.matchAll(/원장 #(\d+)/g)].map((m) => Number(m[1]));
 
-test('발행 칸 — 작업지시서는 새 판(sheet_layout 2)을 고정한다, 그 밖의 문서에는 없다', async () => {
+test('발행 칸 — 작업지시서 · 현장 지시서는 새 판(sheet_layout 2)을 고정한다', async () => {
   assert.equal(SHEET_LAYOUT, 2);
   const snapshot = fx.snapshot();
   const collect = (kind, items) => items.map((it, i) => ({ item_index: i, item_unique_id: i + 1, path: null }));
@@ -27,7 +27,7 @@ test('발행 칸 — 작업지시서는 새 판(sheet_layout 2)을 고정한다,
     const wo = await docPayloadOf(env, { docType: 'work_order', snapshot, designId: null, collect, site: { site_info: null, schedules: [] }, prevRev: false });
     assert.equal(wo.sheet_layout, 2);
     const dv = await docPayloadOf(env, { docType: 'delivery_order', snapshot, designId: null, collect, site: { site_info: null, schedules: [] }, prevRev: false });
-    assert.equal('sheet_layout' in dv, false);
+    assert.equal(dv.sheet_layout, 2, '현장 지시서도 새 틀 (2026-11-20)');
   } finally { globalThis.fetch = original; }
 });
 
@@ -134,4 +134,36 @@ test('조립 새 틀 — 모듈 명세 표 · 치수도 · 조립 순서 체크 
   assert.doesNotMatch(body, /class="section-title">[^<]*(모듈 명세|모듈 치수도|조립 순서 체크|모듈 단면도)/);
   const old = renderWorkOrder(fx.doc(), snapshotWith(null), { toolbar: false, pack: 'assembly' });
   assert.match(old.slice(old.indexOf('<body>')), /조립 순서 체크/);
+});
+
+// ── 현장 지시서 새 틀 (시공 · 납품 · 철거) ─────────────────────────
+import { renderInstallationOrder } from '../src/templates/installation-order.js';
+import { renderSiteOrder } from '../src/templates/site-order.js';
+import { elevationSvg } from '../src/templates/elevation.js';
+
+test('현장 새 틀 — 시공 · 납품은 확인 칸 없음 · 철거는 배치 평면 없음 · 표 칸 너비 고정, 옛 문서는 그대로', () => {
+  const snap = fx.snapshot({ design_payload: { ...fx.design(), source: 'planner-lite' } });
+  const rp = (type, extra = {}) => ({ site_info: { address: '합성시 1' }, schedules: [], check_list: fx.doc().render_payload.check_list, drawing_version: 1, layout_renders: [{ item_index: 0, item_unique_id: 1, path: 'p/layout' }], ...extra });
+  const docOf = (type, extra) => ({ ...fx.doc(), doc_type: type, render_payload: rp(type, extra) });
+  const urls = new Map([['p/layout', 'data:image/svg+xml;base64,AA==']]);
+  const inst2 = renderInstallationOrder(docOf('installation_order', { sheet_layout: 2 }), snap, { toolbar: false });
+  const inst1 = renderInstallationOrder(docOf('installation_order'), snap, { toolbar: false });
+  assert.doesNotMatch(inst2, /<h2>설치 확인<\/h2>/);
+  assert.match(inst2, /table-layout: fixed/);
+  assert.doesNotMatch(inst1, /table-layout: fixed/, '옛 문서 모양 그대로');
+  const dlv2 = renderSiteOrder(docOf('delivery_order', { sheet_layout: 2, check_list: { version: 'v4', block: 'must', roles: { delivery: [{ key: 'dlv-order-count', label: '납품 수량 확인', scope: 'order', must: true, photo: 'none' }] } } }), snap, { toolbar: false });
+  assert.doesNotMatch(dlv2, /납품 수량 확인 ☐/);
+  const dem2 = renderSiteOrder(docOf('demolition_order', { sheet_layout: 2 }), snap, { toolbar: false, renderUrls: urls });
+  const dem1 = renderSiteOrder(docOf('demolition_order'), snap, { toolbar: false, renderUrls: urls });
+  assert.doesNotMatch(dem2, /<h2>배치 평면/);
+  assert.match(dem1, /<h2>배치 평면/);
+});
+
+test('정면도 글자 배율 — 새 틀은 크게, 기본은 그대로', () => {
+  const item = fx.design().items[0];
+  const fsOf = (svg) => Math.max(...[...svg.matchAll(/font-size="([\d.]+)"/g)].map((m) => Number(m[1])));
+  const a = elevationSvg(item);
+  const b = elevationSvg(item, { textScale: 1.35 });
+  assert.ok(fsOf(b) > fsOf(a) * 1.3);
+  assert.equal(elevationSvg(item, { textScale: 1 }), a);
 });

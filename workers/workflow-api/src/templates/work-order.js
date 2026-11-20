@@ -131,6 +131,8 @@ function buildContext(doc, snapshot, renderUrls) {
     drawingVersion: Number(rp.drawing_version) || 0,
     // 지시서 새 판 (2026-11-20 사장님 「작업지시서 미리보기 … 정리」 — work-order-layout2.js). 발행 때 고정, 옛 문서는 0 (예전 틀 그대로)
     layoutVersion: Number(rp.sheet_layout) || 0,
+    // 새 틀 문서의 정면도 글자 배율 (「치수 숫자 더 크고 굵게」)
+    elevScale: Number(rp.sheet_layout) >= 2 ? LAYOUT2_ELEV_SCALE : 0,
     plannerDesign: design.source === 'planner-lite',
     renders: Array.isArray(rp.renders) ? rp.renders : null,
     isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
@@ -595,7 +597,7 @@ export function elevationBlock(ctx) {
           .join(' · ');
         return `<div class="elev-box">${isoSvg(item)}<div class="elev-cap">${label} · 아이소메트릭 (코너 · mm) · 번호 = 모듈 명세 번호${runs ? ` · <b>${esc(runs)}</b>` : ''}</div></div>`;
       }
-      const svg = elevationSvg(item);
+      const svg = elevationSvg(item, ctx.elevScale ? { textScale: ctx.elevScale } : {});
       if (!svg) return `<div class="elev-box"><div class="ph">모듈 없음</div><div>${label}</div></div>`;
       const infos = elevationModel(item).notes.filter((x) => x.level !== 'error');
       return `<div class="elev-box">${svg}<div class="elev-cap">${label} · 정면도 (mm)${infos.map((x) => ` · <span class="muted">${esc(x.text)}</span>`).join('')}</div></div>`;
@@ -1829,6 +1831,9 @@ function lineHardwareV2(ctx) {
   return `<div class="sheet"><div class="section-title">줄 · 설계 전체 철물</div><table class="compact">${thead(['분류', '품목', '규격', '수량', '비고'], ['', '', '', 'num', ''])}<tbody>${rows.map((h) => tr([esc(h.category || ''), esc(h.item || ''), esc(h.spec || ''), `${num(h.qty)} ${esc(h.unit || '')}`, esc(h.note || '')], ['', '', '', 'num', ''])).join('')}</tbody></table></div>`;
 }
 const ASSEMBLY_V2 = [assemblyHeadV2, assemblyCards, lineHardwareV2, diffSheet];
+
+/** 새 틀 정면도 글자 배율 — 그림용 값 */
+export const LAYOUT2_ELEV_SCALE = 1.35;
 
 const PACK_SECTIONS_V2 = Object.assign({}, PACK_SECTIONS, {
   all: [PACK_SECTIONS.all[0], assemblyCards, (ctx) => cutPackV2(ctx), lineHardwareV2, diffSheet, doorPackV2, labelSheets, PACK_SECTIONS.all[PACK_SECTIONS.all.length - 1]],
