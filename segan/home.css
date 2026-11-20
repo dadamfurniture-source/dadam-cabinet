@@ -40,10 +40,10 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 38% center;
+  object-position: 42% center;
 }
 
-/* 글이 읽히게 아래쪽만 어둡게 */
+/* 글이 읽히게 아래쪽만 어둡게 — 밝은 사진(luxe-hero)이라 글 자리까지 조금 더 */
 .hm-hero::after {
   content: '';
   position: absolute;
@@ -53,9 +53,10 @@
   left: 0;
   background: linear-gradient(
     to top,
-    rgba(45, 42, 38, 0.8) 0%,
-    rgba(45, 42, 38, 0.3) 46%,
-    rgba(45, 42, 38, 0) 72%
+    rgba(45, 42, 38, 0.82) 0%,
+    rgba(45, 42, 38, 0.5) 46%,
+    rgba(45, 42, 38, 0.14) 74%,
+    rgba(45, 42, 38, 0) 88%
   );
 }
 
@@ -106,17 +107,6 @@
 .hm-cta:active {
   transform: scale(0.97);
   transition-duration: 100ms;
-}
-
-/* 사진을 잘라 쓰는 폭에서는 사진에 찍힌 표시가 잘리므로 글로 적는다 */
-.hm-credit {
-  position: absolute;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: 10px;
-  z-index: 1;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: var(--v5-on-dark-60);
 }
 
 /* ── 세 걸음 ── */
@@ -197,6 +187,14 @@
   color: var(--v5-ink);
 }
 
+/* 연출 사례 아래 한 줄 — AI 연출 사진임을 글로 (사진 위에는 표시를 얹지 않는다) */
+.hm-note {
+  margin-top: 10px;
+  margin-bottom: 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
 /* ── 시공사례 — 폰은 옆으로 넘기는 줄, PC 는 3칸 ── */
 .hm-works {
   display: flex;
@@ -228,7 +226,7 @@
   height: auto;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  object-position: left center;
+  object-position: center;
   background: var(--v5-photo);
 }
 
@@ -299,13 +297,8 @@
     margin-top: -88px;
   }
 
-  /* 넓은 화면은 사진이 거의 다 보인다 — 사진에 찍힌 표시가 남게 아래에 맞춘다 */
   .hm-hero img {
-    object-position: center bottom;
-  }
-
-  .hm-credit {
-    display: none;
+    object-position: center 60%;
   }
 
   .hm-hero-in {

@@ -3,7 +3,7 @@
 /**
  * SEGAN 만들기 — ③ 참고 사진 (segan/make.html + segan/make.js, 고르기 창은 segan/shell.js SeganShell.sheet).
  *
- *   - 「참고 사진 고르기」 → 시트 두 칸: 시공사례(collection_posts — AI 연출컷 빼고 · 품목으로 거름 + 자체 시공 사진) ·
+ *   - 「참고 사진 고르기」 → 시트 두 칸: 시공사례(collection_posts — AI 연출컷 빼고 · 품목으로 거름 + AI 연출 사진) ·
  *     테마(theme_images — approved · is_active). 최대 5장(워커 MAX_REFS), 장수 · 고른 차례 번호
  *   - 고른 사진은 단계 화면에 작은 그림 + 「빼기」, 이 기기에는 id · 주소 · 이름만 담는다 (그림 자료 없음)
  *   - 뒤로 가기는 시트만 닫는다 (단계 · 주소 그대로)
@@ -207,7 +207,7 @@ describe('③ 참고 사진 단계', () => {
 });
 
 describe('고르기 창 — 시공사례 · 테마, 최대 5장', () => {
-  test('시공사례 칸(기본) — collection_posts 최신순 · AI 연출컷 빼고 · 고른 품목(싱크대 → kitchen) + 자체 시공 사진', async () => {
+  test('시공사례 칸(기본) — collection_posts 최신순 · AI 연출컷 빼고 · 고른 품목(싱크대 → kitchen) + AI 연출 사진', async () => {
     const { M, calls } = await toRefs();
     await openPicker(M);
     expect(sheet()).not.toBeNull();
@@ -221,52 +221,47 @@ describe('고르기 창 — 시공사례 · 테마, 최대 5장', () => {
       ['order', 'created_at', { ascending: false }],
       ['limit', 300],
     ]);
-    // 첫 12장 — DB 사례(kitchen) 하나 + 자체 시공 사진(kitchen) 11장. builtin · AI 연출컷 · id 이상한 줄은 없다
+    // DB 사례(kitchen) 하나 + AI 연출 사진(kitchen) 9장 = 10장 (한 쪽 12장 안). builtin · AI 연출컷 · id 이상한 줄은 없다
     expect(tileIds()).toEqual(
       ['c:' + uid(1)].concat(
         statics([
-          'kitchen-n1-1',
-          'kitchen-n1-2',
-          'kitchen-n1-3',
-          'kitchen-n1-4',
-          'kitchen-n3-2',
-          'kitchen-n3-3',
-          'kitchen-n4-1',
-          'kitchen-n6-1',
-          'kitchen-n6-2',
-          'kitchen-n6-3',
-          'kitchen-n7-1',
+          'luxe-01',
+          'luxe-02',
+          'luxe-03',
+          'luxe-04',
+          'luxe-05',
+          'luxe-06',
+          'luxe-07',
+          'luxe-08',
+          'luxe-09',
         ])
       )
     );
-    expect(inSheet('[data-pick-hint]').textContent).toBe('싱크대 사례 12 / 15');
+    expect(inSheet('[data-pick-hint]').textContent).toBe('싱크대 사례 10 / 10');
     expect(tiles()[0].textContent).toBe('다담가구 · 서울 성수');
-    // 자체 시공 사진은 가벼운 사본으로 그린다
+    expect(tiles()[1].textContent).toBe('아일랜드 주방 · 매트 화이트 · 세이오크');
+    // 정적 사진은 가벼운 사본으로 그린다
     expect(tiles()[1].querySelector('.mk-pick-img').getAttribute('style')).toContain(
-      '../app/portfolio/display/kitchen-n1-1.jpg'
+      '../app/portfolio/display/luxe-01.jpg'
     );
-    // 더 보기 — 나머지
-    inSheet('[data-pick-more]').click();
-    expect(tiles()).toHaveLength(15);
     expect(inSheet('[data-pick-more]').hidden).toBe(true);
-    expect(inSheet('[data-pick-hint]').textContent).toBe('싱크대 사례 15 / 15');
   });
 
-  test('붙박이장 — builtin 사례만 (자체 시공 사진 하나 · DB 하나)', async () => {
+  test('붙박이장 — builtin 사례만 (AI 연출 사진 셋 · DB 하나)', async () => {
     const { M } = await load();
     await choose();
     $('mkNext').click();
     document.querySelector('[data-kind="wardrobe"]').click();
     $('mkNext').click();
     await openPicker(M);
-    expect(tileIds()).toEqual(['c:' + uid(2), 's:funiture-n4-1']);
+    expect(tileIds()).toEqual(['c:' + uid(2), 's:luxe-10', 's:luxe-11', 's:luxe-12']);
     expect(tiles()[0].textContent).toBe('다담가구');
   });
 
-  test('시공사례를 못 읽으면 자체 시공 사진만 — 창을 다시 열면 다시 읽는다', async () => {
+  test('시공사례를 못 읽으면 AI 연출 사진만 — 창을 다시 열면 다시 읽는다', async () => {
     const { M, calls } = await toRefs({ postsError: true });
     await openPicker(M);
-    expect(tileIds()[0]).toBe('s:kitchen-n1-1');
+    expect(tileIds()[0]).toBe('s:luxe-01');
     sheet().querySelector('.sg-sheet-x').click();
     await settled();
     await openPicker(M);
@@ -416,34 +411,34 @@ describe('?ref= · ?refs= — 시공사례에서 「이 스타일로 연출컷�
     expect($('mkRefCount').textContent).toBe('1 / 5');
   });
 
-  test('?refs=a,b — 자체 시공 사진은 파일 이름, AI 연출컷 · 없는 글 · 모르는 이름은 건너뛴다, 다른 주소 칸은 남긴다', async () => {
+  test('?refs=a,b — AI 연출 사진은 파일 이름, AI 연출컷 · 없는 글 · 모르는 이름은 건너뛴다, 다른 주소 칸은 남긴다', async () => {
     const { M } = await load({
-      url: `/segan/?refs=kitchen-n1-1,${uid(3)},${uid(5)},nope,${uid(1)}&utm=x#kind`,
+      url: `/segan/?refs=luxe-01,${uid(3)},${uid(5)},nope,${uid(1)}&utm=x#kind`,
     });
-    expect(M.state.refs.map((r) => r.id)).toEqual(['s:kitchen-n1-1', 'c:' + uid(1)]);
+    expect(M.state.refs.map((r) => r.id)).toEqual(['s:luxe-01', 'c:' + uid(1)]);
     expect(M.state.refs[0]).toEqual({
-      id: 's:kitchen-n1-1',
-      src: '../app/portfolio/kitchen-n1-1.jpg',
-      label: '다담가구 · 서울 논현',
+      id: 's:luxe-01',
+      src: '../app/portfolio/luxe-01.jpg',
+      label: '아일랜드 주방 · 매트 화이트 · 세이오크',
     });
     expect(window.location.search).toBe('?utm=x');
   });
 
   test('담아 둔 것에 더한다 — 같은 것은 하나, 5장까지', async () => {
-    const have = ['kitchen-n1-1', 'kitchen-n1-2', 'kitchen-n1-3', 'kitchen-n1-4'].map((s) => ({
+    const have = ['luxe-01', 'luxe-02', 'luxe-03', 'luxe-04'].map((s) => ({
       id: 's:' + s,
       src: `../app/portfolio/${s}.jpg`,
       label: 'x',
     }));
     const { M } = await load({
-      url: `/segan/?ref=kitchen-n1-1&ref=${uid(1)}&refs=kitchen-n7-1`,
+      url: `/segan/?ref=luxe-01&ref=${uid(1)}&refs=luxe-09`,
       draft: { v: 1, step: 'photo', choices: {}, photo: null, refs: have },
     });
     expect(M.state.refs.map((r) => r.id)).toEqual([
-      's:kitchen-n1-1',
-      's:kitchen-n1-2',
-      's:kitchen-n1-3',
-      's:kitchen-n1-4',
+      's:luxe-01',
+      's:luxe-02',
+      's:luxe-03',
+      's:luxe-04',
       'c:' + uid(1),
     ]);
   });
@@ -462,22 +457,22 @@ describe('이 기기에 담기 — 로그인을 다녀와도 고른 참고 사�
     expect(first.M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Fmake.html');
     const saved = draft();
     expect(saved.step).toBe('refs');
-    expect(saved.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:kitchen-n1-1']);
+    expect(saved.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:luxe-01']);
     expect(Object.keys(saved.refs[0]).sort()).toEqual(['id', 'label', 'src']);
     expect(window.fetch).not.toHaveBeenCalled();
 
     const back = await load({ session: SESSION, draft: saved });
     expect(visible($('mkRefsTitle'))).toBe(true);
-    expect(back.M.state.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:kitchen-n1-1']);
+    expect(back.M.state.refs.map((r) => r.id)).toEqual(['c:' + uid(1), 's:luxe-01']);
     expect($('mkRefCount').textContent).toBe('2 / 5');
     expect($('mkRefs').querySelectorAll('.mk-ref')).toHaveLength(2);
     expect($('mkRefs').querySelectorAll('.mk-ref-img')[1].getAttribute('style')).toContain(
-      'display/kitchen-n1-1.jpg'
+      'display/luxe-01.jpg'
     );
   });
 
   test('다시 선택(사진 버리기) — 참고 사진 · 고른 값은 남는다', async () => {
-    const refs = [{ id: 's:kitchen-n1-1', src: '../app/portfolio/kitchen-n1-1.jpg', label: 'a' }];
+    const refs = [{ id: 's:luxe-01', src: '../app/portfolio/luxe-01.jpg', label: 'a' }];
     await load({ draft: { v: 1, step: 'refs', photo: PHOTO, choices: { kind: 'shoe' }, refs } });
     expect(visible($('mkRefsTitle'))).toBe(true);
     document.querySelector('[data-goto="photo"]').click();
@@ -499,21 +494,21 @@ describe('이 기기에 담기 — 로그인을 다녀와도 고른 참고 사�
           { id: 'x:1', src: '../app/portfolio/a.jpg', label: 'a' },
           { id: 'c:' + uid(1), src: 'javascript:alert(1)', label: 'b' },
           { id: 'c:' + uid(2), src: 'https://e.example/a.jpg") ; x(', label: 'c' },
-          ok('kitchen-n1-1'),
-          ok('kitchen-n1-1'),
-          { ...ok('kitchen-n1-2'), note: '시공사례에는 설명을 담지 않는다' },
-          ok('kitchen-n1-3'),
-          ok('kitchen-n1-4'),
+          ok('luxe-01'),
+          ok('luxe-01'),
+          { ...ok('luxe-02'), note: '시공사례에는 설명을 담지 않는다' },
+          ok('luxe-03'),
+          ok('luxe-04'),
           ok('kitchen-n3-2'),
           ok('kitchen-n3-3'),
         ],
       },
     });
     expect(M.state.refs.map((r) => r.id)).toEqual([
-      's:kitchen-n1-1',
-      's:kitchen-n1-2',
-      's:kitchen-n1-3',
-      's:kitchen-n1-4',
+      's:luxe-01',
+      's:luxe-02',
+      's:luxe-03',
+      's:luxe-04',
       's:kitchen-n3-2',
     ]);
     expect(M.state.refs[1]).not.toHaveProperty('note');
@@ -558,11 +553,11 @@ describe('보내기 전 줄이기 — 방 사진과 같은 긴 변 1600 JPEG', (
       .mockImplementation((tag) => (tag === 'canvas' ? canvas : make(tag)));
     try {
       const out = await M.readRef({
-        id: 's:kitchen-n1-1',
-        src: '../app/portfolio/kitchen-n1-1.jpg',
+        id: 's:luxe-01',
+        src: '../app/portfolio/luxe-01.jpg',
       });
       expect(out).toEqual({ base64: 'SMALL', mimeType: 'image/jpeg' });
-      expect(window.fetch).toHaveBeenCalledWith('../app/portfolio/kitchen-n1-1.jpg', {
+      expect(window.fetch).toHaveBeenCalledWith('../app/portfolio/luxe-01.jpg', {
         cache: 'force-cache',
       });
       expect([canvas.width, canvas.height]).toEqual([1600, 800]);
@@ -589,22 +584,20 @@ describe('정본과 같은 값', () => {
     expect(worker).toMatch(/r\.role === 'theme' \? 'theme' : 'style'/);
   });
 
-  test('자체 시공 사진 = segan/collection.js STATIC (사진 · 지역 · 차례), 분류 = ai-design.html CASE_STATIC', async () => {
+  test('AI 연출 사진 = segan/collection.js STATIC (사진 · 차례), 이름 = 품목 · 색상, 분류 = luxe-manifest.json', async () => {
     const { M } = await load();
-    const grab = (src, name) =>
-      [
-        ...src
-          .match(new RegExp(`var ${name} = \\[([\\s\\S]*?)\\];`))[1]
-          .matchAll(/image_url: '([^']+)', region: '([^']+)'(?:, category: '([^']+)')?/g),
-      ].map((m) => ({ image_url: m[1], region: m[2], category: m[3] }));
-    const app = grab(read('segan/collection.js'), 'STATIC');
-    const ai = grab(read('ai-design.html'), 'CASE_STATIC');
-    expect(app.length).toBe(15);
-    expect(M.CASE_STATIC.map((r) => [r.image_url, r.region])).toEqual(
-      app.map((r) => [r.image_url, r.region])
+    const manifest = JSON.parse(read('app/portfolio/luxe-manifest.json'));
+    const app = Function(
+      `return ${read('segan/collection.js').match(/var STATIC = (\[[\s\S]*?\]);/)[1]}`
+    )();
+    expect(app).toHaveLength(15);
+    expect(M.CASE_STATIC.map((r) => [r.image_url, r.label])).toEqual(
+      app.map((r) => [r.image_url, r.place + ' · ' + r.color])
     );
-    expect(M.CASE_STATIC.map((r) => [r.image_url.replace('../', ''), r.category])).toEqual(
-      ai.map((r) => [r.image_url, r.category])
+    expect(M.CASE_STATIC.map((r) => [r.image_url, r.category])).toEqual(
+      manifest.photos
+        .filter((p) => p.file !== 'luxe-hero.jpg')
+        .map((p) => ['../app/portfolio/' + p.file, p.category])
     );
     for (const r of M.CASE_STATIC) {
       const stem = r.image_url.replace(/^.*\//, '').replace(/\.jpg$/, '');

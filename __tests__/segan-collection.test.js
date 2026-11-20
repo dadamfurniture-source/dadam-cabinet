@@ -7,7 +7,7 @@
  *   - collection_posts 공개 칸만 최신순 · 24줄 키셋, 업체 이름은 RPC collection_post_companies,
  *     로그인했으면 이 쪽의 내 좋아요 (collection_likes post_id). DB 사례 뒤에 같은 STATIC
  *   - 누르면 사진 보기 시트(SeganShell.sheet) — 장소 · 색상 · 업체 · 좋아요(♡ aria-pressed) · 이 스타일로 연출컷
- *   - 업체: 업체 이름 → (없고) AI 연출컷이면 「AI 연출컷」 → 아니면 줄 없음. 자체 시공 사진은 「다담가구」
+ *   - 업체: 업체 이름 → (없고) AI 연출컷이면 「AI 연출컷」 → 아니면 줄 없음. 정적 사진(AI 연출)은 「AI 연출」
  *   - 좋아요: 로그인 — insert { user_id, post_id } · delete eq post_id, 로그인 전 — 가운데 작은 창으로 로그인
  *   - 다운로드 단추 · 링크 없음, 관리자 「내리기」 없음. 자재 칸은 뺐다 (/material → /segan/blog)
  */
@@ -210,14 +210,23 @@ afterEach(async () => {
 });
 
 describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC', () => {
-  test('정적 사례 = 사이트 collection.html 의 STATIC (segan/ 에서 보므로 ../)', async () => {
+  test('정적 사례 = AI 연출 사진 15장 (app/portfolio/luxe-manifest.json) — 장소 대신 품목, 색상 = 예림 자재 이름', async () => {
     await load();
-    const site = read('collection.html').match(/var STATIC = (\[[\s\S]*?\]);/)[1];
-    const expected = Function(`return ${site}`)().map((s) => ({
-      ...s,
-      image_url: '../' + s.image_url,
-    }));
+    const manifest = JSON.parse(read('app/portfolio/luxe-manifest.json'));
+    const expected = manifest.photos
+      .filter((p) => p.file !== 'luxe-hero.jpg')
+      .map((p) => ({
+        image_url: '../app/portfolio/' + p.file,
+        place: p.kind,
+        color: p.materials.map((m) => m.name).join(' · '),
+      }));
+    expect(expected).toHaveLength(15);
     expect(window.SeganCollection.STATIC).toEqual(expected);
+    for (const s of expected) {
+      const file = s.image_url.replace(/^.*\//, '');
+      expect(fs.existsSync(path.join(ROOT, 'app/portfolio', file))).toBe(true);
+      expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', file))).toBe(true);
+    }
   });
 
   test('공개 칸만 읽는다 — user_id · storage_path · design_id · region · 학습 동의는 묻지 않는다', async () => {
@@ -264,9 +273,9 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
     expect(q.map((x) => x.filters)).toEqual([[], [['lt', 'created_at', rows(30)[23].created_at]]]);
     expect(tiles()).toHaveLength(45); // DB 30 + STATIC 15
     expect(tiles()[29].querySelector('img').getAttribute('src')).toContain('p29.jpg');
-    // 자체 시공 사진 타일은 가벼운 사본 (app/portfolio/display/)
+    // 정적 사진 타일은 가벼운 사본 (app/portfolio/display/)
     expect(tiles()[30].querySelector('img').getAttribute('src')).toBe(
-      '../app/portfolio/display/kitchen-n1-1.jpg'
+      '../app/portfolio/display/luxe-01.jpg'
     );
     expect($('clState').textContent).toBe('마지막 사례입니다');
     expect($('clMore').hidden).toBe(true);
@@ -397,16 +406,17 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     expect(sheet().textContent).not.toMatch(/다담가구/);
   });
 
-  test('자체 시공 사진 — 업체 「다담가구」 · 장소 = 지역 · 큰 사진은 원본, 좋아요 없음', async () => {
+  test('정적 사진(AI 연출) — 장소 = 품목 · 색상 = 자재 이름 · 업체 「AI 연출」(다담가구 · 지역 없음) · 큰 사진은 원본, 좋아요 없음', async () => {
     await load();
     await moreAll();
     await openTile(30);
     expect(facts()).toEqual([
-      ['장소', '서울 논현'],
-      ['업체', '다담가구'],
+      ['장소', '아일랜드 주방'],
+      ['색상', '매트 화이트 · 세이오크'],
+      ['업체', 'AI 연출'],
     ]);
     expect(sheet().querySelector('.pv-photo img').getAttribute('src')).toBe(
-      '../app/portfolio/kitchen-n1-1.jpg'
+      '../app/portfolio/luxe-01.jpg'
     );
     expect(likeBtn()).toBeNull();
   });
@@ -423,7 +433,7 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     expect(make()).toBeNull();
     await moreAll();
     await openTile(44);
-    expect(make().getAttribute('href')).toBe('make.html?ref=funiture-n4-1');
+    expect(make().getAttribute('href')).toBe('make.html?ref=luxe-15');
     // 만들기가 받는 모양 (segan/make.js takeLinkRefs · STATIC_STEM_RE · UUID_RE)
     const V = window.SeganPostView;
     expect(V.refHref({ id: 'not-a-uuid', source: 'upload' })).toBe('');
