@@ -8,7 +8,8 @@
  *     /plans 를 못 읽으면 금액 없이 표만 + 알림 (숫자를 지어내지 않는다). 가입 단추는 모두 me.html#partner
  *   - 소개: 흐름 상자(그림 없이) · 강점 · 「AI 연출컷 시작」 · 「구독 보기」
  *   - 소개 · 구독 위 [소개 | 구독] (폰 · 태블릿만 — PC 는 위 메뉴에 둘 다), 폰 탭은 두 화면에서 「홈」이 켜진다 (홈 안의 줄로 들어온다)
- *   - 매거진: 책장 — 선반 한 줄에 글마다 책 하나 (표지 · 분류 · 제목 · 한 줄 소개 · 읽는 시간 → blog-<이름>.html).
+ *   - 매거진: 책장 — 선반 한 줄에 글마다 책 하나 (표지 · 분류 · 제목 · 읽는 시간 → blog-<이름>.html).
+ *     표지 = 위 호수 · 분류, 가운데 사진, 아래 영문 제호. 책 아래에 한 줄 소개는 두지 않는다 (2026-11-20 대표님).
  *     끌기 · 움직임(blog.js)은 segan-magazine.test.js
  *   - 매거진 글: 매거진 탭이 켜진다 · 「‹ 매거진」 · 검토용 표시(확인 필요 · 메모 · 그림 제안)가 없다 · 표는 칸마다 옆으로 넘긴다
  *     · 끝에 「고객이 확인할 것」 · 다른 글 링크. 목록도 글도 아직 검색에 내지 않는다 (noindex · 사이트맵 없음)
@@ -372,7 +373,7 @@ const expectHidden = (page) => {
 };
 
 describe('매거진 (blog.html) — 책장', () => {
-  test('선반 한 줄에 글마다 책 하나 — 분류 · 제목 · 한 줄 소개 · 읽는 시간 → 글 화면 (책 차례 = 자재 · 설치 · 하드웨어 · 주방기기)', async () => {
+  test('선반 한 줄에 글마다 책 하나 — 분류 · 제목 · 읽는 시간 → 글 화면 (책 차례 = 자재 · 설치 · 하드웨어 · 주방기기)', async () => {
     await load('blog.html');
     expect($$('.bk-case')).toHaveLength(1);
     expect($$('ul.bk-shelf')).toHaveLength(1);
@@ -394,7 +395,12 @@ describe('매거진 (blog.html) — 책장', () => {
       ])
     );
     for (const a of $$('a.bk-book')) {
-      expect(text(a.querySelector('.bk-dek')).length).toBeGreaterThan(20);
+      // 책 아래에는 분류 · 제목 · 읽는 시간만 — 한 줄 소개는 글 화면에서 읽는다
+      expect([...a.querySelector('.bk-info').children].map((c) => c.className)).toEqual([
+        'bk-cat',
+        'bk-title',
+        'bk-time',
+      ]);
       expect(fs.existsSync(path.join(ROOT, 'segan', a.getAttribute('href')))).toBe(true);
       expect(a.getAttribute('draggable')).toBe('false'); // 링크를 집어 끄는 대신 책장을 끈다
     }
@@ -407,7 +413,7 @@ describe('매거진 (blog.html) — 책장', () => {
     expect($('.sg-nav a[aria-current="page"]').getAttribute('href')).toBe('blog.html');
   });
 
-  test('책 = 칸(조명) 안에 선 표지 — 영문 제호 · 호수 · 분류. 표지 글은 꾸밈이라 읽어 주지 않는다', async () => {
+  test('책 = 칸(조명) 안에 선 표지 — 위 호수 · 분류, 가운데 사진, 아래 영문 제호. 표지 글은 꾸밈이라 읽어 주지 않는다', async () => {
     const { scripts } = await load('blog.html');
     const covers = $$('a.bk-book').map((a) => {
       // 칸 → 조명 + 책이 서는 자리 → 표지
@@ -415,8 +421,28 @@ describe('매거진 (blog.html) — 책장', () => {
       expect(a.querySelectorAll('.bk-niche > .bk-stand > .bk-cover')).toHaveLength(1);
       const cover = a.querySelector('.bk-cover');
       expect(cover.getAttribute('aria-hidden')).toBe('true');
+      // 표지 안 차례 — 사진, 위(호수 · 분류), 아래(영문 제호)
+      expect([...cover.children].map((c) => c.className)).toEqual(['bk-art', 'bk-head', 'bk-mast']);
+      expect([...cover.querySelector('.bk-head').children].map((c) => c.className)).toEqual([
+        'bk-no',
+        'bk-tag',
+      ]);
+      // 사진 — 글 이름의 파일(webp + jpg), 글자 없는 꾸밈 그림
+      const slug = a.getAttribute('href').replace(/^blog-|\.html$/g, '');
+      const img = cover.querySelector('picture.bk-art > img');
+      expect(img.getAttribute('src')).toBe(`magazine/cover-${slug}.jpg`);
+      expect(img.getAttribute('alt')).toBe('');
+      expect(cover.querySelector('picture.bk-art > source').getAttribute('srcset')).toBe(
+        `magazine/cover-${slug}.webp`
+      );
+      for (const ext of ['jpg', 'webp'])
+        expect(fs.existsSync(path.join(ROOT, 'segan/magazine', `cover-${slug}.${ext}`))).toBe(true);
       return coverOf(cover);
     });
+    // 칸 사진 — 조명 든 나무 칸 (magazine.css 가 칸 · 빈 칸에 깐다)
+    for (const ext of ['jpg', 'webp'])
+      expect(fs.existsSync(path.join(ROOT, 'segan/magazine', `niche.${ext}`))).toBe(true);
+    expect(read('segan/magazine.css')).toContain("url('magazine/niche.jpg')");
     expect(covers).toEqual(
       ARTICLES.map(([slug, cat, , , mast], i) => [
         slug,
@@ -444,18 +470,6 @@ describe('매거진 (blog.html) — 책장', () => {
     const html = read('segan/blog.html');
     expect(html).toMatch(/<script src="blog\.js\?v=\d+" defer blocking="render"><\/script>/);
     expect(html).toMatch(/<link rel="stylesheet" href="magazine\.css\?v=\d+" \/>/);
-  });
-
-  test('책장의 한 줄 소개는 글 머리의 한 줄 소개와 같다', async () => {
-    await load('blog.html');
-    const deks = $$('a.bk-book').map((a) => [
-      a.getAttribute('href'),
-      text(a.querySelector('.bk-dek')),
-    ]);
-    for (const [page, dek] of deks) {
-      await load(page);
-      expect([page, text($('.ma-dek'))]).toEqual([page, dek]);
-    }
   });
 
   test('아직 검색에 내지 않는다 — noindex · canonical 없음 · 사이트맵에 없음 (글 화면도)', () => {

@@ -10,10 +10,10 @@
     <title>매거진 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112009" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112009" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112009" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112009" />
+    <link rel="icon" href="icons/icon.svg?v=2026112010" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112010" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112010" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112010" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -23,21 +23,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112009" />
-    <link rel="stylesheet" href="info.css?v=2026112009" />
+    <link rel="stylesheet" href="shell.css?v=2026112010" />
+    <link rel="stylesheet" href="info.css?v=2026112010" />
     <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112009" />
+    <link rel="stylesheet" href="magazine.css?v=2026112010" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112009"></script>
+    <script src="../js/config.js?v=2026112010"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112009"></script>
-    <script src="shell.js?v=2026112009" defer blocking="render"></script>
+    <script src="motion.js?v=2026112010"></script>
+    <script src="shell.js?v=2026112010" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112009" defer></script>
+    <script src="guide.js?v=2026112010" defer></script>
     <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112009" defer blocking="render"></script>
+    <script src="blog.js?v=2026112010" defer blocking="render"></script>
   </head>
   <body class="sg-app" data-tab="blog">
     <div data-segan-shell="header"></div>
@@ -46,7 +46,7 @@
       <h1 class="sg-h1">매거진</h1>
       <p class="in-lead">맞춤 가구를 고르고 짓는 데 필요한 이야기를 책장에 모읍니다. 책을 골라 읽어 보세요.</p>
 
-      <!-- 책장 — 선반 한 줄에 글마다 책 하나 (표지 · 분류 · 제목 · 한 줄 소개 · 읽는 시간 → blog-<이름>.html).
+      <!-- 책장 — 선반 한 줄에 글마다 책 하나 (표지 · 분류 · 제목 · 읽는 시간 → blog-<이름>.html).
            새 글은 끝에 칸(li.bk-cell)을 더한다. 끌기 · 움직임은 blog.js, 모습은 magazine.css -->
       <section class="bk-case" aria-label="매거진 책장">
         <button class="bk-nav bk-nav--prev" type="button" aria-label="앞 책 보기" hidden>‹</button>
@@ -58,18 +58,28 @@
                 <span class="bk-glow"></span>
                 <span class="bk-stand">
                   <span class="bk-cover bk-cover--materials" aria-hidden="true">
+                    <picture class="bk-art">
+                      <source srcset="magazine/cover-materials.webp" type="image/webp" />
+                      <img
+                        src="magazine/cover-materials.jpg"
+                        alt=""
+                        width="480"
+                        height="640"
+                        decoding="async"
+                        draggable="false"
+                      />
+                    </picture>
+                    <span class="bk-head">
+                      <span class="bk-no">01</span>
+                      <span class="bk-tag">MAGAZINE · 자재</span>
+                    </span>
                     <span class="bk-mast">MATERIAL</span>
-                    <span class="bk-no">01</span>
-                    <span class="bk-tag">MAGAZINE · 자재</span>
                   </span>
                 </span>
               </span>
               <span class="bk-info">
                 <small class="bk-cat">자재</small>
                 <b class="bk-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
-                <span class="bk-dek"
-                  >몸통 보드, 친환경 등급, 표면재, 엣지. 네 가지만 알면 견적서의 자재 칸이 읽힙니다.</span
-                >
                 <small class="bk-time">읽는 시간 약 5분</small>
               </span>
             </a>
@@ -80,19 +90,28 @@
                 <span class="bk-glow"></span>
                 <span class="bk-stand">
                   <span class="bk-cover bk-cover--edge-finish" aria-hidden="true">
+                    <picture class="bk-art">
+                      <source srcset="magazine/cover-edge-finish.webp" type="image/webp" />
+                      <img
+                        src="magazine/cover-edge-finish.jpg"
+                        alt=""
+                        width="480"
+                        height="640"
+                        decoding="async"
+                        draggable="false"
+                      />
+                    </picture>
+                    <span class="bk-head">
+                      <span class="bk-no">02</span>
+                      <span class="bk-tag">MAGAZINE · 설치</span>
+                    </span>
                     <span class="bk-mast">INSTALL</span>
-                    <span class="bk-no">02</span>
-                    <span class="bk-tag">MAGAZINE · 설치</span>
                   </span>
                 </span>
               </span>
               <span class="bk-info">
                 <small class="bk-cat">설치</small>
                 <b class="bk-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
-                <span class="bk-dek"
-                  >붙박이 가구가 벽 · 천장 · 바닥과 만나는 자리를 무엇으로 메우는지, 도면과 견적서에서 무엇을 볼지
-                  정리합니다.</span
-                >
                 <small class="bk-time">읽는 시간 약 4분</small>
               </span>
             </a>
@@ -103,18 +122,28 @@
                 <span class="bk-glow"></span>
                 <span class="bk-stand">
                   <span class="bk-cover bk-cover--hardware" aria-hidden="true">
+                    <picture class="bk-art">
+                      <source srcset="magazine/cover-hardware.webp" type="image/webp" />
+                      <img
+                        src="magazine/cover-hardware.jpg"
+                        alt=""
+                        width="480"
+                        height="640"
+                        decoding="async"
+                        draggable="false"
+                      />
+                    </picture>
+                    <span class="bk-head">
+                      <span class="bk-no">03</span>
+                      <span class="bk-tag">MAGAZINE · 하드웨어</span>
+                    </span>
                     <span class="bk-mast">HARDWARE</span>
-                    <span class="bk-no">03</span>
-                    <span class="bk-tag">MAGAZINE · 하드웨어</span>
                   </span>
                 </span>
               </span>
               <span class="bk-info">
                 <small class="bk-cat">하드웨어</small>
                 <b class="bk-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
-                <span class="bk-dek"
-                  >레일 · 망 · 쇼바 · 리프트 장치의 종류, 국내에서 볼 수 있는 브랜드, 견적서에서 물어볼 것.</span
-                >
                 <small class="bk-time">읽는 시간 약 5분</small>
               </span>
             </a>
@@ -125,18 +154,28 @@
                 <span class="bk-glow"></span>
                 <span class="bk-stand">
                   <span class="bk-cover bk-cover--kitchen-appliances" aria-hidden="true">
+                    <picture class="bk-art">
+                      <source srcset="magazine/cover-kitchen-appliances.webp" type="image/webp" />
+                      <img
+                        src="magazine/cover-kitchen-appliances.jpg"
+                        alt=""
+                        width="480"
+                        height="640"
+                        decoding="async"
+                        draggable="false"
+                      />
+                    </picture>
+                    <span class="bk-head">
+                      <span class="bk-no">04</span>
+                      <span class="bk-tag">MAGAZINE · 주방기기</span>
+                    </span>
                     <span class="bk-mast">KITCHEN</span>
-                    <span class="bk-no">04</span>
-                    <span class="bk-tag">MAGAZINE · 주방기기</span>
                   </span>
                 </span>
               </span>
               <span class="bk-info">
                 <small class="bk-cat">주방기기</small>
                 <b class="bk-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
-                <span class="bk-dek"
-                  >기기 모델이 상판 구멍과 장 크기를 정합니다. 종류와 브랜드, 사양서 읽는 법을 정리합니다.</span
-                >
                 <small class="bk-time">읽는 시간 약 5분</small>
               </span>
             </a>
