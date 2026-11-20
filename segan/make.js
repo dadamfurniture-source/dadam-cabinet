@@ -113,9 +113,19 @@
       category: 'kitchen',
     },
     {
+      image_url: '../app/portfolio/mix-10.jpg',
+      label: '안방 붙박이장 · 매트 카페브라운 · 매트 아이보리',
+      category: 'builtin',
+    },
+    {
       image_url: '../app/portfolio/luxe-01.jpg',
       label: '아일랜드 주방 · 매트 화이트 · 세이오크',
       category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/mix-16.jpg',
+      label: '홈카페장 · 아크 마멀레이드 · 매트 아이보리',
+      category: 'storage',
     },
     {
       image_url: '../app/portfolio/mix-02.jpg',
@@ -123,78 +133,23 @@
       category: 'kitchen',
     },
     {
+      image_url: '../app/portfolio/luxe-10.jpg',
+      label: '안방 붙박이장 · 매트 캐시미어 · 세이오크',
+      category: 'builtin',
+    },
+    {
       image_url: '../app/portfolio/luxe-02.jpg',
       label: '일자형 주방 · 매트 아이보리 · 슈가엘름',
       category: 'kitchen',
     },
     {
+      image_url: '../app/portfolio/luxe-13.jpg',
+      label: '홈카페장 · 매트 밀크화이트 · 세이오크',
+      category: 'storage',
+    },
+    {
       image_url: '../app/portfolio/mix-03.jpg',
       label: 'ㄱ자형 주방 · 매트 인디고 · 매트 화이트',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/luxe-03.jpg',
-      label: 'ㄱ자형 주방 · 매트 밀크화이트 · 매트 샌드그레이',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/mix-04.jpg',
-      label: 'ㄷ자형 주방 · 매트 미스트그린 · 매트 아이보리',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/mix-05.jpg',
-      label: '대면형 주방 · 매트 타우니레드 · 매트 샌드그레이',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/luxe-04.jpg',
-      label: 'ㄷ자형 주방 · 매트 캐시미어 · 프렌치오크',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/mix-06.jpg',
-      label: '일자형 주방 · 아크 플라워블루 · 매트 화이트',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/luxe-05.jpg',
-      label: '대면형 주방 · 매트 화이트 · 아크 샌드듄',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/mix-07.jpg',
-      label: '11자 주방 · 콘크리트 그레이 · 네이처 오크',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/mix-08.jpg',
-      label: '아일랜드 주방 · 글로시 화이트 · 윈체스터월넛',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/luxe-06.jpg',
-      label: '아일랜드 주방 · 매트 샌드그레이 · 매트 화이트',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/mix-09.jpg',
-      label: '냉장고장 · 매트 스모키올리브 · 피넛오크',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/luxe-07.jpg',
-      label: '냉장고장 · 매트 아이보리 · 세이오크',
-      category: 'kitchen',
-    },
-    {
-      image_url: '../app/portfolio/mix-10.jpg',
-      label: '안방 붙박이장 · 매트 카페브라운 · 매트 아이보리',
-      category: 'builtin',
-    },
-    {
-      image_url: '../app/portfolio/luxe-08.jpg',
-      label: '11자 주방 · 매트 밀크화이트 · 프렌치오크',
       category: 'kitchen',
     },
     {
@@ -203,13 +158,78 @@
       category: 'builtin',
     },
     {
+      image_url: '../app/portfolio/luxe-03.jpg',
+      label: 'ㄱ자형 주방 · 매트 밀크화이트 · 매트 샌드그레이',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/mix-17.jpg',
+      label: '거실 수납장 · 매트 다크그레이 · 소프트월넛',
+      category: 'storage',
+    },
+    {
+      image_url: '../app/portfolio/mix-04.jpg',
+      label: 'ㄷ자형 주방 · 매트 미스트그린 · 매트 아이보리',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-11.jpg',
+      label: '드레스룸 · 매트 화이트 · 프렌치오크',
+      category: 'builtin',
+    },
+    {
+      image_url: '../app/portfolio/luxe-04.jpg',
+      label: 'ㄷ자형 주방 · 매트 캐시미어 · 프렌치오크',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-14.jpg',
+      label: '다이닝 수납장 · 매트 샌드그레이 · 매트 밀크화이트',
+      category: 'storage',
+    },
+    {
+      image_url: '../app/portfolio/mix-05.jpg',
+      label: '대면형 주방 · 매트 타우니레드 · 매트 샌드그레이',
+      category: 'kitchen',
+    },
+    {
       image_url: '../app/portfolio/mix-12.jpg',
       label: '아이방 붙박이장 · 매트 스카이브리즈 · 슈가엘름',
       category: 'builtin',
     },
     {
-      image_url: '../app/portfolio/luxe-09.jpg',
-      label: '주방 디테일 · 매트 화이트 · 세이오크',
+      image_url: '../app/portfolio/luxe-05.jpg',
+      label: '대면형 주방 · 매트 화이트 · 아크 샌드듄',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/mix-18.jpg',
+      label: '다이닝 수납장 · 아크 포레스트그린 · 네이처 오크',
+      category: 'storage',
+    },
+    {
+      image_url: '../app/portfolio/mix-06.jpg',
+      label: '일자형 주방 · 아크 플라워블루 · 매트 화이트',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-12.jpg',
+      label: '드레스룸 · 매트 아이보리 · 슈가엘름',
+      category: 'builtin',
+    },
+    {
+      image_url: '../app/portfolio/luxe-06.jpg',
+      label: '아일랜드 주방 · 매트 샌드그레이 · 매트 화이트',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/luxe-15.jpg',
+      label: '거실 수납장 · 아크 샌드듄 · 프렌치오크',
+      category: 'storage',
+    },
+    {
+      image_url: '../app/portfolio/mix-07.jpg',
+      label: '11자 주방 · 콘크리트 그레이 · 네이처 오크',
       category: 'kitchen',
     },
     {
@@ -218,49 +238,9 @@
       category: 'builtin',
     },
     {
-      image_url: '../app/portfolio/luxe-10.jpg',
-      label: '안방 붙박이장 · 매트 캐시미어 · 세이오크',
-      category: 'builtin',
-    },
-    {
-      image_url: '../app/portfolio/mix-14.jpg',
-      label: '드레스룸 · 매트 로지핑크 · 매트 화이트',
-      category: 'builtin',
-    },
-    {
-      image_url: '../app/portfolio/mix-15.jpg',
-      label: '작은방 붙박이장 · 아크 미드나잇블루 · 카카오월넛',
-      category: 'builtin',
-    },
-    {
-      image_url: '../app/portfolio/luxe-11.jpg',
-      label: '드레스룸 · 매트 화이트 · 프렌치오크',
-      category: 'builtin',
-    },
-    {
-      image_url: '../app/portfolio/mix-16.jpg',
-      label: '홈카페장 · 아크 마멀레이드 · 매트 아이보리',
-      category: 'storage',
-    },
-    {
-      image_url: '../app/portfolio/luxe-12.jpg',
-      label: '드레스룸 · 매트 아이보리 · 슈가엘름',
-      category: 'builtin',
-    },
-    {
-      image_url: '../app/portfolio/mix-17.jpg',
-      label: '거실 수납장 · 매트 다크그레이 · 소프트월넛',
-      category: 'storage',
-    },
-    {
-      image_url: '../app/portfolio/luxe-13.jpg',
-      label: '홈카페장 · 매트 밀크화이트 · 세이오크',
-      category: 'storage',
-    },
-    {
-      image_url: '../app/portfolio/mix-18.jpg',
-      label: '다이닝 수납장 · 아크 포레스트그린 · 네이처 오크',
-      category: 'storage',
+      image_url: '../app/portfolio/luxe-07.jpg',
+      label: '냉장고장 · 매트 아이보리 · 세이오크',
+      category: 'kitchen',
     },
     {
       image_url: '../app/portfolio/mix-19.jpg',
@@ -268,9 +248,19 @@
       category: 'storage',
     },
     {
-      image_url: '../app/portfolio/luxe-14.jpg',
-      label: '다이닝 수납장 · 매트 샌드그레이 · 매트 밀크화이트',
-      category: 'storage',
+      image_url: '../app/portfolio/mix-08.jpg',
+      label: '아일랜드 주방 · 글로시 화이트 · 윈체스터월넛',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/mix-14.jpg',
+      label: '드레스룸 · 매트 로지핑크 · 매트 화이트',
+      category: 'builtin',
+    },
+    {
+      image_url: '../app/portfolio/luxe-08.jpg',
+      label: '11자 주방 · 매트 밀크화이트 · 프렌치오크',
+      category: 'kitchen',
     },
     {
       image_url: '../app/portfolio/mix-20.jpg',
@@ -278,9 +268,19 @@
       category: 'interior',
     },
     {
-      image_url: '../app/portfolio/luxe-15.jpg',
-      label: '거실 수납장 · 아크 샌드듄 · 프렌치오크',
-      category: 'storage',
+      image_url: '../app/portfolio/mix-09.jpg',
+      label: '냉장고장 · 매트 스모키올리브 · 피넛오크',
+      category: 'kitchen',
+    },
+    {
+      image_url: '../app/portfolio/mix-15.jpg',
+      label: '작은방 붙박이장 · 아크 미드나잇블루 · 카카오월넛',
+      category: 'builtin',
+    },
+    {
+      image_url: '../app/portfolio/luxe-09.jpg',
+      label: '주방 디테일 · 매트 화이트 · 세이오크',
+      category: 'kitchen',
     },
     {
       image_url: '../app/portfolio/mix-21.jpg',
