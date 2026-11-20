@@ -816,6 +816,7 @@
   }; // 재고 · 근무 일정 · 작업자 줄 → 그 화면의 칸 (읽히면 「준비 중」 흐림을 뗀다)
   var FACTORY_PLANS = ['expert', 'agent']; // 상담 배정 · 받은 제작 의뢰 · A/S함 · 구매 · 재고 (+ 다담 공장)
   var PEOPLE_PLANS = ['agent']; // 인사 (+ 다담 공장) — account-api STAFF_TOOL_PLANS
+  var CATALOG_PLANS = ['manager', 'expert', 'agent']; // 철물 · 부속 카탈로그 (+ 다담 공장) — 서버 part-catalog.js canHoldCatalog
   var MONEY_ROLES = ['owner', 'manager']; // 대표 · 실장
   var OPEN_KEY = 'segan.me.open'; // 펼친 큰 메뉴 (sessionStorage)
   var WIDE = '(min-width: 1100px)'; // shell.css 두 칸 — 시트가 옆 패널이 되는 폭과 같다
@@ -1545,9 +1546,10 @@
       // 거래처 · 공급처 — 읽혔을 때만 (대표 · 실장). 못 쓰는 관리자에게는 PC 화면 줄 하나
       case 'counterparties':
         return v.factory && !v.platform && available(key);
-      // 철물 · 부속 카탈로그 — 구매 · 재고를 쓰는 팩토리(자기 카탈로그) · 본사 구성원(팩토리를 골라 본다), 읽혔을 때만 (segan/part-catalog.js)
+      // 철물 · 부속 카탈로그 — 플래너를 쓰는 팩토리(자기 카탈로그 — Manager 도, 2026-11-20 사장님 「카탈로그 메뉴 사용」) ·
+      // 본사 구성원(팩토리를 골라 본다), 읽혔을 때만 (segan/part-catalog.js)
       case 'part-catalog':
-        return (v.factory || v.platform) && available(key);
+        return (v.factory || v.platform || CATALOG_PLANS.indexOf(v.plan) >= 0) && available(key);
       case 'hq-counterparties':
         return roles.admin === true && !rowOn('counterparties', v, roles, ledger);
       // 회계 — 장부를 열면 (본사 대표 · 실장은 본사 장부), 설정 · 영수증 올리기는 업체만
@@ -1887,7 +1889,7 @@
           synced(POrders && POrders.load ? POrders.load(auth.sb, auth.session, me) : null),
           // 작업 자재 = 재고와 같은 사람, 짝 정하기는 대표 · 실장 (segan/stock-needs.js — 구매 · 재고 › 작업 자재)
           synced(Needs && Needs.load ? Needs.load(auth.sb, auth.session, me) : null),
-          // 철물 · 부속 카탈로그 = 다담 공장 · 본사 구성원, 고치기는 대표 · 실장 (segan/part-catalog.js — 카탈로그 › 철물 · 부속 카탈로그)
+          // 철물 · 부속 카탈로그 = 다담 공장 · Manager 이상 팩토리 · 본사 구성원, 고치기는 대표 · 실장 (segan/part-catalog.js — 카탈로그 › 철물 · 부속 카탈로그)
           synced(Parts && Parts.load ? Parts.load(auth.sb, auth.session, me) : null),
           // 생산 설정 = 다담 공장 · 협력업체의 대표 · 실장 (segan/production-settings.js — 생산 › 생산 설정 화면)
           synced(Settings && Settings.load ? Settings.load(auth.sb, auth.session, me) : null),
