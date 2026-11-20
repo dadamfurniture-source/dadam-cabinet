@@ -3,7 +3,7 @@
 /**
  * SEGAN 홈 (segan/index.html · segan/home.css) · 옛 만들기 주소 넘기기 (segan/forward.js)
  *
- *   홈       첫 사진 한 장 + 세 걸음 + 시공사례 줄 + 매거진 줄 + 소개 · 구독 줄. 읽기만 하는 화면
+ *   홈       첫 사진 한 장 + 세 걸음 + 연출 사례 줄 + 매거진 줄 + 소개 · 구독 줄. 읽기만 하는 화면
  *   넘기기   만들기가 make.html 로 옮겨 갔다 — 옛 주소(?g · ?ref · ?refs · #kind · #refs · #result)는
  *            쿼리 · # 을 그대로 들고 make.html 로. 옛 로그인 돌아옴은 만들던 사진이 있을 때만
  */
@@ -116,7 +116,7 @@ describe('홈 화면 (segan/index.html)', () => {
     expect(HTML).toMatch(/<link rel="stylesheet" href="home\.css\?v=\d+" \/>/);
   });
 
-  test('첫 사진 한 장 — 제목 하나 · 「방 사진 올리기」는 만들기로 · 사진 표시를 글로 남긴다', () => {
+  test('첫 사진 한 장 — 제목 하나 · 「방 사진 올리기」는 만들기로 · 남의 사진 크레딧 없음', () => {
     expect($$('h1')).toHaveLength(1);
     expect($$('h1')[0].textContent).toBe('공간을 읽고 가구를 짓습니다');
     const cta = $$('.hm-hero a');
@@ -125,7 +125,12 @@ describe('홈 화면 (segan/index.html)', () => {
     ]);
     expect($$('.hm-hero img')).toHaveLength(1);
     expect($$('.hm-hero img')[0].getAttribute('alt')).toBe('');
-    expect($$('.hm-credit')[0].textContent).toMatch(/^사진 @/);
+    // 첫 사진은 AI 연출 (app/portfolio/luxe-manifest.json) — 다른 업체 사진 · 크레딧을 쓰지 않는다
+    expect($$('.hm-credit')).toHaveLength(0);
+    expect($$('.hm-hero img')[0].getAttribute('src')).toBe(
+      '../app/portfolio/display/luxe-hero.jpg'
+    );
+    expect(HTML).not.toMatch(/@BAUS|@DESIGN SHARE|@에스 디자인/);
   });
 
   test('세 걸음은 차례가 있는 목록 — 만들기 진행 단계와 같은 순서', () => {
@@ -140,19 +145,25 @@ describe('홈 화면 (segan/index.html)', () => {
     ]);
   });
 
-  test('시공사례 여섯 장 — 자체 시공 사진(collection.js STATIC), 누르면 시공사례 탭', () => {
+  test('연출 사례 여섯 장 — AI 연출 사진(collection.js STATIC), 누르면 시공사례 탭 · 사진 위 표시 없이 아래 한 줄', () => {
+    expect(doc.getElementById('hmWorksTitle').textContent).toBe('연출 사례');
+    expect($$('.hm-note').map((p) => p.textContent)).toEqual(['AI 로 연출한 이미지입니다.']);
     const works = $$('.hm-works a.hm-work');
     expect(works).toHaveLength(6);
     expect(works.every((a) => a.getAttribute('href') === 'collection.html')).toBe(true);
-    const stat = read('segan/collection.js');
+    // collection.js STATIC 한 줄을 한 줄 모양으로 (prettier 가 여러 줄로 나눠도)
+    const stat = read('segan/collection.js').replace(/\s+/g, ' ').replace(/, \}/g, ' }');
     for (const a of works) {
       const stem = a
         .querySelector('img')
         .getAttribute('src')
         .replace(/^.*\//, '')
         .replace(/\.jpg$/, '');
-      const region = a.querySelector('span').textContent.split(' · ')[0];
-      expect(stat).toContain(`{ image_url: '../app/portfolio/${stem}.jpg', region: '${region}' }`);
+      expect(stem).toMatch(/^luxe-\d\d$/);
+      const [place, ...color] = a.querySelector('span').textContent.split(' · ');
+      expect(stat).toContain(
+        `{ image_url: '../app/portfolio/${stem}.jpg', place: '${place}', color: '${color.join(' · ')}' }`
+      );
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', `${stem}.avif`))).toBe(true);
     }
   });
