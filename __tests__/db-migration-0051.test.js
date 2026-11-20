@@ -50,6 +50,9 @@ const OWNER = ['user_id', 'storage_path', 'generation_id', 'design_id', 'consent
 const SERVER = ['title', 'description', 'item_unique_id', 'updated_at'];
 // 0049(#1417 — 시공사례 사진 정보)가 더하는 칸. 그 파일이 이 저장소에 있으면 아래에서 그 파일과도 견준다
 const FROM_0049 = ['place_label', 'door_color', 'company_id'];
+// 0075(본사가 고른 연출컷)가 더하는 칸 — hq_picked_at 은 누구나(시공사례 탭이 거른다, 그 파일이 GRANT), hq_picked_by 는 서버만
+const FROM_0075_PUBLIC = ['hq_picked_at'];
+const FROM_0075_SERVER = ['hq_picked_by'];
 
 /** 0000 기준선의 collection_posts 칸 + 뒤 마이그레이션이 ADD COLUMN 한 칸 */
 function tableColumns() {
@@ -116,13 +119,26 @@ describe('0051 — collection_posts 칸 단위 읽기', () => {
   test('표의 칸은 모두 셋 중 하나 — 공개 · 로그인 · 서버만 (빠진 칸 · 없는 칸 없음)', () => {
     const { cols, added } = tableColumns();
     const all = [...new Set([...cols, ...added.map((a) => a[1]), ...FROM_0049])].sort();
-    expect([...PUBLIC, ...OWNER, ...SERVER].sort()).toEqual(all);
+    expect(
+      [...PUBLIC, ...OWNER, ...SERVER, ...FROM_0075_PUBLIC, ...FROM_0075_SERVER].sort()
+    ).toEqual(all);
     expect(cols).toEqual(expect.arrayContaining([...SERVER, ...OWNER]));
     // 0049 가 저장소에 있으면 — 그 파일이 더하는 칸이 바로 FROM_0049
     const f49 = fs.readdirSync(DIR).find((n) => n.startsWith('0049_'));
     if (f49) expect(added.filter((a) => a[0] === f49).map((a) => a[1])).toEqual(FROM_0049);
+    // 0075 는 두 칸 — 고른 때는 누구나 GRANT, 고른 사람은 GRANT 하지 않는다
+    const f75 = fs.readdirSync(DIR).find((n) => n.startsWith('0075_'));
+    expect(added.filter((a) => a[0] === f75).map((a) => a[1])).toEqual([
+      ...FROM_0075_PUBLIC,
+      ...FROM_0075_SERVER,
+    ]);
+    const t75 = flat(noComments(read(`database/migrations/${f75}`)));
+    expect(t75).toContain(
+      'GRANT SELECT (hq_picked_at) ON TABLE public.collection_posts TO anon, authenticated'
+    );
+    expect(t75).not.toMatch(/GRANT[^;]*hq_picked_by/);
     // 다른 마이그레이션은 collection_posts 에 칸을 더하지 않았다 (더하면 여기서 GRANT 여부를 정해야 한다)
-    expect(added.filter((a) => !a[0].startsWith('0049_'))).toEqual([]);
+    expect(added.filter((a) => !a[0].startsWith('0049_') && a[0] !== f75)).toEqual([]);
   });
 
   test('프로브의 권한 표 기대값 = 이 파일의 GRANT (칸 이름 차례)', () => {
@@ -169,8 +185,11 @@ function chains(file) {
       }
       for (const l of lits) for (const c of l.split(',')) if (c.trim()) cols.add(c.trim());
     }
-    for (const m of chain.matchAll(/\.(?:eq|neq|in|lt|lte|gt|gte|is|order)\(\s*'(\w+)'/g))
+    for (const m of chain.matchAll(/\.(?:eq|neq|in|lt|lte|gt|gte|is|not|order)\(\s*'(\w+)'/g))
       cols.add(m[1]);
+    // .or('a.eq.x,b.not.is.null') — 쉼표마다 첫 칸이 칸 이름
+    for (const m of chain.matchAll(/\.or\(\s*'([^']*)'/g))
+      for (const part of m[1].split(',')) if (/^\w+\./.test(part)) cols.add(part.split('.')[0]);
     out.push({ chain, cols: [...cols], owner: /\.eq\(\s*'user_id'/.test(chain) });
     at = text.indexOf(".from('collection_posts')", at + 1);
   }
@@ -195,7 +214,7 @@ describe('앱이 읽는 칸 — 0051 뒤에도 모자라지 않다', () => {
   });
 
   test.each(READERS)('%s — 로그인한 사람이 읽는 칸은 모두 받는다', (file) => {
-    const allowed = new Set([...PUBLIC, ...OWNER]);
+    const allowed = new Set([...PUBLIC, ...OWNER, ...FROM_0075_PUBLIC]);
     for (const c of chains(file)) {
       const missing = c.cols.filter((x) => !allowed.has(x));
       expect([file, c.chain.slice(0, 80), missing]).toEqual([file, c.chain.slice(0, 80), []]);
@@ -208,7 +227,9 @@ describe('앱이 읽는 칸 — 0051 뒤에도 모자라지 않다', () => {
       for (const c of chains(file).filter(
         (x) => !x.owner && !/\.(delete|update|insert)\(/.test(x.chain)
       ))
-        for (const col of c.cols) if (!PUBLIC.includes(col)) extra.push(`${file}:${col}`);
+        for (const col of c.cols)
+          if (!PUBLIC.includes(col) && !FROM_0075_PUBLIC.includes(col))
+            extra.push(`${file}:${col}`);
     // 사이트 collection.html 은 관리자 「내리기」 용으로 storage_path 를 함께 묻는다 — 로그인 전에는 실패하고
     // 칸을 줄인 질의(id · image_url · created_at)로 그린다. 그 주소는 _redirects 로 앱(segan/collection)에 넘어간다
     expect([...new Set(extra)]).toEqual(['collection.html:storage_path']);

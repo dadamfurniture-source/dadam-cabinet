@@ -36,6 +36,13 @@
       }
     },
     {
+      "name": "칸 권한 — 고른 때는 누구나, 고른 사람은 서버만",
+      "sql": "select has_column_privilege('anon', 'public.collection_posts', 'hq_picked_at', 'select') || '/' || has_column_privilege('authenticated', 'public.collection_posts', 'hq_picked_at', 'select') || '/' || has_column_privilege('anon', 'public.collection_posts', 'hq_picked_by', 'select') || '/' || has_column_privilege('authenticated', 'public.collection_posts', 'hq_picked_by', 'select')",
+      "expect": {
+        "*": "true/true/false/false"
+      }
+    },
+    {
       "name": "칸 읽기 — 고른 때는 누구나 읽힌다",
       "sql": "select (p.hq_picked_at is not null)::text from public.collection_posts p where p.id = {{post_picked}}",
       "expect": {

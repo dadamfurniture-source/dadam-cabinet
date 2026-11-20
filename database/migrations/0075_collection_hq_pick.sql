@@ -12,6 +12,8 @@
 --    회원은 자기 게시물을 고칠 수 있으므로(collection_posts_update) 스스로 「본사가 고름」을 켜는 길을 막는다.
 --    서버(service_role) · 마이그레이션은 그대로 둔다. 0049 의 나머지 규칙은 그대로 옮겨 적는다.
 -- 3) 찾기 줄 idx_collection_posts_hq_picked — 고른 게시물만 (부분 색인)
+-- 4) 칸 단위 읽기 (0051) — hq_picked_at 은 누구나 (시공사례 탭 · 만들기 결과 · 내 연출컷이 거르고 읽는다),
+--    hq_picked_by 는 서버만 (GRANT 하지 않는다 — 본사 화면은 generate-api 가 서버 권한으로 읽는다)
 --
 -- 그대로 두는 것: 정책 · 권한 · 버킷 · 다른 칸. 다시 돌려도 된다 (ADD COLUMN IF NOT EXISTS · OR REPLACE · IF NOT EXISTS).
 -- =============================================
@@ -65,3 +67,9 @@ COMMENT ON FUNCTION public.collection_posts_info_guard() IS '시공사례 지킴
 CREATE INDEX IF NOT EXISTS idx_collection_posts_hq_picked
     ON public.collection_posts USING btree (hq_picked_at DESC)
     WHERE (hq_picked_at IS NOT NULL);
+
+-- 4) 칸 단위 읽기 -------------------------------------------------------------------------
+
+GRANT SELECT (hq_picked_at) ON TABLE public.collection_posts TO anon, authenticated;
+
+COMMENT ON TABLE public.collection_posts IS '시공사례 게시물 — 읽기는 칸 단위: 누구나 id · image_url · category · region · source · place_label · door_color · company_id · like_count · created_at · hq_picked_at, 로그인하면 user_id · storage_path · generation_id · design_id · consent_training 도. 새 칸은 GRANT 해야 앱이 읽는다 (0051 · 0075)';
