@@ -97,10 +97,19 @@ test('붙박이장 · 수납장은 주방 말이 나오지 않는다', () => {
   assert.match(s, /내 집 사진으로도/);
   assert.match(s, /#수납장 /);
   assert.doesNotMatch(s, /주방/);
-  assert.match(ctaHtml({ tones, subject: 'wardrobe' }), /class="head">내 방 사진으로\n색을 바꿔 보세요</);
+  assert.match(
+    ctaHtml({ tones, subject: 'wardrobe' }),
+    /class="head">내 방 사진으로\n색을 바꿔 보세요</
+  );
   assert.match(ctaHtml({ tones }), /내 주방 사진으로/);
-  assert.match(ctaHtml({ tones, subject: 'wardrobe', headline: '직접 적은 글' }), /class="head">직접 적은 글</);
+  assert.match(
+    ctaHtml({ tones, subject: 'wardrobe', headline: '직접 적은 글' }),
+    /class="head">직접 적은 글</
+  );
   // 모르는 품목은 주방 말, 직접 적은 해시태그는 그대로
   assert.match(buildCaption({ title: 't', tones, subject: 'nope' }), /내 주방 사진으로도/);
-  assert.match(buildCaption({ title: 't', tones, subject: 'wardrobe', tags: ['하나'] }), /\n#하나$/);
+  assert.match(
+    buildCaption({ title: 't', tones, subject: 'wardrobe', tags: ['하나'] }),
+    /\n#하나$/
+  );
 });
