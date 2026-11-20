@@ -245,6 +245,14 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
     const head = stat.slice(0, 12).map((s) => s.image_url);
     expect(head.some((u) => u.includes('/luxe-'))).toBe(true);
     expect(head.some((u) => u.includes('/mix-'))).toBe(true);
+    // 품목이 번갈아 — 네 장마다 주방 · 붙박이장 · 수납장(화장대 · 서재 포함)이 모두 있다
+    const kindOf = (s) => {
+      const c = byFile[s.image_url.replace(/^.*\//, '')].category;
+      return c === 'kitchen' || c === 'builtin' ? c : 'storage';
+    };
+    for (let i = 0; i + 4 <= stat.length; i += 4) {
+      expect(new Set(stat.slice(i, i + 4).map(kindOf)).size).toBe(3);
+    }
     // 품목이 고루 — 주방 · 붙박이장 · 수납장 · 화장대 · 서재
     expect(new Set(manifest.photos.map((p) => p.category))).toEqual(
       new Set(['kitchen', 'builtin', 'storage', 'interior', 'other'])
