@@ -92,3 +92,20 @@ node scripts/shoot.mjs --out shoots/2026-11-20 --count 6 --seed 20261120 --recol
   찍는다.
 - 실제 시공 사진처럼 소개하지 않는다 (표시광고법). 게시물에도 AI 연출이라고
   적는다.
+
+## carousel.mjs — 캐러셀 장 만들기 (2026-11-20)
+
+찍어 둔 색 조합 사진에 색 이름 · 「AI 연출 이미지」 · 주소를 찍고, 마지막에 사이트로 부르는 장을 붙여
+1080 × 1350 JPEG 묶음과 게시 글(`caption.txt`)을 낸다. HTML 은 `carousel-html.mjs`.
+
+```bash
+cd workers/generate-api
+node scripts/carousel.mjs --spec shoots/set-a.json --out out/set-a
+```
+
+`spec.json` 은 `{ title, subject, campaign, slides: [{ file, tone }] }` — `file` 은 spec 파일 기준 경로,
+`tone` 은 「세이지 · 크림」 같은 색 조합 이름이다.
+
+- 필요한 것은 크롬(또는 엣지)뿐이다 (`CHROME_PATH` 로 바꿀 수 있다). 화면 없이 띄워 개발자 도구 통로로 찍는다.
+- 사진 장마다 「AI 연출 이미지」를 사진 안에 찍고, 마지막 장과 게시 글에도 한 번 더 적는다.
+- 게시 글의 링크에는 유입 꼬리표가 붙는다 (`utm_source=instagram&utm_medium=social&utm_campaign=…`).
