@@ -65,6 +65,7 @@ import { elevationSvg, elevationModel, moduleDrawingSvg, modulePosLabel } from '
 import { partDrawingsSheet } from './part-drawing.js';
 import { moduleSectionsSheet } from './module-section.js';
 import { isCornerItem, isoSvg, runLengths } from './isometric.js';
+import { cutPackV2, doorPackV2 } from './work-order-layout2.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -127,6 +128,8 @@ function buildContext(doc, snapshot, renderUrls) {
     processing,
     // 그림 묶음 판이 있는 문서만 새 칸을 그린다 (재단기 파일 · 도어재 원장 그림 …) — 옛 문서는 그대로
     drawingVersion: Number(rp.drawing_version) || 0,
+    // 지시서 새 판 (2026-11-20 사장님 「작업지시서 미리보기 … 정리」 — work-order-layout2.js). 발행 때 고정, 옛 문서는 0 (예전 틀 그대로)
+    layoutVersion: Number(rp.sheet_layout) || 0,
     plannerDesign: design.source === 'planner-lite',
     renders: Array.isArray(rp.renders) ? rp.renders : null,
     isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
@@ -193,15 +196,15 @@ export function normalizePack(v) {
   return Object.prototype.hasOwnProperty.call(WORK_ORDER_PACKS, k) ? k : null;
 }
 
-function qtyOf(m) {
+export function qtyOf(m) {
   return Math.max(0, Math.round(Number(m && m.qty) || 0));
 }
 
-function isDoorRow(m) {
+export function isDoorRow(m) {
   return m.slot ? m.slot === 'door' : /^도어/.test(String(m.part || ''));
 }
 
-function isDrawerFrontRow(m) {
+export function isDrawerFrontRow(m) {
   return m.slot ? m.slot === 'drawerFront' : /서랍.*(전면|도어)/.test(String(m.part || ''));
 }
 
@@ -210,11 +213,11 @@ function isDrawerFrontRow(m) {
  * 그 행이 가는 곳 — 이 문서의 가공 구분대로 (work-order-data.js rowRouteOf): in 사내 재단 · door 도어재 발주 · cut 재단 외주 · top 상판 업체.
  *   기본 가공 구분이면 사내 = 도어재(외주) · 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주) · 석재 상판(상판 업체)을 뺀 나머지.
  */
-const routeOf = (ctx, m) => rowRouteOf(m, ctx.processing || DEFAULT_PROCESSING);
+export const routeOf = (ctx, m) => rowRouteOf(m, ctx.processing || DEFAULT_PROCESSING);
 const isInHouse = (ctx) => (m) => routeOf(ctx, m) === 'in';
 
 /** 재단 시트에서 사내에서 자르지 않는 조각을 뺀다. 다 빠지면 null (그 원판은 사내에서 자르지 않는다). 행을 못 찾은 조각은 원장의 부재 구분으로 본다 */
-function inHouseSheetOf(ctx, sheet) {
+export function inHouseSheetOf(ctx, sheet) {
   const proc = ctx.processing || DEFAULT_PROCESSING;
   const bySheet = proc[processingKeyOfClass(sheet.partClass)] === 'in';
   const parts = Array.isArray(sheet.parts) ? sheet.parts : [];
@@ -279,7 +282,7 @@ function laborOf(ctx, counts) {
 // ── 공통 조각 ────────────────────────────────────────────────────
 
 /** 마감 칩 + 코드. hex 는 저장값이라도 다시 검증해서 style 에 넣는다. */
-function swatchChip(ctx, code) {
+export function swatchChip(ctx, code) {
   if (!code) return '<span class="muted">-</span>';
   const s = ctx.swatchByCode.get(code);
   const hex = normalizeHex(s && s.color_hex);
@@ -334,7 +337,7 @@ function dims3(w, h, d) {
 
 // ── 엣지 (재단·엣지 지시서 · 도어재 발주서 · 라벨 공용) ──────────
 
-function rowEdges(m) {
+export function rowEdges(m) {
   return m.edges && typeof m.edges === 'object' ? m.edges : edgesFromLegacy(m.edge, m.w, m.h);
 }
 
@@ -392,7 +395,7 @@ function fmtEdgeT(t) {
   return (Number(t) || 0.6).toFixed(1);
 }
 
-function fmtMeters(mm) {
+export function fmtMeters(mm) {
   const v = (Number(mm) || 0) / 1000;
   return `${v.toFixed(1)} m`;
 }
@@ -754,7 +757,7 @@ function rowLabelText(ctx, m, index, ks = null) {
 }
 
 /** 조각 id 들 (`partId#k`, 소부품은 partId + 수량) → 라벨 칸 */
-function pieceLabelText(ctx, ids, qty = 0) {
+export function pieceLabelText(ctx, ids, qty = 0) {
   const nos = [];
   for (const raw of ids) {
     const id = String(raw || '');
@@ -849,7 +852,7 @@ function kittingSheets(ctx) {
 
 // ── ③ 재단·엣지 지시서 (사내 재단 — 본체·뒷판) ───────────────────
 
-function fmtPct(v) {
+export function fmtPct(v) {
   const n = Number(v);
   return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : '-';
 }
@@ -939,7 +942,7 @@ export function sheetSvg(sheet, opts = {}) {
 }
 
 /** 조각 → 자재 행 (partId#k 의 partId 로). 못 찾으면 null — 엣지 표시 없이 그린다. */
-function rowOfPiece(ctx, piece) {
+export function rowOfPiece(ctx, piece) {
   const hit = ctx.rowById.get(pieceBaseId(piece && piece.partId));
   return hit ? hit.row : null;
 }
@@ -960,7 +963,7 @@ export function screenSheetOf(sheet, file) {
 }
 
 /** 그 원장의 재단기 파일 (cutPlan.cnc — 플래너가 CNC 파일을 만들 때의 이름 · 화면 값) — { file, problem } */
-function cncOf(ctx, sheet) {
+export function cncOf(ctx, sheet) {
   const cnc = ctx.cutPlan && ctx.cutPlan.cnc && typeof ctx.cutPlan.cnc === 'object' ? ctx.cutPlan.cnc : null;
   if (!cnc) return { has: false, file: null, problem: null };
   const file = (Array.isArray(cnc.files) ? cnc.files : []).find((f) => f && Array.isArray(f.sheetNos) && f.sheetNos.includes(sheet.no)) || null;
@@ -1027,7 +1030,7 @@ function cutSheetBlock(ctx, rawSheet, labelNo, { reference = false } = {}) {
 }
 
 /** 배치가 없을 때의 폴백 — 자재 재단 목록 (+ 엣지). ks = 그 행에서 실을 낱개 (배치에 없는 부재), 없으면 전부. */
-function flatMaterialTable(ctx, rows) {
+export function flatMaterialTable(ctx, rows) {
   const body = rows
     .map(({ row: m, index, ks }) =>
       tr(
@@ -1111,7 +1114,7 @@ function edgeTotalsTable(rows) {
 /**
  * 주문 확인 칸 — 정본 목록(check-items.js)의 주문 범위 항목 (시작 전 · 끝). 조건(confirm · outlet)은 동결본으로 거른다. 없으면 빈 글.
  */
-function orderChecksBlock(ctx, role) {
+export function orderChecksBlock(ctx, role) {
   // 특별 지시 항목(note)은 빨간 상자에 있다 — 여기서는 빼고
   const list = itemsFor(ctx.checkList, role, 'order').filter((x) => !x.note && x.paper !== 'sign' && itemApplies(x, null, ctx.snapshot, ctx.cutPlan));
   if (!list.length) return '';
@@ -1810,13 +1813,24 @@ const PACK_SECTIONS = {
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
 };
 
+/**
+ * 새 판 (sheet_layout 2 — work-order-layout2.js) 꾸러미: 재단 · 엣지 지시서와 도어재 발주서가 원장 그림 중심으로 바뀐다
+ *   (정면도 · 부재 표 · 판재 도면 · 부재마다 엣지 쪽 없음, 도어재 외주 원장은 발주서에만). 나머지 꾸러미는 예전 틀.
+ */
+const PACK_SECTIONS_V2 = Object.assign({}, PACK_SECTIONS, {
+  all: PACK_SECTIONS.all.map((fn) => (fn === doorOrderSheet ? doorPackV2 : fn)).map((fn, i) => (i === 3 ? (ctx) => cutPackV2(ctx) : fn)),
+  cut: [(ctx) => cutPackV2(ctx)],
+  'cut-vendor': [(ctx) => cutPackV2(ctx, { vendor: true })],
+  door: [doorPackV2],
+});
+
 export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null, worker = null } = {}) {
   const key = normalizePack(pack) || 'all';
   const ctx = buildContext(doc, snapshot, renderUrls);
   ctx.top = top;
   // 작업자 보기 (작업자 포털 — work/checks.js): 설계 제목 대신 가린 주문 이름 (홍*동 · 주문번호)
   ctx.worker = worker && worker.orderLabel ? worker : null; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
-  const parts = PACK_SECTIONS[key].map((fn) => fn(ctx));
+  const parts = (ctx.layoutVersion >= 2 ? PACK_SECTIONS_V2 : PACK_SECTIONS)[key].map((fn) => fn(ctx));
   // 꾸러미 머리는 따로 한 쪽을 쓰지 않는다 — 첫 섹션 쪽의 맨 위에 넣는다 (종이 한 장 아끼기)
   if (parts.length > 1 && parts[0].includes('class="pack-head"')) {
     const head = parts.shift();

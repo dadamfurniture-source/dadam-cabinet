@@ -171,7 +171,7 @@ test('발행과 미리보기는 같은 칸 — docPayloadOf 가 문서 종류마
   const f = fakeSupabase();
   try {
     const keys = async (docType) => Object.keys(await docPayloadOf(ENV, { docType, snapshot, designId: null, collect, site, prevRev: false })).sort();
-    assert.deepEqual(await keys('work_order'), ['check_list', 'cut_plan', 'drawing_version', 'iso_renders', 'label_order', 'labor', 'parts_digest', 'prev_rev', 'renders', 'special_notes', 'swatches', 'work_order_version'].sort());
+    assert.deepEqual(await keys('work_order'), ['check_list', 'cut_plan', 'drawing_version', 'iso_renders', 'label_order', 'labor', 'parts_digest', 'prev_rev', 'renders', 'sheet_layout', 'special_notes', 'swatches', 'work_order_version'].sort());
     assert.deepEqual(await keys('delivery_order'), ['check_list', 'drawing_version', 'iso_renders', 'schedules', 'site_info']);
     assert.deepEqual(await keys('demolition_order'), ['check_list', 'drawing_version', 'schedules', 'site_info']);
   } finally { f.restore(); }
