@@ -556,12 +556,61 @@ describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클
     expect(window.SeganCollection.state.sheet.isOpen()).toBe(true);
   });
 
-  test('정적 사진(AI 연출)은 가벼운 사본이 아니라 원본을 크게 보인다', async () => {
+  test('정적 사진(AI 연출) — 칸에서 받은 가벼운 사본을 먼저 보이고, 원본을 다 받으면 바꿔 끼운다 (빈 화면 없이)', async () => {
     await load({ db: [] });
+    const made = [];
+    jest.spyOn(window, 'Image').mockImplementation(function () {
+      made.push(this);
+    });
     await openFull(0);
-    const src = full().querySelector('.pv-full-img').getAttribute('src');
-    expect(src).toBe(window.SeganCollection.STATIC[0].image_url);
-    expect(src).not.toContain('/display/');
+    const img = full().querySelector('.pv-full-img');
+    const original = window.SeganCollection.STATIC[0].image_url;
+    expect(img.getAttribute('src')).toBe(original.replace('/portfolio/', '/portfolio/display/'));
+    expect(made).toHaveLength(1);
+    expect(made[0].src).toBe(original); // 원본을 뒤에서 받는다
+    made[0].onload();
+    expect(img.getAttribute('src')).toBe(original);
+    expect(img.getAttribute('src')).not.toContain('/display/');
+  });
+
+  test('원본을 받는 사이에 닫으면 바꿔 끼우지 않는다 · 사본이 따로 없는 사진(DB 게시물)은 한 번만 받는다', async () => {
+    await load({ db: [] });
+    const made = [];
+    jest.spyOn(window, 'Image').mockImplementation(function () {
+      made.push(this);
+    });
+    await openFull(0);
+    const img = full().querySelector('.pv-full-img');
+    const before = img.getAttribute('src');
+    await closeAll();
+    made[0].onload();
+    expect(img.getAttribute('src')).toBe(before);
+    await load();
+    made.length = 0;
+    await openFull(0);
+    expect(made).toHaveLength(0);
+    expect(full().querySelector('.pv-full-img').getAttribute('src')).toContain('p0.jpg');
+  });
+
+  test('사진 칸은 화면 가득이라 — 그림 안을 누르면 단추를 감추고, 그림 바깥(위아래 어두운 자리)을 누르면 닫는다', async () => {
+    await load();
+    await openFull(0);
+    const img = full().querySelector('.pv-full-img');
+    // 화면 400 × 800 에 가로로 긴 그림(2:1) → 그림은 가운데 400 × 200 (y 300 ~ 500)
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 800 });
+    Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 2000 });
+    Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 1000 });
+    const at = (x, y) =>
+      img.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y })
+      );
+    at(200, 400);
+    expect(full().classList.contains('pv-full--bare')).toBe(true);
+    at(200, 480);
+    expect(full().classList.contains('pv-full--bare')).toBe(false);
+    at(200, 100); // 그림 위쪽 어두운 자리
+    await flush();
+    expect(full()).toBeNull();
   });
 
   test('사진을 누르면 단추를 감췄다 보였다 (사진만 본다) · 사진 바깥을 누르면 닫는다', async () => {
@@ -624,8 +673,9 @@ describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클
     expect(box).toMatch(/max-width:\s*none;/);
     expect(box).toMatch(/height:\s*100%;/);
     const img = block('.pv-full-img');
-    expect(img).toMatch(/max-width:\s*100%;/);
-    expect(img).toMatch(/max-height:\s*100%;/);
+    // 칸은 화면 가득, 그림은 그 안에 비율대로 (작은 사본을 먼저 보일 때도 같은 크기)
+    expect(img).toMatch(/width:\s*100%;/);
+    expect(img).toMatch(/height:\s*100%;/);
     expect(img).toMatch(/object-fit:\s*contain;/);
     expect(img).toMatch(/-webkit-touch-callout:\s*none;/); // 길게 눌러 저장 막기
     // 감추기는 opacity 만 움직인다

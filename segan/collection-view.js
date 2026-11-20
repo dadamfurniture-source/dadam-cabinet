@@ -387,11 +387,14 @@
     var sheet = sheetApi();
     if (!sheet || !p) return null;
     var size = sizeOf(o.img);
+    // 칸에서 이미 받은 사진을 먼저 화면 가득 보이고, 원본을 다 받으면 바꿔 끼운다 (받는 동안 빈 화면이 되지 않게)
+    var first = p.thumb || p.image_url;
+    var big = p.image_url || p.thumb;
     var box = document.createElement('div');
     box.className = 'pv-full';
     box.innerHTML =
       '<img class="pv-full-img" src="' +
-      esc(p.image_url || p.thumb) +
+      esc(first) +
       '" alt="' +
       esc(nameOf(p)) +
       '" width="' +
@@ -413,6 +416,14 @@
     });
     if (!h) return null;
     if (h.el && h.el.parentNode) h.el.parentNode.classList.add('pv-full-wrap');
+    var pic = box.querySelector('.pv-full-img');
+    if (big && big !== first && typeof window.Image === 'function') {
+      var pre = new window.Image();
+      pre.onload = function () {
+        if (h.isOpen()) pic.src = big;
+      };
+      pre.src = big;
+    }
     box.addEventListener('click', function (e) {
       var t = e.target;
       if (t && t.closest && t.closest('.pv-full-info')) {
@@ -421,13 +432,32 @@
         return;
       }
       // 사진 = 단추를 감췄다 보였다 (사진만 본다) · 사진 바깥의 어두운 자리 = 닫기
-      if (t && t.tagName === 'IMG') {
+      if (t === pic && inPicture(pic, e, size)) {
         if (h.el) h.el.classList.toggle('pv-full--bare');
         return;
       }
       h.close('backdrop');
     });
     return h;
+  }
+
+  /**
+   * 누른 곳이 사진 그림 안인가 — img 칸은 화면을 가득 채우고 그림은 그 안에 비율대로 놓인다(object-fit: contain).
+   * 그림 바깥의 어두운 자리는 「바깥」이다. 칸 크기를 모르면(그리지 않는 곳) 안으로 본다
+   */
+  function inPicture(img, e, size) {
+    var r = img.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return true;
+    var ratio =
+      img.naturalWidth > 0 && img.naturalHeight > 0
+        ? img.naturalWidth / img.naturalHeight
+        : size.w / size.h;
+    if (!(ratio > 0)) return true;
+    var w = Math.min(r.width, r.height * ratio);
+    var hgt = w / ratio;
+    var x = r.left + (r.width - w) / 2;
+    var y = r.top + (r.height - hgt) / 2;
+    return e.clientX >= x && e.clientX <= x + w && e.clientY >= y && e.clientY <= y + hgt;
   }
 
   /**
