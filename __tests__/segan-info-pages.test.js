@@ -8,7 +8,8 @@
  *     /plans 를 못 읽으면 금액 없이 표만 + 알림 (숫자를 지어내지 않는다). 가입 단추는 모두 me.html#partner
  *   - 소개: 흐름 상자(그림 없이) · 강점 · 「AI 연출컷 시작」 · 「구독 보기」
  *   - 소개 · 구독 위 [소개 | 구독] (폰 · 태블릿만 — PC 는 위 메뉴에 둘 다), 폰 탭은 두 화면에서 「홈」이 켜진다 (홈 안의 줄로 들어온다)
- *   - 매거진: 분류 넷마다 그 분류의 글 (제목 · 한 줄 소개 · 읽는 시간 → blog-<이름>.html)
+ *   - 매거진: 책장 — 선반 한 줄에 글마다 책 하나 (표지 · 분류 · 제목 · 한 줄 소개 · 읽는 시간 → blog-<이름>.html).
+ *     끌기 · 움직임(blog.js)은 segan-magazine.test.js
  *   - 매거진 글: 매거진 탭이 켜진다 · 「‹ 매거진」 · 검토용 표시(확인 필요 · 메모 · 그림 제안)가 없다 · 표는 칸마다 옆으로 넘긴다
  *     · 끝에 「고객이 확인할 것」 · 다른 글 링크. 목록도 글도 아직 검색에 내지 않는다 (noindex · 사이트맵 없음)
  */
@@ -338,12 +339,25 @@ describe('AI 시스템 소개 (about.html)', () => {
   });
 });
 
-/** 매거진 글 — [이름, 분류, 제목, 읽는 시간(분)] (목록 차례). 글 화면은 segan/blog-<이름>.html */
+/** 매거진 글 — [이름, 분류, 제목, 읽는 시간(분), 표지 제호] (책장 차례). 글 화면은 segan/blog-<이름>.html */
 const ARTICLES = [
-  ['materials', '자재', '보드부터 엣지까지, 가구 자재 읽는 법', 5],
-  ['edge-finish', '설치', '몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기', 4],
-  ['hardware', '하드웨어', '서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기', 5],
-  ['kitchen-appliances', '주방기기', '싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유', 5],
+  ['materials', '자재', '보드부터 엣지까지, 가구 자재 읽는 법', 5, 'MATERIAL'],
+  ['edge-finish', '설치', '몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기', 4, 'INSTALL'],
+  ['hardware', '하드웨어', '서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기', 5, 'HARDWARE'],
+  [
+    'kitchen-appliances',
+    '주방기기',
+    '싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유',
+    5,
+    'KITCHEN',
+  ],
+];
+/** 표지 하나 — [글 이름(클래스), 제호, 호수, 아래 글] */
+const coverOf = (el) => [
+  [...el.classList].find((c) => c.startsWith('bk-cover--')).replace('bk-cover--', ''),
+  text(el.querySelector('.bk-mast')),
+  text(el.querySelector('.bk-no')),
+  text(el.querySelector('.bk-tag')),
 ];
 const articlePage = (slug) => `blog-${slug}.html`;
 /** 표 하나 — 캡션 글로 찾는다 */
@@ -357,39 +371,86 @@ const expectHidden = (page) => {
   expect(read('sitemap.xml')).not.toContain(`/segan/${page.replace(/\.html$/, '')}`);
 };
 
-describe('매거진 (blog.html) — 글 목록', () => {
-  test('분류 넷(자재 · 설치 · 하드웨어 · 주방기기)마다 그 분류의 글 — 제목 · 한 줄 소개 · 읽는 시간 → 글 화면', async () => {
+describe('매거진 (blog.html) — 책장', () => {
+  test('선반 한 줄에 글마다 책 하나 — 분류 · 제목 · 한 줄 소개 · 읽는 시간 → 글 화면 (책 차례 = 자재 · 설치 · 하드웨어 · 주방기기)', async () => {
     await load('blog.html');
-    expect($$('.bl-cat h2').map(text)).toEqual(['자재', '설치', '하드웨어', '주방기기']);
-    const listed = $$('.bl-cat').map((cat) => [
-      text(cat.querySelector('h2')),
-      [...cat.querySelectorAll('a.bl-post')].map((a) => [
-        a.getAttribute('href'),
-        text(a.querySelector('.bl-post-title')),
-        text(a.querySelector('.bl-post-time')),
-      ]),
+    expect($$('.bk-case')).toHaveLength(1);
+    expect($$('ul.bk-shelf')).toHaveLength(1);
+    // 칸마다 책 하나 — 칸 전체가 링크
+    expect($$('ul.bk-shelf > li.bk-cell')).toHaveLength(ARTICLES.length);
+    expect($$('ul.bk-shelf > li.bk-cell > a.bk-book')).toHaveLength(ARTICLES.length);
+    const listed = $$('a.bk-book').map((a) => [
+      a.getAttribute('href'),
+      text(a.querySelector('.bk-cat')),
+      text(a.querySelector('.bk-title')),
+      text(a.querySelector('.bk-time')),
     ]);
     expect(listed).toEqual(
       ARTICLES.map(([slug, cat, title, min]) => [
+        articlePage(slug),
         cat,
-        [[articlePage(slug), title, `읽는 시간 약 ${min}분`]],
+        title,
+        `읽는 시간 약 ${min}분`,
       ])
     );
-    for (const a of $$('a.bl-post')) {
-      expect(text(a.querySelector('.bl-post-dek')).length).toBeGreaterThan(20);
+    for (const a of $$('a.bk-book')) {
+      expect(text(a.querySelector('.bk-dek')).length).toBeGreaterThan(20);
       expect(fs.existsSync(path.join(ROOT, 'segan', a.getAttribute('href')))).toBe(true);
+      expect(a.getAttribute('draggable')).toBe('false'); // 링크를 집어 끄는 대신 책장을 끈다
     }
+    // 옛 분류 칸 목록은 남지 않는다
+    expect($$('.bl-cats, .bl-cat, a.bl-post')).toHaveLength(0);
+    expect(read('segan/info.css')).not.toMatch(/\.bl-cats?\b/);
     // 빈 목록 때의 글은 남지 않는다
     expect(document.body.textContent).not.toMatch(/글을 준비하고 있습니다|글 준비 중/);
     expect(text($('.sg-tabbar a[aria-current="page"]'))).toBe('매거진');
     expect($('.sg-nav a[aria-current="page"]').getAttribute('href')).toBe('blog.html');
   });
 
-  test('목록의 한 줄 소개는 글 머리의 한 줄 소개와 같다', async () => {
+  test('책 = 칸(조명) 안에 선 표지 — 영문 제호 · 호수 · 분류. 표지 글은 꾸밈이라 읽어 주지 않는다', async () => {
+    const { scripts } = await load('blog.html');
+    const covers = $$('a.bk-book').map((a) => {
+      // 칸 → 조명 + 책이 서는 자리 → 표지
+      expect(a.querySelectorAll('.bk-niche > .bk-glow')).toHaveLength(1);
+      expect(a.querySelectorAll('.bk-niche > .bk-stand > .bk-cover')).toHaveLength(1);
+      const cover = a.querySelector('.bk-cover');
+      expect(cover.getAttribute('aria-hidden')).toBe('true');
+      return coverOf(cover);
+    });
+    expect(covers).toEqual(
+      ARTICLES.map(([slug, cat, , , mast], i) => [
+        slug,
+        mast,
+        String(i + 1).padStart(2, '0'),
+        `MAGAZINE · ${cat}`,
+      ])
+    );
+    // ‹ › 는 처음에 감춰 둔다 — 책이 화면보다 많을 때 blog.js 가 켠다
+    expect(
+      $$('.bk-case > button.bk-nav').map((b) => [b.hidden, b.getAttribute('aria-label')])
+    ).toEqual([
+      [true, '앞 책 보기'],
+      [true, '다음 책 보기'],
+    ]);
+    // 책장 스크립트는 셸 · 비서 다음, 첫 그림 전에 (표지 이름을 붙여야 화면 바꾸기가 이어진다)
+    expect(scripts.map((s) => s.split('?')[0])).toEqual([
+      '../js/config.js',
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45',
+      'motion.js',
+      'shell.js',
+      'guide.js',
+      'blog.js',
+    ]);
+    const html = read('segan/blog.html');
+    expect(html).toMatch(/<script src="blog\.js\?v=\d+" defer blocking="render"><\/script>/);
+    expect(html).toMatch(/<link rel="stylesheet" href="magazine\.css\?v=\d+" \/>/);
+  });
+
+  test('책장의 한 줄 소개는 글 머리의 한 줄 소개와 같다', async () => {
     await load('blog.html');
-    const deks = $$('a.bl-post').map((a) => [
+    const deks = $$('a.bk-book').map((a) => [
       a.getAttribute('href'),
-      text(a.querySelector('.bl-post-dek')),
+      text(a.querySelector('.bk-dek')),
     ]);
     for (const [page, dek] of deks) {
       await load(page);
@@ -403,7 +464,7 @@ describe('매거진 (blog.html) — 글 목록', () => {
   });
 });
 
-describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min) => {
+describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min, mast) => {
   const page = articlePage(slug);
 
   test('매거진 탭이 켜진다 · 머리(분류 · 제목 · 읽는 시간) · 「‹ 매거진」 · 셸 + SEGAN 비서만 싣는다', async () => {
@@ -424,8 +485,21 @@ describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min) 
       'motion.js', // 움직임 한 벌 — 화면 바꾸기
       'shell.js',
       'guide.js',
+      'blog.js', // 책 ↔ 글 — 표지 이름 붙이기
     ]);
     expect(calls.fetch).toEqual([]);
+  });
+
+  test('글 머리에 책장의 그 표지 — 같은 제호 · 호수 (표지가 커지며 닿는 자리)', async () => {
+    await load('blog.html');
+    const onShelf = coverOf($(`a.bk-book[href="${page}"] .bk-cover`));
+    await load(page);
+    const covers = $$('.ma-head > .ma-cover > .bk-cover');
+    expect(covers).toHaveLength(1);
+    expect(covers[0].getAttribute('aria-hidden')).toBe('true');
+    expect(coverOf(covers[0])).toEqual(onShelf);
+    expect(coverOf(covers[0]).slice(0, 2)).toEqual([slug, mast]);
+    expect(read(`segan/${page}`)).toMatch(/<link rel="stylesheet" href="magazine\.css\?v=\d+" \/>/);
   });
 
   test('검토용 표시가 없다 — 확인 필요 · mark · 메모 상자 · 그림 제안 (HTML 주석까지)', async () => {
@@ -565,7 +639,7 @@ describe('주소 — 옛 /pricing 은 구독 화면으로, 서비스 워커가 �
       ...ARTICLES.map(([s]) => articlePage(s)),
     ])
       expect(sw).toContain(`SCOPE + '${page}'`);
-    for (const asset of ['plans.js', 'info.css'])
+    for (const asset of ['plans.js', 'info.css', 'magazine.css', 'blog.js'])
       expect(sw).toContain(`versioned(SCOPE + '${asset}')`);
   });
 });

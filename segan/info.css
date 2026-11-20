@@ -1,5 +1,6 @@
 /* ============================================================
    segan/info.css — 알리는 화면: AI 시스템 소개(about.html) · 구독(plans.html) · 매거진(blog.html · 글 blog-*.html)
+   매거진의 책장 · 표지만은 segan/magazine.css (나무 · 조명 — 매거진만의 예외).
    v5 토큰만 쓴다 (segan/shell.css). 라운드 · 섀도 없음, 헤어라인 보더만, tan 은 꾸밈에만,
    navy 는 강조 하나(금액). 폰 먼저 — 누르는 곳은 44px 이상.
    ============================================================ */
@@ -294,32 +295,7 @@
   word-break: keep-all;
 }
 
-/* ── 매거진 — 글 목록(blog.html): 분류 칸마다 그 분류의 글 ── */
-.bl-cats {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bl-cat {
-  padding: 16px 18px 4px;
-  border: 1px solid var(--v5-line-18);
-  background: var(--v5-paper);
-}
-
-.bl-cat h2 {
-  margin: 0;
-  padding: 0 0 10px;
-  border-bottom: 1px solid var(--v5-line);
-  font-size: 12.5px;
-  font-weight: 400;
-  letter-spacing: 0.14em;
-  color: var(--v5-tan);
-}
-
+/* ── 매거진 — 글 줄 (글 화면 끝의 「다른 글」). 글 목록(blog.html)의 책장은 segan/magazine.css ── */
 .bl-posts {
   margin: 0;
   padding: 0;
@@ -626,11 +602,6 @@
 
 @media (min-width: 768px) {
   .pl-tiers {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  /* 분류 넷 — 두 칸씩 두 줄 (글 소개가 읽히는 폭) */
-  .bl-cats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

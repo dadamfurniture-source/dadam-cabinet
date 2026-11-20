@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026112005';
+const ASSET_VERSION = '2026112008';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -67,6 +67,8 @@ const SHELL = [
   versioned(SCOPE + 'home.css'), // 홈
   versioned(SCOPE + 'forward.js'), // 홈 머리 — 옛 만들기 주소를 make.html 로
   versioned(SCOPE + 'info.css'),
+  versioned(SCOPE + 'magazine.css'), // 매거진 책장 · 표지
+  versioned(SCOPE + 'blog.js'), // 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기
   versioned(SCOPE + 'plans.js'),
   versioned(SCOPE + 'make.css'),
   versioned(SCOPE + 'make.js'),
