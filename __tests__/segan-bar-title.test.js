@@ -184,7 +184,9 @@ describe('스크롤로 들어오는 칸 — [data-reveal]', () => {
     expect(doc.querySelector('h1').getAttribute('data-bar-title')).toBe('');
     expect(doc.querySelectorAll('.hm-steps li[data-reveal]')).toHaveLength(3);
     expect(doc.querySelectorAll('a.hm-work[data-reveal]')).toHaveLength(6);
-    expect(doc.querySelectorAll('.hm-posts li[data-reveal]')).toHaveLength(4);
+    // 매거진 책장은 책이 내려앉는 움직임을 따로 가진다 (segan/blog.js) — 떠오르는 칸으로 두지 않는다
+    expect(doc.querySelectorAll('.bk-shelf li.bk-cell')).toHaveLength(4);
+    expect(doc.querySelectorAll('.bk-case [data-reveal], .bk-case[data-reveal]')).toHaveLength(0);
     expect(doc.querySelectorAll('.hm-hero [data-reveal]')).toHaveLength(0); // 첫 화면은 움직이지 않는다
   });
 });

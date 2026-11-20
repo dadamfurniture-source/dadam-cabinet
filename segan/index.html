@@ -15,33 +15,37 @@
     <meta name="theme-color" content="#F6F3EE" />
     <title>SEGAN</title>
     <!-- 옛 만들기 주소(?g= · ?ref= · #result …)로 들어오면 그리기 전에 make.html 로 넘긴다 -->
-    <script src="forward.js?v=2026112017"></script>
+    <script src="forward.js?v=2026112018"></script>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112017" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112017" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112017" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112017" />
+    <link rel="icon" href="icons/icon.svg?v=2026112018" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112018" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112018" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112018" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112017" />
-    <link rel="stylesheet" href="home.css?v=2026112017" />
+    <link rel="stylesheet" href="shell.css?v=2026112018" />
+    <link rel="stylesheet" href="home.css?v=2026112018" />
+    <!-- 매거진 책장 — 나무 · 조명은 매거진 책장만의 예외 (magazine.css 머리 주석) -->
+    <link rel="stylesheet" href="magazine.css?v=2026112018" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112017"></script>
+    <script src="../js/config.js?v=2026112018"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112017"></script>
-    <script src="shell.js?v=2026112017" defer blocking="render"></script>
+    <script src="motion.js?v=2026112018"></script>
+    <script src="shell.js?v=2026112018" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112017" defer></script>
+    <script src="guide.js?v=2026112018" defer></script>
+    <!-- 매거진 책장 — 끌기 · 책 → 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
+    <script src="blog.js?v=2026112018" defer blocking="render"></script>
   </head>
   <body class="sg-app" data-tab="home">
     <div data-segan-shell="header"></div>
@@ -196,32 +200,141 @@
           <h2 id="hmBlogTitle">매거진</h2>
           <a href="blog.html">전체 보기</a>
         </div>
-        <ul class="hm-posts">
-          <li data-reveal>
-            <a class="hm-post" href="blog-materials.html">
-              <small>자재</small>
-              <b>보드부터 엣지까지, 가구 자재 읽는 법</b>
-            </a>
-          </li>
-          <li data-reveal>
-            <a class="hm-post" href="blog-edge-finish.html">
-              <small>설치</small>
-              <b>몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
-            </a>
-          </li>
-          <li data-reveal>
-            <a class="hm-post" href="blog-hardware.html">
-              <small>하드웨어</small>
-              <b>서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
-            </a>
-          </li>
-          <li data-reveal>
-            <a class="hm-post" href="blog-kitchen-appliances.html">
-              <small>주방기기</small>
-              <b>싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
-            </a>
-          </li>
-        </ul>
+        <!-- 책장 — 매거진 화면(blog.html)과 같은 책 · 같은 차례 (시험이 본다). 모습은 magazine.css, 끌기 · 움직임은 blog.js -->
+        <div class="bk-case">
+          <button class="bk-nav bk-nav--prev" type="button" aria-label="앞 책 보기" hidden>‹</button>
+          <button class="bk-nav bk-nav--next" type="button" aria-label="다음 책 보기" hidden>›</button>
+          <ul class="bk-shelf">
+            <li class="bk-cell">
+              <a class="bk-book" href="blog-materials.html" draggable="false">
+                <span class="bk-niche">
+                  <span class="bk-glow"></span>
+                  <span class="bk-stand">
+                    <span class="bk-cover bk-cover--materials" aria-hidden="true">
+                      <picture class="bk-art">
+                        <source srcset="magazine/cover-materials.webp" type="image/webp" />
+                        <img
+                          src="magazine/cover-materials.jpg"
+                          alt=""
+                          width="480"
+                          height="640"
+                          decoding="async"
+                          draggable="false"
+                        />
+                      </picture>
+                      <span class="bk-head">
+                        <span class="bk-no">01</span>
+                        <span class="bk-tag">MAGAZINE · 자재</span>
+                      </span>
+                      <span class="bk-mast">MATERIAL</span>
+                    </span>
+                  </span>
+                </span>
+                <span class="bk-info">
+                  <small class="bk-cat">자재</small>
+                  <b class="bk-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
+                  <small class="bk-time">읽는 시간 약 5분</small>
+                </span>
+              </a>
+            </li>
+            <li class="bk-cell">
+              <a class="bk-book" href="blog-edge-finish.html" draggable="false">
+                <span class="bk-niche">
+                  <span class="bk-glow"></span>
+                  <span class="bk-stand">
+                    <span class="bk-cover bk-cover--edge-finish" aria-hidden="true">
+                      <picture class="bk-art">
+                        <source srcset="magazine/cover-edge-finish.webp" type="image/webp" />
+                        <img
+                          src="magazine/cover-edge-finish.jpg"
+                          alt=""
+                          width="480"
+                          height="640"
+                          decoding="async"
+                          draggable="false"
+                        />
+                      </picture>
+                      <span class="bk-head">
+                        <span class="bk-no">02</span>
+                        <span class="bk-tag">MAGAZINE · 설치</span>
+                      </span>
+                      <span class="bk-mast">INSTALL</span>
+                    </span>
+                  </span>
+                </span>
+                <span class="bk-info">
+                  <small class="bk-cat">설치</small>
+                  <b class="bk-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
+                  <small class="bk-time">읽는 시간 약 4분</small>
+                </span>
+              </a>
+            </li>
+            <li class="bk-cell">
+              <a class="bk-book" href="blog-hardware.html" draggable="false">
+                <span class="bk-niche">
+                  <span class="bk-glow"></span>
+                  <span class="bk-stand">
+                    <span class="bk-cover bk-cover--hardware" aria-hidden="true">
+                      <picture class="bk-art">
+                        <source srcset="magazine/cover-hardware.webp" type="image/webp" />
+                        <img
+                          src="magazine/cover-hardware.jpg"
+                          alt=""
+                          width="480"
+                          height="640"
+                          decoding="async"
+                          draggable="false"
+                        />
+                      </picture>
+                      <span class="bk-head">
+                        <span class="bk-no">03</span>
+                        <span class="bk-tag">MAGAZINE · 하드웨어</span>
+                      </span>
+                      <span class="bk-mast">HARDWARE</span>
+                    </span>
+                  </span>
+                </span>
+                <span class="bk-info">
+                  <small class="bk-cat">하드웨어</small>
+                  <b class="bk-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
+                  <small class="bk-time">읽는 시간 약 5분</small>
+                </span>
+              </a>
+            </li>
+            <li class="bk-cell">
+              <a class="bk-book" href="blog-kitchen-appliances.html" draggable="false">
+                <span class="bk-niche">
+                  <span class="bk-glow"></span>
+                  <span class="bk-stand">
+                    <span class="bk-cover bk-cover--kitchen-appliances" aria-hidden="true">
+                      <picture class="bk-art">
+                        <source srcset="magazine/cover-kitchen-appliances.webp" type="image/webp" />
+                        <img
+                          src="magazine/cover-kitchen-appliances.jpg"
+                          alt=""
+                          width="480"
+                          height="640"
+                          decoding="async"
+                          draggable="false"
+                        />
+                      </picture>
+                      <span class="bk-head">
+                        <span class="bk-no">04</span>
+                        <span class="bk-tag">MAGAZINE · 주방기기</span>
+                      </span>
+                      <span class="bk-mast">KITCHEN</span>
+                    </span>
+                  </span>
+                </span>
+                <span class="bk-info">
+                  <small class="bk-cat">주방기기</small>
+                  <b class="bk-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
+                  <small class="bk-time">읽는 시간 약 5분</small>
+                </span>
+              </a>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <!-- 폰 아래 탭에서 뺀 두 화면 — 홈 안의 줄로 간다 (PC 는 위 메뉴에도 있다) -->

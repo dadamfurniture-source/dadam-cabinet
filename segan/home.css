@@ -237,41 +237,7 @@
   color: var(--v5-ink-60);
 }
 
-/* ── 매거진 ── */
-.hm-posts {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--v5-line);
-}
-
-.hm-post {
-  display: block;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--v5-line);
-  color: var(--v5-ink);
-  text-decoration: none;
-}
-
-/* 목록 줄 — 줄이지 않고 바탕만 바로 바꾼다 */
-.hm-post:active {
-  background: var(--v5-well);
-}
-
-.hm-post small {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--v5-tan);
-}
-
-.hm-post b {
-  display: block;
-  font-size: 15px;
-  font-weight: 300;
-  line-height: 1.6;
-}
+/* ── 매거진 — 책장은 segan/magazine.css (홈에 놓일 때의 칸 폭도 거기) ── */
 
 @media (min-width: 768px) {
   .hm-work {
@@ -360,11 +326,5 @@
 
   .hm-work {
     max-width: none;
-  }
-
-  .hm-posts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 40px;
   }
 }
