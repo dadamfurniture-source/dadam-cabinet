@@ -20,6 +20,8 @@ const STAFF = 'a0000000-0000-4000-8000-000000000003';
 const P_OWNER = 'a0000000-0000-4000-8000-000000000011';
 const P_STAFF = 'a0000000-0000-4000-8000-000000000012';
 const S_OWNER = 'a0000000-0000-4000-8000-000000000021';
+const M_OWNER = 'a0000000-0000-4000-8000-000000000031';
+const MANAGER_CO = 'f0000000-0000-4000-8000-0000000000dd';
 const STANDARD = 'f0000000-0000-4000-8000-0000000000cc';
 const MEMBERS = [
   { user_id: OWNER, company_id: HQ, role: 'owner', status: 'active' },
@@ -27,12 +29,14 @@ const MEMBERS = [
   { user_id: P_OWNER, company_id: PARTNER, role: 'owner', status: 'active' },
   { user_id: P_STAFF, company_id: PARTNER, role: 'staff', status: 'active' },
   { user_id: S_OWNER, company_id: STANDARD, role: 'owner', status: 'active' },
+  { user_id: M_OWNER, company_id: MANAGER_CO, role: 'owner', status: 'active' },
 ];
 /** 업체 행 — 플래너를 쓰나 (planner-drafts.js canUsePlanner) */
 const COMPANIES = {
   [HQ]: { id: HQ, kind: 'hq', name: '다담 공장', plan: null, status: 'active' },
   [PARTNER]: { id: PARTNER, kind: 'partner', name: '가나 팩토리', plan: 'expert', status: 'active' },
   [STANDARD]: { id: STANDARD, kind: 'partner', name: '다라 팩토리', plan: 'standard', status: 'active' },
+  [MANAGER_CO]: { id: MANAGER_CO, kind: 'partner', name: '마바 팩토리', plan: 'manager', status: 'active' },
 };
 
 const json = (rows, status = 200) => ({ ok: true, status, headers: { get: () => 'application/json' }, json: async () => rows, text: async () => JSON.stringify(rows) });
@@ -333,6 +337,17 @@ test('팩토리 직원 · 플래너를 못 쓰는 팩토리(Standard) 대표는 
     for (const id of [P_STAFF, S_OWNER]) {
       await assert.rejects(() => receivePlannerDesign(ENV, { user: { id }, body: body() }), (e) => e instanceof ForbiddenError && e.code === 'not_planner_sender');
     }
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.designFinds, 0);
+  } finally { f.restore(); }
+});
+
+test('Manager 팩토리 대표는 보내지 못한다 — 403 plan_required (BOM 을 싣는다 — 설계 · 저장까지, 2026-11-20), 아무것도 쓰지 않는다', async () => {
+  const f = fakeSupabase();
+  try {
+    await assert.rejects(
+      () => receivePlannerDesign(ENV, { user: { id: M_OWNER }, body: body() }),
+      (e) => e instanceof ForbiddenError && e.code === 'plan_required' && e.details.min_plan === 'expert'
+    );
     assert.equal(f.designPosts.length + f.snapshotPosts.length + f.designFinds, 0);
   } finally { f.restore(); }
 });
