@@ -109,7 +109,8 @@ describe('상자 단 — 오픈장 · 밥솥장으로 바꾼 단도 그 단의 �
   test('바닥 단 오픈장: 상자 + 좌대 상자 · 걸레받이, 다리발은 일반 하부장만 센다', () => {
     const r = run([tier(0, 801, BOTTOM, OPEN(0)), tier(1, 979, MIDDLE), tier(2, 400, TOP), LOWER]);
     expect(cut(rowsOf(r, 'planner-tall-0-open'))).toEqual([
-      '측판 620×801×2', '천지판 564×600×2', '뒷판 564×801×1',
+      // 오픈 상자 = 몸통 깊이 + 20 (2026-11-20 — 이 시험 단 몸통은 620): 측판 640 · 천지판 620. 좌대는 몸통 자리 그대로
+      '측판 640×801×2', '천지판 564×620×2', '뒷판 564×801×1',
       '좌대 전후 600×60×2', '좌대 측 540×60×2', '좌대 걸레받이 60×600×1',
     ]);
     expect(r.hardware.filter((h) => h.category === '다리발').map((h) => h.qty)).toEqual([4]);   // 하부장 600 하나 = 4
@@ -130,7 +131,7 @@ describe('상자 단 — 오픈장 · 밥솥장으로 바꾼 단도 그 단의 �
 
   test('맨 위 단 오픈장: 상몰딩이 그 상자 위 (앞면 = 도어 앞면)', () => {
     const r = run([tier(0, 801, BOTTOM), tier(1, 979, MIDDLE), tier(2, 400, TOP, OPEN(2))]);
-    expect(cut(rowsOf(r, 'planner-tall-2-open'))).toEqual(['측판 620×400×2', '천지판 564×600×2', '뒷판 564×400×1', '상몰딩 60×600×1']);
+    expect(cut(rowsOf(r, 'planner-tall-2-open'))).toEqual(['측판 640×400×2', '천지판 564×620×2', '뒷판 564×400×1', '상몰딩 60×600×1']);
     const molding = modOf(r, 'planner-tall-2-open').parts.find((p) => p.part === '상몰딩');
     expect([molding.box.min, molding.box.max]).toEqual([[-300, 400, 310], [300, 460, 328]]);
     expect(r.spec.unplaced).toEqual([]);

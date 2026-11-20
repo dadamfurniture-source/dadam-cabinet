@@ -8,7 +8,7 @@
       "w": 700,
       "h": 2290,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-r2-body:side-0",
@@ -16,10 +16,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 3690,
+      "edgeLen": 2290,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-r2",
@@ -308,18 +308,18 @@
       "w": 700,
       "h": 400,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-r4-body:side-0",
       "slot": "body",
       "edges": {
         "L": true,
-        "R": true,
-        "T": true,
+        "R": false,
+        "T": false,
         "B": false
       },
-      "edgeLen": 1500,
+      "edgeLen": 400,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-r4",
@@ -458,7 +458,7 @@
       "w": 700,
       "h": 797,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "",
       "finishCode": "",
       "partId": "0-r5-body:side-0",
@@ -466,10 +466,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2197,
+      "edgeLen": 797,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-r5",
@@ -583,7 +583,7 @@
       "w": 700,
       "h": 973,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-r6-body:side-0",
@@ -591,10 +591,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2373,
+      "edgeLen": 973,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-r6",
@@ -698,7 +698,7 @@
   },
   "edgeBanding": {
     "1": 21594,
-    "0.6": 44062
+    "0.6": 33462
   },
   "hardware": [
     {
@@ -797,12 +797,12 @@
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",
-    "키큰장,측판,PB,15,700,2290,2,3면,sakuri(15→3mm)",
+    "키큰장,측판,PB,15,700,2290,2,1면(세로),sakuri(15→3mm)",
     "키큰장,천판,PB,15,570,682,1,1면(전),"
   ],
   "cncHead": [
     "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
-    "측판,PB,15,700,2290,2,1,0,1,1",
+    "측판,PB,15,700,2290,2,1,0,0,0",
     "천판,PB,15,570,682,1,1,0,0,0"
   ],
   "hardwareCsvHead": [

@@ -10177,6 +10177,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const geo = openCabinetGeom(m, s);
     if (!geo || !geo.innerW || !geo.innerD) return g;   // 치수가 안 잡힌 모듈 — 패널이 경고를 띄운다
     const { W, H, D, T, innerW, innerD } = geo;         // H 는 몸통 높이다 (전체 높이가 아니다)
+    // 2026-11-20: 오픈 상자는 몸통 깊이 + 20 (규칙 파일 FRONT_PLUS) — 뒤끝은 몸통 뒤끝, 앞으로 나온다 (조립 명세 openBoxOf 와 같다)
+    const zOff = geo.bodyD ? (D - geo.bodyD) / 2 : 0;
     const color = darken3(cfg.fill, 0.05);
     const ud = () => ({ entityKind: 'openCabinet', moduleId: m.id });
     // 다른 모듈과 같이 다리발·좌대 위에 얹는다 — 안 그러면 오픈장만 바닥에 붙어 줄이 안 맞는다.
@@ -10185,12 +10187,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 측판 — 깊이 전체 × 몸통 높이, 좌우 두 장
     [-1, 1].forEach((sgn) => {
       const side = makeBox(T, H, D, color);
-      side.position.set(sgn * (W / 2 - T / 2), legH + H / 2, 0);
+      side.position.set(sgn * (W / 2 - T / 2), legH + H / 2, zOff);
       g.add(side);
       addEdgeOutline(side, g, cfg.stroke, 0.5);
     });
     // 천판·지판 — 측판 사이, 뒷판 자리만큼 짧다. z 는 앞면에 맞춘다.
-    const topBottomZ = D / 2 - innerD / 2;
+    const topBottomZ = zOff + D / 2 - innerD / 2;
     [T / 2, H - T / 2].forEach((cy) => {
       const panel = makeBox(innerW, T, innerD, color);
       panel.position.set(0, legH + cy, topBottomZ);
@@ -10199,7 +10201,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
     // 뒷판 — 18T 통판. 측판 사이, 몸통 높이 전체.
     const back = makeBox(innerW, H, T, color);
-    back.position.set(0, legH + H / 2, -D / 2 + T / 2);
+    back.position.set(0, legH + H / 2, zOff - D / 2 + T / 2);
     g.add(back);
     addEdgeOutline(back, g, cfg.stroke, 0.5);
 

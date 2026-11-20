@@ -8,7 +8,7 @@
       "w": 600,
       "h": 1140,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-w1-body:side-0",
@@ -16,10 +16,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2340,
+      "edgeLen": 1140,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w1",
@@ -108,7 +108,7 @@
       "w": 600,
       "h": 1140,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "",
       "finishCode": "",
       "partId": "0-w1-body:side-1",
@@ -116,10 +116,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2340,
+      "edgeLen": 1140,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w1",
@@ -258,7 +258,7 @@
       "w": 600,
       "h": 1580,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-w2-body:side-0",
@@ -266,10 +266,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2780,
+      "edgeLen": 1580,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w2",
@@ -383,7 +383,7 @@
       "w": 600,
       "h": 700,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm) · 목찬넬 따내기 상단 70×40 + 중간 90×40 ×1",
       "finishCode": "",
       "partId": "0-w2-body:side-1",
@@ -391,10 +391,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1900,
+      "edgeLen": 700,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w2",
@@ -633,7 +633,7 @@
       "w": 600,
       "h": 1140,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
       "partId": "0-w3-body:side-0",
@@ -641,10 +641,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2340,
+      "edgeLen": 1140,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w3",
@@ -758,7 +758,7 @@
       "w": 600,
       "h": 1140,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "",
       "finishCode": "",
       "partId": "0-w3-body:side-1",
@@ -766,10 +766,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 2340,
+      "edgeLen": 1140,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w3",
@@ -983,7 +983,7 @@
       "w": 350,
       "h": 500,
       "qty": 2,
-      "edge": "3면",
+      "edge": "1면(세로)",
       "note": "",
       "finishCode": "",
       "partId": "0-w3-innerdrawer:side-0",
@@ -991,10 +991,10 @@
       "edges": {
         "L": true,
         "R": false,
-        "T": true,
-        "B": true
+        "T": false,
+        "B": false
       },
-      "edgeLen": 1200,
+      "edgeLen": 500,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w3",
@@ -1598,7 +1598,7 @@
   },
   "edgeBanding": {
     "1": 35176,
-    "0.6": 113822
+    "0.6": 98022
   },
   "hardware": [
     {
@@ -1738,12 +1738,12 @@
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",
-    "짧은옷(2단)-상부장,측판,PB,15,600,1140,2,3면,sakuri(15→3mm)",
+    "짧은옷(2단)-상부장,측판,PB,15,600,1140,2,1면(세로),sakuri(15→3mm)",
     "짧은옷(2단)-상부장,천판,PB,15,870,582,1,1면(전),"
   ],
   "cncHead": [
     "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
-    "측판,PB,15,600,1140,2,1,0,1,1",
+    "측판,PB,15,600,1140,2,1,0,0,0",
     "천판,PB,15,870,582,1,1,0,0,0"
   ],
   "hardwareCsvHead": [

@@ -73,11 +73,11 @@ describe('규칙 파일 — 빌트인 오븐장 (PB 15T · 뒷판 절반)', () =
     expect(BI.BACK_AT).toBe('bottom');
     expect(OC.innerOf({ W: 600, H: 621, D: 560, builtinOven: true }).backH).toBe(310);   // 내림
   });
-  test('표시가 없는 오픈장은 예전 그대로 (18T MDF · 뒷판 전체 높이)', () => {
-    expect(OC.partsOf({ W: 500, H: 450, D: 570 }).map((p) => [p.part, p.material, p.t, p.w, p.h, p.qty])).toEqual([
+  test('표시가 없는 오픈장은 18T MDF · 뒷판 전체 높이 (몸통 550 → 상자 570, 2026-11-20)', () => {
+    expect(OC.partsOf({ W: 500, H: 450, D: 550 }).map((p) => [p.part, p.material, p.t, p.w, p.h, p.qty])).toEqual([
       ['측판', 'MDF', 18, 570, 450, 2], ['천지판', 'MDF', 18, 464, 550, 2], ['뒷판', 'MDF', 18, 464, 450, 1],
     ]);
-    expect(OC.partsOf({ W: 500, H: 450, D: 570 }).some((p) => 'note' in p)).toBe(false);
+    expect(OC.partsOf({ W: 500, H: 450, D: 550 }).some((p) => 'note' in p)).toBe(false);
     expect(OC.isBuiltinOven({ moduleKind: 'open' })).toBe(false);
   });
   test('경고 — 빌트인은 니치 (폭 · 높이), 그 밖은 외경 + 여유', () => {

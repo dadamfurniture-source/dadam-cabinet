@@ -800,7 +800,7 @@
     // 2026-09-22: 몸통은 **하부장과 같다** — 천판이 없다. 밴드가 상단 앞·뒤에 서고
     //   그 위에 상판이 올라간다.
     const rows = [
-      { part: '측판', material: 'PB', t: T, w: D, h: H, qty: 2, edge: '3면' },
+      { part: '측판', material: 'PB', t: T, w: D, h: H, qty: 2, edge: '1면(세로)' },   // 앞 1면 — 2026-11-20 사장님 (몸통 측판)
       { part: '지판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
       { part: '밴드', material: 'PB', t: T, w: inner, h: I.BAND_H, qty: 2, edge: '2면(장)',
         note: '천판 대신 상단 앞·뒤 (하부장과 같다)' },

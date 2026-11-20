@@ -311,6 +311,8 @@ export function edgesFromLegacy(edge, w, h) {
   if (s === '2면(장)') return { ...none, ...long2 };
   if (s === '2면(가로)') return { ...none, T: true, B: true };
   if (s === '1면(전)' || s === '1면(장)') return { ...none, ...long1 };
+  // 몸통 측판 앞변 하나 — 높이 방향 변 (엔진 bomEdgeSidesOf 「1면(세로)」, 2026-11-20 사장님 「측판의 엣지는 앞면 하나만」)
+  if (s === '1면(세로)') return { ...none, L: true };
   return none;
 }
 
