@@ -86,3 +86,52 @@ test('재단선 — 톱이 끝까지 지나가는 자리만 (조각을 가르지
   assert.ok(cuts.every((c) => rects.every((r) => !crosses(c, r))));
   assert.deepEqual(guillotineCuts([{ x: 0, y: 0, w: 10, h: 10 }], { x: 0, y: 0, w: 100, h: 100 }), []);
 });
+
+// ── 조립 새 틀 (src/templates/assembly-layout2.js) ─────────────────
+import { moduleIsoSvg, notchLinesOf, moduleInfoRows } from '../src/templates/assembly-layout2.js';
+
+const SPEC_MOD = {
+  moduleKey: 'w/floor/m1|0-lower-0',
+  box: { W: 900, H: 708, D: 550, T: 15 },
+  parts: [
+    { part: '측판', cut: { w: 550, h: 708 }, box: { min: [-450, 0, -275], max: [-435, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
+    { part: '측판', cut: { w: 550, h: 708 }, box: { min: [435, 0, -275], max: [450, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
+    { part: '지판', cut: { w: 870, h: 550 }, box: { min: [-435, 0, -275], max: [435, 15, 275] } },
+    { part: '도어', cut: { w: 446, h: 678 }, box: { min: [-448, 0, 275], max: [-2, 678, 293] } },
+  ],
+  hardware: [{ kind: 'leg', item: '조절 다리발', spec: '150mm', at: [-400, -150, 230], size: [42, 150, 42] }],
+};
+
+test('조립 3D — 조립 명세 판 자리 그대로, 도어는 점선 · 다리발, 굵은 W · H · D 몸통 치수', () => {
+  const svg = moduleIsoSvg(SPEC_MOD);
+  assert.match(svg, /^<svg class="mod-iso"/);
+  assert.equal((svg.match(/<polygon /g) || []).length, (3 + 1 + 1) * 3, '판 3 + 도어 1 + 다리발 1 — 면 셋씩');
+  assert.equal((svg.match(/stroke-dasharray/g) || []).length, 3, '도어 세 면은 점선');
+  for (const t of ['W 900', 'H 708', 'D 550']) assert.match(svg, new RegExp(`font-weight="700"[^>]*>${t}<`));
+  assert.equal(moduleIsoSvg({ parts: [] }), '');
+});
+
+test('모듈 내용 — 색상 · 부재 · 목찬넬 따내기 · 다리발 · 철물 (같은 것끼리 더함) · 전기', () => {
+  assert.deepEqual(notchLinesOf(SPEC_MOD), ['목찬넬 따내기 — 측판 위 앞 40 × 70'], '양쪽 측판 같은 자리는 한 줄');
+  const rows = [
+    { part: '측판', material: 'PB', thickness: 15, w: 550, h: 708, qty: 2, partClass: '본체', color: '화이트' },
+    { part: '도어', material: 'MDF', thickness: 18, w: 446, h: 678, qty: 2, partClass: '도어', finishCode: 'PET-1' },
+    { part: '뒷판', material: 'MDF', thickness: 3, w: 899, h: 707, qty: 1, partClass: '뒷판', color: '오크' },
+  ];
+  const hw = [{ category: '경첩', item: 'H052', spec: '2구', qty: 2 }, { category: '경첩', item: 'H052', spec: '2구', qty: 2 }, { category: '전기', item: '콘센트', spec: '2구', qty: 1 }];
+  const info = Object.fromEntries(moduleInfoRows({ rows, hardware: hw, mod: SPEC_MOD, colorName: (c) => `이름 ${c}` }));
+  assert.equal(info['색상'], '몸통 화이트 / 도어 이름 PET-1 / 우라 오크');
+  assert.match(info['부재'], /측판 550×708 PB15T × 2/);
+  assert.match(info['목찬넬 따내기'], /측판 위 앞 40 × 70/);
+  assert.equal(info['다리발 · 좌대'], '다리발 150mm × 1');
+  assert.equal(info['철물'], '경첩 H052 2구 × 4');
+  assert.equal(info['전기 · 가전'], '콘센트 2구 × 1');
+});
+
+test('조립 새 틀 — 모듈 명세 표 · 치수도 · 조립 순서 체크 없음, 옛 문서는 그대로', () => {
+  const html = renderWorkOrder(docV2(), snapshotWith(null), { toolbar: false, pack: 'assembly' });
+  const body = html.slice(html.indexOf('<body>'));
+  assert.doesNotMatch(body, /class="section-title">[^<]*(모듈 명세|모듈 치수도|조립 순서 체크|모듈 단면도)/);
+  const old = renderWorkOrder(fx.doc(), snapshotWith(null), { toolbar: false, pack: 'assembly' });
+  assert.match(old.slice(old.indexOf('<body>')), /조립 순서 체크/);
+});
