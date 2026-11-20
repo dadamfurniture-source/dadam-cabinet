@@ -20,7 +20,7 @@ import { listOwnHqOrders, listHqOrdersOfMonth, tierOf } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
-import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS, DEFAULT_COUNTERTOP, DEFAULT_CUT, CUT_LIMITS } from './standards.js';
+import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS, DEFAULT_COUNTERTOP, DEFAULT_CUT, CUT_LIMITS, DEFAULT_BAND, BAND_MODES, BAND_LIMITS } from './standards.js';
 import { orderLabel, workerOrderLabel } from './redact.js';
 import { hasCountertop } from '../countertop.js';
 import { safeRecord, safeSyncStatus } from '../reports/service.js';
@@ -97,7 +97,22 @@ export function mergeSettings(saved) {
     holidays: Array.isArray(s.holidays) ? s.holidays : [],
     colors: colorsOf(s.colors),
     cut: cutOf(s.cut),
+    band: bandOf(s.band),
   };
+}
+
+/** 저장된 소부품 · 밴드 재고 설정 → DEFAULT_BAND 모양 — 모르는 값 · 범위 밖은 기본값, 요청 수는 만드는 수보다 작게 */
+export function bandOf(saved) {
+  const out = { ...DEFAULT_BAND };
+  const s = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  if (BAND_MODES.includes(s.mode)) out.mode = s.mode;
+  for (const k of Object.keys(BAND_LIMITS)) {
+    const v = s[k];
+    const [lo, hi] = BAND_LIMITS[k];
+    if (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi) out[k] = v;
+  }
+  if (out.reorder >= out.base) out.reorder = Math.min(DEFAULT_BAND.reorder, out.base - 1);
+  return out;
 }
 
 /** 저장된 재단기 설정 → { kerf, trim } — 숫자가 아니거나 범위를 벗어난 칸은 기본값 */
@@ -178,6 +193,25 @@ export function sanitizeSettings(body) {
       const [lo, hi] = CUT_LIMITS[k];
       if (!Number.isFinite(n) || n < lo || n > hi) throw new ValidationError(`cut.${k} 는 ${lo} ~ ${hi} 사이 숫자여야 합니다`);
       out.cut[k] = Math.round(n * 10) / 10;   // 0.1mm 단위
+    }
+  }
+  if (body && body.band !== undefined) {
+    if (typeof body.band !== 'object' || body.band === null || Array.isArray(body.band)) throw new ValidationError('band 는 객체여야 합니다');
+    out.band = {};
+    for (const [k, v] of Object.entries(body.band)) {
+      if (k === 'mode') {
+        if (!BAND_MODES.includes(v)) throw new ValidationError(`band.mode 는 ${BAND_MODES.join(' · ')} 가운데 하나여야 합니다`);
+        out.band.mode = v;
+        continue;
+      }
+      if (!(k in BAND_LIMITS)) throw new ValidationError(`알 수 없는 설정: band.${k}`);
+      const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+      const [lo, hi] = BAND_LIMITS[k];
+      if (!Number.isInteger(n) || n < lo || n > hi) throw new ValidationError(`band.${k} 는 ${lo} ~ ${hi} 사이 정수여야 합니다`);
+      out.band[k] = n;
+    }
+    if (out.band.base !== undefined && out.band.reorder !== undefined && out.band.reorder >= out.band.base) {
+      throw new ValidationError('band.reorder 는 band.base 보다 작아야 합니다');
     }
   }
   return out;
@@ -265,6 +299,14 @@ export async function writeCompanySettings(env, { companyId, user, body }) {
   if (clean.colors === undefined && prev && prev.settings && prev.settings.colors) clean.colors = prev.settings.colors;
   const prevCut = prev && prev.settings && typeof prev.settings.cut === 'object' && prev.settings.cut ? prev.settings.cut : null;
   if (prevCut) clean.cut = { ...prevCut, ...(clean.cut || {}) };
+  // 소부품 · 밴드 재고(band)도 같다 — 보내지 않았으면 그대로, 한 칸만 보냈으면 다른 칸은 저장된 값 (2026-11-20)
+  const prevBand = prev && prev.settings && typeof prev.settings.band === 'object' && prev.settings.band ? prev.settings.band : null;
+  if (prevBand) clean.band = { ...prevBand, ...(clean.band || {}) };
+  // 요청 수 < 만드는 수 — 저장된 값 · 기본값과 합친 결과로 본다
+  const bandBase = clean.band && Number.isInteger(clean.band.base) ? clean.band.base : DEFAULT_BAND.base;
+  if (clean.band && Number.isInteger(clean.band.reorder) && clean.band.reorder >= bandBase) {
+    throw new ValidationError('band.reorder 는 band.base 보다 작아야 합니다');
+  }
   const row = await upsertOne(env, 'company_settings', {
     company_id: companyId,
     settings: clean,

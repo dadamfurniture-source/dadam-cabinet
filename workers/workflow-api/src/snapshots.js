@@ -217,6 +217,11 @@ export function validateCutPlan(cutPlan, bom) {
     && (typeof cutPlan.strategy !== 'string' || !CUT_STRATEGY_RE.test(cutPlan.strategy))) {
     throw new ValidationError('cutPlan.strategy 모양이 올바르지 않습니다 (영문 소문자 · 숫자 · _ - 40자까지)');
   }
+  // 소부품 모드 — 있으면 짧은 이름 꼴만 (엔진 NestingEngine.SMALL_MODES — place · stock)
+  if (cutPlan.smallMode !== undefined && cutPlan.smallMode !== null
+    && (typeof cutPlan.smallMode !== 'string' || !CUT_STRATEGY_RE.test(cutPlan.smallMode))) {
+    throw new ValidationError('cutPlan.smallMode 모양이 올바르지 않습니다 (영문 소문자 · 숫자 · _ - 40자까지)');
+  }
 
   // 자재 행 partId → qty. partId 가 없는 행은 엔진이 `row-<index>` 로 부른다.
   const materials = bom && Array.isArray(bom.materials) ? bom.materials : [];
@@ -274,6 +279,36 @@ export function validateCutPlan(cutPlan, bom) {
       }
     }
   });
+
+  // 재고 밴드 (엔진 small: 'stock' — 2026-11-20 소부품 빼기). 있으면: 본마다 쓴 길이 ≤ 본 길이 · 조각은 자재 행에 있는 것 · 원장 조각과 같이 수량을 넘지 않는다
+  if (cutPlan.bandStock !== undefined && cutPlan.bandStock !== null) {
+    const bs = cutPlan.bandStock;
+    const length = bs && positiveNumber(bs.length);
+    if (typeof bs !== 'object' || Array.isArray(bs) || !Array.isArray(bs.groups) || !length || !positiveNumber(bs.width)) {
+      problems.push('bandStock: { width, length, groups: [] } 모양이 아님');
+    } else {
+      const kerf = nonNegativeNumber(bs.kerf) || 0;
+      bs.groups.slice(0, 200).forEach((g, gi) => {
+        const tag = `bandStock.groups[${gi}]`;
+        if (!g || typeof g !== 'object' || !Array.isArray(g.cuts)) { problems.push(`${tag}: cuts 배열이 없음`); return; }
+        if (g.color !== undefined && (typeof g.color !== 'string' || g.color.length > 40)) problems.push(`${tag}: color 가 40자 이하 글이 아님`);
+        g.cuts.slice(0, 2000).forEach((c, ci) => {
+          const ctag = `${tag}.cuts[${ci}]`;
+          if (!c || typeof c !== 'object' || !Array.isArray(c.pieces) || !c.pieces.length) { problems.push(`${ctag}: pieces 가 비어 있음`); return; }
+          let used = 0;
+          c.pieces.forEach((p, pi) => {
+            const len = p && positiveNumber(p.len);
+            if (!p || typeof p.partId !== 'string' || !p.partId || !len) { problems.push(`${ctag}.pieces[${pi}]: { partId, len } 모양이 아님`); return; }
+            const base = basePartId(p.partId);
+            if (!qtyById.has(base)) { problems.push(`${ctag}.pieces[${pi}]: partId ${p.partId} 가 bom.materials 에 없음`); return; }
+            placed.set(base, (placed.get(base) || 0) + 1);
+            used += len;
+          });
+          if (used + kerf * (c.pieces.length - 1) > length + 1e-6) problems.push(`${ctag}: 본 길이(${length})를 넘음`);
+        });
+      });
+    }
+  }
 
   placed.forEach((n, id) => {
     const qty = qtyById.get(id) || 0;

@@ -175,5 +175,15 @@ export async function plannerCut(env, { user }) {
   const { company } = await plannerCompanyOf(env, user);
   const s = await companySettings(env, company.id);
   const cut = s.settings.cut;
-  return { company: { id: company.id, name: company.name }, kerf: cut.kerf, trim: cut.trim, updated_at: s.updated_at };
+  // 소부품 더하기 · 빼기 (2026-11-20 — settings.band). 플래너는 재단 엔진 옵션 small · bandStock 으로 그대로 넘긴다
+  const band = s.settings.band;
+  const small = band && (band.mode === 'place' || band.mode === 'stock') ? band.mode : null;
+  return {
+    company: { id: company.id, name: company.name },
+    kerf: cut.kerf,
+    trim: cut.trim,
+    ...(small ? { small } : {}),
+    ...(small === 'stock' ? { bandStock: { width: band.width, length: band.length, material: band.material, thickness: band.thickness } } : {}),
+    updated_at: s.updated_at,
+  };
 }

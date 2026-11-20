@@ -102,6 +102,20 @@ export const DEFAULT_CUT = Object.freeze({
 /** 받는 범위 (mm) — 0.1 단위로 적는다 */
 export const CUT_LIMITS = Object.freeze({ kerf: [0, 10], trim: [0, 100] });
 
+/**
+ * 소부품 · 밴드 재고 (2026-11-19 사장님 「소부품 더하기, 빼기로 구분해서 더하기는 2.밴드도 원장에 놓기 : 재단에 포함 시키고,
+ *   빼기는 밴드 재고 운영, 60*2440의 밴드를 18개 기본 재고로 만들고 8개가 남으면 새로운 밴드재고 만들기로 요청.」 · 질문 창 「팩토리 설정 한 번」 ·
+ *   「PB 15T · 몸통 색마다 따로」). 팩토리마다 하나 — 「생산 설정」에서 고른다.
+ *   mode   place 더하기 = 소부품(한 변 70 이하)도 원장에 놓아 재단 · stock 빼기 = 재고 밴드에 맞는 부재는 밴드 재고에서, 나머지는 원장에
+ *   width · length  재고 밴드 한 본 (mm) · material · thickness 재고 밴드 판 (PB 15T — 바꾸지 않는다)
+ *   base   한 번 만드는 수 (원장 1장에서 18본) · reorder 남은 수가 이 이하가 되면 「밴드 만들기」 요청
+ *   기본 mode 는 place (재단에 포함 — 재고를 따로 두지 않는 팩토리) — 내 판단, 사장님 확인 몫.
+ */
+export const DEFAULT_BAND = Object.freeze({ mode: 'place', width: 60, length: 2440, material: 'PB', thickness: 15, base: 18, reorder: 8 });
+export const BAND_MODES = Object.freeze(['place', 'stock']);
+/** 받는 범위 — 폭 · 길이 mm, 수는 본 */
+export const BAND_LIMITS = Object.freeze({ width: [30, 100], length: [1000, 3000], base: [1, 100], reorder: [0, 99] });
+
 export const DEFAULT_QUOTE = Object.freeze({
   pbSheet: 32000, // 몸통 PB 15T
   backSheet: 19500, // 뒷판 MDF 2.7T PVC

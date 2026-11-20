@@ -114,8 +114,21 @@ export function cutDigestOf(cutPlan) {
         problems: (Array.isArray(cutPlan.cnc.problems) ? cutPlan.cnc.problems : []).map((p) => ({ sheetNo: p && p.sheetNo, reason: p && p.reason })),
       }
     : null;
+  // 소부품 더하기 · 빼기 (cutPlan.smallMode · bandStock — 2026-11-20) — 있을 때만: 재고에서 꺼낼 밴드가 지시서에 실린다. 없는 배치는 예전과 같은 값이다
+  const band = cutPlan.bandStock && typeof cutPlan.bandStock === 'object' && Array.isArray(cutPlan.bandStock.groups)
+    ? {
+        width: cutPlan.bandStock.width,
+        length: cutPlan.bandStock.length,
+        groups: cutPlan.bandStock.groups.map((g) => ({
+          color: g && g.color != null ? g.color : '',
+          cuts: (g && Array.isArray(g.cuts) ? g.cuts : []).map((c) => (c && Array.isArray(c.pieces) ? c.pieces : []).map((p) => ({ partId: p && p.partId, len: p && p.len }))),
+        })),
+      }
+    : null;
   return {
     ...(cnc ? { cnc } : {}),
+    ...(typeof cutPlan.smallMode === 'string' && cutPlan.smallMode ? { smallMode: cutPlan.smallMode } : {}),
+    ...(band ? { bandStock: band } : {}),
     strategy: cutPlan.strategy,
     sheets: sheets.map((s) => ({
       no: s.no,
