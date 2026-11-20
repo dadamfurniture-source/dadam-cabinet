@@ -102,6 +102,8 @@ export async function fetchManufacturerImage(url, { fetchImpl = fetch } = {}) {
     if (!isAllowedImageUrl(current)) {
       throw new ApplianceImageError(`허용하지 않는 사진 주소입니다 (${APPLIANCE_IMAGE_HOSTS.join(' · ')} 의 https 만)`, 400, 'image_host');
     }
+    // 한글 등 그대로 적힌 경로는 표준 형태(퍼센트 인코딩)로 — 백조 · 아펠 사진이 그대로 보내면 400 (2026-11-20)
+    current = new URL(current).toString();
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
     let res;

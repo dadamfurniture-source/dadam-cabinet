@@ -276,3 +276,14 @@ test('행을 읽을 때 verified 를 같이 읽는다', async () => {
   const sel = calls.find((c) => c.url.includes('/rest/v1/appliance_models') && c.method === 'GET');
   assert.match(decodeURIComponent(sel.url), /select=[^&]*\bverified\b/);
 });
+
+test('한글이 그대로 적힌 경로는 퍼센트 인코딩해 받는다 (백조 · 아펠 — 그대로 보내면 400)', async () => {
+  const seen = [];
+  const fetchImpl = async (u) => { seen.push(u); return new Response(PNG, { status: 200 }); };
+  const out = await fetchManufacturerImage('https://baekjosink.com/wp-content/uploads/2024/08/콜리나-2-01.jpg', { fetchImpl });
+  assert.equal(out.mimeType, 'image/png');
+  assert.equal(seen[0], 'https://baekjosink.com/wp-content/uploads/2024/08/%EC%BD%9C%EB%A6%AC%EB%82%98-2-01.jpg');
+  const seen2 = [];
+  await fetchManufacturerImage('https://baekjosink.com/a%20b.jpg', { fetchImpl: async (u) => { seen2.push(u); return new Response(PNG, { status: 200 }); } });
+  assert.equal(seen2[0], 'https://baekjosink.com/a%20b.jpg'); // 이미 인코딩된 것은 두 번 바꾸지 않는다
+});
