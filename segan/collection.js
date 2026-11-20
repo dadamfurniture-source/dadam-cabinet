@@ -13,7 +13,8 @@
      DB 사례를 다 받은 뒤에 AI 연출 사진(STATIC — app/portfolio/luxe-manifest.json)을 붙인다
        (최신순이 끝까지 이어지고, 이미 그린 자리 사이로 새 줄이 끼어들지 않는다)
    처음 24장 · 24장씩 더 — 아래까지 내리면 저절로(IntersectionObserver), 없으면 「더 보기」 단추.
-   누르면 사진 보기(장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷) — segan/collection-view.js (SeganPostView)
+   칸 아래쪽에 색상 글과 ♡(좋아요 — DB 게시물만). 사진을 누르면 사진만 전체 화면, 그 안의 「정보」가
+   사진 보기(장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷) — segan/collection-view.js (SeganPostView)
    (예전에 자동으로 올라간 연출컷 행은 DB 에 남아 있지만 본사가 고르기 전에는 안 보인다. 연출컷도 사진 위 표시 없이, 업체 칸 「AI 연출」)
    다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
    자재 칸은 여기서 뺐다 — 자재 글은 매거진으로 옮긴다 (/material 은 /segan/blog 로 넘긴다, _redirects).
@@ -291,9 +292,14 @@
   }
 
   // ── 그리기 ─────────────────────────────────────────────
+  function isLiked(p) {
+    return !!(p && p.id && S.liked[p.id]);
+  }
+
   function render(from) {
     var html = '';
-    for (var i = from; i < S.shown; i++) html += PV().tileHTML(S.posts[i], i);
+    for (var i = from; i < S.shown; i++)
+      html += PV().tileHTML(S.posts[i], i, { liked: isLiked(S.posts[i]) });
     $('clTiles').insertAdjacentHTML('beforeend', html);
   }
 
@@ -333,29 +339,58 @@
     updateState();
   }
 
-  // ── 사진 보기 ──────────────────────────────────────────
-  function openPost(i, tile) {
+  // ── 사진 전체 화면 · 좋아요 ─────────────────────────────
+  /** 사진 한 장에 쓰는 것 — 전체 화면 · 그 안의 「정보」 시트 · 타일의 ♡ 가 같이 쓴다 */
+  function postOpts(i, tile) {
     var p = S.posts[i];
-    if (!p || !PV()) return null;
-    S.sheet = PV().open(p, {
+    return {
       sb: S.sb,
       userId: S.userId,
-      liked: !!(p.id && S.liked[p.id]),
+      // 열 때마다 다시 본다 — 타일에서 ♡ 를 누른 뒤 「정보」를 열어도 맞는다
+      liked: function () {
+        return isLiked(p);
+      },
       loginHref: loginHref(),
       img: tile ? tile.querySelector('img') : null,
       onLike: function (post, on) {
         if (on) S.liked[post.id] = true;
         else delete S.liked[post.id];
+        // 타일의 ♡ 도 같이 (「정보」 시트에서 눌렀을 때)
+        var heart = $('clTiles').querySelector('[data-like="' + i + '"]');
+        if (heart) heart.setAttribute('aria-pressed', on ? 'true' : 'false');
       },
-      onClose: function () {
+      onFail: function () {
+        $('clState').textContent = PV().TEXT.likeFail;
+      },
+      onFullClose: function () {
         S.sheet = null;
       },
-    });
+    };
+  }
+
+  /** 사진을 눌렀다 — 사진만 전체 화면으로 (장소 · 업체 · 연출컷은 그 안의 「정보」) */
+  function openPost(i, tile) {
+    var p = S.posts[i];
+    if (!p || !PV()) return null;
+    S.sheet = PV().full(p, postOpts(i, tile));
     return S.sheet;
+  }
+
+  /** 타일의 ♡ 를 눌렀다 */
+  function likePost(i, btn) {
+    var p = S.posts[i];
+    if (!p || !PV()) return Promise.resolve(false);
+    if ($('clState').textContent === PV().TEXT.likeFail) $('clState').textContent = '';
+    return PV().likeTile(btn, p, postOpts(i, null));
   }
 
   function bind() {
     $('clTiles').addEventListener('click', function (e) {
+      var heart = e.target.closest('[data-like]');
+      if (heart) {
+        likePost(Number(heart.getAttribute('data-like')), heart);
+        return;
+      }
       var b = e.target.closest('[data-open]');
       if (b) openPost(Number(b.getAttribute('data-open')), b);
     });
@@ -425,6 +460,7 @@
     state: S,
     loadMore: loadMore,
     openPost: openPost,
+    likePost: likePost,
   };
   window.SeganCollection = api;
   api.ready = new Promise(function (resolve) {

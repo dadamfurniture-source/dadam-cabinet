@@ -475,32 +475,53 @@
       if (r && r.post_id && r.image_url) LK.posts.push(PV.fromLike(r));
     });
     var html = '';
-    for (var i = from; i < LK.posts.length; i++) html += PV.tileHTML(LK.posts[i], i);
+    for (var i = from; i < LK.posts.length; i++)
+      html += PV.tileHTML(LK.posts[i], i, { liked: true });
     $('meLikes').insertAdjacentHTML('beforeend', html);
     paintLikes();
   }
 
-  /** 타일을 누르면 사진 보기 — ♡ 를 풀고 닫으면 목록에서 뺀다 */
+  /**
+   * 사진을 누르면 사진만 전체 화면(그 안의 「정보」가 사진 보기) · 칸의 ♡ 를 누르면 바로 좋아요를 풀고 넣는다.
+   * 사진 보기에서 ♡ 를 풀고 닫으면 목록에서 뺀다. 칸의 ♡ 로 푼 것은 다시 누를 수 있게 그 자리에 둔다
+   */
   function onLikesClick(e) {
-    var b = e.target && e.target.closest ? e.target.closest('[data-open]') : null;
     var PV = window.SeganPostView;
-    if (!b || !PV) return;
-    var i = Number(b.getAttribute('data-open'));
+    var t = e.target && e.target.closest ? e.target : null;
+    if (!t || !PV) return;
+    var heart = t.closest('[data-like]');
+    var b = heart ? null : t.closest('[data-open]');
+    if (!heart && !b) return;
+    var i = Number((heart || b).getAttribute(heart ? 'data-like' : 'data-open'));
     var p = LK.posts[i];
     if (!p) return;
-    PV.open(p, {
+    var cell = (heart || b).closest('.cl-cell');
+    var o = {
       sb: H.sb,
       userId: likeUser(),
-      liked: true,
+      // 지금 칸의 ♡ 그대로 — 칸에서 풀었으면 사진 보기도 빈 ♡ 로 열린다
+      liked: function () {
+        var h = cell ? cell.querySelector('[data-like]') : null;
+        return h ? h.getAttribute('aria-pressed') === 'true' : true;
+      },
       loginHref: '../login.html?redirect=' + encodeURIComponent(LIKE_RETURN),
-      img: b.querySelector('img'),
+      img: b ? b.querySelector('img') : null,
+      onLike: function (post, on) {
+        var h = cell ? cell.querySelector('[data-like]') : null;
+        if (h) h.setAttribute('aria-pressed', on ? 'true' : 'false');
+      },
+      onFail: function () {
+        $('meLikeState').textContent = PV.TEXT.likeFail;
+      },
       onClose: function (why, liked) {
         if (liked) return;
         LK.posts[i] = null;
-        if (b.parentNode) b.parentNode.removeChild(b);
+        if (cell && cell.parentNode) cell.parentNode.removeChild(cell);
         paintLikes();
       },
-    });
+    };
+    if (heart) PV.likeTile(heart, p, o);
+    else PV.full(p, o);
   }
 
   function bindLikes() {
