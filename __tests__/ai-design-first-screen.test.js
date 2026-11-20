@@ -110,7 +110,7 @@ describe('마퀴 — 문서에 바로 적은 타일, 첫 타일을 먼저 받는
 });
 
 describe('화면용 사본 — 가볍게 보여 주고 생성에는 원본', () => {
-  test('CASE_STATIC 사진마다 사본 두 벌(.jpg · .avif) — 원본과 같은 크기, 원본의 30% 이하', () => {
+  test('CASE_STATIC 사진마다 사본 두 벌(.jpg · .avif) — 원본보다 작고 가볍다 (2026-11-20 AI 연출 사진: 원본 긴 변 1600 · 사본 폭 1000)', () => {
     expect(CASE_STATIC.length).toBeGreaterThan(0);
     for (const r of CASE_STATIC) {
       const orig = path.join(ROOT, r.image_url);
@@ -121,9 +121,13 @@ describe('화면용 사본 — 가볍게 보여 주고 생성에는 원본', () 
       const o = fs.readFileSync(orig);
       const j = fs.readFileSync(base + '.jpg');
       const a = fs.readFileSync(base + '.avif');
-      expect(`${r.image_url} jpg ${jpegSize(j)}`).toBe(`${r.image_url} jpg ${jpegSize(o)}`);
-      expect(`${r.image_url} avif ${avifSize(a)}`).toBe(`${r.image_url} avif ${jpegSize(o)}`);
-      expect(j.length).toBeLessThan(o.length * 0.3);
+      const [ow, oh] = jpegSize(o);
+      const [jw, jh] = jpegSize(j);
+      expect(`${r.image_url} jpg ${jw}x${jh}`).toBe(
+        `${r.image_url} jpg 1000x${Math.round((oh * 1000) / ow)}`
+      );
+      expect(avifSize(a)).toEqual([jw, jh]);
+      expect(j.length).toBeLessThan(o.length * 0.6);
       expect(a.length).toBeLessThan(o.length * 0.3);
     }
   });
@@ -141,11 +145,11 @@ describe('화면용 사본 — 가볍게 보여 주고 생성에는 원본', () 
   })();
 
   test('bgStyle — 정적 사진은 사본(AVIF 우선, JPEG 대체), 그 밖의 주소는 예전 그대로', () => {
-    const s = bgStyle('app/portfolio/kitchen-n1-1.jpg');
+    const s = bgStyle('app/portfolio/luxe-01.jpg');
     expect(s).toBe(
-      'background-image:url(app/portfolio/display/kitchen-n1-1.jpg);' +
-        "background-image:image-set(url(app/portfolio/display/kitchen-n1-1.avif) type('image/avif'), " +
-        "url(app/portfolio/display/kitchen-n1-1.jpg) type('image/jpeg'))"
+      'background-image:url(app/portfolio/display/luxe-01.jpg);' +
+        "background-image:image-set(url(app/portfolio/display/luxe-01.avif) type('image/avif'), " +
+        "url(app/portfolio/display/luxe-01.jpg) type('image/jpeg'))"
     );
     const remote = 'https://x.supabase.co/storage/v1/object/public/theme-images/a/thumb.jpg';
     expect(bgStyle(remote)).toBe('background-image:url(' + remote + ')');

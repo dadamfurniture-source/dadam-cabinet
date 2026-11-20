@@ -25,7 +25,7 @@ import {
   dhashRgba, hammingHex, medianAnalysis, roomPhotoPhash, roomPhotoSha256, samePhoto,
 } from '../src/room-photo.js';
 
-// ─── fixture: 리포의 실제 주방 사진 (app/portfolio, 1220×508) ───
+// ─── fixture: 리포의 AI 연출 사진 (app/portfolio luxe-* · mix-*, 1600×1200 — 2026-11-20 예전 다른 업체 사진을 지우며 바꿈) ───
 const PORTFOLIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../app/portfolio');
 const photo = (name) => readFileSync(path.join(PORTFOLIO, `${name}.jpg`));
 const decode = (buf) => decodeJpeg(buf, { useTArray: true, formatAsRGBA: true });
@@ -49,7 +49,7 @@ const hashOf = (buf) => dhashRgba(decode(buf));
 
 test('같은 사진 재압축(품질 40~95·재저장 사슬·축소 0.5~0.8)은 거리 ≤ 4 — 문턱 6 안', () => {
   let worst = 0;
-  for (const name of ['kitchen-n6-1', 'kitchen-n1-2', 'kitchen-n3-2', 'kitchen-n7-1', 'funiture-n4-1']) {
+  for (const name of ['luxe-08', 'luxe-02', 'mix-04', 'mix-09', 'luxe-12']) {
     const img = decode(photo(name));
     const h0 = dhashRgba(img);
     const variants = [40, 60, 75, 90, 95].map((q) => encode(img, q));
@@ -66,9 +66,9 @@ test('같은 사진 재압축(품질 40~95·재저장 사슬·축소 0.5~0.8)은
   assert.ok(worst <= 4, `실측 최대 ${worst} (문턱 ${PHASH_MAX_DISTANCE} 의 근거)`);
 });
 
-test('다른 사진은 같은 주방의 다른 각도라도 거리 ≥ 20 — 문턱 6 과 멀다', () => {
-  const names = ['kitchen-n1-1', 'kitchen-n1-2', 'kitchen-n1-3', 'kitchen-n1-4', 'kitchen-n2-1', 'kitchen-n3-2', 'kitchen-n3-3',
-    'kitchen-n4-1', 'kitchen-n6-1', 'kitchen-n6-2', 'kitchen-n6-3', 'kitchen-n7-1'];
+test('다른 사진은 비슷한 흰 주방 · 같은 조명이라도 거리 ≥ 20 — 문턱 6 과 멀다', () => {
+  const names = ['luxe-01', 'luxe-02', 'luxe-03', 'luxe-04', 'luxe-07', 'luxe-08', 'luxe-09',
+    'luxe-12', 'luxe-15', 'mix-01', 'mix-04', 'mix-09'];
   const hashes = names.map((n) => hashOf(photo(n)));
   let closest = 64;
   for (let i = 0; i < hashes.length; i++) {
@@ -78,7 +78,7 @@ test('다른 사진은 같은 주방의 다른 각도라도 거리 ≥ 20 — �
 });
 
 test('dHash 모양: 16자리 16진, 해밍 거리, 모양이 다르면 Infinity', () => {
-  const h = hashOf(photo('kitchen-n6-1'));
+  const h = hashOf(photo('luxe-08'));
   assert.match(h, /^[0-9a-f]{16}$/);
   assert.equal(hammingHex(h, h), 0);
   assert.equal(hammingHex('00', 'ff'), 8);
@@ -89,7 +89,7 @@ test('dHash 모양: 16자리 16진, 해밍 거리, 모양이 다르면 Infinity'
 });
 
 test('roomPhotoPhash: JPEG 만 — PNG·깨진 바이트·빈 값은 null (그러면 sha256 만으로)', () => {
-  const jpg = photo('kitchen-n6-1');
+  const jpg = photo('luxe-08');
   assert.equal(roomPhotoPhash({ base64: jpg.toString('base64'), mimeType: 'image/jpeg' }), hashOf(jpg));
   assert.equal(roomPhotoPhash({ base64: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString('base64'), mimeType: 'image/png' }), null);
   assert.equal(roomPhotoPhash({ base64: Buffer.from([0xff, 0xd8, 0x00]).toString('base64') }), null);
@@ -171,11 +171,11 @@ const jsonRes = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** 이번 잡의 방 사진: 원본 사진을 품질 60 으로 다시 저장한 것 — 바이트(sha256)는 다르고 그림은 같다 */
-const ORIGINAL = photo('kitchen-n6-1');
+const ORIGINAL = photo('luxe-08');
 const ROOM_JPEG = encode(decode(ORIGINAL), 60);
 const ROOM_SHA = createHash('sha256').update(ROOM_JPEG).digest('hex');
 const ORIGINAL_PHASH = hashOf(ORIGINAL);
-const OTHER_PHASH = hashOf(photo('kitchen-n3-2'));
+const OTHER_PHASH = hashOf(photo('mix-04'));
 assert.notEqual(createHash('sha256').update(ORIGINAL).digest('hex'), ROOM_SHA);
 assert.ok(hammingHex(ORIGINAL_PHASH, hashOf(ROOM_JPEG)) <= PHASH_MAX_DISTANCE);
 

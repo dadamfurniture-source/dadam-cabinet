@@ -203,8 +203,8 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
         note: '봄 꽃 색',
       },
       {
-        id: 's:kitchen-n1-1',
-        src: '../app/portfolio/kitchen-n1-1.jpg',
+        id: 's:luxe-01',
+        src: '../app/portfolio/luxe-01.jpg',
         label: '다담가구 · 서울 논현',
       },
     ];
@@ -218,7 +218,7 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
     M.readRef = read;
     $('mkRun').click();
     await tick();
-    expect(read.mock.calls.map((c) => c[0].id)).toEqual([C1, T1, 's:kitchen-n1-1']);
+    expect(read.mock.calls.map((c) => c[0].id)).toEqual([C1, T1, 's:luxe-01']);
     const body = JSON.parse(posts(calls)[0].body);
     expect(body.reference_images).toEqual([
       { base64: 'B64-c', mimeType: 'image/jpeg', role: 'style' },
@@ -229,20 +229,20 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
     // 시작되면 이 기기에는 사진을 지우고 참고 사진(id · 주소)은 남긴다 — 그림 자료는 담지 않는다
     const d = JSON.parse(sessionStorage.getItem(KEY));
     expect(d.photo).toBeNull();
-    expect(d.refs.map((r) => r.id)).toEqual([C1, T1, 's:kitchen-n1-1']);
+    expect(d.refs.map((r) => r.id)).toEqual([C1, T1, 's:luxe-01']);
     expect(JSON.stringify(d)).not.toMatch(/B64-/);
   });
 
   test('못 받은 참고 사진은 빼고 만든다 — 결과 화면에 몇 장 뺐는지 알린다', async () => {
     const refs = [
-      { id: 's:kitchen-n1-1', src: '../app/portfolio/kitchen-n1-1.jpg', label: 'a' },
-      { id: 's:kitchen-n1-2', src: '../app/portfolio/kitchen-n1-2.jpg', label: 'b' },
+      { id: 's:luxe-01', src: '../app/portfolio/luxe-01.jpg', label: 'a' },
+      { id: 's:luxe-02', src: '../app/portfolio/luxe-02.jpg', label: 'b' },
     ];
     const { calls, M } = await load({
       draft: { v: 1, step: 'refs', photo: PHOTO, choices: {}, refs },
     });
     M.readRef = jest.fn(async (r) => {
-      if (r.id === 's:kitchen-n1-2') throw new Error('404');
+      if (r.id === 's:luxe-02') throw new Error('404');
       return { base64: 'OK', mimeType: 'image/jpeg' };
     });
     $('mkRun').click();
@@ -262,7 +262,7 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
         step: 'refs',
         photo: PHOTO,
         choices: {},
-        refs: [{ id: 's:kitchen-n1-1', src: '../app/portfolio/kitchen-n1-1.jpg', label: 'a' }],
+        refs: [{ id: 's:luxe-01', src: '../app/portfolio/luxe-01.jpg', label: 'a' }],
       },
     });
     expect($('mkCost').textContent).toBe('20 크레딧 차감 · 남은 50회');
