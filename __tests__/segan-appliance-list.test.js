@@ -338,7 +338,7 @@ describe('자리 · 이름', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const li = doc.querySelector('li[data-me-item="appliances"]');
     expect(li).not.toBeNull();
-    expect(li.closest('ul').id).toBe('meSubStock');
+    expect(li.closest('ul').id).toBe('meSubCatalog');
     expect(li.previousElementSibling.getAttribute('data-me-item')).toBe('part-catalog');
     expect(li.hasAttribute('hidden')).toBe(true);
     const a = li.querySelector('a');

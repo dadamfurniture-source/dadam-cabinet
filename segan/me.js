@@ -36,8 +36,9 @@
          구매 · 재고   팩토리 — 기본 자재 · 철물 (#stock-board · #stock-hardware — segan/stock.js, 다담 공장 · Expert · Agent 구성원.
                         못 읽으면 — DB 적용 전 등 — 「준비 중」 안내) · 자투리 자재 (#stock-scrap — segan/stock-offcuts.js, 같은 사람 · 못 읽으면 「준비 중」),
                         거래처 · 공급처 (#counterparties — segan/counterparties.js, 다담 공장 · Expert · Agent 의 대표 · 실장.
-                        그 화면을 못 쓰는 관리자에게는 PC 화면 줄),
-                        철물 · 부속 카탈로그 (#part-catalog — segan/part-catalog.js, 다담 공장 · 본사 구성원만 · 읽혔을 때만)
+                        그 화면을 못 쓰는 관리자에게는 PC 화면 줄)
+         카탈로그      철물 · 부속 카탈로그 (#part-catalog — segan/part-catalog.js, 팩토리 · 본사 구성원 · 읽혔을 때만) ·
+                        가전 카탈로그 (#appliances — segan/appliance-list.js, 팩토리 · 본사 구성원 · 관리자) — 2026-11-20 구매 · 재고에서 옮김
          회계          segan/books.js ledgerKind — 장부(full · read)면 한눈에 · 매출 · 매입 · 사진 · 보고서 (+ 업체는 설정),
                         사진만 올리면 영수증 올리기 (업체만). 본사 대표 · 실장은 본사 장부 — 공장 장부는 플랫폼 › 등록 업체 › 다담 공장 › 회계
          인사          Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
@@ -528,6 +529,7 @@
       pick: projectDash,
     },
     'dash-stock': { title: '구매 · 재고', dash: 'stock', section: 'meDash' },
+    'dash-catalog': { title: '카탈로그', dash: 'catalog', section: 'meDash' }, // 철물 · 부속 · 가전 카탈로그 (2026-11-20)
     'dash-ledger': {
       title: '회계',
       dash: 'ledger',
@@ -600,7 +602,7 @@
       parts: ['stockNeeds'],
       label: 'stockNeedsTitle',
     },
-    // 구매 · 재고 › 철물 · 부속 카탈로그 — 공급 회사별 상품 · 참고가 · 매입가 · 사진 (segan/part-catalog.js)
+    // 카탈로그 › 철물 · 부속 카탈로그 — 공급 회사별 상품 · 참고가 · 매입가 · 사진 (segan/part-catalog.js)
     'part-catalog': {
       title: '철물 · 부속 카탈로그',
       section: 'partner',
@@ -1598,7 +1600,7 @@
         return roles.admin === true && available(key);
       case 'hq-as':
         return roles.admin === true && !rowOn('as-status', v, roles, ledger);
-      // 구매 · 재고 › 가전 카탈로그 — 팩토리 · 본사 구성원 · 사이트 관리자, 칸이 열렸을 때만 (보기 · 찾기 — 2026-11-20)
+      // 카탈로그 › 가전 카탈로그 — 팩토리 · 본사 구성원 · 사이트 관리자, 칸이 열렸을 때만 (보기 · 찾기 — 2026-11-20)
       case 'appliances':
         return (roles.admin === true || v.member || v.platform) && available(key);
       // 기준정보 › 가전 모델 관리 — 사이트 관리자, PC 화면 (넣기 · 고치기 · 사진 가져오기)
@@ -1885,7 +1887,7 @@
           synced(POrders && POrders.load ? POrders.load(auth.sb, auth.session, me) : null),
           // 작업 자재 = 재고와 같은 사람, 짝 정하기는 대표 · 실장 (segan/stock-needs.js — 구매 · 재고 › 작업 자재)
           synced(Needs && Needs.load ? Needs.load(auth.sb, auth.session, me) : null),
-          // 철물 · 부속 카탈로그 = 다담 공장 · 본사 구성원, 고치기는 대표 · 실장 (segan/part-catalog.js — 구매 · 재고 › 철물 · 부속 카탈로그)
+          // 철물 · 부속 카탈로그 = 다담 공장 · 본사 구성원, 고치기는 대표 · 실장 (segan/part-catalog.js — 카탈로그 › 철물 · 부속 카탈로그)
           synced(Parts && Parts.load ? Parts.load(auth.sb, auth.session, me) : null),
           // 생산 설정 = 다담 공장 · 협력업체의 대표 · 실장 (segan/production-settings.js — 생산 › 생산 설정 화면)
           synced(Settings && Settings.load ? Settings.load(auth.sb, auth.session, me) : null),
@@ -1923,7 +1925,7 @@
                 })
               : null
           ),
-          // 가전 카탈로그 = 팩토리 · 본사 구성원 · 사이트 관리자 (segan/appliance-list.js — 구매 · 재고 › 가전 카탈로그 화면, 열었을 때 읽는다)
+          // 가전 카탈로그 = 팩토리 · 본사 구성원 · 사이트 관리자 (segan/appliance-list.js — 카탈로그 › 가전 카탈로그 화면, 열었을 때 읽는다)
           synced(
             Appl && Appl.load
               ? Appl.load(auth.sb, auth.session, me, {

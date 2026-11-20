@@ -375,7 +375,7 @@ describe('철물 · 부속 카탈로그 — 마이페이지에 이어진 곳', (
   test('메뉴 줄 · 칸 · 스크립트 · 화면 정의 · 캐시 목록', () => {
     const html = read('segan/me.html');
     const doc = new window.DOMParser().parseFromString(html, 'text/html');
-    const li = doc.querySelector('#meSubStock [data-me-item="part-catalog"]');
+    const li = doc.querySelector('#meSubCatalog [data-me-item="part-catalog"]');
     expect(li.hidden).toBe(true);
     expect(li.querySelector('a').getAttribute('href')).toBe('#part-catalog');
     expect(li.querySelector('a').textContent).toBe('철물 · 부속 카탈로그');
