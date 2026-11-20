@@ -129,7 +129,7 @@ describe('#832 회귀를 잡는다', () => {
   test('겹침 이슈 모양 — partId · other · moduleKey · volumeMm3 · depthMm', () => {
     const { spec: s18 } = specOf('sink18');
     const x = Check.check(s18).issues.find((i) => i.code === 'part-overlap');
-    expect(x).toMatchObject({ level: 'error', moduleKey: '0-u1', depthMm: 2, volumeMm3: 2520 });
+    expect(x).toMatchObject({ level: 'error', moduleKey: '0-u1', depthMm: 2, volumeMm3: 2160 });   // 처짐방지 60 (2026-11-20 70 → 60)
     expect(x.partId).toMatch(/^0-u1-/);
     expect(x.other).toMatch(/^0-u1-/);
   });

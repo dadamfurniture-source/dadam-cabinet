@@ -127,7 +127,7 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(one(rows, 'planner-tall-2-0', '천판')).toMatchObject({ w: 570, h: 620, qty: 1 });
     expect(rowsOf(rows, 'planner-tall-2-0', '밴드')).toHaveLength(0);
     // "맨 아래 단만 하부장 처럼 밴드 구성 그대로" — 좌대 단은 밴드 2, 천판 없음
-    expect(one(rows, 'planner-tall-0-0', '밴드')).toMatchObject({ w: 70, h: 570, qty: 2 });
+    expect(one(rows, 'planner-tall-0-0', '밴드')).toMatchObject({ w: 60, h: 570, qty: 2 });
     expect(rowsOf(rows, 'planner-tall-0-0', '천판')).toHaveLength(0);
     expect(one(rows, 'planner-tall-1-0', '뒷판')).toMatchObject({ thickness: 3, w: 599, h: 978 });   // 뒷판 우라 3T · 사쿠리 없음 → 측판 뒤 덮음 (W−1)×(H−1) (2026-10-19)
   });

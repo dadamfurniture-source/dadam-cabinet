@@ -84,26 +84,27 @@ describe('규칙 · 브리지', () => {
 });
 
 describe('개수대 1000', () => {
-  test('밴드 — 앞 50 눕힘 1장 · 뒤 70 세움 1장 (W − 2T 970), 선반 없음 · 2도어 496 · 처짐방지 1', () => {
+  // 2026-11-20 사장님 「개수대, 가스대는 50으로」 · 「앞 50 그대로 · 뒤 세움 60」 — 뒤 세움 · 처짐방지 70 → 60
+  test('밴드 — 앞 50 눕힘 1장 · 뒤 60 세움 1장 (W − 2T 970), 선반 없음 · 2도어 496 · 처짐방지 1', () => {
     const { rows } = kitchen();
     const r = rows('s1');
-    expect(r.filter((x) => x.part === '밴드').map((x) => [x.thickness, x.w, x.h, x.qty, x.note])).toEqual([[T, 50, 970, 1, '앞 · 눕힘'], [T, 70, 970, 1, '뒤 · 세움']]);
+    expect(r.filter((x) => x.part === '밴드').map((x) => [x.thickness, x.w, x.h, x.qty, x.note])).toEqual([[T, 50, 970, 1, '앞 · 눕힘'], [T, 60, 970, 1, '뒤 · 세움']]);
     expect(pick(r, '선반')).toEqual([]);
     expect(pick(r, '도어')).toEqual([[496, 678, 2]]);
-    expect(pick(r, '밴드(처짐방지)')).toEqual([[70, 708 - 2 * T - 70, 1]]);   // W ≥ 800 → 1장, 목찬넬이면 H − 2T − 70
+    expect(pick(r, '밴드(처짐방지)')).toEqual([[60, 708 - 2 * T - 70, 1]]);   // W ≥ 800 → 1장, 목찬넬이면 H − 2T − 70 (따내기)
   });
 
-  test('보통 하부장 밴드는 그대로 70 × 2 (눕힘)', () => {
+  test('보통 하부장 밴드는 60 × 2 (눕힘)', () => {
     const { rows } = kitchen();
-    expect(pick(rows('l0'), '밴드')).toEqual([[70, 570, 2]]);
+    expect(pick(rows('l0'), '밴드')).toEqual([[60, 570, 2]]);
   });
 
-  test('조립 — 앞 밴드는 앞선에서 50 눕고, 뒤 밴드는 뒤끝에 70 서 있다 (윗면 = 몸통 상단)', () => {
+  test('조립 — 앞 밴드는 앞선에서 50 눕고, 뒤 밴드는 뒤끝에 60 서 있다 (윗면 = 몸통 상단)', () => {
     const { modOf } = kitchen();
     const bands = modOf('s1').parts.filter((p) => p.part === '밴드');
     const box = (end) => bands.find((p) => p.tags && p.tags.end === end).box;
     expect(box('front')).toEqual({ min: [-485, 708 - 70 - T, D / 2 - 50], max: [485, 708 - 70, D / 2] });
-    expect(box('back')).toEqual({ min: [-485, 708 - 70, -D / 2], max: [485, 708, -D / 2 + T] });
+    expect(box('back')).toEqual({ min: [-485, 708 - 60, -D / 2], max: [485, 708, -D / 2 + T] });
   });
 });
 
@@ -135,7 +136,7 @@ describe('가스대 600', () => {
     ]);
     // 밑판 — 사쿠리 없음 = 외경 − 1 (542 − 1), 사쿠리 = 앞뒷판 + 20
     expect(pick(r, '서랍밑판')).toEqual([[541, 499, 1], [532, 499, 1], [548, 489, 1]]);
-    expect(r.filter((x) => x.part === '밴드').map((x) => [x.w, x.qty])).toEqual([[50, 1], [70, 1]]);
+    expect(r.filter((x) => x.part === '밴드').map((x) => [x.w, x.qty])).toEqual([[50, 1], [60, 1]]);
     expect(pick(r, '밴드(처짐방지)')).toEqual([]);
   });
 
@@ -210,7 +211,7 @@ describe('양념망장 200 · 300 (2026-10-27 사장님)', () => {
     expect(r('p1').filter((m) => m.part === '도어').map((m) => [m.w, m.h, m.qty, m.note])).toEqual([[196, 678, 1, R.SPICE.FRONT_NOTE]]);
     expect(r('p2').filter((m) => m.part === '도어').map((m) => [m.w, m.h])).toEqual([[296, 678]]);
     expect(pick(r('p1'), '선반')).toEqual([]);
-    expect(pick(r('p1'), '밴드')).toEqual([[70, 170, 2]]);
+    expect(pick(r('p1'), '밴드')).toEqual([[60, 170, 2]]);
     expect(pick(r('d0'), '선반').length).toBe(1);
   });
 

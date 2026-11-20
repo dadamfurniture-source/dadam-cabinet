@@ -223,16 +223,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -246,16 +246,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -361,16 +361,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -384,16 +384,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -499,16 +499,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -522,16 +522,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -844,16 +844,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -867,16 +867,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -982,16 +982,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -1005,16 +1005,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -1120,16 +1120,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -1143,16 +1143,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -1258,16 +1258,16 @@
       "kind": "solid",
       "a": "lower-0|brace#0",
       "b": "lower-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -1281,16 +1281,16 @@
       "kind": "solid",
       "a": "lower-1|brace#0",
       "b": "lower-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -1304,16 +1304,16 @@
       "kind": "solid",
       "a": "lower-2|brace#0",
       "b": "lower-2|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -1327,16 +1327,16 @@
       "kind": "solid",
       "a": "lower-3|brace#0",
       "b": "lower-3|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -1442,16 +1442,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -1465,16 +1465,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -1580,16 +1580,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -1603,16 +1603,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -1626,16 +1626,16 @@
       "kind": "solid",
       "a": "lower-0|brace#0",
       "b": "lower-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -1741,16 +1741,16 @@
       "kind": "solid",
       "a": "lower-2|brace#0",
       "b": "lower-2|shelf#1-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -1764,16 +1764,16 @@
       "kind": "solid",
       "a": "lower-3|brace#0",
       "b": "lower-3|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -2109,16 +2109,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#1-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -2132,16 +2132,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#1-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -2247,16 +2247,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -2270,16 +2270,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -2385,16 +2385,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -2408,16 +2408,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -2523,16 +2523,16 @@
       "kind": "solid",
       "a": "lower-0|brace#0",
       "b": "lower-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -2546,16 +2546,16 @@
       "kind": "solid",
       "a": "lower-1|brace#0",
       "b": "lower-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -2569,16 +2569,16 @@
       "kind": "solid",
       "a": "lower-2|brace#0",
       "b": "lower-2|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -2684,16 +2684,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -2707,16 +2707,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -2822,16 +2822,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -2845,16 +2845,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -2868,16 +2868,16 @@
       "kind": "solid",
       "a": "lower-0|brace#0",
       "b": "lower-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -2891,16 +2891,16 @@
       "kind": "solid",
       "a": "lower-2|brace#0",
       "b": "lower-2|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -2914,16 +2914,16 @@
       "kind": "solid",
       "a": "lower-3|brace#0",
       "b": "lower-3|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           496.5,
           260
         ],
         "max": [
-          35,
+          30,
           511.5,
           273
         ]
@@ -3029,16 +3029,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -3052,16 +3052,16 @@
       "kind": "solid",
       "a": "upper-0|brace#0",
       "b": "upper-0|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -3167,16 +3167,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -3190,16 +3190,16 @@
       "kind": "solid",
       "a": "upper-1|brace#0",
       "b": "upper-1|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
@@ -3305,16 +3305,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-0",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           235.5,
           130
         ],
         "max": [
-          35,
+          30,
           250.5,
           143
         ]
@@ -3328,16 +3328,16 @@
       "kind": "solid",
       "a": "upper-2|brace#0",
       "b": "upper-2|shelf#0-1",
-      "volume": 13650,
+      "volume": 11700,
       "depth": 13,
       "region": {
         "min": [
-          -35,
+          -30,
           470.5,
           130
         ],
         "max": [
-          35,
+          30,
           485.5,
           143
         ]
