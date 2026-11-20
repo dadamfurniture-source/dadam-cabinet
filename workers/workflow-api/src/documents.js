@@ -163,6 +163,9 @@ function withEarlyLine(instructions, reason) {
   return rest ? `${line}\n${rest}` : line;
 }
 
+/** 지시서 틀 판 — 2 = 원장 그림 중심 재단 · 도어재 발주 (templates/work-order-layout2.js) */
+export const SHEET_LAYOUT = 2;
+
 /**
  * 문서 종류마다 발행 때 고정하는 칸 — 현장 · 일정 · 그림 · 작업지시서 자료 · 라벨 차례 · 특별 지시 · 필수 확인 목록.
  *   발행(issueDocument)과 간편 플래너 미리보기(planner-preview.js — 저장 없이 같은 틀로 그린다)가 같이 쓴다.
@@ -211,6 +214,8 @@ export async function docPayloadOf(env, { docType, snapshot, designId, body = {}
   }
   // 라벨 번호 차례 — 재단 차례로 고정 (2026-11-05 사장님 A 「재단 차례」 — 원장 1 조각부터). 옛 문서는 이 칸이 없어 자재 행 차례 그대로
   if (docType === 'work_order') out.label_order = 'cut';
+  // 지시서 새 판 (2026-11-20 사장님 「작업지시서 미리보기 … 정리」 — templates/work-order-layout2.js). 이 판부터 낸 문서만 새 틀로 그린다
+  if (docType === 'work_order') out.sheet_layout = SHEET_LAYOUT;
   // 작업자 필수 확인 목록 — 발행 때의 판을 고정한다 (src/work/check-items.js). 종이 칸과 작업자 포털 체크가 이 목록을 쓴다.
   //   특별 지시(자동 + 사무실 글 body.notes, src/work/special-notes.js)도 이때 고정 — 재단 · 조립 · 설치 지시는 필수 확인 항목으로도 들어간다
   if (docType === 'work_order' || docType === 'installation_order') {
