@@ -4,6 +4,7 @@
  * SEGAN 매거진 책장 — segan/blog.js (끌기 · 기울기 · 책 ↔ 글 화면 바꾸기) · segan/magazine.css.
  * 화면 구조(책 · 표지 · 글 화면의 표지)는 segan-info-pages.test.js 가 본다.
  *
+ *   - 책장은 매거진 화면(blog.html)과 홈(index.html)에 같은 것이 놓인다
  *   - 셈: 주소 → 화면 이름 · 놓은 속도 · 맞춰 설 책 · 기우는 각 · 그 글의 책
  *   - 마우스 끌기: 6px 넘게 끌면 끌기(그 누름은 글로 가지 않는다) · 1:1 · 놓으면 책에 맞춰 선다 ·
  *     끝을 넘기면 고무줄. 손가락은 브라우저 스크롤에 맡긴다
@@ -137,7 +138,7 @@ afterEach(() => {
 });
 
 describe('셈 (SeganMagazine)', () => {
-  test('주소 → 화면 — 목록 list · 글 이름 · 매거진이 아니면 빈 글 (확장자 없는 주소 · 쿼리 · # 도)', () => {
+  test('주소 → 화면 — 매거진 화면 list · 홈 home · 글 이름 · 그 밖은 빈 글 (확장자 없는 주소 · 쿼리 · # 도)', () => {
     const { Mag } = load();
     expect(
       [
@@ -148,6 +149,9 @@ describe('셈 (SeganMagazine)', () => {
         'blog-kitchen-appliances.html',
         '/segan/blog-edge-finish.html#a',
         'https://dadamfurniture.com/segan/',
+        '/segan/index.html?g=1#result',
+        '/segan/index',
+        'https://dadamfurniture.com/',
         '/segan/collection.html',
         '/segan/blogger.html',
         '',
@@ -159,6 +163,9 @@ describe('셈 (SeganMagazine)', () => {
       'materials',
       'kitchen-appliances',
       'edge-finish',
+      'home',
+      'home',
+      'home',
       '',
       '',
       '',
@@ -206,6 +213,7 @@ describe('셈 (SeganMagazine)', () => {
     const book = Mag.bookFor(document, 'https://dadamfurniture.com/segan/blog-hardware');
     expect(book.getAttribute('href')).toBe('blog-hardware.html');
     expect(Mag.bookFor(document, '/segan/blog.html')).toBeNull();
+    expect(Mag.bookFor(document, 'https://dadamfurniture.com/segan/')).toBeNull();
     expect(Mag.bookFor(document, '/segan/make.html')).toBeNull();
     expect(Mag.bookFor(document, '/segan/blog-none.html')).toBeNull();
   });
@@ -396,6 +404,30 @@ describe('책장 — ‹ › · 기울기 · 들어오기', () => {
     );
   });
 
+  test('들어오기는 책장이 처음 화면에 보일 때 한 번 — 홈에서는 스크롤로 내려와야 책이 내려앉는다', () => {
+    let seen = null;
+    const observed = [];
+    const disconnect = jest.fn();
+    window.IntersectionObserver = function (cb) {
+      seen = cb;
+      return { observe: (el) => observed.push(el), disconnect };
+    };
+    try {
+      const { entered, ul } = load({ page: 'index.html' });
+      expect(observed).toEqual([ul]);
+      expect(entered).toEqual([]); // 아직 화면 아래
+      seen([{ isIntersecting: false }]);
+      expect(entered).toEqual([]);
+      seen([{ isIntersecting: true }]);
+      expect(entered.filter(([cls]) => cls === 'bk-stand')).toHaveLength(4);
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      seen([{ isIntersecting: true }]); // 다시 보여도 한 번뿐 (지켜보기를 끊었다)
+      expect(entered.filter(([cls]) => cls === 'bk-stand')).toHaveLength(4);
+    } finally {
+      delete window.IntersectionObserver;
+    }
+  });
+
   test('글에서 돌아온 때는 들어오기를 하지 않는다 — 표지가 날아와 앉는다', () => {
     const { entered } = load({ from: 'https://dadamfurniture.com/segan/blog-hardware' });
     expect(entered).toEqual([]);
@@ -416,14 +448,48 @@ describe('화면 바꾸기 — 책 ↔ 글', () => {
     expect(named()).toEqual(['kitchen-appliances']);
   });
 
+  test('홈의 책장도 같다 — 홈 → 글은 글 머리 표지, 글 → 홈은 떠난 글의 책', () => {
+    load({ page: 'blog-hardware.html', from: 'https://dadamfurniture.com/segan/' });
+    expect(transition('pagereveal', { types: ['sg-forward'] })).toEqual([]);
+    expect(named()).toEqual(['hardware']);
+    load({
+      page: 'index.html',
+      url: '/segan/',
+      from: 'https://dadamfurniture.com/segan/blog-hardware',
+    });
+    expect(transition('pagereveal', { types: ['sg-back'] })).toEqual([]);
+    expect(named()).toEqual(['hardware']);
+    // 홈에서 누른 책에도 이름이 붙는다
+    load({ page: 'index.html', url: '/segan/' });
+    click($$('a.bk-book')[1]);
+    expect(named()).toEqual(['edge-finish']);
+  });
+
+  test('책장 ↔ 책장(홈 ↔ 매거진 화면)은 책이 없다 — 평소대로 밀고, 앞서 붙인 이름은 뗀다', () => {
+    load({ from: 'https://dadamfurniture.com/segan/' });
+    expect(transition('pagereveal', { types: ['sg-forward'] })).toEqual(['sg-forward']);
+    expect(named()).toEqual([]);
+    // 책을 눌렀다가(이름이 붙음) 돌아와서 다른 탭으로 떠난다 → 이름을 뗀다
+    load({ page: 'index.html', url: '/segan/' });
+    click($('a.bk-book'));
+    expect(named()).toEqual(['materials']);
+    transition('pageswap', { to: 'https://dadamfurniture.com/segan/blog-materials' });
+    expect(named()).toEqual(['materials']); // 글로 가는 길 — 그대로
+    transition('pageswap', { to: 'https://dadamfurniture.com/segan/blog' });
+    expect(named()).toEqual([]);
+    click($('a.bk-book'));
+    transition('pageswap', { to: 'https://dadamfurniture.com/segan/make' });
+    expect(named()).toEqual([]);
+  });
+
   test('글 → 다른 글도 표지가 이어진다', () => {
     load({ page: 'blog-materials.html', from: '/segan/blog-hardware.html' });
     transition('pagereveal', { types: ['sg-forward'] });
     expect(named()).toEqual(['materials']);
   });
 
-  test('매거진 밖에서 온 화면은 평소대로 민다 — 이름을 붙이지 않는다', () => {
-    load({ page: 'blog-hardware.html', from: 'https://dadamfurniture.com/segan/' });
+  test('책이 없는 화면에서 온 때는 평소대로 민다 — 이름을 붙이지 않는다', () => {
+    load({ page: 'blog-hardware.html', from: 'https://dadamfurniture.com/segan/make' });
     expect(transition('pagereveal', { types: ['sg-forward'] })).toEqual(['sg-forward']);
     expect(named()).toEqual([]);
     load({ from: 'https://dadamfurniture.com/segan/collection' });
@@ -431,8 +497,10 @@ describe('화면 바꾸기 — 책 ↔ 글', () => {
     expect(named()).toEqual([]);
   });
 
-  test('글을 떠날 때 — 매거진 안으로 가면 글 머리 표지가 떠나고, 밖으로 가면 이름을 뗀다', () => {
-    load({ page: 'blog-hardware.html', from: 'https://dadamfurniture.com/segan/' });
+  test('글을 떠날 때 — 책이 있는 화면(매거진 화면 · 홈 · 다른 글)으로 가면 글 머리 표지가 떠나고, 그 밖으로 가면 이름을 뗀다', () => {
+    load({ page: 'blog-hardware.html', from: 'https://dadamfurniture.com/segan/make' });
+    transition('pageswap', { to: 'https://dadamfurniture.com/segan/' });
+    expect(named()).toEqual(['hardware']);
     transition('pageswap', { to: 'https://dadamfurniture.com/segan/blog' });
     expect(named()).toEqual(['hardware']);
     transition('pageswap', { to: 'https://dadamfurniture.com/segan/make' });

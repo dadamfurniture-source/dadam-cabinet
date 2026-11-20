@@ -1,24 +1,26 @@
 /* ============================================================
-   segan/blog.js — 매거진 책장 (blog.html) · 책 ↔ 글 화면 바꾸기 (blog.html · blog-*.html)
+   segan/blog.js — 매거진 책장 (blog.html · 홈 index.html 의 매거진 칸) · 책 ↔ 글 화면 바꾸기 (+ blog-*.html)
 
-   책장 (blog.html 의 .bk-shelf)
+   책장 (.bk-shelf — 매거진 화면과 홈 화면에 같은 것이 놓인다)
      폰       브라우저 옆 스크롤 그대로 (scroll-snap — segan/magazine.css). 스크립트는 기울기만 더한다
      마우스   끌면 1:1 로 따라오고, 놓으면 놓은 속도로 멈출 책을 셈해(SeganMotion.project) 그 책에 맞춰 선다.
               끝을 넘겨 끌면 고무줄(rubber 0.55), 놓으면 돌아온다. 6px 넘게 끌었으면 누름으로 치지 않는다.
               움직이는 중에 다시 잡으면 그 자리에서 이어 간다
      기울기   옆으로 움직이는 동안 책이 끄는 반대쪽으로 아주 조금 기운다 (최대 1.5° — .bk-shelf 의 --bk-lean)
-     들어오기 책이 왼쪽부터 차례로 선반에 내려앉고 칸 조명이 따라 켜진다 (60ms 간격). 글에서 돌아온 때는 하지 않는다
+     들어오기 책장이 처음 화면에 보일 때 책이 왼쪽부터 차례로 선반에 내려앉고 칸 조명이 따라 켜진다 (60ms 간격 —
+              홈에서는 스크롤로 내려와 보일 때). 글에서 돌아온 때는 하지 않는다
      ‹ ›      책이 화면보다 많을 때만 보인다 (마우스 · 키보드용)
 
    화면 바꾸기 (문서 사이 — magazine.css 「화면 바꾸기」 칸과 짝)
      책을 누르면 그 표지에만 view-transition-name: bk-cover 를 붙인다. 글 화면은 매거진에서 왔을 때
-     글 머리 표지에 같은 이름을 붙인다 → 표지가 커지며 글 머리로 이어진다. 글에서 목록으로 돌아오면
-     떠난 글의 책에 이름을 붙여 표지가 제자리로 돌아간다. 이때 segan/motion.js 가 붙인 밀기(sg-forward ·
-     sg-back)는 뺀다 (본문은 0.2초 흐려지기). 화면 바꾸기를 모르는 브라우저는 평소대로 민다.
+     (매거진 화면 · 홈 · 다른 글) 글 머리 표지에 같은 이름을 붙인다 → 표지가 커지며 글 머리로 이어진다.
+     글에서 책장(매거진 화면 · 홈)으로 돌아오면 떠난 글의 책에 이름을 붙여 표지가 제자리로 돌아간다.
+     이때 segan/motion.js 가 붙인 밀기(sg-forward · sg-back)는 뺀다 (본문은 0.2초 흐려지기).
+     책장에서 글이 아닌 화면으로 떠날 때는 이름을 뗀다. 화면 바꾸기를 모르는 브라우저는 평소대로 민다.
      동작 줄이기면 이름을 붙이지 않는다 (흐려지기만).
 
    SeganMagazine — 셈은 순수 함수로 내놓는다 (시험이 본다)
-     screenOf(url)                       'list' · 글 이름('materials' …) · '' (매거진 화면이 아님)
+     screenOf(url)                       'list'(매거진 화면) · 'home'(홈) · 글 이름('materials' …) · '' (그 밖)
      velocityOf(hist, now)               끌기 기록 [{t, x}] → 놓은 속도 px/s (마지막 0.1초 · 멈췄다 놓으면 0)
      snapIndex(landing, cell, count)     멈출 곳 → 맞춰 설 책 차례
      snapScroll(landing, cell, count, max) 그 책의 스크롤 자리 (끝을 넘지 않는다)
@@ -44,18 +46,26 @@
     return !!(M && typeof M.reduced === 'function' && M.reduced());
   }
 
-  /** 주소 → 매거진 화면 ('list' · 글 이름 · '') — /segan/blog · blog.html · blog-materials(.html) */
+  /**
+   * 주소 → 책이 있는 화면 ('list' · 'home' · 글 이름 · '')
+   * — /segan/blog · blog.html · blog-materials(.html) · 홈은 /segan/ · /segan/index(.html)
+   */
   function screenOf(url) {
-    var name;
+    var path;
     if (!url) return '';
     try {
-      name = new URL(String(url || ''), location.href).pathname.split('/').pop() || '';
+      path = new URL(String(url || ''), location.href).pathname;
     } catch {
       return '';
     }
-    var m = /^blog(?:-([a-z0-9-]+))?(?:\.html)?$/.exec(name);
+    if (/\/segan\/(?:index(?:\.html)?)?$/.test(path)) return 'home';
+    var m = /^blog(?:-([a-z0-9-]+))?(?:\.html)?$/.exec(path.split('/').pop() || '');
     if (!m) return '';
     return m[1] || 'list';
+  }
+  /** 책장이 놓인 화면인가 (매거진 화면 · 홈) */
+  function isShelf(screen) {
+    return screen === 'list' || screen === 'home';
   }
 
   /** 끌기 기록 → 놓은 속도 px/s. 마지막 0.1초만 본다 — 멈췄다 놓으면 0 */
@@ -85,7 +95,7 @@
 
   function bookFor(root, url) {
     var slug = screenOf(url);
-    if (!root || !slug || slug === 'list') return null;
+    if (!root || !slug || isShelf(slug)) return null;
     var books = root.querySelectorAll('a.bk-book');
     for (var i = 0; i < books.length; i++)
       if (screenOf(books[i].getAttribute('href')) === slug) return books[i];
@@ -114,25 +124,30 @@
     return '';
   }
 
-  // 새 화면의 첫 그림 직전 — 매거진 안에서 온 것이면 표지를 잇는다
+  // 새 화면의 첫 그림 직전 — 책이 있는 화면에서 온 것이면 표지를 잇는다
   function onReveal(e) {
     var vt = e && e.viewTransition;
     if (!vt) return;
     var from = screenOf(cameFrom());
     var here = screenOf(location.href);
     if (!from || !here || from === here) return;
-    // 목록 → 글 · 글 → 글: 글 머리 표지. 글 → 목록: 떠난 글의 책
-    var cover = here === 'list' ? coverOf(bookFor(document, cameFrom())) : headCover();
+    // 책장 → 글 · 글 → 글: 글 머리 표지. 글 → 책장: 떠난 글의 책 (책장 ↔ 책장은 책이 없어 그냥 넘어간다)
+    var cover = isShelf(here) ? coverOf(bookFor(document, cameFrom())) : headCover();
     if (!nameCover(cover)) return;
     if (vt.types) for (var i = 0; i < SLIDES.length; i++) vt.types.delete(SLIDES[i]);
   }
 
-  // 이 화면을 떠나기 직전 — 글에서 매거진 안으로 가면 글 머리 표지가 떠난다
+  // 이 화면을 떠나기 직전 — 글에서 책이 있는 화면으로 가면 글 머리 표지가 떠난다
   function onSwap(e) {
     if (!e || !e.viewTransition) return;
     var here = screenOf(location.href);
-    if (!here || here === 'list') return; // 목록은 누른 책에 이미 붙였다 (click)
+    if (!here) return;
     var to = e.activation && e.activation.entry ? screenOf(e.activation.entry.url) : '';
+    if (isShelf(here)) {
+      // 책장은 누른 책에 이미 붙였다 (click). 글이 아닌 화면으로 떠날 때는 앞서 붙인 이름을 뗀다
+      if (!to || isShelf(to)) nameCover(null);
+      return;
+    }
     if (to) nameCover(headCover());
     else nameCover(null);
   }
@@ -333,15 +348,35 @@
       );
     });
 
-    // 들어오기 — 글에서 돌아온 때는 표지가 날아와 앉으므로 하지 않는다
-    var fromArticle = !!bookFor(document, cameFrom());
-    if (M && typeof M.enter === 'function' && !fromArticle) {
+    // 들어오기 — 책장이 처음 화면에 보일 때 한 번 (홈에서는 스크롤로 내려와야 보인다).
+    // 글에서 돌아온 때는 표지가 날아와 앉으므로 하지 않는다
+    var settled = false;
+    function settleIn() {
+      if (settled) return;
+      settled = true;
       for (var i = 0; i < books.length; i++) {
         var stand = books[i].querySelector('.bk-stand');
         var glow = books[i].querySelector('.bk-glow');
         if (stand) M.enter(stand, { opacity: 0, transform: 'translateY(-14px)' }, i * STAGGER);
         if (glow) M.enter(glow, { opacity: 0.2 }, i * STAGGER + 90);
       }
+    }
+    var fromArticle = !!bookFor(document, cameFrom());
+    if (M && typeof M.enter === 'function' && !fromArticle) {
+      if (typeof window.IntersectionObserver === 'function') {
+        var io = new window.IntersectionObserver(
+          function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+              if (!entries[i].isIntersecting) continue;
+              io.disconnect();
+              settleIn();
+              return;
+            }
+          },
+          { rootMargin: '0px 0px -12% 0px' }
+        );
+        io.observe(ul);
+      } else settleIn();
     }
 
     navs();

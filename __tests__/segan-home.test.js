@@ -3,7 +3,8 @@
 /**
  * SEGAN 홈 (segan/index.html · segan/home.css) · 옛 만들기 주소 넘기기 (segan/forward.js)
  *
- *   홈       첫 사진 한 장 + 세 걸음 + 연출 사례 줄 + 매거진 줄 + 소개 · 구독 줄. 읽기만 하는 화면
+ *   홈       첫 사진 한 장 + 세 걸음 + 연출 사례 줄 + 매거진 책장 + 소개 · 구독 줄. 읽기만 하는 화면
+ *            매거진 책장은 매거진 화면(blog.html)과 같은 책 — 모습 magazine.css · 끌기 blog.js (segan-magazine.test.js)
  *   넘기기   만들기가 make.html 로 옮겨 갔다 — 옛 주소(?g · ?ref · ?refs · #kind · #refs · #result)는
  *            쿼리 · # 을 그대로 들고 make.html 로. 옛 로그인 돌아옴은 만들던 사진이 있을 때만
  */
@@ -101,7 +102,7 @@ describe('forward.js — 옛 만들기 주소는 make.html 로', () => {
 });
 
 describe('홈 화면 (segan/index.html)', () => {
-  test('홈 탭 · 넘기기 스크립트는 머리에서 바로(defer 없이) · 화면 스크립트는 없다', () => {
+  test('홈 탭 · 넘기기 스크립트는 머리에서 바로(defer 없이) · 화면 스크립트는 매거진 책장(blog.js)뿐', () => {
     expect(doc.body.getAttribute('data-tab')).toBe('home');
     expect(HTML).toMatch(/<script src="forward\.js\?v=\d+"><\/script>/);
     // 스타일보다 먼저 — 넘길 주소면 그리기 전에 떠난다
@@ -112,8 +113,17 @@ describe('홈 화면 (segan/index.html)', () => {
     const local = $$('script[src]')
       .map((s) => s.getAttribute('src').replace(/\?v=\d+$/, ''))
       .filter((s) => !/^https:/.test(s));
-    expect(local).toEqual(['forward.js', '../js/config.js', 'motion.js', 'shell.js', 'guide.js']);
+    expect(local).toEqual([
+      'forward.js',
+      '../js/config.js',
+      'motion.js',
+      'shell.js',
+      'guide.js',
+      'blog.js', // 매거진 책장 — 끌기 · 책 → 글 화면 바꾸기
+    ]);
+    expect(HTML).toMatch(/<script src="blog\.js\?v=\d+" defer blocking="render"><\/script>/);
     expect(HTML).toMatch(/<link rel="stylesheet" href="home\.css\?v=\d+" \/>/);
+    expect(HTML).toMatch(/<link rel="stylesheet" href="magazine\.css\?v=\d+" \/>/);
   });
 
   test('첫 사진 한 장 — 제목 하나 · 「방 사진 올리기」는 만들기로 · 남의 사진 크레딧 없음', () => {
@@ -171,17 +181,26 @@ describe('홈 화면 (segan/index.html)', () => {
     expect(new Set(first).size).toBe(6);
   });
 
-  test('매거진 네 글 · 소개 · 구독 줄 — 있는 화면으로 간다 (폰 아래 탭에서 뺀 두 화면은 여기서)', () => {
-    const posts = $$('.hm-posts a.hm-post').map((a) => a.getAttribute('href'));
+  test('매거진 책장 네 권 · 소개 · 구독 줄 — 있는 화면으로 간다 (폰 아래 탭에서 뺀 두 화면은 여기서)', () => {
+    const posts = $$('.bk-shelf a.bk-book').map((a) => a.getAttribute('href'));
     expect(posts).toEqual([
       'blog-materials.html',
       'blog-edge-finish.html',
       'blog-hardware.html',
       'blog-kitchen-appliances.html',
     ]);
-    const blog = read('segan/blog.html');
-    for (const a of $$('.hm-posts a.hm-post'))
-      expect(blog).toContain(`>${a.querySelector('b').textContent}</b>`);
+    // 매거진 화면(blog.html)의 책장과 같은 책 · 같은 차례 · 같은 표지 (책을 더하면 두 곳에 같이)
+    const blogDoc = new DOMParser().parseFromString(read('segan/blog.html'), 'text/html');
+    const shelfOf = (d) =>
+      [...d.querySelectorAll('ul.bk-shelf > li.bk-cell')].map((li) =>
+        li.innerHTML.replace(/\s+/g, ' ').trim()
+      );
+    expect(shelfOf(doc)).toEqual(shelfOf(blogDoc));
+    expect($$('.bk-case')).toHaveLength(1);
+    expect($$('.bk-case > button.bk-nav').map((b) => b.hidden)).toEqual([true, true]);
+    // 옛 글 줄 목록은 남지 않는다
+    expect($$('.hm-posts, .hm-post')).toHaveLength(0);
+    expect(CSS).not.toMatch(/\.hm-post/);
     expect($$('.sg-rows a.sg-row').map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
       ['AI 시스템 소개', 'about.html'],
       ['구독', 'plans.html'],
@@ -203,11 +222,12 @@ describe('홈 화면 (segan/index.html)', () => {
     const wide = CSS.split('@media (min-width: 1024px)')[1];
     expect(wide).toMatch(/\.hm-hero \{[^}]*margin-top: -88px;/); // shell.css 의 PC 위 메뉴 높이
     expect(read('segan/shell.css')).toMatch(/\.sg-header \{\s*min-height: 88px;/);
-    // 누름 — 단추는 0.97배, 목록 줄은 바탕만
+    // 누름 — 단추는 0.97배
     expect(CSS).toMatch(
       /\.hm-cta:active \{\s*transform: scale\(0\.97\);\s*transition-duration: 100ms;/
     );
-    expect(CSS).toMatch(/\.hm-post:active \{\s*background: var\(--v5-well\);/);
+    // 책장의 나무 · 조명 색은 home.css 로 넘어오지 않는다 (magazine.css 에만)
+    expect(CSS).not.toMatch(/--bk-/);
   });
 
   test('서비스 워커가 홈 · 만들기 화면과 새 파일을 미리 담는다', () => {

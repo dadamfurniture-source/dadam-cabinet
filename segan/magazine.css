@@ -1,5 +1,5 @@
 /* ============================================================
-   segan/magazine.css — 매거진 책장 (blog.html) · 글 머리의 표지 (blog-*.html)
+   segan/magazine.css — 매거진 책장 (blog.html · 홈 index.html 의 매거진 칸) · 글 머리의 표지 (blog-*.html)
 
    ※ 매거진만의 예외 (2026-11-20 대표님): 나무 책장 · 칸 조명 · 책 그늘 · 꾸밈 움직임.
      앱의 다른 화면은 v5 그대로(각진 모서리 · 그림자 없음 · 가는 선) — 이 파일 밖으로 가져가지 않는다.
@@ -439,6 +439,19 @@
 
   .bk-title {
     font-size: 16px;
+  }
+}
+
+/* ── 홈 화면(index.html)의 매거진 칸 — 같은 책장. 폰 · 태블릿은 그대로(본문 여백만큼 당겨 화면 끝까지) ──
+   PC 는 홈 본문 폭(1216 − 좌우 48)에 다섯 칸 — 책 넷 + 불 켜진 빈 칸 하나 */
+.hm-head + .bk-case {
+  margin-top: 4px;
+}
+
+@media (min-width: 1024px) {
+  .hm .bk-case {
+    --bk-cell: calc((min(100vw - 16px, 1216px) - 96px) / 5);
+    --bk-h: calc(var(--bk-cell) * 1.25);
   }
 }
 
