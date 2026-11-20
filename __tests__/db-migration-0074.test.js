@@ -133,3 +133,15 @@ describe('0074 — 밴드 재고', () => {
     expect(probe.setup.join('\n')).toMatch(/stock_band_make\([\s\S]*stock_band_cancel\(/);
   });
 });
+
+describe('0074 — 서버가 넣는 알림 종류', () => {
+  test('코드 목록 = 0074 목록 (차례만 다름) · 맨 끝이 밴드 만들기 요청 · 대표 · 실장에게만', () => {
+    const after = kindsIn(/notification_outbox_kind_check CHECK \(([^;]+)\);/.exec(f)[1]);
+    const messages = read('workers', 'workflow-api', 'src', 'push', 'messages.js');
+    const list = /export const NOTIFICATION_KINDS = Object\.freeze\(\[([^\]]+)\]\)/.exec(messages)[1];
+    const inCode = [...list.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
+    expect([...inCode].sort()).toEqual([...after].sort());
+    expect(inCode[inCode.length - 1]).toBe('stock_band_low');
+    expect(read('workers', 'workflow-api', 'src', 'push', 'sender.js')).toMatch(/MONEY_KINDS = Object\.freeze\(\[[^\]]*'stock_band_low'/);
+  });
+});

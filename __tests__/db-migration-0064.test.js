@@ -123,7 +123,7 @@ describe('0064 — 작업자 ↔ 팩토리 연결', () => {
       ].map((x) => x[1]);
     const after = kindsIn(f.match(/notification_outbox_kind_check CHECK \(([^;]+)\);/)[1]);
     // 뒤 번호 0067 이 점검 알림 하나를 더한다 (db-migration-0067 시험이 본다)
-    const upTo0064 = listOf('NOTIFICATION_KINDS').filter((k) => k !== 'system_check_failed');
+    const upTo0064 = listOf('NOTIFICATION_KINDS').filter((k) => k !== 'system_check_failed' && k !== 'stock_band_low');   // 0074 밴드 만들기 요청
     expect(upTo0064.slice(-3)).toEqual(after.slice(-3));
     expect([...upTo0064].sort()).toEqual([...after].sort());
     expect(listOf('WORK_MANAGER_KINDS')).toEqual([

@@ -45,6 +45,7 @@ import {
 } from './supabase.js';
 import { companyOf } from './distribution/company.js';
 import { membersOf } from './company-assignee.js';
+import { bandReorderCheck } from './stock-bands.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -421,6 +422,8 @@ export async function addStockMove(env, { user, params, body }) {
     throw err;
   }
   const saved = await runMove(env, company.id, item.id, move, user.id);
+  // 밴드를 뺐으면(출고 · 실사 조정) 남은 수를 보고 「밴드 만들기」 요청 — 던지지 않는다 (2026-11-20, stock-bands.js)
+  if (item.kind === 'band' && move.kind !== 'in') await bandReorderCheck(env, company.id, [item.id], user.id);
   const after = await itemOf(env, company.id, item.id);
   return {
     move: moveOut(saved),
