@@ -31,7 +31,7 @@
 ## 낱말
 
 - 범위: `sheet` 원장마다 (재단 배치의 원장 번호) · `module` 모듈마다 (품목 · 모듈 차례) · `order` 주문에 한 번.
-- 조건: `door` 도어 있는 모듈만 · `drawer` 서랍 있는 모듈만 (종이의 「—」 칸) · `confirm` 지시서 BOM 에 [확인 필요]가 있을 때만 · `outlet` 콘센트를 넣은 하부장이 있을 때만 (부자재 「전기」).
+- 조건: `door` 도어 있는 모듈만 · `drawer` 서랍 있는 모듈만 (종이의 「—」 칸) · `confirm` 지시서 BOM 에 [확인 필요]가 있을 때만 · `outlet` 콘센트를 넣은 하부장이 있을 때만 (부자재 「전기」) · `band` 재단 배치에 밴드 재고 본이 있을 때만 (소부품 「빼기」 팩토리 — 「더하기」 문서에는 없다).
 - 때: `start` 주문 시작 전 · `end` 주문 끝 (주문 범위 항목을 종이에 나눠 적는다).
 - 서명: `sign` — 종이에서는 서명 칸.
 - 필수: 예 = 필수 · 아니오 = 권장. 사진: `none` 없음 · `opt` 선택 · `need` 필수.
@@ -47,6 +47,7 @@
 | v1 | must | 2026-11-04 12:14 사장님 확정 — [추천안](https://claude.ai/artifact/7iRm4orYo2dQS496We24oW) 항목 전부 넣음 (필수 · 사진은 추천 그대로), 정할 것: 필수가 남으면 완료 기록을 막는다 · 엣지 항목은 재단 기사 목록에 (엣지 역할 칸 없음) · 사진은 「사진 필수」 항목만 받는다 |
 | v2 | must | 2026-11-06 사장님 확정 — 작업지시서 마무리 「여러 날 걸리는 주문」: 주문 끝 「완료」를 따로 둠 (v1 + 주문 끝 항목 둘, 공장 하루 기록은 막지 않음) |
 | v3 | must | 2026-11-17 사장님 확정 — 「각 작업자에게 보낼 작업지시서 … 철거 · 납품 지시서를 새로 · 따로 발행」: v2 + 역할 둘 (철거 「철거 뒤 사진 확인」 · 납품 「납품 확인 — 수량 + 내린 뒤 사진」). 재단 · 조립 · 설치 항목은 v2 그대로 |
+| v4 | must | 2026-11-20 사장님 「지금 로직에 맞게 변경」 — 소부품 더하기(원장에 놓기) · 빼기(밴드 재고): v3 에서 재단 「소부품(한 변 70 이하)을 잔재에서 뽑았다」를 빼고 그 자리에 「밴드를 재고에서 꺼냈다」(조건 `band` — 빼기 팩토리 문서에만). 나머지는 v3 그대로 |
 
 ## 항목
 
@@ -163,6 +164,42 @@
 | v3 | demolition | demo-order-photo | 철거 후 사진 | 철거 후 사진 | order |  |  |  | 예 | need |
 | v3 | delivery | dlv-order-count | 납품 수량 확인 | 납품 수량 확인 | order |  |  |  | 예 | none |
 | v3 | delivery | dlv-order-photo | 하차 후 사진 | 하차 후 사진 | order |  |  |  | 예 | need |
+| v4 | cut | cut-order-material | 원장 자재 · 두께 · 색이 지시서와 같다 | 원장 자재 · 두께 · 색이 지시서와 같다 | order |  | start |  | 예 | opt |
+| v4 | cut | edge-order-thickness | 엣지 두께 — 도어 · 서랍 전면 1.0, 나머지 0.6 | 엣지 두께 — 도어 · 서랍 전면 1.0, 나머지 0.6 | order |  | start |  | 예 | none |
+| v4 | cut | edge-order-color | 엣지 색이 판 색과 같다 | 엣지 색이 판 색과 같다 | order |  | start |  | 예 | opt |
+| v4 | cut | cut-sheet-cut | 재단 | 재단 | sheet |  |  |  | 예 | none |
+| v4 | cut | cut-sheet-edgemark | 엣지 표시 (붙일 면) | 엣지 표시 | sheet |  |  |  | 예 | none |
+| v4 | cut | cut-sheet-label | 조각마다 부재 라벨을 붙였다 | 라벨 | sheet |  |  |  | 예 | none |
+| v4 | cut | cut-sheet-grain | ↻ 표시 없는 결 판 조각은 돌리지 않았다 | 결 | sheet |  |  |  | 아니오 | none |
+| v4 | cut | edge-sheet-mark | 엣지 표시대로 붙였다 | 엣지 붙임 | sheet |  |  |  | 예 | none |
+| v4 | cut | cut-order-band | 밴드를 재고에서 꺼냈다 | 밴드를 재고에서 꺼냈다 | order | band | end |  | 예 | none |
+| v4 | cut | edge-order-finish | 끝 마감 · 들뜸 없음 | 끝 마감 · 들뜸 없음 | order |  | end |  | 예 | opt |
+| v4 | cut | cut-order-offcut | 쓸 만한 잔재에 크기를 적어 보관 | 쓸 만한 잔재에 크기를 적어 보관 | order |  | end |  | 아니오 | none |
+| v4 | cut | cut-order-done | 이 주문 재단 · 엣지 끝 | 재단 끝 | order |  | end |  | 아니오 | none |
+| v4 | assembly | asm-module-kit | 키팅 — 모듈 부재 · 부자재가 다 있다 | 키팅 | module |  |  |  | 예 | none |
+| v4 | assembly | asm-module-cut | 재단 | 재단 | module |  |  |  | 예 | none |
+| v4 | assembly | asm-module-edge | 엣지 | 엣지 | module |  |  |  | 예 | none |
+| v4 | assembly | asm-module-build | 조립 | 조립 | module |  |  |  | 예 | none |
+| v4 | assembly | asm-module-hinge | 경첩 자리 = 지시서 보링 자리 (받은 도어 확인) | 경첩 자리 | module | door |  |  | 예 | none |
+| v4 | assembly | asm-module-door | 도어 달기 | 도어 달기 | module | door |  |  | 예 | none |
+| v4 | assembly | asm-module-drawer | 서랍 | 서랍 | module | drawer |  |  | 예 | none |
+| v4 | assembly | asm-module-gap | 도어 · 서랍 간격 · 높이 맞춤 | 간격 · 높이 | module |  |  |  | 예 | none |
+| v4 | assembly | asm-module-pack | 검수·포장 | 검수·포장 | module |  |  |  | 예 | none |
+| v4 | assembly | asm-module-photo | 포장 전 정면 사진 | 사진 | module |  |  |  | 아니오 | need |
+| v4 | assembly | asm-order-confirm | [확인 필요] 줄은 담당자에게 물어 답을 받았다 | [확인 필요] 줄은 담당자에게 물어 답을 받았다 | order | confirm |  |  | 예 | none |
+| v4 | assembly | asm-order-done | 이 주문 조립 끝 | 조립 끝 | order |  | end |  | 아니오 | none |
+| v4 | install | inst-order-arrive | 반입 전 모듈 수 · 파손 확인 | 반입 전 모듈 수 · 파손 확인 | order |  |  |  | 예 | opt |
+| v4 | install | inst-order-level | 수평 · 벽 고정 | 수평 · 벽 고정 | order |  |  |  | 예 | none |
+| v4 | install | inst-order-adjust | 도어 · 서랍 조정 | 도어 · 서랍 조정 | order |  |  |  | 예 | none |
+| v4 | install | inst-order-trim | 상판 · 걸레받이 · 몰딩 · 마감재 마감 | 상판 · 걸레받이 · 몰딩 · 마감재 마감 | order |  |  |  | 예 | none |
+| v4 | install | inst-order-outlet | 콘센트 타공 자리 | 콘센트 타공 자리 | order | outlet |  |  | 아니오 | none |
+| v4 | install | inst-order-photo | 완료 사진 (정면) | 완료 사진 (정면) | order |  |  |  | 예 | need |
+| v4 | install | inst-order-sign | 설치 담당 | 설치 담당 | order |  |  | sign | 예 | none |
+| v4 | install | inst-order-inspect | 검수 | 검수 | order |  |  | sign | 예 | none |
+| v4 | install | inst-order-customer | 고객 확인 | 고객 확인 | order |  |  | sign | 예 | none |
+| v4 | demolition | demo-order-photo | 철거 후 사진 | 철거 후 사진 | order |  |  |  | 예 | need |
+| v4 | delivery | dlv-order-count | 납품 수량 확인 | 납품 수량 확인 | order |  |  |  | 예 | none |
+| v4 | delivery | dlv-order-photo | 하차 후 사진 | 하차 후 사진 | order |  |  |  | 예 | need |
 
 철거(demolition) · 납품(delivery) 역할은 v3 부터다 (DB 0068 이 `work_checks.role` 에 둘을 더했다) — 철거 지시서 · 납품 지시서(`templates/site-order.js`)의 확인 칸과 작업자 체크가 이 항목을 쓴다. 앞 판(v0 ~ v2)에는 두 역할의 항목이 없다.
 

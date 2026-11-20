@@ -31,7 +31,7 @@ import { assertOwnHqOrder } from '../production/worker-access.js';
 import { workerOrderLabel, orderLabel } from '../production/redact.js';
 import { COUNTED_STATUSES, siteOpenFor } from './reveal.js';
 import { assertUuid } from './validate.js';
-import { itemsFor, itemApplies, CHECK_ROLES } from './check-items.js';
+import { itemsFor, itemApplies, cutPlanOfDoc, CHECK_ROLES } from './check-items.js';
 import { PACKS_OF_ROLE, DOC_TYPE_OF_ROLE, ROLE_OF_JOB_KIND, docContext, docContextOfDesign, cellsOf, roleChecks, checkRows } from './check-state.js';
 import { sheetTargetOf } from './job-links.js';
 import { resolvePrintAssets } from '../documents.js';
@@ -169,7 +169,7 @@ async function addCheck(env, ctx, user, body) {
   if (!item) throw new ValidationError('목록에 없는 항목입니다', { field: 'item_key' });
   const scopeKey = typeof b.scope_key === 'string' ? b.scope_key : '';
   const cell = cellsOf(ctx.doc, ctx.snapshot, item.scope).find((c) => c.scope_key === scopeKey);
-  if (!cell || !itemApplies(item, cell.module, ctx.snapshot)) throw new ValidationError('이 항목을 체크할 칸이 아닙니다', { field: 'scope_key' });
+  if (!cell || !itemApplies(item, cell.module, ctx.snapshot, cutPlanOfDoc(ctx.doc, ctx.snapshot))) throw new ValidationError('이 항목을 체크할 칸이 아닙니다', { field: 'scope_key' });
   if (typeof b.checked !== 'boolean') throw new ValidationError('checked 는 참 · 거짓이어야 합니다', { field: 'checked' });
   if (b.memo != null && (typeof b.memo !== 'string' || b.memo.length > MEMO_MAX)) throw new ValidationError(`메모는 ${MEMO_MAX}자까지입니다`, { field: 'memo' });
   const photoPath = b.photo_path == null || b.photo_path === '' ? null : String(b.photo_path);

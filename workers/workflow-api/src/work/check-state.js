@@ -9,7 +9,7 @@
  *     지시서가 없거나 · 목록이 막지 않는 판(v0)이거나 · 그 역할 항목이 없거나 · DB 0035 적용 전이면 막지 않는다.
  */
 import { selectOne, selectMany, ConflictError, NotFoundError } from '../supabase.js';
-import { checkListOfDoc, itemsFor, itemApplies, CHECK_ROLE_LABEL } from './check-items.js';
+import { checkListOfDoc, itemsFor, itemApplies, cutPlanOfDoc, CHECK_ROLE_LABEL } from './check-items.js';
 import { itemLabel } from '../templates/work-order.js';
 import { isMissingRelation } from '../work-order-data.js';
 
@@ -55,8 +55,7 @@ export async function docContextOfDesign(env, designId, docType, lead = '') {
 export function cellsOf(doc, snapshot, scope) {
   if (scope === 'order') return [{ scope_key: '', scope, label: '주문', module: null }];
   if (scope === 'sheet') {
-    const rp = (doc && doc.render_payload) || {};
-    const plan = rp.cut_plan !== undefined ? rp.cut_plan : snapshot && snapshot.cut_plan_payload;
+    const plan = cutPlanOfDoc(doc, snapshot);
     const sheets = plan && Array.isArray(plan.sheets) ? plan.sheets : [];
     return sheets.map((s) => ({ scope_key: `sheet:${s.no}`, scope, label: `원장 ${s.no} · ${s.material || ''} ${s.thickness || ''}T`.trim(), module: null }));
   }
@@ -78,10 +77,11 @@ export function roleChecks(ctx, role, rows) {
   });
   const items = itemsFor(ctx.list, role);
   const scopes = [...new Set(items.map((x) => x.scope))];
+  const plan = cutPlanOfDoc(ctx.doc, ctx.snapshot);
   const cells = scopes.flatMap((scope) => cellsOf(ctx.doc, ctx.snapshot, scope).map((c) => ({
     scope_key: c.scope_key,
     label: c.label,
-    items: items.filter((x) => x.scope === scope && itemApplies(x, c.module, ctx.snapshot)).map((x) => {
+    items: items.filter((x) => x.scope === scope && itemApplies(x, c.module, ctx.snapshot, plan)).map((x) => {
       const r = latest.get(`${role}|${c.scope_key}|${x.key}`);
       return { key: x.key, label: x.label, must: x.must, photo: x.photo, finish: !!x.finish, checked: !!(r && r.checked), at: r ? r.created_at : null, memo: r ? r.memo || null : null, photo_path: r && r.checked ? r.photo_path || null : null };
     }),

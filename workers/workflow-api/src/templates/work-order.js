@@ -1112,7 +1112,7 @@ function edgeTotalsTable(rows) {
  */
 function orderChecksBlock(ctx, role) {
   // 특별 지시 항목(note)은 빨간 상자에 있다 — 여기서는 빼고
-  const list = itemsFor(ctx.checkList, role, 'order').filter((x) => !x.note && x.paper !== 'sign' && itemApplies(x, null, ctx.snapshot));
+  const list = itemsFor(ctx.checkList, role, 'order').filter((x) => !x.note && x.paper !== 'sign' && itemApplies(x, null, ctx.snapshot, ctx.cutPlan));
   if (!list.length) return '';
   const line = (xs) => xs.map((x) => `${esc(x.label)}${x.must ? '' : ' <span class="muted">(권장)</span>'}${x.photo === 'need' ? ' <span class="muted">· 사진</span>' : ''} ☐`).join(' &nbsp; ');
   const start = list.filter((x) => x.at === 'start');

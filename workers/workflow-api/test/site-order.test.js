@@ -250,7 +250,7 @@ async function withFetch(route, fn) {
   }
 }
 
-test('발행 — 철거 · 납품 지시서는 현장 정보 · 일정 · 확인 목록(v3)을 문서에 고정한다', async () => {
+test('발행 — 철거 · 납품 지시서는 현장 정보 · 일정 · 확인 목록(새 문서 판)을 문서에 고정한다', async () => {
   for (const [docType, code] of [['demolition_order', 'DM'], ['delivery_order', 'DV']]) {
     await withFetch(issueRoute(), async (calls) => {
       const r = await issueDocument(ENV, { user: { id: HQ_OWNER, email: 'owner@example.test' }, body: { doc_type: docType, snapshot_id: 's1' } });
@@ -259,7 +259,7 @@ test('발행 — 철거 · 납품 지시서는 현장 정보 · 일정 · 확인
       assert.match(row.doc_no, new RegExp(`^DD-\\d{8}-[0-9A-Z]{1,4}-${code}-r1$`));
       assert.equal(row.render_payload.site_info.address, SITE.address);
       assert.equal(row.render_payload.schedules.length, 2);
-      assert.deepEqual(row.render_payload.check_list, frozenCheckList('v3'));
+      assert.deepEqual(row.render_payload.check_list, frozenCheckList());
       // 설치 지시서 · 작업지시서에만 있는 것은 싣지 않는다
       ['renders', 'iso_renders', 'special_notes', 'cut_plan', 'label_order'].forEach((k) => assert.equal(k in row.render_payload, false, k));
       assert.equal(row.share_token_hash, undefined, '공유 링크가 없다');
