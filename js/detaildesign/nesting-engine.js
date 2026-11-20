@@ -46,6 +46,12 @@
   const DEFAULT_TRIM = 10;
   /** 이하(≤)면 소부품 — 원판에 배치하지 않고 잔재에서 뽑는다 (보강목·덧대·밴드). */
   const SMALL_LIMIT = 70;
+  /**
+   * 원장 · 띠 끝에서 더 놓아 볼지 가르는 문턱 — 남은 자리가 이보다 커야 더 놓는다. 기본은 SMALL_LIMIT (소부품은 원장에 놓지 않으니 70 이하 자리는 쓸 일이 없다).
+   *   소부품 모드(opts.small)에서는 70 이하 부재도 원장에 놓으므로 0 — 놓을 수 있는지는 각 자리에서 치수로 본다.
+   *   planWith 가 부를 때만 바꾸고 끝에 되돌린다 (엔진은 동기라 섞이지 않는다).
+   */
+  let EDGE_LIMIT = SMALL_LIMIT;
   /** 겹침 재단 최대 장수 */
   const MAX_STACK = 5;
   /** 60~70mm 는 "자투리"(밴드·보강재), 70 초과는 "잔재"(재활용·소부품 추출) */
@@ -140,7 +146,7 @@
     let availH = PH;
     const sorted = [...needs].sort((a, b) => b.h - a.h || b.w - a.w);
 
-    while (availH > SMALL_LIMIT) {
+    while (availH > EDGE_LIMIT) {
       let stripH = 0;
       for (const n of sorted) {
         const avail = n.remain - (pieceCounts.get(n.idx) || 0);
@@ -168,7 +174,7 @@
       }
 
       // 2차: 남는 자리에 더 낮은 부재
-      if (PW - strip.usedW > SMALL_LIMIT) {
+      if (PW - strip.usedW > EDGE_LIMIT) {
         for (const n of sorted) {
           const placed = pieceCounts.get(n.idx) || 0;
           const avail = n.remain - placed;
@@ -208,7 +214,7 @@
     let availW = PW;
     const sorted = [...needs].sort((a, b) => b.w - a.w || b.h - a.h);
 
-    while (availW > SMALL_LIMIT) {
+    while (availW > EDGE_LIMIT) {
       let stripW = 0;
       for (const n of sorted) {
         const avail = n.remain - (pieceCounts.get(n.idx) || 0);
@@ -232,7 +238,7 @@
         usedArea += n.w * n.h * fitCount;
       }
 
-      if (PH - strip.usedH > SMALL_LIMIT) {
+      if (PH - strip.usedH > EDGE_LIMIT) {
         for (const n of sorted) {
           const placed = pieceCounts.get(n.idx) || 0;
           const avail = n.remain - placed;
@@ -485,7 +491,7 @@
       taken.set(o.n, (taken.get(o.n) || 0) + fit);
     };
     options.forEach((o) => { if (o.a === S) put(o, false); });
-    if (remainder && CL - used > SMALL_LIMIT) options.forEach((o) => { if (o.a < S) put(o, true); });
+    if (remainder && CL - used > EDGE_LIMIT) options.forEach((o) => { if (o.a < S) put(o, true); });
     return { S, pieces, used, area, taken };
   }
 
@@ -588,7 +594,7 @@
   function designSheet(options, dir, CA, CL, kerf, v) {
     const strips = [];
     let availA = CA;
-    while (availA > SMALL_LIMIT) {
+    while (availA > EDGE_LIMIT) {
       const st = pickStrip(options, availA, CL, kerf, v);
       if (!st) break;
       st.taken.forEach((c, n) => { n.avail -= c; });
@@ -610,7 +616,7 @@
     let nodes = 0;
     const rec = (start, availA, area) => {
       let extended = false;
-      if (availA > SMALL_LIMIT) {
+      if (availA > EDGE_LIMIT) {
         for (let i = start; i < sizes.length; i++) {
           const S = sizes[i];
           if (S > availA) continue;
@@ -881,10 +887,52 @@
    *   strategy    'standard' | 'material' | 'cuts'  재단 방식 (STRATEGIES). 없으면 지금 방식 그대로 — 결과가 바뀌지 않는다
    *   colorOf     fn(row) → 색 이름  색이 다른 판을 한 원판에 섞지 않는다 (묶음 키에 색). 없으면 색을 보지 않는다
    *   searchBudget number          묶음마다 만들어 볼 후보 수 (strategy 가 있을 때만 — 기본은 묶음 크기에 따라 14 ~ 전부)
+   *   small       'place' | 'stock' 소부품(한 변 ≤ 70)을 어떻게 (SMALL_MODES). 없으면 지금처럼 원장에 놓지 않고 smallParts 로 — 결과가 바뀌지 않는다
+   *               place = 소부품도 원장에 놓는다 (재단에 포함)
+   *               stock = bandStock 에 맞는 부재는 재고 밴드에서 (bandStock 블록 — 1차원 채우기), 나머지 소부품은 place 와 같이 원장에
+   *   bandStock   {width, length, material, thickness}  stock 일 때 재고 밴드 (예 60 × 2440 · PB 15T). 맞는 부재 = 재질 · 두께가 같고
+   *               부재 구분 본체 · 짧은 변 = width · 긴 변 ≤ length (더 긴 부재는 원장에)
    * @returns cutPlan — bom-protocol.md §7-3. 석재 상판(isOutsourcedTop)은 배치하지 않고 skipped 로 돌려준다
    */
   function plan(materials, opts) {
     return planWith(materials, opts, null);
+  }
+
+  /** 소부품 모드 (2026-11-19 사장님 「소부품 더하기, 빼기로 구분해서 더하기는 2.밴드도 원장에 놓기 : 재단에 포함 시키고, 빼기는 밴드 재고 운영」) */
+  const SMALL_MODES = Object.freeze([
+    Object.freeze({ id: 'place', label: '더하기' }),
+    Object.freeze({ id: 'stock', label: '빼기' }),
+  ]);
+
+  /** opts.bandStock → { width, length, material, thickness } — 모양이 틀리면 던진다 */
+  function bandStockSpecOf(raw) {
+    const b = raw && typeof raw === 'object' ? raw : {};
+    const width = num(b.width), length = num(b.length), thickness = num(b.thickness);
+    const material = typeof b.material === 'string' ? b.material.trim() : '';
+    if (!(width > 0) || !(length > width) || !(thickness > 0) || !material) {
+      throw new RangeError('bandStock 은 {width, length, material, thickness} — 폭 · 길이 · 두께는 양수, 길이는 폭보다 커야 한다');
+    }
+    return { width, length, material, thickness };
+  }
+
+  /**
+   * 재고 밴드 한 묶음을 본에 채운다 — 긴 것부터, 들어가는 첫 본에 (1차원 first-fit decreasing). 본 안 조각 사이에 톱날 하나, 끝 다듬기 없음.
+   *   pieces [{partId(낱개 id), part, len}] → [{ no, used, pieces }]. 차례는 결정적이다 (길이 ↓ · partId)
+   */
+  function packBandStrips(pieces, length, kerf) {
+    const list = pieces.slice().sort((a, b) => b.len - a.len || compareStr(a.partId, b.partId));
+    const strips = [];
+    list.forEach((p) => {
+      let st = strips.find((x) => x.used + kerf + p.len <= length);
+      if (!st) {
+        st = { no: strips.length + 1, used: -kerf, pieces: [] };
+        strips.push(st);
+      }
+      st.used += kerf + p.len;
+      st.pieces.push(p);
+    });
+    strips.forEach((st) => { st.used = round4(Math.max(0, st.used)); });
+    return strips;
   }
 
   /** plan 본체 — cache 는 compare 가 세 방식에 같이 쓰는 후보 모음 (묶음 키 → 후보) */
@@ -900,6 +948,18 @@
     if (strategy && !STRATEGIES.some((s) => s.id === strategy)) throw new RangeError(`알 수 없는 재단 방식: ${strategy}`);
     const colorOf = typeof opts.colorOf === 'function' ? opts.colorOf : null;
     const colorText = (m) => { const c = colorOf(m); return c == null ? '' : String(c).trim(); };
+    const smallMode = opts.small == null || opts.small === '' ? null : String(opts.small);
+    if (smallMode && !SMALL_MODES.some((x) => x.id === smallMode)) throw new RangeError(`알 수 없는 소부품 모드: ${smallMode}`);
+    const band = smallMode === 'stock' ? bandStockSpecOf(opts.bandStock) : null;
+    const prevEdge = EDGE_LIMIT;
+    EDGE_LIMIT = smallMode ? 0 : SMALL_LIMIT;
+    try {
+      return planBody();
+    } finally {
+      EDGE_LIMIT = prevEdge;
+    }
+
+    function planBody() {
 
     // 1. 행 정규화 + 정렬 (결정성의 뿌리: 입력 순서에 의존하지 않는다)
     const rows = [];
@@ -934,10 +994,18 @@
       (colorOf ? compareStr(a.color, b.color) : 0) ||
       b.h - a.h || b.w - a.w || compareStr(a.partId, b.partId));
 
-    // 2. 소부품 분리 (≤70) — 원판 배치 대상이 아니다
+    // 2. 소부품 분리 (≤70) — 원판 배치 대상이 아니다 (소부품 모드가 없을 때).
+    //    small: place 면 모두 원판에, stock 이면 재고 밴드에 맞는 행은 bandRows 로 · 나머지는 원판에
     const smallParts = [];
     const bigRows = [];
+    const bandRows = [];
+    const isBandRow = (r) => Boolean(band) && r.material === band.material && r.thickness === band.thickness && r.partClass === '본체' &&
+      Math.min(r.w, r.h) === band.width && Math.max(r.w, r.h) <= band.length;
     rows.forEach((r) => {
+      if (smallMode) {
+        if (isBandRow(r)) bandRows.push(r); else bigRows.push(r);
+        return;
+      }
       if (r.w <= SMALL_LIMIT || r.h <= SMALL_LIMIT) {
         const small = { partId: r.partId, part: r.part, material: r.material, thickness: r.thickness, partClass: r.partClass, w: r.w, h: r.h, qty: r.qty, itemLabel: r.itemLabel };
         if (colorOf) small.color = r.color;
@@ -1173,6 +1241,48 @@
     };
     // 재단 방식 · 색 — 옵션을 줬을 때만 붙는다 (없으면 위 모양 그대로). summary.sheetsByMaterial 키(`자재_두께`)는 색이 있어도 그대로다 — 재고 · 견적이 그 키로 읽는다
     if (colorOf) out.summary.sheetsByColor = [...colorSheets.values()];
+    if (smallMode) {
+      out.smallMode = smallMode;
+      out.summary.smallMode = smallMode;
+    }
+    if (band) {
+      // 재고 밴드 — 색(colorOf)마다 묶어 본에 채운다. 조각 id 는 원판 조각과 같은 partId#k (라벨 · 지시서가 같은 번호로 읽는다)
+      const byColor = new Map();
+      bandRows.forEach((r) => {
+        const key = colorOf ? r.color : '';
+        if (!byColor.has(key)) byColor.set(key, []);
+        byColor.get(key).push(r);
+      });
+      const bandGroups = [];
+      let stripSum = 0;
+      let pieceSum = 0;
+      byColor.forEach((list, color) => {
+        const pieces = [];
+        list.forEach((r) => {
+          for (let k = 0; k < r.qty; k++) pieces.push({ partId: `${r.partId}#${k}`, part: r.part, len: Math.max(r.w, r.h) });
+        });
+        const strips = packBandStrips(pieces, band.length, kerf);
+        const g = {
+          material: band.material,
+          thickness: band.thickness,
+          strips: strips.length,
+          parts: list.map((r) => {
+            const p = { partId: r.partId, part: r.part, w: r.w, h: r.h, qty: r.qty };
+            if (r.itemLabel) p.itemLabel = r.itemLabel;
+            if (r.edge) p.edge = r.edge;
+            return p;
+          }),
+          cuts: strips,
+        };
+        if (colorOf) g.color = color;
+        bandGroups.push(g);
+        stripSum += strips.length;
+        pieceSum += pieces.length;
+      });
+      out.bandStock = { width: band.width, length: band.length, material: band.material, thickness: band.thickness, kerf, groups: bandGroups };
+      out.summary.bandStrips = stripSum;
+      out.summary.bandParts = pieceSum;
+    }
     if (strategy) {
       out.strategy = strategy;
       out.summary.strategy = strategy;
@@ -1181,6 +1291,7 @@
       out.summary.unusedArea = unusedSum;
     }
     return out;
+    }
   }
 
   /**
@@ -1233,6 +1344,7 @@
     compare,
     cutCount,
     STRATEGIES,
+    SMALL_MODES,
     partClassOf,
     isOutsourcedTop,
     basePartId,

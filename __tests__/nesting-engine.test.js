@@ -730,3 +730,112 @@ describe('detaildesign.html — nesting-engine.js 를 ai-design-report.js·workf
     expect(src).toMatch(/body\.cutPlan = cutPlan/);
   });
 });
+
+// ── 소부품 더하기 · 빼기 (2026-11-19 사장님 「소부품 더하기, 빼기로 구분해서 더하기는 2.밴드도 원장에 놓기 : 재단에 포함 시키고, 빼기는 밴드 재고 운영」) ──
+describe('소부품 모드 — 더하기(place) · 빼기(stock)', () => {
+  const BAND = { width: 60, length: 2440, material: 'PB', thickness: 15 };
+  const qtyOf = (rows) => rows.filter((m) => m.qty > 0 && m.w > 0 && m.h > 0).reduce((s, m) => s + Math.round(m.qty), 0);
+  const placedOf = (p) => p.sheets.reduce((s, x) => s + x.parts.length, 0);
+  const bandPiecesOf = (p) => (p.bandStock ? p.bandStock.groups.flatMap((g) => g.cuts.flatMap((c) => c.pieces)) : []);
+  const rectOf = (q) => ({ x: q.x, y: q.y, w: q.rot ? q.h : q.w, h: q.rot ? q.w : q.h });
+  const geometryOk = (p) => p.sheets.every((sh) => {
+    const r = sh.parts.map(rectOf);
+    return r.every((a, i) => a.x >= sh.trim && a.y >= sh.trim && a.x + a.w <= sh.size.w - sh.trim && a.y + a.h <= sh.size.h - sh.trim &&
+      r.slice(i + 1).every((b) => !(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)));
+  });
+
+  test('SMALL_MODES — 더하기 · 빼기, 모르는 모드 · 빼기인데 재고 밴드 칸이 틀리면 오류', () => {
+    expect(NestingEngine.SMALL_MODES.map((x) => [x.id, x.label])).toEqual([['place', '더하기'], ['stock', '빼기']]);
+    expect(() => NestingEngine.plan(FIXTURE, { small: 'cut' })).toThrow(RangeError);
+    expect(() => NestingEngine.plan(FIXTURE, { small: 'stock' })).toThrow(RangeError);
+    expect(() => NestingEngine.plan(FIXTURE, { small: 'stock', bandStock: { width: 60, length: 50, material: 'PB', thickness: 15 } })).toThrow(RangeError);
+  });
+
+  test('모드를 쓴 뒤에도 옵션 없는 호출은 그대로 (끝 문턱을 되돌린다)', () => {
+    NestingEngine.plan(FIXTURE, { small: 'place', strategy: 'standard' });
+    try { NestingEngine.plan(FIXTURE, { small: 'nope' }); } catch (e) { /* 던져도 되돌린다 */ }
+    expect(sha(NestingEngine.plan(FIXTURE))).toBe('1e7d649d525572d09574e29e3752787c9325df068fddc74df1db983435ea62b1');
+  });
+
+  test.each(ALL_GOLDENS)('%s — 더하기: 소부품이 없고 모두 원장(또는 못 놓음)에 · 수량 보존 · 겹침 없음', (name) => {
+    const mats = golden(name);
+    const p = NestingEngine.plan(mats, { small: 'place', strategy: 'standard' });
+    expect(p.smallParts).toEqual([]);
+    expect(p.summary.smallCount).toBe(0);
+    expect(p.smallMode).toBe('place');
+    expect(p.summary.smallMode).toBe('place');
+    expect(p).not.toHaveProperty('bandStock');
+    expect(placedOf(p) + p.summary.unallocatedCount + p.summary.skippedCount).toBe(qtyOf(mats));
+    expect(geometryOk(p)).toBe(true);
+    // 70 이하 부재가 원장에 놓였다
+    expect(p.sheets.some((sh) => sh.parts.some((q) => Math.min(q.w, q.h) <= 70))).toBe(true);
+  });
+
+  test.each(ALL_GOLDENS)('%s — 빼기: 재고 밴드에 맞는 부재만 재고에서 · 본 길이 안 · 나머지는 원장 · 수량 보존', (name) => {
+    const mats = golden(name);
+    const p = NestingEngine.plan(mats, { small: 'stock', bandStock: BAND, strategy: 'standard' });
+    expect(p.smallParts).toEqual([]);
+    expect(p.smallMode).toBe('stock');
+    const bands = bandPiecesOf(p);
+    expect(placedOf(p) + bands.length + p.summary.unallocatedCount + p.summary.skippedCount).toBe(qtyOf(mats));
+    expect(p.summary.bandParts).toBe(bands.length);
+    expect(p.summary.bandStrips).toBe(p.bandStock.groups.reduce((s, g) => s + g.strips, 0));
+    expect(geometryOk(p)).toBe(true);
+    p.bandStock.groups.forEach((g) => {
+      expect([g.material, g.thickness]).toEqual(['PB', 15]);
+      g.parts.forEach((r) => expect(Math.min(r.w, r.h)).toBe(60));
+      g.cuts.forEach((c) => {
+        expect(c.used).toBeLessThanOrEqual(2440);
+        // 본 쓴 길이 = 조각 길이 합 + 사이 톱날
+        expect(c.used).toBe(c.pieces.reduce((s, x) => s + x.len, 0) + (c.pieces.length - 1) * p.kerf);
+      });
+      expect(g.strips).toBe(g.cuts.length);
+    });
+    // 재고 밴드에 맞는 부재는 원장에 없다
+    p.sheets.forEach((sh) => sh.parts.forEach((q) => {
+      const hit = sh.material === 'PB' && sh.thickness === 15 && sh.partClass === '본체' && Math.min(q.w, q.h) === 60 && Math.max(q.w, q.h) <= 2440;
+      expect(hit).toBe(false);
+    }));
+    // 조각 id 는 원장 조각과 같은 partId#k — 같은 id 가 두 번 나오지 않는다
+    const ids = p.sheets.flatMap((sh) => sh.parts.map((q) => q.partId)).concat(bands.map((x) => x.partId));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test('빼기 — 18T · MDF · 도어재 · 2440 보다 긴 60 폭 부재는 원장에, 긴 것부터 본에 채운다', () => {
+    const rows = [
+      { partId: 'a', part: '밴드', material: 'PB', thickness: 15, w: 60, h: 1200, qty: 3 },
+      { partId: 'b', part: '밴드(보강목)', material: 'PB', thickness: 15, w: 870, h: 60, qty: 2 },
+      { partId: 'c', part: '밴드', material: 'PB', thickness: 18, w: 60, h: 870, qty: 2 },
+      { partId: 'd', part: '휠라', material: 'MDF', thickness: 18, w: 60, h: 700, qty: 1 },
+      { partId: 'e', part: '상몰딩', material: 'PB', thickness: 15, w: 60, h: 900, qty: 1 },
+      { partId: 'f', part: '좌대 전후', material: 'PB', thickness: 15, w: 60, h: 2500, qty: 1 },
+      { partId: 's', part: '측판', material: 'PB', thickness: 15, w: 560, h: 720, qty: 2 },
+    ];
+    const p = NestingEngine.plan(rows, { small: 'stock', bandStock: BAND, strategy: 'standard', kerf: 4 });
+    const g = p.bandStock.groups;
+    expect(g).toHaveLength(1);
+    expect(g[0].parts.map((r) => r.partId).sort()).toEqual(['a', 'b']);
+    // 1200 셋 · 870 둘 → 본 하나에 1200 + 4 + 1200 = 2404, 다음 본 1200 + 4 + 870 = 2074, 그다음 870
+    expect(g[0].cuts.map((c) => c.pieces.map((x) => x.len))).toEqual([[1200, 1200], [1200, 870], [870]]);
+    expect(g[0].cuts.map((c) => c.used)).toEqual([2404, 2074, 870]);
+    const onSheets = p.sheets.flatMap((sh) => sh.parts.map((q) => q.partId.split('#')[0])).concat(p.unallocated.flatMap((u) => u.partIds.map((x) => x.split('#')[0])));
+    ['c', 'd', 'e', 'f', 's'].forEach((id) => expect(onSheets).toContain(id));   // 상몰딩(이름에 몰딩 — 도어 구분) · 18T · MDF · 긴 것
+  });
+
+  test('빼기 — 색이 있으면 색마다 따로 묶는다', () => {
+    const rows = [
+      { partId: 'a', part: '밴드', material: 'PB', thickness: 15, w: 60, h: 800, qty: 2, color: '화이트' },
+      { partId: 'b', part: '밴드', material: 'PB', thickness: 15, w: 60, h: 800, qty: 1, color: '그레이' },
+    ];
+    const p = NestingEngine.plan(rows, { small: 'stock', bandStock: BAND, strategy: 'standard', colorOf: (r) => r.color });
+    expect(p.bandStock.groups.map((x) => [x.color, x.strips, x.cuts[0].pieces.length])).toEqual([['그레이', 1, 1], ['화이트', 1, 2]]);
+  });
+
+  test('compare — 소부품 모드를 세 방식에 같이 넘긴다', () => {
+    const r = NestingEngine.compare(golden('sink15'), { small: 'stock', bandStock: BAND });
+    Object.values(r.plans).forEach((p) => {
+      expect(p.smallMode).toBe('stock');
+      expect(p.summary.bandStrips).toBeGreaterThan(0);
+    });
+  });
+});
