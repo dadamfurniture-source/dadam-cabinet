@@ -26,6 +26,45 @@ export function fixturePartsOfItem(item) {
   return out;
 }
 
+// ── 설계 가전 목록 (2026-11-20 사장님 「가전카달로그도 만들어서 …」 · 플래너 배치 단계 「가전」 — design.appliances) ──
+//   [{ kind, label, qty, brand, name, code?, w, d?, h, combo? { name, kind(side|stack), gap?, kit? {name, code}, units [...] } }]
+//   모델 이름 · 코드 · 크기 · 조합뿐 (값 없음). 모르는 칸 · 깨진 줄은 버린다.
+export const DESIGN_APPLIANCES_MAX = 40;
+const num = (v) => (Number.isFinite(v) && v > 0 && v <= 10000 ? Math.round(v) : null);
+
+function applianceUnitOf(u) {
+  if (!u || typeof u !== 'object') return null;
+  const name = text(u.name, 120);
+  if (!name) return null;
+  return { brand: text(u.brand, 40), name, code: text(u.code, 60), w: num(u.w), d: num(u.d), h: num(u.h), role: u.role === 'lower' || u.role === 'upper' ? u.role : '' };
+}
+
+/** 설계의 가전 목록 — [{ label, qty, text, size, combo }] (designPayload = 동결본 design_payload) */
+export function designAppliancesOf(designPayload) {
+  const raw = designPayload && Array.isArray(designPayload.appliances) ? designPayload.appliances : [];
+  const out = [];
+  for (const a of raw.slice(0, DESIGN_APPLIANCES_MAX)) {
+    const m = applianceUnitOf(a);
+    const label = text(a && a.label, 20);
+    if (!m || !label) continue;
+    const qty = Number.isInteger(a.qty) && a.qty >= 1 && a.qty <= 99 ? a.qty : 1;
+    const one = (u) => (u.brand && u.name.indexOf(u.brand) < 0 ? `${u.brand} ${u.name}` : u.name);
+    const size = (u) => [u.w, u.d, u.h].filter(Boolean).join(' × ');
+    let combo = '';
+    let line = `${one(m)}${m.code ? ` (${m.code})` : ''}`;
+    const c = a.combo && typeof a.combo === 'object' ? a.combo : null;
+    if (c && Array.isArray(c.units) && c.units.length) {
+      const units = c.units.slice(0, 6).map(applianceUnitOf).filter(Boolean);
+      const stack = c.kind === 'stack';
+      line = `${text(c.name, 120)} — ${units.map((u) => `${stack ? (u.role === 'upper' ? '위 ' : '아래 ') : ''}${one(u)}${u.code ? ` (${u.code})` : ''}`).join(stack ? ' / ' : ' + ')}`;
+      const kit = c.kit && typeof c.kit === 'object' ? text(c.kit.name, 120) || text(c.kit.code, 60) : '';
+      combo = [stack ? '쌓기' : `나란히 ${units.length}대`, Number.isInteger(c.gap) ? `사이 ${c.gap}` : '', kit ? `키트 ${kit}` : ''].filter(Boolean).join(' · ');
+    }
+    out.push({ label, qty, text: line, size: combo ? '' : size(m), combo });
+  }
+  return out;
+}
+
 /** 한 줄 글 — 「이름 (옵션)」 */
 export const fixturePartText = (p) => (p.option ? `${p.name} (${p.option})` : p.name);
 
