@@ -290,7 +290,7 @@ describe('책장 — 마우스 끌기', () => {
     jest.advanceTimersByTime(8);
     ptr(book, 'pointerup', 260); // 빠르게 왼쪽으로 던졌다
     run();
-    expect(ul.scrollLeft).toBe(300); // 책 넷 800 − 보이는 폭 500
+    expect(ul.scrollLeft).toBe(500); // 책 다섯 1000 − 보이는 폭 500
   });
 
   test('끝을 넘겨 끌면 고무줄 — 책장이 덜 따라오고, 놓으면 돌아온다', () => {
@@ -320,7 +320,7 @@ describe('책장 — 마우스 끌기', () => {
   });
 
   test('책이 다 보이면 끌 것이 없다', () => {
-    const { ul } = load({ clientWidth: 800 });
+    const { ul } = load({ clientWidth: 1000 });
     const book = $('a.bk-book');
     ptr(book, 'pointerdown', 300);
     ptr(book, 'pointermove', 200);
@@ -349,8 +349,15 @@ describe('책장 — ‹ › · 기울기 · 들어오기', () => {
     next.click();
     run();
     ul.dispatchEvent(new window.Event('scroll'));
-    expect(ul.scrollLeft).toBe(300);
+    expect(ul.scrollLeft).toBe(400);
+    expect([prev.hidden, next.hidden]).toEqual([false, false]);
+    next.click();
+    run();
+    ul.dispatchEvent(new window.Event('scroll'));
+    expect(ul.scrollLeft).toBe(500); // 책 다섯 1000 − 보이는 폭 500
     expect([prev.hidden, next.hidden]).toEqual([false, true]);
+    prev.click();
+    run();
     prev.click();
     run();
     prev.click();
@@ -361,7 +368,7 @@ describe('책장 — ‹ › · 기울기 · 들어오기', () => {
   });
 
   test('책이 다 보이면 ‹ › 는 감춘 채로 둔다', () => {
-    load({ clientWidth: 800 });
+    load({ clientWidth: 1000 });
     expect([$('.bk-nav--prev').hidden, $('.bk-nav--next').hidden]).toEqual([true, true]);
   });
 
@@ -397,10 +404,10 @@ describe('책장 — ‹ › · 기울기 · 들어오기', () => {
     const stands = entered.filter(([cls]) => cls === 'bk-stand');
     const glows = entered.filter(([cls]) => cls === 'bk-glow');
     expect(stands.map(([, from, delay]) => [from, delay])).toEqual(
-      [0, 60, 120, 180].map((d) => [{ opacity: 0, transform: 'translateY(-14px)' }, d])
+      [0, 60, 120, 180, 240].map((d) => [{ opacity: 0, transform: 'translateY(-14px)' }, d])
     );
     expect(glows.map(([, from, delay]) => [from, delay])).toEqual(
-      [90, 150, 210, 270].map((d) => [{ opacity: 0.2 }, d])
+      [90, 150, 210, 270, 330].map((d) => [{ opacity: 0.2 }, d])
     );
   });
 
@@ -419,10 +426,10 @@ describe('책장 — ‹ › · 기울기 · 들어오기', () => {
       seen([{ isIntersecting: false }]);
       expect(entered).toEqual([]);
       seen([{ isIntersecting: true }]);
-      expect(entered.filter(([cls]) => cls === 'bk-stand')).toHaveLength(4);
+      expect(entered.filter(([cls]) => cls === 'bk-stand')).toHaveLength(5);
       expect(disconnect).toHaveBeenCalledTimes(1);
       seen([{ isIntersecting: true }]); // 다시 보여도 한 번뿐 (지켜보기를 끊었다)
-      expect(entered.filter(([cls]) => cls === 'bk-stand')).toHaveLength(4);
+      expect(entered.filter(([cls]) => cls === 'bk-stand')).toHaveLength(5);
     } finally {
       delete window.IntersectionObserver;
     }

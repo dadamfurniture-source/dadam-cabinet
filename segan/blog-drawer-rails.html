@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 매거진 글 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다 -->
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>서랍레일, 볼레일 · 언더레일 · 박스 시스템 읽기 · 매거진 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026112106" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112106" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112106" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112106" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shell.css?v=2026112106" />
+    <link rel="stylesheet" href="info.css?v=2026112106" />
+    <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
+    <link rel="stylesheet" href="magazine.css?v=2026112106" />
+    <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
+         열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
+    <script src="../js/config.js?v=2026112106"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
+    <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
+    <script src="motion.js?v=2026112106"></script>
+    <script src="shell.js?v=2026112106" defer blocking="render"></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026112106" defer></script>
+    <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
+    <script src="blog.js?v=2026112106" defer blocking="render"></script>
+  </head>
+  <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
+  <body class="sg-app" data-tab="blog">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main ma" id="main">
+      <a class="ma-back" href="blog.html">‹ 매거진</a>
+
+      <article class="ma-article" data-slug="drawer-rails" data-category="하드웨어">
+        <header class="ma-head">
+          <!-- 책장의 그 책 — 목록에서 누르면 표지가 커지며 여기로 이어진다 (blog.js · magazine.css) -->
+          <div class="ma-cover">
+            <span class="bk-cover bk-cover--drawer-rails" aria-hidden="true">
+              <picture class="bk-art">
+                <source srcset="magazine/cover-drawer-rails.webp" type="image/webp" />
+                <img
+                  src="magazine/cover-drawer-rails.jpg"
+                  alt=""
+                  width="480"
+                  height="640"
+                  decoding="async"
+                  draggable="false"
+                />
+              </picture>
+              <span class="bk-head">
+                <span class="bk-no">05</span>
+                <span class="bk-tag">MAGAZINE · 하드웨어</span>
+              </span>
+              <span class="bk-mast">RAIL</span>
+            </span>
+          </div>
+          <p class="ma-cat">하드웨어</p>
+          <p class="ma-series">철물 시리즈 01</p>
+          <h1 class="sg-h1 ma-title">서랍레일, 볼레일 · 언더레일 · 박스 시스템 읽기</h1>
+          <p class="ma-dek">레일이 하는 일과 구조의 차이, 인출 길이 · 하중 · 댐핑을 보고 견적서에서 무엇을 확인할지 정리합니다.</p>
+          <p class="ma-meta">읽는 시간 약 6분</p>
+        </header>
+
+        <nav class="ma-toc" aria-labelledby="maTocTitle">
+          <p class="ma-toc-h" id="maTocTitle">차례</p>
+          <ol>
+            <li><a href="#dr-what"><span>1</span>서랍레일이란</a></li>
+            <li><a href="#dr-types"><span>2</span>붙는 자리에 따른 세 가지 구조</a></li>
+            <li><a href="#dr-feel"><span>3</span>사용감을 가르는 네 가지</a></li>
+            <li><a href="#dr-brands"><span>4</span>국내에서 볼 수 있는 브랜드</a></li>
+            <li><a href="#dr-quote"><span>5</span>견적서에서 레일 확인하기</a></li>
+          </ol>
+        </nav>
+
+        <section id="dr-what">
+          <h2><span class="ma-n">1</span>서랍레일이란</h2>
+          <p>
+            서랍레일은 서랍을 몸통(장)에 걸어 앞뒤로 움직이게 하는 철물입니다. 서랍이 얼마나 부드럽게 나오는지, 무거운
+            물건을 넣어도 처지지 않는지, 마지막에 조용히 닫히는지는 대부분 레일이 결정합니다. 레일은 서랍 안쪽에 숨어 있어
+            고를 때 놓치기 쉽지만, 같은 장이라도 레일에 따라 쓸 수 있는 공간과 사용감이 달라집니다.
+          </p>
+          <figure class="ma-fig">
+            <picture>
+              <source srcset="magazine/art/drawer-rails-5.webp" type="image/webp" />
+              <img
+                src="magazine/art/drawer-rails-5.jpg"
+                alt="겹친 강철 레일 사이에 작은 쇠구슬들이 줄지어 들어 있는 볼레일 확대 사진"
+                width="1024"
+                height="688"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption>볼레일의 구조. 겹쳐진 강철 레일 사이에서 볼베어링이 굴러, 미끄러질 때의 마찰을 구름 마찰로 바꿉니다.</figcaption>
+          </figure>
+          <h3><span class="ma-n">1.1</span>레일이 하는 세 가지 일</h3>
+          <dl class="ma-defs">
+            <dt>무게를 받칩니다</dt>
+            <dd>서랍과 그 안의 물건 무게를 몸통으로 전달합니다. 레일마다 견딜 수 있는 무게, 곧 허용 하중이 정해져 있습니다.</dd>
+            <dt>곧게 안내합니다</dt>
+            <dd>서랍이 기울거나 흔들리지 않고 한 방향으로만 움직이게 합니다.</dd>
+            <dt>닫힘을 다룹니다</dt>
+            <dd>댐핑(소프트클로즈) 레일은 닫히기 직전 구간에서 속도를 줄여, 서랍이 부딪히지 않고 천천히 닫히게 합니다.</dd>
+          </dl>
+        </section>
+
+        <section id="dr-types">
+          <h2><span class="ma-n">2</span>붙는 자리에 따른 세 가지 구조</h2>
+          <p>
+            레일은 서랍의 어디에 붙느냐에 따라 볼레일, 언더레일, 박스 시스템으로 나뉩니다. 붙는 자리가 다르면 서랍 상자를
+            짜는 방법과 남는 공간도 달라집니다.
+          </p>
+          <h3><span class="ma-n">2.1</span>볼레일 — 서랍 옆면에 붙는 레일</h3>
+          <figure class="ma-fig">
+            <picture>
+              <source srcset="magazine/art/drawer-rails-1.webp" type="image/webp" />
+              <img
+                src="magazine/art/drawer-rails-1.jpg"
+                alt="서랍 옆면에 은색 볼레일이 붙어 있는 열린 서랍 사진"
+                width="1024"
+                height="688"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption>서랍 옆면과 몸통 사이에 들어간 볼레일. 서랍을 열면 옆에 레일이 보입니다.</figcaption>
+          </figure>
+          <p>
+            가장 널리 쓰이는 형식입니다. 레일이 서랍 옆면과 몸통 사이에 들어가므로, 서랍 상자의 폭은 그 틈만큼 칸보다 좁게
+            짭니다. 볼베어링으로 움직이며, 서랍을 열면 옆에 레일이 드러나 보입니다.
+          </p>
+          <h3><span class="ma-n">2.2</span>언더레일 — 서랍 밑에 숨는 레일</h3>
+          <figure class="ma-fig">
+            <picture>
+              <source srcset="magazine/art/drawer-rails-2.webp" type="image/webp" />
+              <img
+                src="magazine/art/drawer-rails-2.jpg"
+                alt="손잡이 없는 주방 하부장에서 서랍 하나를 빼, 바닥 밑 언더레일이 보이도록 아래에서 본 사진"
+                width="1024"
+                height="688"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption>언더레일. 레일은 몸통 옆판에 붙고, 서랍은 그 위에 얹혀 바닥 밑에서 걸립니다. 서랍을 빼면 바닥 밑으로 레일이 따라 나오고, 서랍 옆면에는 철물이 보이지 않습니다.</figcaption>
+          </figure>
+          <p>
+            레일을 서랍 밑에 감춥니다. 서랍을 열었을 때 옆면이 깔끔하게 보이는 대신, 서랍 밑에 레일 자리가 필요해서 같은
+            칸이라도 서랍 안쪽 높이가 조금 줄 수 있습니다. 서랍 상자는 그 레일 규격에 맞는 방식으로 짜야 합니다.
+          </p>
+          <h3><span class="ma-n">2.3</span>박스 시스템 — 레일과 금속 옆판이 한 벌</h3>
+          <figure class="ma-fig">
+            <picture>
+              <source srcset="magazine/art/drawer-rails-3.webp" type="image/webp" />
+              <img
+                src="magazine/art/drawer-rails-3.jpg"
+                alt="얇은 회색 금속 옆판으로 된 서랍에 그릇이 담긴 사진"
+                width="1024"
+                height="688"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption>금속 옆판이 그대로 서랍 옆면이 되는 박스 시스템.</figcaption>
+          </figure>
+          <p>
+            레일과 금속 옆판이 한 벌로 나옵니다. 옆판을 따로 짜지 않고 서랍 바닥과 뒤판만 맞춰 끼우는 구조라, 서랍마다
+            모양과 움직임이 고르게 나옵니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="서랍레일 구조 비교" tabindex="0">
+            <table>
+              <caption>
+                서랍레일 구조 비교
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">종류</th>
+                  <th scope="col">붙는 자리</th>
+                  <th scope="col">서랍을 열면</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">볼레일</th>
+                  <td>서랍 옆면과 몸통 사이. 볼베어링으로 움직입니다.</td>
+                  <td>옆에 레일이 보입니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">언더레일</th>
+                  <td>서랍 밑</td>
+                  <td>레일이 밑에 숨어 잘 보이지 않습니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">박스 시스템</th>
+                  <td>레일과 금속 옆판이 한 벌</td>
+                  <td>금속 옆판이 서랍 옆면이 됩니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="dr-feel">
+          <h2><span class="ma-n">3</span>사용감을 가르는 네 가지</h2>
+          <p>같은 종류의 레일이라도 인출 길이, 레일 길이, 허용 하중, 댐핑에 따라 쓰는 느낌이 달라집니다.</p>
+          <h3><span class="ma-n">3.1</span>인출 길이</h3>
+          <figure class="ma-fig">
+            <picture>
+              <source srcset="magazine/art/drawer-rails-4.webp" type="image/webp" />
+              <img
+                src="magazine/art/drawer-rails-4.jpg"
+                alt="주방 아일랜드의 깊은 서랍을 끝까지 빼 그릇이 모두 보이는 사진"
+                width="1024"
+                height="688"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption>완전 인출. 서랍이 몸통 밖으로 끝까지 나와, 맨 뒤에 둔 그릇까지 위에서 한눈에 보이고 손이 닿습니다. 레일은 서랍 밑에 숨어 있습니다.</figcaption>
+          </figure>
+          <p>
+            서랍 전체가 몸통 밖으로 나오는 것을 <b>완전 인출</b>, 뒤쪽 일부가 몸통 안에 남는 것을 <b>부분 인출</b>이라고
+            부릅니다. 부분 인출 서랍은 뒤쪽 물건을 꺼내려면 손을 안으로 넣어야 합니다. 깊은 서랍에 큰 물건을 넣을 계획이면
+            인출 길이를 먼저 확인합니다.
+          </p>
+          <h3><span class="ma-n">3.2</span>레일 길이와 장 깊이</h3>
+          <p>
+            레일은 길이별 규격으로 나옵니다. 장 깊이보다 레일이 많이 짧으면 서랍도 짧아져 장 안쪽에 공간이 남습니다.
+            견적서에 레일 길이가 적혀 있는지, 그 길이가 장 깊이에 맞는지 봅니다.
+          </p>
+          <h3><span class="ma-n">3.3</span>허용 하중</h3>
+          <p>
+            레일마다 견디는 무게가 정해져 있습니다. 하중보다 무거운 물건을 넣으면 서랍이 처지거나 움직임이 뻑뻑해질 수
+            있습니다. 냄비, 그릇처럼 무거운 것을 넣을 서랍이면 그 레일의 허용 하중을 물어봅니다.
+          </p>
+          <h3><span class="ma-n">3.4</span>댐핑(소프트클로즈)</h3>
+          <figure class="ma-fig">
+            <picture>
+              <source srcset="magazine/art/drawer-rails-6.webp" type="image/webp" />
+              <img
+                src="magazine/art/drawer-rails-6.jpg"
+                alt="손을 뗀 서랍이 마지막 구간에서 천천히 닫히는 사진"
+                width="1024"
+                height="688"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption>댐핑. 손을 떼도 마지막 구간에서 서랍이 스스로 천천히 닫힙니다.</figcaption>
+          </figure>
+          <p>
+            볼레일, 언더레일, 박스 시스템 모두 천천히 닫히는 댐핑 제품이 있습니다. 레일 안의 댐퍼가 닫히기 직전 구간에서
+            속도를 줄여, 세게 밀어도 서랍이 부딪히지 않습니다. 같은 이름의 레일이라도 댐핑이 있는 것과 없는 것이 따로
+            나오므로, 견적서에 「댐핑」이나 「소프트클로즈」가 적혀 있는지 봅니다.
+          </p>
+        </section>
+
+        <section id="dr-brands">
+          <h2><span class="ma-n">4</span>국내에서 볼 수 있는 브랜드</h2>
+          <p>
+            제품명은 각 회사 공식 누리집 표기(2026년 10월 확인)입니다. 러너는 서랍 밑에 숨는 레일을 부르는 이름입니다.
+            로고는 각 회사 공식 누리집의 것을 그대로 썼습니다.
+          </p>
+          <h3><span class="ma-n">4.1</span>해외 브랜드</h3>
+          <div class="ma-table" role="region" aria-label="해외 서랍 · 레일 브랜드" tabindex="0">
+            <table>
+              <caption>
+                해외 서랍 · 레일 브랜드
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">브랜드</th>
+                  <th scope="col">나라</th>
+                  <th scope="col">서랍 · 레일 제품</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><span class="ma-logo"><img src="magazine/logos/blum.svg" alt="Blum 로고" loading="lazy" decoding="async" /></span><span class="ma-brand">Blum(블룸)</span></th>
+                  <td>오스트리아</td>
+                  <td>박스 LEGRABOX · MERIVOBOX · TANDEMBOX, 러너 MOVENTO · TANDEM</td>
+                </tr>
+                <tr>
+                  <th scope="row"><span class="ma-logo"><img src="magazine/logos/hettich.svg" alt="Hettich 로고" loading="lazy" decoding="async" /></span><span class="ma-brand">Hettich(헤티히)</span></th>
+                  <td>독일</td>
+                  <td>박스 AvanTech YOU · ArciTech · InnoTech Atira, 러너 Actro 5D · Quadro, 볼레일 KA</td>
+                </tr>
+                <tr>
+                  <th scope="row"><span class="ma-logo"><img src="magazine/logos/grass.svg" alt="Grass 로고" loading="lazy" decoding="async" /></span><span class="ma-brand">Grass(그라스)</span></th>
+                  <td>오스트리아</td>
+                  <td>박스 Nova Pro Scala · Vionaro, 러너 Dynapro · Dynaneo</td>
+                </tr>
+                <tr>
+                  <th scope="row"><span class="ma-logo"><img src="magazine/logos/salice.png" alt="Salice 로고" loading="lazy" decoding="async" /></span><span class="ma-brand">Salice(살리체)</span></th>
+                  <td>이탈리아</td>
+                  <td>숨은 러너, Adapto · Lineabox Easy 서랍</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            해외 브랜드는 국내 수입 · 유통처를 거쳐 들어옵니다. 고장 났을 때 부품을 어디서 구하고 A/S를 누가 맡는지 미리
+            물어봅니다.
+          </p>
+          <h3><span class="ma-n">4.2</span>국산 브랜드</h3>
+          <div class="ma-table" role="region" aria-label="국산 서랍 · 레일 브랜드" tabindex="0">
+            <table>
+              <caption>
+                국산 서랍 · 레일 브랜드
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">브랜드</th>
+                  <th scope="col">서랍 · 레일 제품</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><span class="ma-logo"><img src="magazine/logos/irex.png" alt="IREX 로고" loading="lazy" decoding="async" /></span><span class="ma-brand">IREX(삼성정밀공업)</span></th>
+                  <td>볼레일 · 댐핑 볼레일 · 언더레일, 서랍</td>
+                </tr>
+                <tr>
+                  <th scope="row"><span class="ma-logo ma-logo--dark"><img src="magazine/logos/moonju.png" alt="문주하드웨어 로고" loading="lazy" decoding="async" /></span><span class="ma-brand">문주하드웨어</span></th>
+                  <td>볼레일 · 서랍</td>
+                </tr>
+                <tr>
+                  <th scope="row"><span class="ma-brand">세일하드웨어</span></th>
+                  <td>볼레일 · 언더레일 · 서랍</td>
+                </tr>
+                <tr>
+                  <th scope="row"><span class="ma-logo"><img src="magazine/logos/jeonhan.jpg" alt="전한슬라이드(slideone) 로고" loading="lazy" decoding="async" /></span><span class="ma-brand">전한슬라이드</span></th>
+                  <td>볼베어링 레일 · 언더레일</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="dr-quote">
+          <h2><span class="ma-n">5</span>견적서에서 레일 확인하기</h2>
+          <p>
+            견적서에 「서랍레일 포함」처럼 한 단어로만 적혀 있으면 어떤 레일이 들어가는지 알 수 없습니다. 레일 칸에 아래
+            일곱 가지가 적혀 있는지 한 번에 확인합니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="견적서 레일 확인표" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>
+                견적서 레일 확인표
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">항목</th>
+                  <th scope="col">적혀 있어야 할 내용</th>
+                  <th scope="col">왜 확인하나</th>
+                  <th scope="col">자주 놓치는 것</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">종류</th>
+                  <td>볼레일 · 언더레일 · 박스 시스템</td>
+                  <td>붙는 자리에 따라 서랍 상자를 짜는 방법과 안쪽 높이가 달라집니다.</td>
+                  <td>「서랍레일 포함」처럼 종류 없이 적힌 견적</td>
+                </tr>
+                <tr>
+                  <th scope="row">인출</th>
+                  <td>완전 인출 · 부분 인출</td>
+                  <td>부분 인출이면 뒤쪽 물건을 꺼낼 때 손을 안으로 넣어야 합니다.</td>
+                  <td>깊은 서랍에 부분 인출 레일이 들어가는지</td>
+                </tr>
+                <tr>
+                  <th scope="row">댐핑</th>
+                  <td>댐핑(소프트클로즈) 있음 · 없음</td>
+                  <td>같은 이름의 레일도 댐핑이 있는 것과 없는 것이 따로 나옵니다.</td>
+                  <td>댐핑 여부가 빠진 견적</td>
+                </tr>
+                <tr>
+                  <th scope="row">길이</th>
+                  <td>장 깊이에 맞춘 레일 길이</td>
+                  <td>레일이 장 깊이보다 많이 짧으면 서랍도 짧아져 안쪽 공간이 남습니다.</td>
+                  <td>장 깊이와 레일 길이를 맞춰 보지 않음</td>
+                </tr>
+                <tr>
+                  <th scope="row">하중</th>
+                  <td>허용 하중</td>
+                  <td>하중보다 무거우면 서랍이 처지거나 움직임이 뻑뻑해질 수 있습니다.</td>
+                  <td>냄비 · 그릇 서랍의 하중을 묻지 않음</td>
+                </tr>
+                <tr>
+                  <th scope="row">브랜드 · 제품명</th>
+                  <td>브랜드와 제품 계열 이름</td>
+                  <td>같은 브랜드라도 제품 계열에 따라 기능이 다릅니다.</td>
+                  <td>브랜드만 적고 제품명이 없음</td>
+                </tr>
+                <tr>
+                  <th scope="row">부품 · A/S</th>
+                  <td>국내 수입 · 유통처와 A/S 창구</td>
+                  <td>해외 브랜드는 국내 수입 · 유통처를 거쳐 들어옵니다.</td>
+                  <td>고장 났을 때 연락할 곳을 모름</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="ma-final" aria-labelledby="maCheckTitle">
+          <h2 id="maCheckTitle">고객이 확인할 것</h2>
+          <ul class="ma-check">
+            <li>서랍레일 종류(볼레일 · 언더레일 · 박스)와 댐핑 여부</li>
+            <li>완전 인출인지, 부분 인출인지</li>
+            <li>레일 길이가 장 깊이에 맞는지</li>
+            <li>무거운 물건을 넣을 서랍의 허용 하중</li>
+            <li>견적서에 브랜드와 제품명이 적혀 있는지</li>
+            <li>부품 · A/S를 받을 국내 창구</li>
+          </ul>
+        </section>
+      </article>
+
+      <nav class="ma-more" aria-labelledby="maMoreTitle">
+        <h2 class="in-h2" id="maMoreTitle">다른 글</h2>
+        <ul class="bl-posts">
+          <li>
+            <a class="bl-post" href="blog-materials.html">
+              <small class="bl-post-cat">자재</small>
+              <b class="bl-post-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-edge-finish.html">
+              <small class="bl-post-cat">설치</small>
+              <b class="bl-post-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
+              <small class="bl-post-time">읽는 시간 약 4분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-hardware.html">
+              <small class="bl-post-cat">하드웨어</small>
+              <b class="bl-post-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-kitchen-appliances.html">
+              <small class="bl-post-cat">주방기기</small>
+              <b class="bl-post-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>
