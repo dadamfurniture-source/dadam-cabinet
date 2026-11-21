@@ -70,7 +70,6 @@
     assignEmpty: '진행 중인 프로젝트가 없습니다.',
     assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
     notMine: '대표 · 실장이 합니다',
-    sheet: '진행 보기',
     today: '오늘',
     days: '일째',
     views: '번 열어 봄',
@@ -277,17 +276,20 @@
     var canWork = canWorkOn(p);
     var working = canWork && J.workFor === p.id;
     var flow = flowOf(p);
-    // 진행 보기 — 프로젝트 한 건 창 (segan/project-sheet.js). 담당자 고르는 보기에서는 뺀다
-    var Sheet = window.SeganProjectSheet;
-    var canSheet = !J.view.assign && Sheet && typeof Sheet.canOpen === 'function' && Sheet.canOpen();
+    // 담당자 · 작업 배정 — 같은 단추를 다시 누르면 접힌다. 펼친 동안은 단추 색이 바뀐다(mk-btn--solid),
+    // 따로 「닫기」 단추를 두지 않는다 (대표님 2026-11-21). 줄의 「진행 보기」 단추도 뺐다(같은 날)
+    var assigning = canAssign && J.assignFor === p.id;
     var acts =
       flow.act +
       (flow.tail || '') +
-      (canSheet
-        ? '<button type="button" class="mk-btn" data-act="sheet" data-for="' + esc(p.id) + '">' + esc(TEXT.sheet) + '</button>'
-        : '') +
-      (canAssign && J.assignFor !== p.id
-        ? '<button type="button" class="mk-btn" data-act="assign" data-for="' + esc(p.id) + '">담당자</button>'
+      (canAssign
+        ? '<button type="button" class="mk-btn' +
+          (assigning ? ' mk-btn--solid' : '') +
+          '" data-act="assign" data-for="' +
+          esc(p.id) +
+          '" aria-expanded="' +
+          assigning +
+          '">담당자</button>'
         : '') +
       (canWork
         ? '<button type="button" class="mk-btn' +
@@ -299,7 +301,7 @@
           '" aria-expanded="' +
           working +
           '">' +
-          esc(working ? '작업 배정 닫기' : d.manage ? '작업 배정' : '작업자 보기') +
+          esc(d.manage ? '작업 배정' : '작업자 보기') +
           '</button>'
         : '');
     return (
@@ -475,9 +477,7 @@
       '</p>' +
       '<div class="rd-acts"><button type="submit" class="mk-btn mk-btn--solid"' +
       (J.busy ? ' disabled' : '') +
-      '>저장</button><button type="button" class="mk-btn" data-act="assign-close"' +
-      (J.busy ? ' disabled' : '') +
-      '>닫기</button></div>' +
+      '>저장</button></div>' +
       '</form>'
     );
   }
@@ -587,7 +587,7 @@
   /**
    * 그 프로젝트의 「작업 배정」 칸을 연다 — 업무 달력의 작업 줄에서 부른다 (segan/calendar.js).
    * 지금 보기에 그 프로젝트 줄이 있고 단추가 있을 때만 — 열었으면(이미 열려 있어도) true, 아니면 false.
-   * 그 줄로 옮기고(움직임 없이) 닫기 단추에 초점을 둔다.
+   * 그 줄로 옮기고(움직임 없이) 펼친 「작업 배정」 단추에 초점을 둔다.
    */
   function openWork(id) {
     var box = $('partnerProjects');
@@ -839,11 +839,6 @@
     var nextAct = el.getAttribute('data-act');
     if (nextAct === 'next-sheet') return nextSheet(el.getAttribute('data-id') || '');
     if (nextAct === 'next-order') return nextOrder(el.getAttribute('data-id') || '');
-    if (nextAct === 'sheet') {
-      var Sheet = window.SeganProjectSheet;
-      if (Sheet && typeof Sheet.open === 'function') Sheet.open(el.getAttribute('data-for') || '');
-      return;
-    }
     var act = el.getAttribute('data-act');
     if (act === 'open') {
       J.open = true;
@@ -859,14 +854,11 @@
       J.err = '';
       render();
     } else if (act === 'assign') {
-      J.assignFor = el.getAttribute('data-for') || '';
+      var aid = el.getAttribute('data-for') || '';
+      J.assignFor = J.assignFor === aid ? '' : aid; // 펼친 줄의 단추를 다시 누르면 접는다
       J.open = false;
       J.err = '';
       J.msg = '';
-      render();
-    } else if (act === 'assign-close') {
-      J.assignFor = '';
-      J.err = '';
       render();
     } else if (act === 'work' || act === 'work-close') {
       var PW = window.SeganProjectWork;

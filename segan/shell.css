@@ -5899,6 +5899,32 @@ button.sm-num[aria-pressed='true'] {
   margin-bottom: 10px;
 }
 
+/* 상담 설정 — 화면에는 제목 · 요약 · 「설정」 단추 한 줄, 고치는 칸은 창(.me-cs-sheet)에서 */
+.me-cs-setbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.me-cs-setmain {
+  min-width: 0;
+}
+
+.me-cs-setbar .me-pt-sub {
+  margin-bottom: 2px;
+}
+
+.me-cs-setsum {
+  margin: 0;
+  font-size: 13px;
+  color: var(--v5-ink);
+}
+
+.me-cs-setbar .mk-btn {
+  flex: none;
+}
+
 .me-cs-score {
   margin: 0 0 8px;
   font-size: 13px;

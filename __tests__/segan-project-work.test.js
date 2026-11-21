@@ -387,7 +387,7 @@ describe('작업 배정 — 대표 · 실장', () => {
     await press(workBtn(P1));
     expect(workCalls(calls)).toEqual([['GET', `/company/projects/${P1}/work`, undefined]]);
     expect(calls.fetch.find((c) => c.url.endsWith('/work')).auth).toBe('Bearer tok-1');
-    expect(text(workBtn(P1))).toBe('작업 배정 닫기');
+    expect(text(workBtn(P1))).toBe('작업 배정'); // 펼쳐도 글은 그대로, 색만 바뀐다 (닫기 단추 없음)
     expect(panel().closest('li').getAttribute('data-project')).toBe(P1);
     expect(tableRows()).toEqual([
       '철거 | - | - | - | 고르기',
@@ -674,7 +674,7 @@ describe('달력에서 열기', () => {
     await flush();
     expect(workCalls(calls)).toEqual([['GET', `/company/projects/${P2}/work`, undefined]]);
     expect(panel().closest('li').getAttribute('data-project')).toBe(P2);
-    expect(text(workBtn(P2))).toBe('작업 배정 닫기');
+    expect(text(workBtn(P2))).toBe('작업 배정');
     expect(document.activeElement).toBe(workBtn(P2));
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
     // 다시 불러도 같은 칸 — 서버에 또 묻지 않는다
