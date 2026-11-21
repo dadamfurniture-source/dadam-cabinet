@@ -270,7 +270,6 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
         image_url: '../app/portfolio/' + file,
         place: p.kind,
         color: p.materials.map((m) => m.name).join(' · '),
-        hex: p.materials.map((m) => m.hex), // 색상 영역의 작은 색 칸 — 목록 파일의 색 값 그대로
       });
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio', file))).toBe(true);
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', file))).toBe(true);
@@ -464,12 +463,17 @@ describe('사진 아래 색상 영역 — 색상 하나씩 · ♡ (2026-11-21 �
     expect(info(2).querySelector('.cl-like')).not.toBeNull();
     // ♡ 는 사진 단추 안에 넣지 않는다 (단추 안 단추가 되지 않게)
     expect(document.querySelector('.cl-tile .cl-like')).toBeNull();
-    // 정적 사진(AI 연출) — 색상을 하나씩 (「매트 딥그린 · 카카오월넛」 → 두 줄), 색 값은 작은 색 칸으로
+    // 정적 사진(AI 연출) — 색상을 하나씩 (「매트 딥그린 · 카카오월넛」 → 두 줄), 자재 색 값은 작은 색 칸으로
     const first = window.SeganCollection.STATIC[0];
+    const hexOf = Object.fromEntries(
+      JSON.parse(read('app/portfolio/luxe-manifest.json'))
+        .photos.find((p) => first.image_url.endsWith('/' + p.file))
+        .materials.map((m) => [m.name, m.hex])
+    );
     expect(names(30)).toEqual(first.color.split(' · '));
     expect(names(30)).toHaveLength(2);
     expect([...info(30).querySelectorAll('.cl-chip')].map((c) => c.getAttribute('style'))).toEqual(
-      first.hex.map((h) => 'background: ' + h)
+      names(30).map((n) => 'background: ' + hexOf[n])
     );
     expect(info(30).querySelector('.cl-chip').getAttribute('aria-hidden')).toBe('true');
     // DB 게시물이 아니라 좋아요를 저장할 곳이 없다
@@ -481,21 +485,34 @@ describe('사진 아래 색상 영역 — 색상 하나씩 · ♡ (2026-11-21 �
       0
     );
     expect(bare).toContain('<div class="cl-info"></div>');
-    // 색 값은 #rrggbb 꼴만 색 칸이 된다 (그대로 style 에 적으므로)
+    // 색 칸은 아는 자재 이름에만 (MATERIAL_HEX) — 모르는 이름 · 표에 없는 글자는 이름만
     const V = window.SeganPostView;
-    expect(
-      V.colorsOf(
-        V.fromStatic({
-          image_url: '../app/portfolio/x.jpg',
-          color: '가 · 나 · 다',
-          hex: ['#AABBCC', 'red; background: url(x)', '#12345'],
-        })
-      )
-    ).toEqual([
-      { name: '가', hex: '#AABBCC' },
-      { name: '나', hex: '' },
-      { name: '다', hex: '' },
+    expect(V.colorsOf({ door_color: '매트 화이트 · 화이트 · toString ·  · 세이오크' })).toEqual([
+      { name: '매트 화이트', hex: '#fbfbfb' },
+      { name: '화이트', hex: '' },
+      { name: 'toString', hex: '' },
+      { name: '세이오크', hex: '#cea875' },
     ]);
+  });
+
+  test('자재 색 표 = 목록 파일의 자재 (app/portfolio/luxe-manifest.json materials) — 하나도 빠지지 않고 값이 같다', async () => {
+    await load({ db: [] });
+    const V = window.SeganPostView;
+    const manifest = JSON.parse(read('app/portfolio/luxe-manifest.json'));
+    const seen = {};
+    for (const p of manifest.photos)
+      for (const m of p.materials) {
+        expect(m.hex).toMatch(/^#[0-9a-f]{6}$/); // 그대로 style 에 적는 값
+        expect([m.name, V.colorsOf({ door_color: m.name })]).toEqual([
+          m.name,
+          [{ name: m.name, hex: m.hex }],
+        ]);
+        seen[m.name] = true;
+      }
+    // 표에 남는 이름도 없다 (지운 자재가 표에 남지 않게)
+    const table = read('segan/collection-view.js').match(/var MATERIAL_HEX = \{([^}]*)\}/)[1];
+    const keys = [...table.matchAll(/^\s*'?([^':\n]+?)'?: '#[0-9a-f]{6}',$/gm)].map((m) => m[1]);
+    expect(keys.sort()).toEqual(Object.keys(seen).sort());
   });
 
   test('내가 좋아한 사진은 눌린 ♡ 로 그린다', async () => {
@@ -791,10 +808,9 @@ describe('사진 보기 — 시트 (장소 · 좋아요 · 색상 · 업체 정�
     await openTile(30);
     expect(place()).toBe('일자형 주방');
     // 색상은 하나씩 — 자재 색 값은 작은 색 칸으로
-    const first = window.SeganCollection.STATIC[0];
     expect(colors()).toEqual([
-      ['매트 딥그린', first.hex[0]],
-      ['카카오월넛', first.hex[1]],
+      ['매트 딥그린', '#2f4952'],
+      ['카카오월넛', '#544135'],
     ]);
     expect(facts()).toEqual([['업체', 'AI 연출']]);
     expect(sheet().querySelector('.pv-photo img').getAttribute('src')).toBe(
@@ -840,6 +856,148 @@ describe('사진 보기 — 시트 (장소 · 좋아요 · 색상 · 업체 정�
       .slice(1)
       .find((b) => b.includes('.sg-sheet-wrap--panel .sg-sheet')); // PC 옆 패널 칸 (폰 시트 손잡이 칸과 헷갈리지 않게)
     expect(wide).toMatch(/\.sg-sheet-wrap \.pv-photo\s*\{\s*margin:\s*-20px -24px 0;/);
+  });
+});
+
+describe('AI 연출 사진 36장이 DB 게시물로 (DB 0076 — 2026-11-21 대표님 「하트 달아주고」)', () => {
+  const SQL = read('database/migrations/0076_collection_seed_ai_photos.sql').replace(/\r\n/g, '\n');
+  /** 0076 이 넣는 줄 — 차례 · 주소 · 구분 · 품목 · 색상 */
+  const seeded = [
+    ...SQL.matchAll(/^\s+\(\s*(\d+), '([^']+)', '([^']+)', '([^']+)', '([^']+)'\),?$/gm),
+  ].map((m) => ({
+    ord: Number(m[1]),
+    image_url: m[2],
+    category: m[3],
+    place_label: m[4],
+    door_color: m[5],
+  }));
+  /** 그 줄이 DB 에서 읽힌 모습 (최신순 = 차례 그대로) */
+  const dbRows = () =>
+    seeded.map((r, i) => ({
+      id: uid(500 + i),
+      image_url: r.image_url,
+      place_label: r.place_label,
+      door_color: r.door_color,
+      company_id: null,
+      like_count: i === 0 ? 2 : 0,
+      source: 'ai_render',
+      hq_picked_at: '2026-11-21T03:00:00Z',
+      created_at: new Date(Date.UTC(2026, 10, 20) - r.ord * 60000).toISOString(),
+    }));
+
+  test('0076 = 앱의 STATIC 과 같은 36장 · 같은 차례 · 같은 품목 · 색상, 구분은 목록 파일대로', async () => {
+    await load({ db: [] });
+    const stat = window.SeganCollection.STATIC;
+    const byFile = Object.fromEntries(
+      JSON.parse(read('app/portfolio/luxe-manifest.json')).photos.map((p) => [p.file, p])
+    );
+    expect(seeded).toHaveLength(36);
+    expect(seeded.map((r) => r.ord)).toEqual(stat.map((_, i) => i));
+    seeded.forEach((r, i) => {
+      const file = stat[i].image_url.replace(/^.*\//, '');
+      expect(r).toEqual({
+        ord: i,
+        image_url: 'https://dadamfurniture.com/app/portfolio/' + file,
+        category: byFile[file].category,
+        place_label: stat[i].place,
+        door_color: stat[i].color,
+      });
+      // 칸 제약 (DB 0049) — 색상 20자 · 장소 60자 안
+      expect([...r.door_color].length).toBeLessThanOrEqual(20);
+      expect([...r.place_label].length).toBeLessThanOrEqual(60);
+      expect(['kitchen', 'builtin', 'storage', 'interior', 'other']).toContain(r.category);
+    });
+  });
+
+  test('0076 — 본사가 고른 AI 연출컷으로 넣는다(탭에 보인다) · 학습 자료로는 쓰지 않는다 · 다시 돌려도 두 번 들어가지 않는다', () => {
+    expect(SQL).toMatch(
+      /INSERT INTO public\.collection_posts\s+\(image_url, category, place_label, door_color, source, hq_picked_at, consent_training, created_at, updated_at\)/
+    );
+    expect(SQL).toMatch(
+      /SELECT v\.image_url, v\.category, v\.place_label, v\.door_color, 'ai_render', now\(\), false,/
+    );
+    expect(SQL).toMatch(/timestamptz '2026-11-20 00:00:00\+00' - make_interval\(mins => v\.ord\)/);
+    expect(SQL).toMatch(
+      /WHERE NOT EXISTS \(SELECT 1 FROM public\.collection_posts p WHERE p\.image_url = v\.image_url\)/
+    );
+    // 행만 넣는다 — 칸 · 정책 · 함수 · 다른 표는 건드리지 않는다
+    const body = SQL.replace(/^--.*$/gm, '');
+    expect(body).not.toMatch(/\b(ALTER|CREATE|DROP|GRANT|REVOKE|UPDATE|DELETE|TRUNCATE)\b/);
+    expect(body.match(/\bINSERT\b/g)).toHaveLength(1);
+    expect(body).not.toMatch(/\b(BEGIN|COMMIT|ROLLBACK)\b/);
+  });
+
+  test('DB 로 들어온 36장 — 칸마다 ♡, 가벼운 사본으로 그리고, STATIC 을 또 붙이지 않는다 (같은 사진 두 번 없음)', async () => {
+    await load({ db: dbRows() });
+    await moreAll();
+    expect(tiles()).toHaveLength(36);
+    expect(hearts()).toHaveLength(36);
+    const srcs = tiles().map((t) => t.querySelector('img').getAttribute('src'));
+    expect(new Set(srcs).size).toBe(36);
+    // 앱에서 보이던 차례 그대로, 칸은 앱 안의 가벼운 사본 (사이트의 원본 주소를 그대로 받지 않는다)
+    expect(srcs).toEqual(
+      window.SeganCollection.STATIC.map((s) =>
+        s.image_url.replace('/portfolio/', '/portfolio/display/')
+      )
+    );
+    // 색상 영역 — 자재 색 칸도 그대로
+    const first = cells()[0];
+    expect([...first.querySelectorAll('.cl-colors li')].map((li) => li.textContent)).toEqual([
+      '매트 딥그린',
+      '카카오월넛',
+    ]);
+    expect(first.querySelectorAll('.cl-chip')).toHaveLength(2);
+    expect($('clState').textContent).toBe('마지막 사례입니다');
+  });
+
+  test('DB 로 들어온 사진 — ♡ 가 저장되고, 사진 보기는 원본 · 업체 「AI 연출」 · 「이 스타일로 연출컷」은 파일 이름으로', async () => {
+    const calls = await load({ db: dbRows(), session: SESSION });
+    hearts()[0].click();
+    await flush();
+    expect(of(calls, 'collection_likes', 'insert').map((q) => q.row)).toEqual([
+      { user_id: ME, post_id: uid(500) },
+    ]);
+    expect(hearts()[0].getAttribute('aria-pressed')).toBe('true');
+    await openTile(0);
+    expect(sheet().querySelector('.pv-photo img').getAttribute('src')).toBe(
+      '../app/portfolio/mix-01.jpg'
+    );
+    expect(place()).toBe('일자형 주방');
+    expect(facts()).toEqual([['업체', 'AI 연출']]);
+    expect(likeBtn().getAttribute('aria-pressed')).toBe('true');
+    expect(likeBtn().querySelector('.pv-count').textContent).toBe('3');
+    expect(sheet().querySelector('a.pv-make').getAttribute('href')).toBe('make.html?ref=mix-01');
+  });
+
+  test('일부만 DB 에 있으면(누가 내림 · 적용 전) 없는 사진만 STATIC 에서 — 그 칸에는 ♡ 가 없다', async () => {
+    await load({ db: dbRows().slice(0, 10) });
+    await moreAll();
+    expect(tiles()).toHaveLength(36);
+    expect(hearts()).toHaveLength(10);
+    const srcs = tiles().map((t) => t.querySelector('img').getAttribute('src'));
+    expect(new Set(srcs).size).toBe(36);
+    expect(cells()[10].querySelector('.cl-like')).toBeNull();
+  });
+
+  test('주소가 그 꼴일 때만 앱 안 사진으로 본다 — 다른 사이트 · 다른 폴더 · 다른 파일은 받은 주소 그대로', async () => {
+    await load({ db: [] });
+    const V = window.SeganPostView;
+    const row = (image_url) => V.fromRow({ id: uid(1), image_url, source: 'ai_render' });
+    expect(row('https://dadamfurniture.com/app/portfolio/luxe-01.jpg')).toMatchObject({
+      image_url: '../app/portfolio/luxe-01.jpg',
+      thumb: '../app/portfolio/display/luxe-01.jpg',
+      stem: 'luxe-01',
+    });
+    for (const url of [
+      'https://evil.example/app/portfolio/luxe-01.jpg',
+      'https://dadamfurniture.com/app/portfolio/../../x.jpg',
+      'https://dadamfurniture.com/app/portfolio/luxe-01.jpg?x=1',
+      'https://dadamfurniture.com/app/other/luxe-01.jpg',
+      'https://example.supabase.co/storage/v1/object/public/collection/ai/abc.jpg',
+    ])
+      expect(row(url)).toMatchObject({ image_url: url, thumb: url, stem: '' });
+    // 그 사진이 아닌 AI 연출컷에는 「이 스타일로 연출컷」이 없다 (예전 그대로)
+    expect(V.refHref(row('https://example.supabase.co/x.jpg'))).toBe('');
   });
 });
 

@@ -7,18 +7,21 @@
      DB 게시물   collection_posts 의 id · image_url · place_label · door_color · company_id · like_count · source · created_at
                  + 업체 이름 RPC collection_post_companies (본사 · 활동 중 협력업체만 — DB 0049)
      내 좋아요   RPC collection_my_likes 한 줄 (업체 이름이 같이 온다)
-     자체 시공   segan/collection.js STATIC (id 가 없다 — 좋아요 없음). 업체는 「다담가구」, 장소는 지역,
-                 타일은 가벼운 사본(app/portfolio/display/), 크게 볼 때는 원본
+     AI 연출 사진  앱에 넣어 둔 36장 (app/portfolio/). 2026-11-21 대표님 「하트 달아주고」 → DB 0076 이 게시물 행으로 넣었다
+                 (image_url = https://dadamfurniture.com/app/portfolio/<이름>.jpg, source 'ai_render'). fromRow 가 그 주소를
+                 알아보고 타일은 가벼운 사본(app/portfolio/display/), 크게 볼 때는 원본을 앱 안 경로로 쓴다 — 좋아요가 된다.
+                 DB 를 못 읽거나 그 행이 없으면 segan/collection.js STATIC 으로 그린다 (id 가 없다 — 좋아요 없음)
    글 규칙
      업체  업체 이름 → 없고 AI 연출컷(source 'ai_render')이면 「AI 연출컷」 → 아니면 그 줄을 보이지 않는다
            (직접 올린 사진에 「다담가구」를 붙이지 않는다 — 누구의 일인지는 DB company_id 가 정한다)
      장소  place_label (비면 줄 없음) · 색상 door_color (비면 줄 없음)
      AI 연출컷은 타일 귀퉁이에 「AI」, 사진 보기 제목도 「AI 연출컷」 — 실제 시공 사진으로 오해하지 않게
    「이 스타일로 연출컷」 — 만들기(./)를 그 사진을 참고 사진으로 담고 연다 (segan/make.js takeLinkRefs)
-     DB 게시물 ./?ref=<게시물 id> · 자체 시공 ./?ref=<파일 이름> · AI 연출컷은 단추 없음 (만들기가 AI 연출컷 ref 를 건너뛴다)
+     DB 게시물 ./?ref=<게시물 id> · AI 연출 사진 ./?ref=<파일 이름>(게시물 행이든 STATIC 이든) · AI 연출컷은 단추 없음
+     (만들기가 AI 연출컷 ref 를 건너뛴다)
    타일 (2026-11-21 대표님 「사진 위에 색상 정보를 적지 말고 밑에 색상 정보 영역을 만들어서 개별로」)
      칸(.cl-cell) = 사진 단추(.cl-tile — 정사각, 누르면 사진 보기) + 사진 아래 색상 영역(.cl-info)
-     색상 영역 = 색상을 하나씩 한 줄에(.cl-colors — 색 값을 알면 작은 색 칸) + ♡ 단추
+     색상 영역 = 색상을 하나씩 한 줄에(.cl-colors — 예림 자재 이름이면 작은 색 칸, MATERIAL_HEX) + ♡ 단추
      좋아요를 저장할 수 없는 사진(DB 게시물이 아닌 것)은 ♡ 없이. 색상을 몰라도 영역은 둔다 (줄 높이가 맞는다)
    사진 보기 (open — 같은 날 「사진을 클릭하면 바로 확대 사진이 나오지 말고 색상정보, 견적, 업체 정보」.
               견적은 바로 뒤에 「견적은 일단 빼자」 — 예상 견적 칸은 뺐다. 넣었던 모습은 #1682)
@@ -63,7 +66,47 @@
   var COMPANY_IDS = 100; // collection_post_companies 가 받는 앞 100개 (DB 0049)
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   var STEM_RE = /^[a-z0-9-]{1,40}$/i; // segan/make.js STATIC_STEM_RE 와 같다
-  var HEX_RE = /^#[0-9a-f]{6}$/i; // 색 칸에 그대로 적는 값 — 이 꼴만 받는다
+  // DB 로 들어간 AI 연출 사진의 주소 (DB 0076) — 이름만 꺼내 앱 안 경로로 바꾼다
+  var PORTFOLIO_RE = /^https:\/\/dadamfurniture\.com\/app\/portfolio\/([a-z0-9-]{1,40})\.jpg$/i;
+  // 자재 이름 → 색 값 (색상 영역의 작은 색 칸). app/portfolio/luxe-manifest.json 의 materials 그대로 — 예림 도어 자재.
+  // 사진을 더해 새 자재가 생기면 여기도 더한다 (__tests__/segan-collection.test.js 가 목록 파일과 견준다)
+  var MATERIAL_HEX = {
+    '그레이쉬 오크': '#40352f',
+    '글로시 화이트': '#fbfbfb',
+    '네이처 오크': '#9c7b5b',
+    '매트 그레이': '#989494',
+    '매트 다크그레이': '#3b3835',
+    '매트 딥그린': '#2f4952',
+    '매트 로지핑크': '#f3e9de',
+    '매트 미스트그린': '#a5afa0',
+    '매트 밀크화이트': '#fffef8',
+    '매트 버터스카치': '#cca47c',
+    '매트 블랙': '#272727',
+    '매트 샌드그레이': '#d4cfc8',
+    '매트 스모키올리브': '#474f44',
+    '매트 스카이브리즈': '#abc5e2',
+    '매트 아이보리': '#f5eddc',
+    '매트 인디고': '#2e2f3f',
+    '매트 카페브라운': '#6d5d51',
+    '매트 캐시미어': '#e3e1d6',
+    '매트 타우니레드': '#6e4639',
+    '매트 화이트': '#fbfbfb',
+    '세라믹 문 브릭': '#77462d',
+    세이오크: '#cea875',
+    소프트월넛: '#504029',
+    슈가엘름: '#d8c8ba',
+    '아크 마멀레이드': '#d4612a',
+    '아크 미드나잇블루': '#2a293a',
+    '아크 샌드듄': '#cdc2b4',
+    '아크 포레스트그린': '#2a422e',
+    '아크 플라워블루': '#5a687f',
+    윈체스터월넛: '#a56c43',
+    카카오월넛: '#544135',
+    '카타니아 오크': '#433027',
+    '콘크리트 그레이': '#c6c2c2',
+    프렌치오크: '#bca580',
+    피넛오크: '#9a8464',
+  };
   var HEART =
     '<svg class="pv-heart" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
     'stroke-width="1.3" aria-hidden="true" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10.1A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></svg>';
@@ -87,20 +130,22 @@
   /** DB 게시물 한 줄 + 업체({ company_name, company_kind } — collection_post_companies) */
   function fromRow(row, company) {
     var c = company && typeof company === 'object' ? company : {};
+    var url = str(row.image_url);
+    // 앱에 넣어 둔 AI 연출 사진이 게시물로 들어온 것 (DB 0076) — 같은 사진의 가벼운 사본이 앱 안에 있다
+    var local = PORTFOLIO_RE.exec(url);
     return {
       id: str(row.id),
-      image_url: str(row.image_url),
-      thumb: str(row.image_url),
+      image_url: local ? STATIC_FULL + local[1] + '.jpg' : url,
+      thumb: local ? STATIC_THUMB + local[1] + '.jpg' : url,
       place_label: str(row.place_label),
       door_color: str(row.door_color),
-      hex: [],
       // 본사(다담) 일은 고객에게 「다담가구」로 보인다 — DB 의 본사 업체 이름(다담 공장)은 내부 이름
       company_name: str(c.company_kind) === 'hq' ? TEXT.hq : str(c.company_name),
       company_kind: str(c.company_kind),
       source: str(row.source) || 'upload',
       like_count: num(row.like_count),
       created_at: row.created_at || null,
-      stem: '',
+      stem: local ? local[1] : '',
     };
   }
 
@@ -122,8 +167,8 @@
     return p;
   }
 
-  /** AI 연출 사진 (segan/collection.js STATIC — { image_url: '../app/portfolio/<이름>.jpg', place, color, hex }).
-   *  color = 「자재 이름 · 자재 이름」, hex = 그 차례의 색 값 (app/portfolio/luxe-manifest.json materials) */
+  /** AI 연출 사진 (segan/collection.js STATIC — { image_url: '../app/portfolio/<이름>.jpg', place, color }).
+   *  color = 「자재 이름 · 자재 이름」. DB 를 못 읽었거나 그 사진의 게시물 행이 없을 때만 쓴다 */
   function fromStatic(s) {
     var file = String(s.image_url || '').replace(/^.*\//, '');
     var stem = file.replace(/\.jpg$/i, '');
@@ -133,7 +178,6 @@
       thumb: STATIC_THUMB + file,
       place_label: str(s.place),
       door_color: str(s.color),
-      hex: Array.isArray(s.hex) ? s.hex.filter(isHex) : [],
       company_name: TEXT.staticAi,
       company_kind: '',
       source: 'upload',
@@ -157,17 +201,14 @@
     };
   }
 
-  function isHex(v) {
-    return typeof v === 'string' && HEX_RE.test(v);
-  }
-
-  /** 색상 하나씩 — [{ name, hex }]. 색상 글은 「이름 · 이름」, 색 값은 아는 것만 (AI 연출 사진) */
+  /** 색상 하나씩 — [{ name, hex }]. 색상 글은 「이름 · 이름」, 색 값은 아는 자재 이름만 (MATERIAL_HEX) */
   function colorsOf(p) {
-    var hex = p && Array.isArray(p.hex) ? p.hex : [];
     return String((p && p.door_color) || '')
       .split(' · ')
-      .map(function (name, i) {
-        return { name: name.trim(), hex: isHex(hex[i]) ? hex[i] : '' };
+      .map(function (raw) {
+        var name = raw.trim();
+        var known = Object.prototype.hasOwnProperty.call(MATERIAL_HEX, name);
+        return { name: name, hex: known ? MATERIAL_HEX[name] : '' };
       })
       .filter(function (c) {
         return !!c.name;
@@ -210,9 +251,11 @@
 
   /** 「이 스타일로 연출컷」 주소 — AI 연출컷 · 모르는 것은 '' (단추 없음) */
   function refHref(p) {
-    if (!p || p.source === 'ai_render') return '';
+    if (!p) return '';
+    // 앱에 넣어 둔 AI 연출 사진 — 게시물 행이든 STATIC 이든 파일 이름으로 (만들기가 그 이름을 안다)
+    if (p.stem && STEM_RE.test(p.stem)) return 'make.html?ref=' + encodeURIComponent(p.stem);
+    if (p.source === 'ai_render') return '';
     if (p.id && UUID_RE.test(p.id)) return 'make.html?ref=' + encodeURIComponent(p.id);
-    if (!p.id && p.stem) return 'make.html?ref=' + encodeURIComponent(p.stem);
     return '';
   }
 

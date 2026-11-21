@@ -10,8 +10,9 @@
        id · image_url · place_label · door_color · company_id · like_count · source · created_at (DB 0049)
      업체 이름은 RPC collection_post_companies (업체가 있는 게시물만, 쪽마다 한 번)
      로그인했으면 이 쪽에서 내가 좋아한 것 — collection_likes post_id (본인 줄만 읽힌다)
-     DB 사례를 다 받은 뒤에 AI 연출 사진(STATIC — app/portfolio/luxe-manifest.json)을 붙인다
-       (최신순이 끝까지 이어지고, 이미 그린 자리 사이로 새 줄이 끼어들지 않는다)
+     AI 연출 사진 36장(app/portfolio/luxe-manifest.json)은 DB 0076 이 게시물 행으로 넣었다 (2026-11-21 대표님 「하트 달아주고」)
+       — 다른 게시물처럼 읽히고 ♡ 가 달린다. DB 사례를 다 받은 뒤, 그 행으로 오지 않은 사진만 STATIC 에서 붙인다
+       (DB 를 못 읽을 때 · 0076 적용 전 · 누가 내린 사진 — 그 칸에는 ♡ 가 없다. 같은 사진이 두 번 나오지 않는다)
    처음 24장 · 24장씩 더 — 아래까지 내리면 저절로(IntersectionObserver), 없으면 「더 보기」 단추.
    사진 아래 색상 영역에 색상을 하나씩과 ♡(좋아요 — DB 게시물만). 사진을 누르면 사진 보기
    (색상 · 업체 정보 · 좋아요 · 이 스타일로 연출컷), 그 안의 사진을 누르면 사진만 전체 화면
@@ -31,223 +32,188 @@
   // AI 연출 사진 36장 (app/portfolio/luxe-manifest.json, segan/ 에서 보므로 ../) — 장소 대신 품목, 색상 = 예림 도어 자재 이름.
   // 밝은 luxe 15장과 다양한 색 · 디자인 · 품목 mix 21장을 고르게 섞은 차례 (2026-11-20).
   // 실제 시공 사진이 아니므로 지역 · 업체를 붙이지 않는다 (사진 보기의 업체 줄은 「AI 연출」)
-  // hex = color 의 자재 차례 그대로의 색 값 (같은 목록 파일의 materials[].hex) — 색상 영역의 작은 색 칸
+  // 같은 36장이 DB 게시물로도 들어 있다 (database/migrations/0076 — 차례 · 품목 · 색상이 이 목록과 같다, 시험이 견준다).
+  // 여기 것은 DB 로 오지 않았을 때만 그린다 (syncPosts)
   var STATIC = [
     {
       image_url: '../app/portfolio/mix-01.jpg',
       place: '일자형 주방',
       color: '매트 딥그린 · 카카오월넛',
-      hex: ['#2f4952', '#544135'],
     },
     {
       image_url: '../app/portfolio/mix-10.jpg',
       place: '안방 붙박이장',
       color: '매트 카페브라운 · 매트 아이보리',
-      hex: ['#6d5d51', '#f5eddc'],
     },
     {
       image_url: '../app/portfolio/luxe-01.jpg',
       place: '아일랜드 주방',
       color: '매트 화이트 · 세이오크',
-      hex: ['#fbfbfb', '#cea875'],
     },
     {
       image_url: '../app/portfolio/mix-16.jpg',
       place: '홈카페장',
       color: '아크 마멀레이드 · 매트 아이보리',
-      hex: ['#d4612a', '#f5eddc'],
     },
     {
       image_url: '../app/portfolio/mix-02.jpg',
       place: '아일랜드 주방',
       color: '매트 블랙 · 카타니아 오크',
-      hex: ['#272727', '#433027'],
     },
     {
       image_url: '../app/portfolio/luxe-10.jpg',
       place: '안방 붙박이장',
       color: '매트 캐시미어 · 세이오크',
-      hex: ['#e3e1d6', '#cea875'],
     },
     {
       image_url: '../app/portfolio/luxe-02.jpg',
       place: '일자형 주방',
       color: '매트 아이보리 · 슈가엘름',
-      hex: ['#f5eddc', '#d8c8ba'],
     },
     {
       image_url: '../app/portfolio/luxe-13.jpg',
       place: '홈카페장',
       color: '매트 밀크화이트 · 세이오크',
-      hex: ['#fffef8', '#cea875'],
     },
     {
       image_url: '../app/portfolio/mix-03.jpg',
       place: 'ㄱ자형 주방',
       color: '매트 인디고 · 매트 화이트',
-      hex: ['#2e2f3f', '#fbfbfb'],
     },
     {
       image_url: '../app/portfolio/mix-11.jpg',
       place: '드레스룸',
       color: '그레이쉬 오크 · 매트 다크그레이',
-      hex: ['#40352f', '#3b3835'],
     },
     {
       image_url: '../app/portfolio/luxe-03.jpg',
       place: 'ㄱ자형 주방',
       color: '매트 밀크화이트 · 매트 샌드그레이',
-      hex: ['#fffef8', '#d4cfc8'],
     },
     {
       image_url: '../app/portfolio/mix-17.jpg',
       place: '거실 수납장',
       color: '매트 다크그레이 · 소프트월넛',
-      hex: ['#3b3835', '#504029'],
     },
     {
       image_url: '../app/portfolio/mix-04.jpg',
       place: 'ㄷ자형 주방',
       color: '매트 미스트그린 · 매트 아이보리',
-      hex: ['#a5afa0', '#f5eddc'],
     },
     {
       image_url: '../app/portfolio/luxe-11.jpg',
       place: '드레스룸',
       color: '매트 화이트 · 프렌치오크',
-      hex: ['#fbfbfb', '#bca580'],
     },
     {
       image_url: '../app/portfolio/luxe-04.jpg',
       place: 'ㄷ자형 주방',
       color: '매트 캐시미어 · 프렌치오크',
-      hex: ['#e3e1d6', '#bca580'],
     },
     {
       image_url: '../app/portfolio/luxe-14.jpg',
       place: '다이닝 수납장',
       color: '매트 샌드그레이 · 매트 밀크화이트',
-      hex: ['#d4cfc8', '#fffef8'],
     },
     {
       image_url: '../app/portfolio/mix-05.jpg',
       place: '대면형 주방',
       color: '매트 타우니레드 · 매트 샌드그레이',
-      hex: ['#6e4639', '#d4cfc8'],
     },
     {
       image_url: '../app/portfolio/mix-12.jpg',
       place: '아이방 붙박이장',
       color: '매트 스카이브리즈 · 슈가엘름',
-      hex: ['#abc5e2', '#d8c8ba'],
     },
     {
       image_url: '../app/portfolio/luxe-05.jpg',
       place: '대면형 주방',
       color: '매트 화이트 · 아크 샌드듄',
-      hex: ['#fbfbfb', '#cdc2b4'],
     },
     {
       image_url: '../app/portfolio/mix-18.jpg',
       place: '다이닝 수납장',
       color: '아크 포레스트그린 · 네이처 오크',
-      hex: ['#2a422e', '#9c7b5b'],
     },
     {
       image_url: '../app/portfolio/mix-06.jpg',
       place: '일자형 주방',
       color: '아크 플라워블루 · 매트 화이트',
-      hex: ['#5a687f', '#fbfbfb'],
     },
     {
       image_url: '../app/portfolio/luxe-12.jpg',
       place: '드레스룸',
       color: '매트 아이보리 · 슈가엘름',
-      hex: ['#f5eddc', '#d8c8ba'],
     },
     {
       image_url: '../app/portfolio/luxe-06.jpg',
       place: '아일랜드 주방',
       color: '매트 샌드그레이 · 매트 화이트',
-      hex: ['#d4cfc8', '#fbfbfb'],
     },
     {
       image_url: '../app/portfolio/luxe-15.jpg',
       place: '거실 수납장',
       color: '아크 샌드듄 · 프렌치오크',
-      hex: ['#cdc2b4', '#bca580'],
     },
     {
       image_url: '../app/portfolio/mix-07.jpg',
       place: '11자 주방',
       color: '콘크리트 그레이 · 네이처 오크',
-      hex: ['#c6c2c2', '#9c7b5b'],
     },
     {
       image_url: '../app/portfolio/mix-13.jpg',
       place: '현관 신발장',
       color: '매트 그레이 · 네이처 오크',
-      hex: ['#989494', '#9c7b5b'],
     },
     {
       image_url: '../app/portfolio/luxe-07.jpg',
       place: '냉장고장',
       color: '매트 아이보리 · 세이오크',
-      hex: ['#f5eddc', '#cea875'],
     },
     {
       image_url: '../app/portfolio/mix-19.jpg',
       place: '세탁실장',
       color: '매트 버터스카치 · 매트 화이트',
-      hex: ['#cca47c', '#fbfbfb'],
     },
     {
       image_url: '../app/portfolio/mix-08.jpg',
       place: '아일랜드 주방',
       color: '글로시 화이트 · 윈체스터월넛',
-      hex: ['#fbfbfb', '#a56c43'],
     },
     {
       image_url: '../app/portfolio/mix-14.jpg',
       place: '드레스룸',
       color: '매트 로지핑크 · 매트 화이트',
-      hex: ['#f3e9de', '#fbfbfb'],
     },
     {
       image_url: '../app/portfolio/luxe-08.jpg',
       place: '11자 주방',
       color: '매트 밀크화이트 · 프렌치오크',
-      hex: ['#fffef8', '#bca580'],
     },
     {
       image_url: '../app/portfolio/mix-20.jpg',
       place: '화장대',
       color: '세라믹 문 브릭 · 매트 밀크화이트',
-      hex: ['#77462d', '#fffef8'],
     },
     {
       image_url: '../app/portfolio/mix-09.jpg',
       place: '냉장고장',
       color: '매트 스모키올리브 · 피넛오크',
-      hex: ['#474f44', '#9a8464'],
     },
     {
       image_url: '../app/portfolio/mix-15.jpg',
       place: '작은방 붙박이장',
       color: '아크 미드나잇블루 · 카카오월넛',
-      hex: ['#2a293a', '#544135'],
     },
     {
       image_url: '../app/portfolio/luxe-09.jpg',
       place: '주방 디테일',
       color: '매트 화이트 · 세이오크',
-      hex: ['#fbfbfb', '#cea875'],
     },
     {
       image_url: '../app/portfolio/mix-21.jpg',
       place: '서재 책장',
       color: '카카오월넛 · 매트 블랙',
-      hex: ['#544135', '#272727'],
     },
   ];
 
@@ -354,9 +320,21 @@
     $('clMore').hidden = S.loading || atEnd();
   }
 
-  /** DB 사례를 모두 받은 뒤에 정적 사례를 붙인다 */
+  /** DB 사례를 모두 받은 뒤에, 게시물 행으로 오지 않은 AI 연출 사진만 붙인다 (같은 사진을 두 번 그리지 않는다) */
   function syncPosts() {
-    S.posts = S.exhausted ? S.db.concat(STATIC.map(PV().fromStatic)) : S.db.slice();
+    if (!S.exhausted) {
+      S.posts = S.db.slice();
+      return;
+    }
+    var have = {};
+    S.db.forEach(function (p) {
+      if (p.stem) have[p.stem] = true;
+    });
+    S.posts = S.db.concat(
+      STATIC.map(PV().fromStatic).filter(function (p) {
+        return !have[p.stem];
+      })
+    );
   }
 
   /** 다음 묶음 — 실제 레코드 수에서 멈춘다 (되풀이하지 않는다) */
