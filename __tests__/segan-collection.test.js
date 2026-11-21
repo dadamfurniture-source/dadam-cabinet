@@ -6,7 +6,8 @@
  *   - 사진을 인스타그램처럼 정사각 칸으로 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2~3px
  *   - collection_posts 공개 칸만 최신순 · 24줄 키셋, 업체 이름은 RPC collection_post_companies,
  *     로그인했으면 이 쪽의 내 좋아요 (collection_likes post_id). DB 사례 뒤에 같은 STATIC
- *   - 누르면 사진 보기 시트(SeganShell.sheet) — 장소 · 색상 · 업체 · 좋아요(♡ aria-pressed) · 이 스타일로 연출컷
+ *   - 사진 아래 색상 영역(색상 하나씩 · ♡), 누르면 사진 보기 시트(SeganShell.sheet) — 장소 · 좋아요(♡ aria-pressed) ·
+ *     색상 · 예상 견적(연출컷과 같은 표준 단가표) · 업체 정보 · 이 스타일로 연출컷. 그 안의 사진을 누르면 사진만 전체 화면
  *   - 업체: 업체 이름 → (없고) AI 연출컷이면 「AI 연출컷」 → 아니면 줄 없음. 정적 사진(AI 연출)은 「AI 연출」
  *   - 좋아요: 로그인 — insert { user_id, post_id } · delete eq post_id, 로그인 전 — 가운데 작은 창으로 로그인
  *   - 다운로드 단추 · 링크 없음, 관리자 「내리기」 없음. 자재 칸은 뺐다 (/material → /segan/blog)
@@ -20,17 +21,19 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const ME = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SESSION = { access_token: 'tok', user: { id: ME } };
 const CO_P = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-const COLS = 'id,image_url,place_label,door_color,company_id,like_count,source,created_at';
+const COLS = 'id,image_url,category,place_label,door_color,company_id,like_count,source,created_at';
 const uid = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
 
 /**
  * DB 줄 (최신순) — 모두 직접 올린 사진(탭은 AI 연출컷 source 'ai_render' 를 묻지 않는다, 2026-11-20).
  * 0: 장소 · 색상 · 업체 있음, 1: 장소 · 색상 · 업체 없음, 2: 장소 · 색상 · 업체 없음, 3: 본사 업체, 그 뒤는 차례대로
+ * 구분(category) — 0: 주방, 1: 실내(견적을 낼 품목을 모른다), 그 뒤는 붙박이
  */
 function rows(n) {
   return Array.from({ length: n }, (_, i) => ({
     id: uid(i),
     image_url: `https://example.supabase.co/storage/v1/object/public/collection/p${i}.jpg`,
+    category: i === 0 ? 'kitchen' : i === 1 ? 'interior' : 'builtin',
     place_label: i === 1 ? '싱크대' : i % 5 === 2 ? '' : `인천 연수구 · 주방 ${i}`,
     door_color: i === 1 ? '오크' : i === 0 ? '화이트' : '',
     company_id: i === 0 || i === 3 ? CO_P : null,
@@ -209,18 +212,43 @@ const closeAll = async () => {
     await flush();
   }
 };
-/** 사진을 누른다 → 사진만 전체 화면 */
-const openFull = async (i) => {
+/** 사진을 누른다 → 사진 보기 시트 */
+const openTile = async (i) => {
   await closeAll();
   tiles()[i].click();
   await flush();
 };
-/** 사진 보기 시트까지 — 사진을 누르고(전체 화면) 그 안의 「정보」를 누른다 */
-const openTile = async (i) => {
-  await openFull(i);
-  full().querySelector('.pv-full-info').click();
+/** 사진만 전체 화면까지 — 사진을 누르고(사진 보기) 그 안의 사진을 누른다 */
+const openFull = async (i) => {
+  await openTile(i);
+  sheet().querySelector('.pv-photo').click();
   await flush();
 };
+/** 사진 보기의 장소 줄 · 색상 [이름, 색 값] · 견적 줄 [품목, 수량, 금액] */
+const place = () => (sheet().querySelector('.pv-place') || { textContent: null }).textContent;
+const chipOf = (li) => {
+  const c = li.querySelector('.cl-chip');
+  return c ? c.getAttribute('style').replace('background: ', '') : '';
+};
+const colors = () =>
+  [...sheet().querySelectorAll('.pv-colors li')].map((li) => [
+    li.querySelector('span:last-child').textContent,
+    chipOf(li),
+  ]);
+const quoteRows = () =>
+  [...sheet().querySelectorAll('.pv-qrow')].map((r) => {
+    const small = r.querySelector('small');
+    const qty = small ? small.textContent : '';
+    return [r.firstChild.textContent.replace(qty, '').trim(), qty, r.lastChild.textContent];
+  });
+const won = (n) => n.toLocaleString('ko-KR') + '원';
+/** 서버의 견적 셈 (workers/generate-api/src/quote.js) — 앱의 표가 이것과 같아야 한다 */
+const serverQuote = (() => {
+  const src = read('workers/generate-api/src/quote.js')
+    .replace(/\r\n/g, '\n')
+    .replace(/^export /gm, '');
+  return new Function(src + '\nreturn { buildQuote, RATES };')();
+})();
 const moreAll = async () => {
   for (let i = 0; i < 10; i++) {
     if ($('clMore').hidden) break;
@@ -258,6 +286,7 @@ describe('읽기 — 공개 칸만 · 최신순 24줄 키셋 · DB 뒤에 STATIC
         image_url: '../app/portfolio/' + file,
         place: p.kind,
         color: p.materials.map((m) => m.name).join(' · '),
+        hex: p.materials.map((m) => m.hex), // 색상 영역의 작은 색 칸 — 목록 파일의 색 값 그대로
       });
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio', file))).toBe(true);
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', file))).toBe(true);
@@ -379,8 +408,9 @@ describe('칸 — 폰 3칸 · PC 4칸 · 이미지는 늦게 받기', () => {
     expect(rule('.cl-grid', '@media (min-width: 1024px)')).toMatch(
       /grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/
     );
-    // 타일은 정사각 · 꽉 채움, 라운드 · 섀도 없음
-    expect(rule('.cl-cell')).toMatch(/aspect-ratio:\s*1 \/ 1/);
+    // 사진은 정사각 · 꽉 채움, 라운드 · 섀도 없음 (칸은 사진 + 그 아래 색상 영역이라 정사각이 아니다)
+    expect(rule('.cl-tile')).toMatch(/aspect-ratio:\s*1 \/ 1/);
+    expect(rule('.cl-cell')).not.toMatch(/aspect-ratio/);
     expect(rule('.cl-tile img')).toMatch(/object-fit:\s*cover/);
     expect(css).not.toMatch(/box-shadow\s*:/);
   });
@@ -391,7 +421,7 @@ describe('칸 — 폰 3칸 · PC 4칸 · 이미지는 늦게 받기', () => {
     expect(t.tagName).toBe('BUTTON');
     expect(t.getAttribute('type')).toBe('button');
     expect(t.getAttribute('aria-label')).toBe(
-      '시공사례 · 인천 연수구 · 주방 0 · 다담 협력 주방 크게 보기'
+      '시공사례 · 인천 연수구 · 주방 0 · 다담 협력 주방 정보 보기'
     );
     const img = t.querySelector('img');
     expect(img.getAttribute('loading')).toBe('lazy');
@@ -426,39 +456,62 @@ describe('칸 — 폰 3칸 · PC 4칸 · 이미지는 늦게 받기', () => {
   });
 });
 
-describe('칸 아래쪽 줄 — 색상 글 · ♡ (2026-11-20 대표님 「하단에 색상 정보 간단하게 · 좋아요 하트」)', () => {
-  test('칸 = 사진 단추 + 아래쪽 줄. 색상이 있으면 글, DB 게시물이면 ♡ — 둘 다 없으면 줄도 없다', async () => {
+describe('사진 아래 색상 영역 — 색상 하나씩 · ♡ (2026-11-21 대표님 「사진 위에 적지 말고 밑에 색상 정보 영역을 만들어서 개별로」)', () => {
+  test('칸 = 사진 단추 + 그 아래 색상 영역. 색상은 하나씩 한 줄, DB 게시물이면 ♡ — 사진 위에는 아무것도 얹지 않는다', async () => {
     await load();
     await moreAll();
-    const cap = (i) => cells()[i].querySelector('.cl-cap');
-    // 0: 색상 「화이트」 + ♡
+    const info = (i) => cells()[i].querySelector('.cl-info');
+    const names = (i) => [...info(i).querySelectorAll('.cl-colors li')].map((li) => li.textContent);
+    // 칸의 자식은 차례대로 사진 단추 · 색상 영역 — 영역은 사진 단추 안이 아니다
+    expect([...cells()[0].children].map((c) => c.className)).toEqual(['cl-tile', 'cl-info']);
     expect(cells()[0].querySelector('button.cl-tile[data-open="0"]')).not.toBeNull();
-    expect(cap(0).querySelector('.cl-color').textContent).toBe('화이트');
-    const heart = cap(0).querySelector('button.cl-like');
+    expect(document.querySelector('.cl-tile .cl-info, .cl-tile .cl-colors, .cl-cap')).toBeNull();
+    // 0: 색상 「화이트」 + ♡ (DB 게시물은 색 값을 몰라 색 칸이 없다)
+    expect(names(0)).toEqual(['화이트']);
+    expect(info(0).querySelector('.cl-chip')).toBeNull();
+    const heart = info(0).querySelector('button.cl-like');
     expect(heart.getAttribute('data-like')).toBe('0');
     expect(heart.getAttribute('type')).toBe('button');
     expect(heart.getAttribute('aria-label')).toBe('좋아요');
     expect(heart.getAttribute('aria-pressed')).toBe('false');
     expect(heart.querySelector('svg.pv-heart')).not.toBeNull();
-    // 2: 색상 없음 — ♡ 만
-    expect(cap(2).querySelector('.cl-color')).toBeNull();
-    expect(cap(2).querySelector('.cl-like')).not.toBeNull();
+    // 2: 색상 없음 — ♡ 만 (영역은 그대로 둔다)
+    expect(info(2).querySelector('.cl-colors')).toBeNull();
+    expect(info(2).querySelector('.cl-like')).not.toBeNull();
     // ♡ 는 사진 단추 안에 넣지 않는다 (단추 안 단추가 되지 않게)
     expect(document.querySelector('.cl-tile .cl-like')).toBeNull();
-    // 정적 사진(AI 연출) — 색상 글만. DB 게시물이 아니라 좋아요를 저장할 곳이 없다
-    const first = cells()[30];
-    expect(first.querySelector('.cl-color').textContent).toBe(
-      window.SeganCollection.STATIC[0].color
+    // 정적 사진(AI 연출) — 색상을 하나씩 (「매트 딥그린 · 카카오월넛」 → 두 줄), 색 값은 작은 색 칸으로
+    const first = window.SeganCollection.STATIC[0];
+    expect(names(30)).toEqual(first.color.split(' · '));
+    expect(names(30)).toHaveLength(2);
+    expect([...info(30).querySelectorAll('.cl-chip')].map((c) => c.getAttribute('style'))).toEqual(
+      first.hex.map((h) => 'background: ' + h)
     );
-    expect(first.querySelector('.cl-like')).toBeNull();
+    expect(info(30).querySelector('.cl-chip').getAttribute('aria-hidden')).toBe('true');
+    // DB 게시물이 아니라 좋아요를 저장할 곳이 없다
+    expect(info(30).querySelector('.cl-like')).toBeNull();
     expect(hearts()).toHaveLength(30);
-    // 색상도 없고 좋아요도 못 하는 사진은 줄이 없다
+    // 색상도 없고 좋아요도 못 하는 사진 — 빈 영역만 (줄 높이가 맞는다)
+    const bare = window.SeganPostView.tileHTML(
+      window.SeganPostView.fromStatic({ image_url: '../app/portfolio/x.jpg', place: '주방' }),
+      0
+    );
+    expect(bare).toContain('<div class="cl-info"></div>');
+    // 색 값은 #rrggbb 꼴만 색 칸이 된다 (그대로 style 에 적으므로)
+    const V = window.SeganPostView;
     expect(
-      window.SeganPostView.tileHTML(
-        window.SeganPostView.fromStatic({ image_url: '../app/portfolio/x.jpg', place: '주방' }),
-        0
+      V.colorsOf(
+        V.fromStatic({
+          image_url: '../app/portfolio/x.jpg',
+          color: '가 · 나 · 다',
+          hex: ['#AABBCC', 'red; background: url(x)', '#12345'],
+        })
       )
-    ).not.toContain('cl-cap');
+    ).toEqual([
+      { name: '가', hex: '#AABBCC' },
+      { name: '나', hex: '' },
+      { name: '다', hex: '' },
+    ]);
   });
 
   test('내가 좋아한 사진은 눌린 ♡ 로 그린다', async () => {
@@ -481,7 +534,7 @@ describe('칸 아래쪽 줄 — 색상 글 · ♡ (2026-11-20 대표님 「하�
     ]);
     expect(hearts()[0].getAttribute('aria-pressed')).toBe('true');
     expect(window.SeganCollection.state.liked[uid(0)]).toBe(true);
-    // 「정보」 시트의 ♡ 도 같은 상태 · 수로 열린다
+    // 사진 보기의 ♡ 도 같은 상태 · 수로 열린다
     await openTile(0);
     expect(likeBtn().getAttribute('aria-pressed')).toBe('true');
     expect(likeBtn().querySelector('.pv-count').textContent).toBe('5');
@@ -519,29 +572,39 @@ describe('칸 아래쪽 줄 — 색상 글 · ♡ (2026-11-20 대표님 「하�
     expect(of(calls, 'collection_likes', 'insert')).toEqual([]);
   });
 
-  test('모습 — 줄은 사진 위 아래쪽에 얹고 글 자리를 눌러도 사진이 눌린다, ♡ 는 44px · 눌림은 채운 하트', () => {
+  test('모습 — 색상 영역은 사진 밑(얹지 않는다) · 색상 한 줄에 하나 · ♡ 는 44px, 눌림은 채운 하트', () => {
     const css = read('segan/shell.css');
     const block = (sel) =>
       css.match(new RegExp(`\\n${sel.replace(/[.[\]='-]/g, '\\$&')} \\{([^}]*)\\}`))[1];
-    expect(block('.cl-cap')).toMatch(/position:\s*absolute;/);
-    expect(block('.cl-cap')).toMatch(/bottom:\s*0;/);
-    expect(block('.cl-cap')).toMatch(/pointer-events:\s*none;/);
-    expect(block('.cl-like')).toMatch(/pointer-events:\s*auto;/);
+    expect(block('.cl-info')).not.toMatch(/position:\s*absolute/);
+    expect(block('.cl-info')).not.toMatch(/gradient|pointer-events/);
+    expect(block('.cl-info')).toMatch(/min-height:\s*44px;/);
+    expect(css).not.toMatch(/\.cl-cap\b|\.cl-color \{/);
+    expect(block('.cl-colors')).toMatch(/list-style:\s*none;/);
+    expect(block('.cl-colors')).toMatch(/color:\s*var\(--v5-ink-62\);/); // 밝은 바탕 위의 글
+    expect(block('.cl-chip')).toMatch(/border:\s*1px solid var\(--v5-line-25\);/); // 밝은 색도 보이게
     expect(block('.cl-like')).toMatch(/width:\s*44px;/);
     expect(block('.cl-like')).toMatch(/height:\s*44px;/);
+    expect(block('.cl-like')).toMatch(/color:\s*var\(--v5-ink\);/);
     expect(block(".cl-like[aria-pressed='true'] .pv-heart")).toMatch(/fill:\s*currentColor;/);
-    // 색상 글은 간단하게 — 두 줄까지
-    expect(block('.cl-color')).toMatch(/-webkit-line-clamp:\s*2;/);
   });
 });
 
-describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클릭하면 사진만 볼 수 있게 전체 화면」)', () => {
-  test('사진을 누르면 전체 화면 — 원본 사진 · 「닫기」 · 「정보」뿐, 시트는 열리지 않는다. 주소는 그대로', async () => {
+describe('사진 전체 화면 — 사진만. 사진 보기의 사진을 누르면 (2026-11-21 대표님 「사진을 클릭하면 바로 확대 사진이 나오지 말고」)', () => {
+  test('칸의 사진을 누르면 사진 보기 — 전체 화면은 바로 열리지 않는다. 그 안의 사진을 눌러야 원본 사진 · 「닫기」뿐', async () => {
     await load();
-    await openFull(0);
+    await openTile(0);
+    expect(sheet()).not.toBeNull();
+    expect(full()).toBeNull();
+    const photo = sheet().querySelector('.pv-photo');
+    expect(photo.tagName).toBe('BUTTON');
+    expect(photo.getAttribute('type')).toBe('button');
+    expect(photo.getAttribute('aria-label')).toBe('사진 크게 보기');
+    photo.click();
+    await flush();
     const box = full();
     expect(box).not.toBeNull();
-    expect(sheet()).toBeNull();
+    expect(sheet()).not.toBeNull(); // 사진 보기 위에 겹친다
     expect(box.getAttribute('role')).toBe('dialog');
     expect(box.getAttribute('aria-modal')).toBe('true');
     expect(box.querySelector('.sg-sheet-title').textContent).toBe('시공사례');
@@ -549,9 +612,11 @@ describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클
     expect(img.getAttribute('src')).toContain('p0.jpg');
     expect(img.getAttribute('alt')).toBe('시공사례 · 인천 연수구 · 주방 0 · 다담 협력 주방');
     expect(img.getAttribute('draggable')).toBe('false');
-    // 사진 말고는 단추 둘 — 글 · 좋아요 · 연출컷은 여기에 없다
-    expect([...box.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['닫기', '정보']);
-    expect(box.querySelector('.pv-facts, .pv-like, .pv-make, a')).toBeNull();
+    // 사진 말고는 「닫기」 하나 — 글 · 좋아요 · 견적 · 연출컷은 여기에 없다
+    expect([...box.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['닫기']);
+    expect(
+      box.querySelector('.pv-facts, .pv-like, .pv-make, .pv-quote, .pv-full-info, a')
+    ).toBeNull();
     expect(window.location.pathname + window.location.hash).toBe('/segan/collection.html');
     expect(window.SeganCollection.state.sheet.isOpen()).toBe(true);
   });
@@ -624,10 +689,14 @@ describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클
     full().querySelector('.pv-full').click(); // 사진 바깥의 어두운 자리
     await flush();
     expect(full()).toBeNull();
+    // 사진 보기로 돌아온다 — 그것까지 닫아야 끝
+    expect(sheet()).not.toBeNull();
+    expect(window.SeganCollection.state.sheet.isOpen()).toBe(true);
+    await closeAll();
     expect(window.SeganCollection.state.sheet).toBeNull();
   });
 
-  test('닫기 · Esc · 뒤로 가기가 닫는다', async () => {
+  test('닫기 · Esc · 뒤로 가기가 전체 화면만 닫는다 — 사진 보기는 남는다', async () => {
     await load();
     await openFull(1);
     full().querySelector('.sg-sheet-x').click();
@@ -642,31 +711,17 @@ describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클
     await new Promise((r) => setTimeout(r, 50));
     await flush();
     expect(full()).toBeNull();
+    expect(sheet()).not.toBeNull();
     expect(window.location.pathname).toBe('/segan/collection.html');
   });
 
-  test('「정보」 → 사진 보기 시트가 그 위에 열린다. 시트를 닫아도 전체 화면은 남는다', async () => {
-    await load();
-    await openFull(0);
-    full().classList.add('pv-full--bare');
-    full().querySelector('.pv-full-info').click();
-    await flush();
-    expect(sheet()).not.toBeNull();
-    expect(full()).not.toBeNull();
-    expect(full().classList.contains('pv-full--bare')).toBe(false); // 돌아왔을 때 단추가 보이게
-    expect(facts()).toContainEqual(['색상', '화이트']);
-    sheet().querySelector('.sg-sheet-x').click();
-    await flush();
-    expect(sheet()).toBeNull();
-    expect(full()).not.toBeNull();
-  });
-
-  test('모습 — 화면 가득 · 위 막대와 아래 탭을 덮고 「정보」 시트보다는 아래, 사진은 잘리지 않게', () => {
+  test('모습 — 화면 가득 · 사진 보기(시트 70)보다 위(가운데 창 층 80 그대로), 사진은 잘리지 않게', () => {
     const css = read('segan/shell.css');
     const block = (sel) =>
       css.match(new RegExp(`\\n${sel.replace(/[.-]/g, '\\$&')} \\{([^}]*)\\}`))[1];
     const wrap = block('.sg-sheet-wrap.pv-full-wrap');
-    expect(wrap).toMatch(/z-index:\s*65;/); // 아래 탭 40 < 65 < 시트 70
+    expect(wrap).not.toMatch(/z-index/); // 층을 낮추지 않는다 — 사진 보기 위에 겹친다
+    expect(block('.sg-sheet-wrap--dialog')).toMatch(/z-index:\s*80;/);
     expect(wrap).toMatch(/padding:\s*0;/);
     expect(wrap).toMatch(/background:\s*var\(--v5-dark\);/);
     const box = block('.sg-sheet-wrap.pv-full-wrap .sg-sheet');
@@ -678,18 +733,20 @@ describe('사진 전체 화면 — 사진만 (2026-11-20 대표님 「사진 클
     expect(img).toMatch(/height:\s*100%;/);
     expect(img).toMatch(/object-fit:\s*contain;/);
     expect(img).toMatch(/-webkit-touch-callout:\s*none;/); // 길게 눌러 저장 막기
-    // 감추기는 opacity 만 움직인다
-    expect(css).toMatch(
-      /\n\.pv-full-info \{\s*position:\s*absolute;[^}]*transition:\s*opacity 0\.2s ease;/
+    // 감추기는 opacity 만 움직인다. 「정보」 단추는 없다 (정보가 먼저 열린다)
+    expect(block('.sg-sheet-wrap.pv-full-wrap .sg-sheet-head')).toMatch(
+      /transition:\s*opacity 0\.2s ease;/
     );
     expect(css).toMatch(
-      /\.pv-full--bare \.sg-sheet-head,\s*\.pv-full--bare \.pv-full-info \{\s*visibility:\s*hidden;\s*opacity:\s*0;/
+      /\.pv-full--bare \.sg-sheet-head \{\s*visibility:\s*hidden;\s*opacity:\s*0;/
     );
+    expect(css).not.toMatch(/pv-full-info/);
+    expect(read('segan/collection-view.js')).not.toMatch(/pv-full-info/);
   });
 });
 
-describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷)', () => {
-  test('누르면 시트 — 큰 사진 · 장소 · 색상 · 업체 · 좋아요 수, 주소는 그대로', async () => {
+describe('사진 보기 — 시트 (장소 · 좋아요 · 색상 · 예상 견적 · 업체 정보 · 이 스타일로 연출컷)', () => {
+  test('누르면 시트 — 큰 사진 · 장소 · 좋아요 수 · 색상 · 예상 견적 · 업체 정보 차례로, 주소는 그대로', async () => {
     await load();
     await openTile(0);
     expect(document.querySelector('.sg-sheet-wrap--sheet')).not.toBeNull();
@@ -701,13 +758,20 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     expect(img.getAttribute('alt')).toBe('시공사례 · 인천 연수구 · 주방 0 · 다담 협력 주방');
     expect(img.getAttribute('width')).toBeTruthy();
     expect(box.querySelector('.pv-photo').getAttribute('style')).toMatch(/aspect-ratio:/);
-    expect(facts()).toEqual([
-      ['장소', '인천 연수구 · 주방 0'],
-      ['색상', '화이트'],
-      ['업체', '다담 협력 주방'],
+    expect(place()).toBe('인천 연수구 · 주방 0');
+    expect(colors()).toEqual([['화이트', '']]);
+    expect(facts()).toEqual([['업체', '다담 협력 주방']]);
+    // 칸 제목 — 대표님이 말한 차례 그대로 (색상정보 · 견적 · 업체 정보)
+    expect([...box.querySelectorAll('.pv-h')].map((h) => h.textContent)).toEqual([
+      '색상',
+      '예상 견적',
+      '업체 정보',
     ]);
     expect(likeBtn().getAttribute('aria-pressed')).toBe('false');
     expect(likeBtn().querySelector('.pv-count').textContent).toBe('4');
+    // 장소와 좋아요는 한 줄
+    expect(box.querySelector('.pv-bar .pv-place')).not.toBeNull();
+    expect(box.querySelector('.pv-bar .pv-like')).not.toBeNull();
     expect(window.location.pathname + window.location.hash).toBe('/segan/collection.html');
   });
 
@@ -727,26 +791,29 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     await load();
     await openTile(1); // 직접 올린 사진 · 장소 · 색상 · 업체 없음
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
-    expect(facts()).toEqual([
-      ['장소', '싱크대'],
-      ['색상', '오크'],
-    ]);
+    expect(place()).toBe('싱크대');
+    expect(colors()).toEqual([['오크', '']]);
+    expect(sheet().querySelector('.pv-facts')).toBeNull(); // 업체를 모르면 업체 정보 칸이 없다
+    expect(sheet().textContent).not.toMatch(/업체 정보/);
     await openTile(3); // 본사 업체(DB 이름 「다담 공장」)는 고객에게 「다담가구」
-    expect(facts()).toContainEqual(['업체', '다담가구']);
-    await openTile(2); // 직접 올린 사진 · 업체 없음 · 장소 없음 · 색상 없음 — 줄이 없다
-    expect(sheet().querySelector('.pv-facts')).toBeNull();
-    expect(sheet().textContent).not.toMatch(/다담가구/);
+    expect(facts()).toEqual([['업체', '다담가구']]);
+    await openTile(2); // 직접 올린 사진 · 업체 없음 · 장소 없음 · 색상 없음 — 그 칸들이 없다
+    expect(sheet().querySelector('.pv-facts, .pv-place, .pv-colors')).toBeNull();
+    expect(sheet().textContent).not.toMatch(/다담가구|색상|업체 정보/);
   });
 
   test('정적 사진(AI 연출) — 장소 = 품목 · 색상 = 자재 이름 · 업체 「AI 연출」(다담가구 · 지역 없음) · 큰 사진은 원본, 좋아요 없음', async () => {
     await load();
     await moreAll();
     await openTile(30);
-    expect(facts()).toEqual([
-      ['장소', '일자형 주방'],
-      ['색상', '매트 딥그린 · 카카오월넛'],
-      ['업체', 'AI 연출'],
+    expect(place()).toBe('일자형 주방');
+    // 색상은 하나씩 — 자재 색 값은 작은 색 칸으로
+    const first = window.SeganCollection.STATIC[0];
+    expect(colors()).toEqual([
+      ['매트 딥그린', first.hex[0]],
+      ['카카오월넛', first.hex[1]],
     ]);
+    expect(facts()).toEqual([['업체', 'AI 연출']]);
     expect(sheet().querySelector('.pv-photo img').getAttribute('src')).toBe(
       '../app/portfolio/mix-01.jpg'
     );
@@ -772,6 +839,17 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     expect(V.refHref({ id: '', stem: '', source: 'upload' })).toBe('');
   });
 
+  test('모습 — 사진은 누르는 단추(크게 보기) · 칸 제목은 작은 글 · 색 칸은 목록보다 크게', () => {
+    const css = read('segan/shell.css');
+    const block = (sel) =>
+      css.match(new RegExp(`\\n${sel.replace(/[.-]/g, '\\$&')} \\{([^}]*)\\}`))[1];
+    expect(block('.pv-photo')).toMatch(/cursor:\s*zoom-in;/);
+    expect(block('.pv-photo')).toMatch(/border:\s*0;/);
+    expect(block('.pv-h')).toMatch(/font-size:\s*12px;/);
+    expect(block('.pv-colors .cl-chip')).toMatch(/width:\s*16px;/);
+    expect(block('.pv-bar')).toMatch(/justify-content:\s*space-between;/);
+  });
+
   test('PC 1100px~ 에서는 같은 시트가 오른쪽 옆 패널 (셸 CSS) — 사진 여백도 맞춘다', () => {
     const css = read('segan/shell.css');
     const wide = css
@@ -779,6 +857,214 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
       .slice(1)
       .find((b) => b.includes('.sg-sheet-wrap--panel .sg-sheet')); // PC 옆 패널 칸 (폰 시트 손잡이 칸과 헷갈리지 않게)
     expect(wide).toMatch(/\.sg-sheet-wrap \.pv-photo\s*\{\s*margin:\s*-20px -24px 0;/);
+  });
+});
+
+describe('예상 견적 — 연출컷 견적과 같은 표준 단가표 (2026-11-21 대표님 「견적은 최대한 정확하게」)', () => {
+  test('앱의 셈 = 서버의 셈 (workers/generate-api/src/quote.js buildQuote) — 모든 품목 × 고를 수 있는 모든 가로 길이', async () => {
+    await load({ db: [] });
+    const V = window.SeganPostView;
+    const keys = Object.keys(serverQuote.RATES);
+    expect(keys.sort()).toEqual(
+      [
+        'bedroom',
+        'fridge',
+        'island',
+        'office',
+        'shoe',
+        'sink',
+        'storage',
+        'study',
+        'vanity',
+        'wardrobe',
+      ].sort()
+    );
+    expect(V.QUOTE_W).toEqual({ min: 1200, max: 6000, step: 300, start: 3000 });
+    let n = 0;
+    for (const key of keys) {
+      for (let w = V.QUOTE_W.min; w <= V.QUOTE_W.max; w += V.QUOTE_W.step) {
+        const server = serverQuote.buildQuote(key, w);
+        delete server.grade;
+        expect([key, w, V.buildQuote(key, w)]).toEqual([key, w, server]);
+        n++;
+      }
+      // 300 단위가 아닌 값도 같다 (올림 · 반올림 자리)
+      for (const w of [1000, 2750, 3333]) {
+        const server = serverQuote.buildQuote(key, w);
+        delete server.grade;
+        expect(V.buildQuote(key, w)).toEqual(server);
+      }
+    }
+    expect(n).toBe(keys.length * 17);
+    // 모르는 품목은 견적을 내지 않는다 — 서버처럼 수납장 표로 대신하지 않는다
+    expect(V.buildQuote('garage', 3000)).toBeNull();
+    expect(V.buildQuote('toString', 3000)).toBeNull();
+    expect(V.buildQuote('', 3000)).toBeNull();
+  });
+
+  test('어느 표인가 — AI 연출 사진은 사진 이름, AI 연출컷은 품목 이름, 직접 올린 사진은 구분. 모르면 견적 칸 없음', async () => {
+    await load({ db: [] });
+    const V = window.SeganPostView;
+    // 정적 36장은 모두 표가 정해진다
+    const byPlace = {};
+    for (const s of window.SeganCollection.STATIC) byPlace[s.place] = V.quoteKey(V.fromStatic(s));
+    expect(byPlace).toEqual({
+      '일자형 주방': 'sink',
+      'ㄱ자형 주방': 'sink',
+      'ㄷ자형 주방': 'sink',
+      '대면형 주방': 'sink',
+      '11자 주방': 'sink',
+      '주방 디테일': 'sink',
+      '아일랜드 주방': 'island',
+      냉장고장: 'fridge',
+      '안방 붙박이장': 'wardrobe',
+      '아이방 붙박이장': 'wardrobe',
+      '작은방 붙박이장': 'wardrobe',
+      드레스룸: 'wardrobe',
+      '현관 신발장': 'shoe',
+      화장대: 'vanity',
+      홈카페장: 'storage',
+      '거실 수납장': 'storage',
+      '다이닝 수납장': 'storage',
+      세탁실장: 'storage',
+      '서재 책장': 'study',
+    });
+    // AI 연출컷 — 서버가 적는 품목 이름(COLLECTION_PLACE_LABEL)의 거꾸로, 열 가지 모두
+    const labels = read('workers/generate-api/src/collection-post.js').match(
+      /COLLECTION_PLACE_LABEL = Object\.freeze\(\{([^}]*)\}\)/
+    )[1];
+    const pairs = [...labels.matchAll(/(\w+): '([^']+)'/g)].map((m) => [m[1], m[2]]);
+    expect(pairs).toHaveLength(10);
+    for (const [key, label] of pairs)
+      expect([label, V.quoteKey({ source: 'ai_render', place_label: label })]).toEqual([
+        label,
+        key,
+      ]);
+    expect(V.quoteKey({ source: 'ai_render', place_label: '모르는 품목' })).toBe('');
+    // 직접 올린 사진 — 구분(category). 실내 · 기타는 품목을 몰라 견적을 내지 않는다
+    const up = (category) => V.quoteKey({ source: 'upload', category, place_label: '서울 · 주방' });
+    expect(['kitchen', 'builtin', 'storage', 'interior', 'other', ''].map(up)).toEqual([
+      'sink',
+      'wardrobe',
+      'storage',
+      '',
+      '',
+      '',
+    ]);
+    expect(V.quoteKey(null)).toBe('');
+  });
+
+  test('사진 보기 — 가로 길이 3.0m 부터, 줄(품목 · 수량 · 금액) · 부가세 · 합계(VAT 포함) · 예상 범위 · 기준 글', async () => {
+    await load();
+    await openTile(0); // 직접 올린 주방 → 싱크대 표
+    const q = serverQuote.buildQuote('sink', 3000);
+    const box = sheet().querySelector('.pv-quote');
+    expect(box.querySelector('.pv-h').textContent).toBe('예상 견적');
+    expect(box.querySelector('.pv-size').textContent).toContain('가로 길이');
+    expect(box.querySelector('.pv-size-value').textContent).toBe('3.0m');
+    expect(quoteRows()).toEqual([
+      ...q.items.map((it) => [it.name, it.quantity, won(it.total)]),
+      ['부가세', '', won(q.vat)],
+    ]);
+    expect(quoteRows()[0]).toEqual(['하부장 캐비닛', '3000mm', '480,000원']);
+    expect(box.querySelector('.pv-qtotal').textContent).toBe('합계 (VAT 포함)' + won(q.total));
+    expect(box.querySelector('.pv-qsum').textContent).toBe('1,868,900원');
+    expect(box.querySelector('.pv-qrange').textContent).toBe(
+      '예상 범위 ' + won(q.range.min) + ' ~ ' + won(q.range.max)
+    );
+    // 무엇으로 셈했는지 · 실제와 다를 수 있음을 밝힌다
+    expect(box.querySelector('.pv-qnote').textContent).toBe(
+      '연출컷 견적과 같은 표준 단가로 셈한 예상 금액입니다. 실제 금액은 현장 실측 · 자재 · 구성에 따라 달라집니다.'
+    );
+    // 구분을 모르는 사진(실내)은 견적 칸이 없다
+    await openTile(1);
+    expect(sheet().querySelector('.pv-quote')).toBeNull();
+    expect(sheet().textContent).not.toMatch(/예상 견적|합계/);
+    // 정적 사진(일자형 주방)도 같은 표
+    await moreAll();
+    await openTile(30);
+    expect(sheet().querySelector('.pv-qsum').textContent).toBe(won(q.total));
+  });
+
+  test('가로 길이를 300mm 씩 — 줄 · 합계 · 범위가 다시 셈된다, 1.2m ~ 6.0m 끝에서는 단추가 멈춘다', async () => {
+    await load();
+    await openTile(2); // 붙박이 → 붙박이장 표 (300mm = 1자 단위 올림)
+    const box = sheet().querySelector('.pv-quote');
+    const [minus, plus] = box.querySelectorAll('.pv-step-btn');
+    expect([minus.getAttribute('aria-label'), plus.getAttribute('aria-label')]).toEqual([
+      '가로 길이 줄이기',
+      '가로 길이 늘리기',
+    ]);
+    expect([minus.getAttribute('type'), plus.getAttribute('type')]).toEqual(['button', 'button']);
+    expect(box.querySelector('.pv-size-value').getAttribute('aria-live')).toBe('polite');
+    const shown = () => [
+      box.querySelector('.pv-size-value').textContent,
+      box.querySelector('.pv-qsum').textContent,
+      quoteRows()[0],
+    ];
+    const at = (w) => {
+      const q = serverQuote.buildQuote('wardrobe', w);
+      return [
+        (w / 1000).toFixed(1) + 'm',
+        won(q.total),
+        [q.items[0].name, q.items[0].quantity, won(q.items[0].total)],
+      ];
+    };
+    expect(shown()).toEqual(at(3000));
+    expect(quoteRows()[0][1]).toBe('3000mm (10자)');
+    plus.click();
+    expect(shown()).toEqual(at(3300));
+    minus.click();
+    minus.click();
+    expect(shown()).toEqual(at(2700));
+    for (let i = 0; i < 20; i++) minus.click();
+    expect(shown()).toEqual(at(1200));
+    expect([minus.disabled, plus.disabled]).toEqual([true, false]);
+    for (let i = 0; i < 30; i++) plus.click();
+    expect(shown()).toEqual(at(6000));
+    expect([minus.disabled, plus.disabled]).toEqual([false, true]);
+    expect(box.querySelector('.pv-qrange').textContent).toBe(
+      '예상 범위 ' +
+        won(serverQuote.buildQuote('wardrobe', 6000).range.min) +
+        ' ~ ' +
+        won(serverQuote.buildQuote('wardrobe', 6000).range.max)
+    );
+    // 다시 열면 3.0m 부터
+    await openTile(2);
+    expect(sheet().querySelector('.pv-size-value').textContent).toBe('3.0m');
+  });
+
+  test('합계는 지난 값에서 새 값으로 굴린다 (SeganMotion.roll) — 처음 그릴 때는 굴리지 않는다', async () => {
+    await load();
+    const rolls = [];
+    window.SeganMotion = {
+      roll: (el, from, to, format) => {
+        rolls.push([from, to]);
+        el.textContent = format(to);
+      },
+    };
+    try {
+      await openTile(0);
+      expect(rolls).toEqual([]);
+      sheet().querySelector('.pv-step-btn[data-step="1"]').click();
+      const a = serverQuote.buildQuote('sink', 3000).total;
+      const b = serverQuote.buildQuote('sink', 3300).total;
+      expect(rolls).toEqual([[a, b]]);
+      expect(sheet().querySelector('.pv-qsum').textContent).toBe(won(b));
+    } finally {
+      delete window.SeganMotion;
+    }
+  });
+
+  test('모습 — 숫자는 고정폭, 가로 길이 단추는 44px, 합계 줄 아래는 진한 선', () => {
+    const css = read('segan/shell.css');
+    const block = (sel) =>
+      css.match(new RegExp(`\\n${sel.replace(/[.-]/g, '\\$&')} \\{([^}]*)\\}`))[1];
+    expect(block('.pv-step-btn')).toMatch(/width:\s*44px;/);
+    expect(block('.pv-step-btn')).toMatch(/height:\s*44px;/);
+    expect(css).toMatch(/\.pv-qrow,\s*\.pv-qtotal \{[^}]*font-variant-numeric:\s*tabular-nums;/);
+    expect(block('.pv-size-value')).toMatch(/font-variant-numeric:\s*tabular-nums;/);
+    expect(css).toMatch(/\n\.pv-qtotal \{[^}]*border-bottom-color:\s*var\(--v5-ink\);/);
   });
 });
 
