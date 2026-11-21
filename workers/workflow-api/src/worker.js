@@ -1330,7 +1330,7 @@ async function handleListSchedules(request, env, { params, user }) {
 
 async function handleUpdateSchedule(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
-  const row = await updateSchedule(env, { scheduleId: params.scheduleId, user, patch });
+  const row = await updateSchedule(env, { scheduleId: params.scheduleId, user, patch, ctx });
   // 이 일정에 작업자를 배정해 두었으면 (src/work/schedule-link.js) 작업 시각 · 취소를 맞추고, 담당 글은 작업자 이름으로 둔다.
   // 맞추기가 실패해도 일정 저장은 그대로다 (다음 읽기에서 다시 맞춘다)
   if (row && (patch.scheduled_at !== undefined || patch.duration_min !== undefined || patch.status !== undefined)) {
@@ -1578,7 +1578,7 @@ async function handleImportParts(request, env, { user }) {
 }
 
 /** 간편 플래너 설계 저장 — 본문을 상한까지만 읽는다 (설계 5MB) */
-async function handleSavePlannerDraft(request, env, { user }) {
+async function handleSavePlannerDraft(request, env, { user, ctx }) {
   const declared = Number(request.headers.get('Content-Length'));
   if (Number.isFinite(declared) && declared > SAVE_BODY_MAX_BYTES) throw new TooLargeError('설계가 너무 큽니다');
   const text = await request.text();
@@ -1591,7 +1591,7 @@ async function handleSavePlannerDraft(request, env, { user }) {
   }
   let data;
   try {
-    data = await saveDraft(env, { user, body: body || {} });
+    data = await saveDraft(env, { user, body: body || {} }, { ctx });
   } catch (e) {
     // 저장이 안 된 것만 적는다 (DB 0067 — 기록이 안 돼도 원래 오류가 그대로 나간다)
     const p = body && body.project;

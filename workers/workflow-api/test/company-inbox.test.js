@@ -359,3 +359,53 @@ test('소식 — 일지가 있으면 「누가」가 붙고, 보류 · 생산 �
   // 일지가 없던 일(견적 승인)은 지금처럼 누가 없이
   assert.equal(who(news.find((n) => n.kind === 'quote_approved')), null);
 });
+
+test('소식 — 둘째 묶음: 제작 의뢰 · A/S 의 일지는 뽑은 줄과 짝지어 줄이 늘지 않는다. 의뢰 보내기 · 일정 잡음은 줄로, 날짜 바꿈 · 설계 시작은 내지 않는다', async () => {
+  const t = tables();
+  t.profiles = [
+    { id: OWNER, name: '가대표' },
+    { id: M_OWNER, name: '라영업' },
+  ];
+  const e = (company, project, type, at, extra = {}) => ({
+    id: id('0f', Math.floor(Math.random() * 9000) + 1),
+    company_id: company,
+    project_id: project,
+    actor_user_id: null,
+    actor_kind: 'member',
+    type,
+    subject_type: null,
+    subject_id: null,
+    from_status: null,
+    to_status: null,
+    payload: {},
+    created_at: at,
+    ...extra,
+  });
+  t.project_events = [
+    // 영업 사원 업체 — 의뢰 id('06', 1): 보냄 → 본사 추천 (뽑은 줄과 같은 일)
+    e(M, P(5), 'request_created', ago(0, 9), { subject_id: id('06', 1), actor_user_id: M_OWNER }),
+    e(M, P(5), 'request_recommended', ago(0, 7), { subject_id: id('06', 1), actor_kind: 'admin', actor_user_id: id('a9', 9) }),
+    e(M, P(5), 'schedule_added', ago(0, 5), { subject_id: id('0b', 1), actor_user_id: M_OWNER, payload: { type: 'installation' } }),
+    e(M, P(5), 'schedule_changed', ago(0, 4), { subject_id: id('0b', 1), actor_user_id: M_OWNER, to_status: 'scheduled', payload: { type: 'installation', moved: true } }),
+    e(M, P(5), 'design_started', ago(0, 3), { subject_id: 'd-test-0001', actor_user_id: M_OWNER }),
+    // 받은 팩토리 — 받은 의뢰 id('06', 2) · 고객의 A/S 접수 id('05', 1) (뽑은 줄과 같은 일)
+    e(F, P(2), 'request_received', ago(2), { subject_id: id('06', 2), actor_user_id: OWNER }),
+    e(F, P(2), 'as_requested', ago(0, 4), { subject_id: id('05', 1), actor_kind: 'customer', actor_user_id: id('a9', 8) }),
+  ];
+  const who = (n) => (n.who ? n.who.kind + ':' + n.who.name : null);
+  const m = (await call(world(t), 't_m')).json.data;
+  assert.deepEqual(
+    m.news.map((n) => [n.kind, n.label, who(n)]),
+    [
+      ['schedule_set_installation', '설치 일정을 잡았습니다', 'member:라영업'], // 5시간 전
+      ['request_recommended', '본사 추천이 도착했습니다', null], // 7시간 전 — 글이 이미 본사라고 말한다
+      ['request_sent', '제작 의뢰를 보냈습니다', 'member:라영업'], // 9시간 전
+      ['request_accepted', '팩토리가 제작 의뢰를 받았습니다', null], // 2일 전 — 일지가 없던 일
+    ]
+  );
+  const f = (await call(world(t), 't_owner')).json.data;
+  const pick = (kind) => f.news.filter((n) => n.kind === kind).map((n) => who(n));
+  assert.deepEqual(pick('request_received'), ['member:가대표']);
+  assert.deepEqual(pick('as_requested'), ['customer:null', null], '4시간 전 접수에만 일지가 있다');
+  assert.equal(f.news.length, 14, '줄 수는 그대로');
+});

@@ -23,6 +23,7 @@ import { uploadObject, createSignedUrls } from './storage.js';
 import { readBodyCapped } from './ledger/documents.js';
 import { sniffImage, PHOTO_MAX_BYTES, PHOTO_MAX_EDGE, PHOTO_MAX_PIXELS } from './ledger/checks.js';
 import { assertUuid } from './work/validate.js';
+import { logAt } from './project-log.js';
 
 export const REPORT_BUCKET = 'order-report-photos';
 export const REPORT_KINDS = Object.freeze(['install_done', 'as_done']);
@@ -111,7 +112,7 @@ export async function addReportPhoto(env, { user, params, request }) {
 }
 
 /** POST /orders/:orderId/reports */
-export async function addOrderReport(env, { user, params, body }) {
+export async function addOrderReport(env, { user, params, body, ctx }) {
   const order = await reportableOrder(env, user, params.orderId);
   const r = reportOf(body, order);
   let row;
@@ -128,6 +129,8 @@ export async function addOrderReport(env, { user, params, body }) {
     if (isMissingRelation(e)) throw dbPending();
     throw e;
   }
+  // 프로젝트 일지 — 누가 완료 보고를 올렸나 (글 · 사진은 싣지 않는다)
+  await logAt(env, ctx, { order: order.id }, { actor: { id: user.id }, type: 'report_added', subject: { type: 'report', id: row.id }, payload: { kind: row.kind } });
   return { id: row.id, kind: row.kind, note: row.note || null, photo_count: r.photos.length, created_at: row.created_at };
 }
 

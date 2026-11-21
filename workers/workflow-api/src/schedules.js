@@ -28,6 +28,7 @@ import {
   updateById,
 } from './supabase.js';
 import { buildScheduleBlocks, postToWebhook, SCHEDULE_LABELS } from './slack.js';
+import { logAt } from './project-log.js';
 
 export const SCHEDULE_TYPES = Object.keys(SCHEDULE_LABELS);
 const SCHEDULE_STATUSES = ['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled'];
@@ -134,6 +135,19 @@ export async function createSchedules(env, ctx, { designId, user, body }) {
   // 1) 일정 먼저 커밋 — Slack 이 죽어도 남아야 한다
   const created = await insertMany(env, 'design_schedules', rows);
 
+  // 프로젝트 일지 — 누가 어떤 일정을 잡았나 (프로젝트에 이어진 설계일 때만 적힌다. 날짜 · 장소 · 글은 싣지 않는다)
+  await logAt(
+    env,
+    ctx,
+    { design: designId },
+    (created || []).map((s) => ({
+      actor: { id: user.id },
+      type: 'schedule_added',
+      subject: { type: 'schedule', id: s.id },
+      payload: { type: s.type },
+    }))
+  );
+
   // 본사 Slack 은 본사 설계만 받는다 — 다른 업체 설계면 알림 기록도 전송도 하지 않는다
   if (design.company_id !== (await hqCompanyId(env))) {
     return { batch_id: batchId, schedules: created, slack: null };
@@ -231,7 +245,7 @@ export async function listSchedules(env, { designId, user }) {
   return rows || [];
 }
 
-export async function updateSchedule(env, { scheduleId, user, patch }) {
+export async function updateSchedule(env, { scheduleId, user, patch, ctx }) {
   const row = await selectOne(env, 'design_schedules', { id: `eq.${scheduleId}`, select: '*' });
   if (!row) throw new NotFoundError('일정을 찾을 수 없습니다');
   await assertScheduleManage(env, row.design_id, user);
@@ -281,5 +295,25 @@ export async function updateSchedule(env, { scheduleId, user, patch }) {
 
   // 일정 변경은 Slack 을 자동으로 다시 보내지 않는다 (스팸 방지).
   // 필요하면 재전송 엔드포인트를 명시적으로 호출한다.
-  return updateById(env, 'design_schedules', scheduleId, allowed);
+  const next = await updateById(env, 'design_schedules', scheduleId, allowed);
+  // 프로젝트 일지 — 취소와 날짜 바꿈만 (메모 · 담당 · 착수 · 완료 시각은 적지 않는다)
+  const cancelled = allowed.status === 'cancelled' && row.status !== 'cancelled';
+  const moved =
+    allowed.scheduled_at !== undefined && Date.parse(allowed.scheduled_at) !== Date.parse(row.scheduled_at);
+  if (cancelled || moved) {
+    await logAt(
+      env,
+      ctx,
+      { design: row.design_id },
+      {
+        actor: { id: user.id },
+        type: 'schedule_changed',
+        subject: { type: 'schedule', id: scheduleId },
+        from: row.status,
+        to: cancelled ? 'cancelled' : allowed.status || row.status,
+        payload: moved ? { type: row.type, moved: true } : { type: row.type },
+      }
+    );
+  }
+  return next;
 }

@@ -289,6 +289,7 @@ test('이어진 프로젝트 — 내 업체 프로젝트면 설계 · 요약 · 
   assert.equal(summaryOf(project({ projectId: 'not-a-uuid' })).projectId, null);
   assert.equal(summaryOf(project()).projectId, null);
   const db = makeDb();
+  db.project_events = [];
   await withDb(db, async () => {
     const save = (id, projectId) =>
       saveDraft(ENV, { user: u(STAFF), body: { project: { ...project({ id }), projectId } } });
@@ -316,6 +317,12 @@ test('이어진 프로젝트 — 내 업체 프로젝트면 설계 · 요약 · 
         ['d-test-0004', null],
         ['d-test-0005', null],
       ]
+    );
+    // 프로젝트 일지 (2026-11-21) — 프로젝트에서 시작한 설계의 첫 저장만 「설계를 시작했습니다」. 고쳐 저장한 것 · 프로젝트 없는 설계는 적지 않는다
+    await saveDraft(ENV, { user: u(STAFF), body: { project: { ...project({ id: 'd-test-0001' }), projectId: PRJ_MINE, rev: 1, name: '고친 이름' } } });
+    assert.deepEqual(
+      db.project_events.map((e) => [e.type, e.company_id, e.project_id, e.actor_kind, e.actor_user_id, e.subject_type, e.subject_id]),
+      [['design_started', P1, PRJ_MINE, 'member', STAFF, 'draft', 'd-test-0001']]
     );
   });
   // 프로젝트를 확인하지 못했으면(표를 못 읽음) 그대로 둔다 — 저장을 막지 않는다

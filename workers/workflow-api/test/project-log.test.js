@@ -250,3 +250,37 @@ test('일지를 못 써도 원래 일은 그대로다 — 표가 없을 때', as
   // 가짜는 모르는 표에 일반 오류를 던진다 — 경고 한 줄로 끝난다 (실DB 의 「표 없음」은 경고도 없다)
   assert.ok(warns.length <= 1);
 });
+
+test('logAt — 여러 줄을 한 번에 적는다 (프로젝트는 한 번만 찾는다), 빈 목록이면 아무것도 읽지 않는다', async () => {
+  const fake = fakeOf();
+  await withFetch(fake, async () => {
+    await logAt(ENV, null, { design: D1 }, [
+      {
+        actor: { id: OWNER },
+        type: 'schedule_added',
+        subject: { type: 'schedule', id: rid(51) },
+        payload: { type: 'installation' },
+      },
+      null,
+      {
+        actor: { id: OWNER },
+        type: 'schedule_added',
+        subject: { type: 'schedule', id: rid(52) },
+        payload: { type: 'delivery' },
+      },
+    ]);
+    assert.deepEqual(events(fake), [
+      ['schedule_added', P1, 'member', OWNER, 'schedule', rid(51)],
+      ['schedule_added', P1, 'member', OWNER, 'schedule', rid(52)],
+    ]);
+    assert.deepEqual(
+      fake.db.project_events.map((e) => e.payload),
+      [{ type: 'installation' }, { type: 'delivery' }]
+    );
+    assert.equal(fake.calls.filter((c) => c.table === 'designs').length, 1);
+    const before = fake.calls.length;
+    await logAt(ENV, null, { design: D1 }, []);
+    await logAt(ENV, null, { design: D1 }, null);
+    assert.equal(fake.calls.length, before);
+  });
+});

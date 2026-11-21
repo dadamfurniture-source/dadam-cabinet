@@ -29,6 +29,7 @@ import {
 import { SIDO } from '../consult-notify.js';
 import { DRAFT_ID_RE } from '../planner-drafts.js';
 import { PLANNER_SOURCE } from '../planner-handoff.js';
+import { logProject } from '../project-log.js';
 import {
   CANCELLABLE,
   LIST_LIMIT,
@@ -235,6 +236,14 @@ export async function createRequest(env, { user, body, ctx }) {
     }
     if (!row || !row.id) throw conflict('제작 의뢰를 넣지 못했습니다', 'not_saved');
     await later(ctx, notifyHq(env, 'new', row, company));
+    // 프로젝트 일지 — 프로젝트에 이어진 의뢰일 때만 적힌다
+    await logProject(env, ctx, {
+      companyId: company.id,
+      projectId: project ? project.id : null,
+      actor: { id: user.id },
+      type: 'request_created',
+      subject: { type: 'request', id: row.id },
+    });
     const drafts = await draftsOf(env, [row]);
     const projects = project ? new Map([[project.id, project]]) : new Map();
     return { ...requestBase(row, { drafts, projects }), can_cancel: true, can_choose: false };
@@ -405,6 +414,13 @@ export async function chooseFactory(env, { user, params, body, ctx }) {
         refId: picked.id,
       })
     );
+    await logProject(env, ctx, {
+      companyId: req.company_id,
+      projectId: req.project_id,
+      actor: { id: user.id },
+      type: 'request_chosen',
+      subject: { type: 'request', id: req.id },
+    });
     return {
       id: req.id,
       status: 'chosen',
@@ -458,6 +474,15 @@ export async function cancelMyRequest(env, { user, params, ctx }) {
           })
         );
     }
+    await logProject(env, ctx, {
+      companyId: req.company_id,
+      projectId: req.project_id,
+      actor: { id: user.id },
+      type: 'request_cancelled',
+      subject: { type: 'request', id: req.id },
+      from: req.status,
+      to: 'cancelled',
+    });
     return { id: req.id, status: 'cancelled' };
   });
 }

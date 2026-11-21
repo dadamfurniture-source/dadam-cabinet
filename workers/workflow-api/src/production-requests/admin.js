@@ -21,6 +21,7 @@
  */
 
 import { ForbiddenError, ValidationError, insertMany, selectMany, updateBy } from '../supabase.js';
+import { logProject } from '../project-log.js';
 import { isAdmin } from '../reports/admin.js';
 import { rankCandidates, candidateView, customerItems } from '../distribution/score.js';
 import { loadRankingContext } from '../distribution/data.js';
@@ -406,6 +407,15 @@ export async function recommendFactories(env, { user, params, body, ctx }) {
         dedupeSuffix: `r${round}`,
       })
     );
+    // 영업 사원 업체의 프로젝트 일지 — 본사가 추천을 보냈다 (차례마다 한 줄)
+    await logProject(env, ctx, {
+      companyId: req.company_id,
+      projectId: req.project_id,
+      actor: { id: user.id, kind: 'admin' },
+      type: 'request_recommended',
+      subject: { type: 'request', id: req.id },
+      payload: { round },
+    });
     return {
       id: req.id,
       status: 'recommended',

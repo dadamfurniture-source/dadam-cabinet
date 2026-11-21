@@ -22,6 +22,7 @@
  * 0045 적용 전이면 쓰기 409 db_pending · 보기 ready false.
  */
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError, insertOne, selectMany, selectOne, updateBy } from './supabase.js';
+import { logAt, logProject } from './project-log.js';
 import { companyOf } from './distribution/company.js';
 import { isAdmin } from './reports/admin.js';
 import { isMissingRelation } from './work-order-data.js';
@@ -149,6 +150,14 @@ export async function addAsRequest(env, { user, params, body, ctx }) {
   const push = notifyAsRequest(env, row, order).catch(() => 0);
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(push);
   else await push;
+  // 프로젝트 일지 — 고객이 접수했다
+  await logProject(env, ctx, {
+    companyId: order.company_id,
+    projectId: order.project_id,
+    actor: { id: user.id, kind: 'customer' },
+    type: 'as_requested',
+    subject: { type: 'as', id: row.id },
+  });
   return { id: row.id, state: row.state, route: row.route, created_at: row.created_at };
 }
 
@@ -185,11 +194,11 @@ export async function listMyAsRequests(env, { user }) {
 }
 
 /** POST /me/as-requests/:id/cancel */
-export async function cancelMyAsRequest(env, { user, params }) {
+export async function cancelMyAsRequest(env, { user, params, ctx }) {
   const id = assertUuid(params.id, '접수 id');
   let row;
   try {
-    row = await selectOne(env, 'as_requests', { id: `eq.${id}`, select: 'id,customer_user_id,state' });
+    row = await selectOne(env, 'as_requests', { id: `eq.${id}`, select: 'id,customer_user_id,state,order_id' });
   } catch (e) {
     if (isMissingRelation(e)) throw dbPending();
     throw e;
@@ -199,6 +208,7 @@ export async function cancelMyAsRequest(env, { user, params }) {
   const out = await updateBy(env, 'as_requests', { id: `eq.${id}`, state: 'eq.requested', select: 'id,state,cancelled_at' }, { state: 'cancelled' });
   const got = Array.isArray(out) ? out[0] : out;
   if (!got) throw conflict('그 사이 팩토리가 받았습니다', 'not_requested');
+  await logAt(env, ctx, { order: row.order_id }, { actor: { id: user.id, kind: 'customer' }, type: 'as_cancelled', subject: { type: 'as', id } });
   return { id, state: 'cancelled', cancelled_at: got.cancelled_at || null };
 }
 
@@ -289,17 +299,18 @@ async function myCompanyRequest(env, user, rawId) {
 }
 
 /** POST /company/as-requests/:id/receive */
-export async function receiveAsRequest(env, { user, params }) {
+export async function receiveAsRequest(env, { user, params, ctx }) {
   const row = await myCompanyRequest(env, user, params.id);
   if (row.state !== 'requested') throw conflict('이미 받았거나 거둔 접수입니다', 'not_requested');
   const out = await updateBy(env, 'as_requests', { id: `eq.${row.id}`, state: 'eq.requested', select: 'id,received_at' }, { state: 'received', received_by: user.id });
   const got = Array.isArray(out) ? out[0] : out;
   if (!got) throw conflict('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
+  await logAt(env, ctx, { order: row.order_id }, { actor: { id: user.id }, type: 'as_received', subject: { type: 'as', id: row.id } });
   return { id: row.id, state: 'received', received_at: got.received_at || null };
 }
 
 /** POST /company/as-requests/:id/done { report_id? } — 그 수주의 A/S 완료 보고(0043)와 잇는다 */
-export async function finishAsRequest(env, { user, params, body }) {
+export async function finishAsRequest(env, { user, params, body, ctx }) {
   const row = await myCompanyRequest(env, user, params.id);
   if (row.state !== 'received') throw conflict('받은 접수만 끝낼 수 있습니다', 'not_received');
   const reportId = body && body.report_id != null ? assertUuid(body.report_id, '보고 id') : null;
@@ -315,6 +326,7 @@ export async function finishAsRequest(env, { user, params, body }) {
   );
   const got = Array.isArray(out) ? out[0] : out;
   if (!got) throw conflict('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
+  await logAt(env, ctx, { order: row.order_id }, { actor: { id: user.id }, type: 'as_done', subject: { type: 'as', id: row.id } });
   return { id: row.id, state: 'done', done_at: got.done_at || null, report_id: reportId };
 }
 

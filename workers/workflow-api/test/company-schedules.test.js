@@ -140,6 +140,8 @@ async function call(fake, token, path, init = {}) {
   Date.now = () => AT;
   try {
     return await withFake(fake, async () => {
+      // 응답 뒤로 미룬 일(ctx.waitUntil — 알림 · 프로젝트 일지)을 가짜 DB 가 살아 있는 동안 끝까지 기다린다
+      const waits = [];
       const res = await worker.fetch(
         new Request(`https://api.test${path}`, {
           method: init.method || 'GET',
@@ -147,9 +149,10 @@ async function call(fake, token, path, init = {}) {
           body: init.body ? JSON.stringify(init.body) : undefined,
         }),
         ENV,
-        { waitUntil() {} },
+        { waitUntil: (p) => waits.push(p) },
       );
       const text = await res.text();
+      await Promise.allSettled(waits);
       return { status: res.status, json: text ? JSON.parse(text) : null, cache: res.headers.get('Cache-Control') };
     });
   } finally {
@@ -363,7 +366,7 @@ test('A/S 접수 표가 아직 없으면 (DB 0045 전) 그 줄만 빼고 준다'
 // ── 일정 넣기 · 고치기는 대표 · 실장만 ─────────────────────────────
 
 test('일정 고치기 — 직원은 403 not_manager (자기가 만든 설계여도), 대표 · 실장은 된다, 다른 업체는 403', async () => {
-  const fake = world();
+  const fake = world({ ...tables(), project_events: [] });
   const patch = { method: 'PATCH', body: { scheduled_at: '2026-11-13T01:00:00Z' } };
   const staff = await call(fake, 't_staff', `/schedules/${S(2)}`, patch);
   assert.equal(staff.status, 403, JSON.stringify(staff.json));
@@ -380,10 +383,20 @@ test('일정 고치기 — 직원은 403 not_manager (자기가 만든 설계여
   const manager = await call(fake, 't_manager', `/schedules/${S(4)}`, { method: 'PATCH', body: { status: 'scheduled' } });
   assert.equal(manager.status, 200, JSON.stringify(manager.json));
   assert.equal(fake.db.design_schedules.find((s) => s.id === S(4)).status, 'scheduled', '취소한 일정을 되살린다');
+
+  // 프로젝트 일지 (2026-11-21) — 날짜 바꿈 · 취소만 적는다. 거절된 시도 · 되살리기 · 메모는 적지 않는다
+  const s2 = fake.db.design_schedules.find((s) => s.id === S(2));
+  await call(fake, 't_owner', `/schedules/${S(2)}`, { method: 'PATCH', body: { notes: '메모만', scheduled_at: '2026-11-13T01:00:00Z' } });
+  await call(fake, 't_owner', `/schedules/${S(2)}`, { method: 'PATCH', body: { status: 'cancelled' } });
+  await call(fake, 't_owner', `/schedules/${S(2)}`, { method: 'PATCH', body: { status: 'cancelled' } });
+  assert.deepEqual(fake.db.project_events.map((e) => [e.type, e.project_id, e.actor_user_id, e.subject_id, e.to_status, e.payload]), [
+    ['schedule_changed', P(1), OWNER, S(2), 'confirmed', { type: s2.type, moved: true }],
+    ['schedule_changed', P(1), OWNER, S(2), 'cancelled', { type: s2.type }],
+  ]);
 });
 
 test('일정 넣기 — 직원은 403 not_manager, 대표는 201 (협력업체 설계는 본사 Slack 없음) · 보기는 직원도', async () => {
-  const fake = world();
+  const fake = world({ ...tables(), project_events: [] });
   const body = { items: [{ type: 'installation', scheduled_at: '2026-11-21T01:00:00Z' }] };
   const staff = await call(fake, 't_staff', `/designs/${D(1)}/schedules`, { method: 'POST', body });
   assert.equal(staff.status, 403, JSON.stringify(staff.json));
@@ -394,6 +407,10 @@ test('일정 넣기 — 직원은 403 not_manager, 대표는 201 (협력업체 �
   assert.equal(owner.status, 201, JSON.stringify(owner.json));
   assert.equal(owner.json.data.slack, null);
   assert.equal(fake.db.design_schedules.length, 8);
+  // 프로젝트 일지 (2026-11-21) — 누가 어떤 일정을 잡았나 (날짜 · 장소는 싣지 않는다). 거절된 직원의 시도는 적지 않는다
+  assert.deepEqual(fake.db.project_events.map((e) => [e.type, e.project_id, e.actor_user_id, e.subject_id, e.to_status, e.payload]), [
+    ['schedule_added', P(1), OWNER, owner.json.data.schedules[0].id, null, { type: 'installation' }],
+  ]);
 
   const list = await call(fake, 't_staff', `/designs/${D(1)}/schedules`);
   assert.equal(list.status, 200);
