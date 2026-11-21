@@ -38,12 +38,16 @@
  * "완전 빌트인 오븐은 제조사 규칙을 따라야하고, 오픈장을 15T로 만들어야함" — 같은 상자를 **PB 15T** (몸통과 같은 판)로 짓는다.
  * 2026-11-21 사장님 「빌트인 오븐장은 해당 제품 설치 가이드에 따라 제작 되어야함」 · 「빌트인은 15T로 짜는 거 아니가? … 측판 깊이 570 − 뒷판 …
  *   오븐 칸만 뒤로 가게 별도로 모듈이 제작 되어야함」:
- *   측판 = 몸통 D + 20 (오픈장과 같이 이웃 도어 자리를 채운다 — 570), 천지판 = 측판 − 17 (15T 뒷판 + 여유 2 — 553).
- *   고른 오븐의 니치 깊이(nicheD)가 그보다 깊으면 **그 칸 상자만 뒤로** 늘린다 — 측판 = 니치 깊이 + 17 (앞선은 그대로, innerOf backPlus).
+ *   측판 = 몸통 D + 20 (오픈장과 같이 이웃 도어 자리를 채운다 — 570).
+ *   고른 오븐의 니치 깊이(nicheD)가 그보다 깊으면 **그 칸 상자만 뒤로** 늘린다 — 측판 = 니치 깊이 (앞선은 그대로, innerOf backPlus).
+ * 같은 날 「15T PB 오픈장은 측판, 천지판, 니치 570으로 하고, 뒷판은 우라를 덧댐」 · 「"오픈장" 기본값은 MDF 18T, 뒷판 MDF 18T」:
+ *   천지판 = 측판 깊이 그대로 (뒷판 자리 없음 — 내경 깊이 = 570), 뒷판 = 우라 MDF 3T 를 측판 · 천지판 뒤끝에 덮어 붙인다
+ *   (일반 장 「사쿠리 없음 — 측판 뒤끝에 덮어 붙인다」와 같은 판 · 폭 W − 1, assembly-rules CARCASS.BACK_PANEL_T · BACK_FLAT_W_MINUS).
+ *   높이 절반(아래)은 2026-10-30 말씀 그대로. 18T 오픈장은 바뀌지 않는다.
  * 빌트인 = 제조사 설치 공간(니치 W · H, 가전 DB niche_min_w/h_mm)이 적힌 오븐 (같은 날 「제조사 설치 공간(니치)이 있는 오븐」).
- *   측판   = D × H                2장
- *   천지판 = (W − 2×15) × (D − 17) 2장   (15T 뒷판 + 여유 2 — 위 18T 상자와 같은 짜임)
- *   뒷판   = (W − 2×15) × ⌊H/2⌋    1장   ← "15T 통판(측판 사이)으로 하고, 높이는 절반만 해서 반은 뚫려있게"
+ *   측판   = 상자 D × H           2장   PB 15T
+ *   천지판 = (W − 2×15) × 상자 D  2장   PB 15T
+ *   뒷판   = (W − 1) × ⌊H/2⌋      1장   우라 MDF 3T 덮어 붙임 ← 높이는 "절반만 해서 반은 뚫려있게" (2026-10-30)
  * 뒷판을 아래 · 위 어느 절반에 둘지는 말씀에 없어 **아래 절반**으로 둔다 — [확인 필요] BUILTIN_OVEN.BACK_AT 한 곳만 고치면 된다.
  * 칸 높이는 니치에 맞춘다 (applianceBoxOf). 폭 · 높이 · 깊이는 니치 이상인지 본다 (applianceWarningsOf) — 깊이는 천지판 깊이(뒷판 앞까지)와
  *   가전 DB niche_min_d_mm 를 견준다 (2026-11-21 사장님 「니치 깊이 칸 더해라」 — 칸은 DB 에 이미 있었고, 엔진까지 싣는다).
@@ -83,7 +87,10 @@
       LABEL: '빌트인 오븐장',
       MATERIAL: 'PB',
       T: 15,                      // 몸통과 같은 판 15T
-      BACK_GAP: 17,               // 천지판이 깊이에서 물러나는 값 (15T 뒷판 + 여유 2 — 18T 상자의 18 + 2 와 같은 짜임)
+      BACK_GAP: 0,                // 천지판 = 측판 깊이 — 뒷판을 뒤에 덮어 붙여 깊이를 먹지 않는다 (2026-11-21 「측판, 천지판, 니치 570」)
+      // 뒷판 = 우라 덧댐 (2026-11-21 「뒷판은 우라를 덧댐」) — 일반 장 뒷판과 같은 MDF 3T, 측판 뒤끝에 덮어 붙여 폭 W − 1
+      //   (assembly-rules CARCASS.BACK_PANEL_T 3 · BACK_FLAT_W_MINUS 1 과 같은 값)
+      BACK: Object.freeze({ MATERIAL: 'MDF', T: 3, W_MINUS: 1, EDGE: '-' }),
       BACK_H_RATIO: 0.5,          // 뒷판 높이 = 몸통 H 의 절반 (내림) — 반은 뚫려 있다
       BACK_AT: 'bottom',          // [확인 필요] 뒷판을 둘 절반 — 말씀에 없어 아래 절반 ('top' 이면 위 절반)
       CATEGORY: 'oven',           // 가전 DB 품목 — 니치(niche_min_w/h_mm)가 적힌 오븐만 빌트인
@@ -137,8 +144,11 @@
       T: s.T,
       innerW: Math.max(0, W - 2 * s.T),          // 측판 사이
       innerH: Math.max(0, H - 2 * s.T),          // 천판·지판 사이
-      innerD: Math.max(0, D - s.backGap),        // 천지판 깊이 (뒷판 앞까지)
-      backT: s.T,
+      innerD: Math.max(0, D - s.backGap),        // 천지판 깊이 (뒷판 앞까지 — 빌트인 오븐장은 측판 깊이 그대로)
+      // 뒷판 — 18T 상자는 상자 두께 통판이 측판 사이(between-sides), 빌트인 오븐장은 우라가 상자 뒤에 덮임(behind-sides, 2026-11-21)
+      backT: isBuiltinOven(o) ? BI.BACK.T : s.T,
+      backW: isBuiltinOven(o) ? Math.max(0, W - BI.BACK.W_MINUS) : Math.max(0, W - 2 * s.T),
+      backMount: isBuiltinOven(o) ? 'behind-sides' : 'between-sides',
       backH,
       backY: isBuiltinOven(o) && BI.BACK_AT === 'top' ? H - backH : 0,
     };
@@ -155,8 +165,10 @@
     const g = innerOf(o);
     const s = specOf(o);
     if (!g.W || !g.H || !g.D || !g.innerW || !g.innerD || !g.backH) return [];
-    const back = { part: '뒷판', material: s.material, t: s.T, w: g.innerW, h: g.backH, qty: 1, edge: R.EDGE.back };
-    if (isBuiltinOven(o)) back.note = `${BI.LABEL} — 높이 절반 (${BI.BACK_AT === 'top' ? '위' : '아래'}), 반은 뚫림`;
+    const back = isBuiltinOven(o)
+      ? { part: '뒷판', material: BI.BACK.MATERIAL, t: BI.BACK.T, w: g.backW, h: g.backH, qty: 1, edge: BI.BACK.EDGE,
+        note: `${BI.LABEL} — 우라 덧댐 · 높이 절반 (${BI.BACK_AT === 'top' ? '위' : '아래'}), 반은 뚫림` }
+      : { part: '뒷판', material: s.material, t: s.T, w: g.innerW, h: g.backH, qty: 1, edge: R.EDGE.back };
     return [
       { part: '측판',   material: s.material, t: s.T, w: g.D,      h: g.H,      qty: 2, edge: R.EDGE.side },
       { part: '천지판', material: s.material, t: s.T, w: g.innerW, h: g.innerD, qty: 2, edge: R.EDGE.topBottom },
