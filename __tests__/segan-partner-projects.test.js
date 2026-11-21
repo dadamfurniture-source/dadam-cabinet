@@ -511,31 +511,14 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     delete window.SeganOrders;
   });
 
-  test('진행 보기 — 프로젝트 한 건 창이 있을 때만 줄마다 단추, 누르면 그 프로젝트의 창 (담당자 고르는 보기에서는 없다)', async () => {
+  test('줄에 「진행 보기」 단추는 없다 — 한 건 창이 있어도 (2026-11-21 대표님)', async () => {
     await load({ list: flowed([item(P1, '설계 전', { step: 'consult', next: next('design_start', '설계 시작', `planner?project=${P1}`) })]) });
     await flush();
     await openScreen('partner-projects');
-    expect(rowOf(P1).querySelector('[data-act="sheet"]')).toBeNull(); // 창 파일이 없다
-    const open = jest.fn();
-    let can = true;
-    window.SeganProjectSheet = { canOpen: () => can, open };
-    await window.SeganPartnerProjects.reload();
-    const btn = rowOf(P1).querySelector('[data-act="sheet"]');
-    expect(btn.textContent).toBe('진행 보기');
-    expect(btn.getAttribute('type')).toBe('button');
-    // 다음 할 일 단추 뒤에 온다
-    expect([...rowOf(P1).querySelectorAll('.rd-acts > *')].map((el) => el.textContent).slice(0, 2)).toEqual(['설계 시작', '진행 보기']);
-    btn.click();
-    expect(open).toHaveBeenCalledWith(P1);
-    // 열 수 없으면(시트 없음) 단추도 없다
-    can = false;
+    window.SeganProjectSheet = { canOpen: () => true, open: jest.fn() };
     await window.SeganPartnerProjects.reload();
     expect(rowOf(P1).querySelector('[data-act="sheet"]')).toBeNull();
-    can = true;
-    await window.SeganPartnerProjects.reload();
-    expect(rowOf(P1).querySelector('[data-act="sheet"]')).not.toBeNull();
-    window.SeganPartnerProjects.setView({ stage: '', assign: true });
-    expect(rowOf(P1).querySelector('[data-act="sheet"]')).toBeNull();
+    expect(rowOf(P1).textContent).not.toContain('진행 보기');
   });
 
   test('readProject — GET /company/projects/:id 를 읽어 { ok, status, data } 로 (번호가 이상하면 묻지 않는다)', async () => {
@@ -808,7 +791,7 @@ describe('담당자 (DB 0042 · 2026-11-06 작업 분배)', () => {
     expect(box().textContent).toContain('담당자를 비웠습니다.');
   });
 
-  test('서버가 못 정하면 서버 글을 그 자리에 · 칸은 열어 둔다, 닫기', async () => {
+  test('서버가 못 정하면 서버 글을 그 자리에 · 칸은 열어 둔다, 담당자 단추를 다시 누르면 접힘', async () => {
     await load({
       list: () => ok(withAssignee()),
       assign: () => fail(409, 'stale', '그 사이 담당자가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요'),
@@ -818,7 +801,11 @@ describe('담당자 (DB 0042 · 2026-11-06 작업 분배)', () => {
     box().querySelector('form[data-form="assign"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flush();
     expect(box().querySelector('form[data-form="assign"] [data-err]').textContent).toBe('그 사이 담당자가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
-    box().querySelector('[data-act="assign-close"]').click();
+    // 닫기 단추는 없다 — 같은 「담당자」 단추를 다시 누르면 접힌다
+    expect(box().querySelector('[data-act="assign-close"]')).toBeNull();
+    const again = box().querySelector('[data-act="assign"][data-for="' + P2 + '"]');
+    expect([again.className, again.getAttribute('aria-expanded')]).toEqual(['mk-btn mk-btn--solid', 'true']);
+    again.click();
     await flush();
     expect(box().querySelector('form[data-form="assign"]')).toBeNull();
   });

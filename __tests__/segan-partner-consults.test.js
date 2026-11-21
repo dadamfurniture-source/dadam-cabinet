@@ -279,7 +279,13 @@ const press = async (el, label) => {
   b.click();
   await flush();
 };
-const form = () => setBox().querySelector('form[data-form="settings"]');
+// 상담 설정은 「설정」 단추로 여는 창(SeganShell.sheet) 안에 있다 — 닫혀 있으면 단추를 눌러 연다
+const sheetBox = () => document.querySelector('.sg-sheet .me-cs-sheet');
+const openSet = () => {
+  if (!sheetBox()) btnIn(setBox(), '설정').click();
+  return sheetBox();
+};
+const form = () => openSet().querySelector('form[data-form="settings"]');
 const checkedItems = () =>
   Object.fromEntries(
     Object.keys(window.SeganPartnerConsults.ITEMS).map((k) => {
@@ -288,7 +294,7 @@ const checkedItems = () =>
     })
   );
 const chips = () =>
-  [...setBox().querySelectorAll('.me-cs-regions li span')].map((s) => s.textContent);
+  [...openSet().querySelectorAll('.me-cs-regions li span')].map((s) => s.textContent);
 const submitSettings = async () => {
   form().dispatchEvent(new window.Event('submit', { cancelable: true, bubbles: true }));
   await flush();
@@ -1005,9 +1011,27 @@ describe('내 평가', () => {
 });
 
 describe('상담 설정', () => {
+  test('화면에는 펼치지 않는다 — 제목 · 요약 · 「설정」 단추, 누르면 창에서 고치고 저장 않고 닫으면 고친 값을 버린다', async () => {
+    await load();
+    expect(setBox().querySelector('form')).toBeNull();
+    expect(setBox().querySelector('.me-cs-setsum').textContent).toBe(
+      '지역 2곳 · 한 달 한도 12건 · 기간 10일'
+    );
+    expect(sheetBox()).toBeNull();
+    btnIn(setBox(), '설정').click();
+    await flush();
+    expect(document.querySelector('.sg-sheet .sg-sheet-title').textContent).toBe('상담 설정');
+    expect(form()).not.toBeNull();
+    form().querySelector('input[name="monthly_limit"]').value = '3';
+    document.querySelector('.sg-sheet .sg-sheet-x').click();
+    await flush();
+    expect(sheetBox()).toBeNull();
+    expect(form().querySelector('input[name="monthly_limit"]').value).toBe('12');
+  });
+
   test('읽은 값 — 지역 · 품목(없는 품목은 안 함) · 한 달 한도 · 고객 확정 ~ 시공 완료 기간 · 안내 한 줄', async () => {
     await load();
-    expect(setBox().querySelector('.me-pt-warn').textContent).toBe(
+    expect(openSet().querySelector('.me-pt-warn').textContent).toBe(
       '설정을 마쳐야 상담을 배정받을 수 있어요.'
     );
     expect(chips()).toEqual(['대구광역시 북구', '대구광역시 수성구']);
@@ -1048,7 +1072,7 @@ describe('상담 설정', () => {
     await load({ settings: ok(null) });
     expect(setBox().hidden).toBe(false);
     expect(chips()).toEqual([]);
-    expect(setBox().querySelector('.me-empty').textContent).toBe(
+    expect(openSet().querySelector('.me-empty').textContent).toBe(
       '비워 두면 팩토리 주소의 시/군/구 상담만 받습니다.'
     );
     expect(Object.values(checkedItems()).every((v) => v === 'no')).toBe(true);
@@ -1069,7 +1093,7 @@ describe('상담 설정', () => {
     expect(form().querySelector('input[name="monthly_limit"]').value).toBe('30');
     expect(checkedItems().island).toBe('do');
     // 빼기
-    setBox().querySelector('button[aria-label="대구광역시 수성구 빼기"]').click();
+    openSet().querySelector('button[aria-label="대구광역시 수성구 빼기"]').click();
     await flush();
     expect(chips()).toEqual(['대구광역시 북구', '경기도 수원시']);
     // 모두
@@ -1126,7 +1150,7 @@ describe('상담 설정', () => {
         },
       },
     ]);
-    expect(setBox().querySelector('.me-pt-msg').textContent).toBe('상담 설정을 저장했습니다.');
+    expect(openSet().querySelector('.me-pt-msg').textContent).toBe('상담 설정을 저장했습니다.');
     expect(chips()).toHaveLength(3);
   });
 
@@ -1187,7 +1211,7 @@ describe('상담 설정', () => {
     });
     await submitSettings();
     expect(form().querySelector('[data-err]').textContent).toBe('지역을 다시 확인해 주세요.');
-    expect(setBox().querySelector('.me-pt-msg')).toBeNull();
+    expect(openSet().querySelector('.me-pt-msg')).toBeNull();
   });
 
   test('settingsBody · settingsOf — 순수 함수', async () => {

@@ -3,7 +3,7 @@
  * 2026-11-21 대표님 승인 계획 「프로젝트 한 길」 묶음 4.
  *
  * 고정하는 것
- *   1) 여는 곳 — 프로젝트 줄 「진행 보기」 · 새로 생긴 일 표의 프로젝트 이름. me.html 이 읽고 서비스 워커가 담는다
+ *   1) 여는 곳 — 새로 생긴 일 표의 프로젝트 이름 (줄의 「진행 보기」 단추는 11-21 뺌). me.html 이 읽고 서비스 워커가 담는다
  *   2) 창 — 고객 · 담당 · 시작한 날, 단계 띠 · 다음 할 일(프로젝트 줄과 같은 것), 일어난 일(오래된 것부터),
  *      설계 · 견적 · 계약 · 제작 의뢰 · A/S (있는 것만)
  *   3) 이미 읽은 줄로 먼저 그리고 서버에서 채운다. 못 읽으면 위쪽만 그리고 알린다
@@ -193,15 +193,14 @@ afterEach(() => {
 });
 
 describe('여는 곳 · 이름', () => {
-  test('me.html 이 읽고 서비스 워커가 담는다 · 프로젝트 줄과 새로 생긴 일 표가 연다', () => {
+  test('me.html 이 읽고 서비스 워커가 담는다 · 새로 생긴 일 표가 연다 (줄에는 단추 없음)', () => {
     const html = read('segan/me.html');
     const at = (name) => html.indexOf('src="' + name);
     expect(at('project-sheet.js')).toBeGreaterThan(-1);
     expect(at('project-sheet.js')).toBeLessThan(at('me.js'));
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'project-sheet.js')");
     const rowsJs = read('segan/partner-projects.js');
-    expect(rowsJs).toContain('data-act="sheet"');
-    expect(rowsJs).toMatch(/Sheet\.open\(el\.getAttribute\('data-for'\) \|\| ''\)/);
+    expect(rowsJs).not.toContain('data-act="sheet"'); // 줄의 「진행 보기」 단추는 11-21 뺐다
     expect(rowsJs).toMatch(/call\('GET', '\/company\/projects\/' \+ id\)/);
     const inbox = read('segan/inbox.js');
     expect(inbox).toContain('data-act="project"');

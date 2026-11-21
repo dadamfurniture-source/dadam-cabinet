@@ -133,6 +133,7 @@
     score: null, // GET /company/my-score data (못 읽으면 null)
     settings: null, // GET /company/service-settings (못 읽으면 null)
     draft: null, // 상담 설정 고치는 중인 값
+    sheet: null, // 상담 설정 창 (SeganShell.sheet.open 손잡이) — 닫혀 있으면 null
     decline: '', // 못 받음 까닭 칸을 연 상담 id
     note: null, // { id, text, error } — 그 상담 안에 보일 한 줄 (id 가 없으면 칸 위)
     setMsg: '',
@@ -665,17 +666,87 @@
       .join('');
   }
 
+  /**
+   * 상담 설정 고치는 칸 — 상담 화면에는 펼쳐 두지 않고 「설정」 단추로 새 창(SeganShell.sheet — 폰 아래 시트 ·
+   * PC 오른쪽 옆 패널)에서 연다 (대표님 2026-11-21). 칸(host)은 한 번 만들어 두고 창을 열 때마다 그 안에 넣는다.
+   */
+  var host = null;
+  function settingsHost() {
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'me-cs me-cs-sheet';
+      host.addEventListener('click', onClick);
+      host.addEventListener('submit', onSubmit);
+      host.addEventListener('change', onChange);
+    }
+    return host;
+  }
+
+  function settingsForm() {
+    return P.sheet && host ? host.querySelector('form[data-form="settings"]') : null;
+  }
+
+  /** 창을 연다 — 고치던 값은 지금 설정에서 다시 시작한다 */
+  function openSettings() {
+    var shell = window.SeganShell && window.SeganShell.sheet;
+    if (!shell || !P.settings || P.sheet) return;
+    P.draft = draftOf(P.settings);
+    P.setErr = '';
+    P.setMsg = '';
+    renderForm(settingsHost());
+    P.sheet = shell.open({
+      title: '상담 설정',
+      body: settingsHost(),
+      kind: 'sheet',
+      onClose: function () {
+        // 저장하지 않고 닫으면 고치던 값은 버린다
+        P.sheet = null;
+        P.draft = P.settings ? draftOf(P.settings) : null;
+        P.setErr = '';
+        P.setMsg = '';
+        renderSettings();
+      },
+    });
+  }
+
+  function closeSettings() {
+    if (P.sheet && P.sheet.isOpen && P.sheet.isOpen()) P.sheet.close();
+    P.sheet = null;
+  }
+
+  /** 상담 화면에 남는 한 줄 — 제목 · 지금 설정 요약 · 「설정」 단추 */
+  function summaryText(s) {
+    var parts = [s.regions.length ? '지역 ' + s.regions.length + '곳' : '지역 지정 안 함'];
+    if (s.monthly_limit != null) parts.push('한 달 한도 ' + s.monthly_limit + '건');
+    parts.push(s.lead_days != null ? '기간 ' + s.lead_days + '일' : '기간 고르지 않음');
+    return parts.join(' · ');
+  }
+
   function renderSettings() {
     var box = $('partnerConsultSettings');
     if (!box) return;
     if (!P.settings || !P.draft) {
+      closeSettings();
       box.hidden = true;
       box.innerHTML = '';
       return;
     }
-    var d = P.draft;
     box.innerHTML =
+      '<div class="me-cs-setbar"><div class="me-cs-setmain">' +
       '<h3 class="me-pt-sub" id="partnerConsultSettingsTitle">상담 설정</h3>' +
+      '<p class="me-cs-setsum">' +
+      esc(summaryText(P.settings)) +
+      '</p></div>' +
+      '<button type="button" class="mk-btn" data-act="settings-open" aria-haspopup="dialog"' +
+      (P.busy ? ' disabled' : '') +
+      '>설정</button></div>';
+    box.hidden = false;
+    if (P.sheet) renderForm(settingsHost());
+  }
+
+  function renderForm(target) {
+    var d = P.draft;
+    target.innerHTML =
       '<form class="me-pt-form me-cs-set" data-form="settings" novalidate>' +
       '<p class="me-pt-warn">' +
       esc(TEXT.settingsLead) +
@@ -718,7 +789,6 @@
           '>설정 저장</button></div>'
         : '') +
       '</form>';
-    box.hidden = false;
   }
 
   /** 설정 → 고치는 값 (한도는 입력 칸 글자 · 기간은 고른 값 글자) */
@@ -737,8 +807,7 @@
 
   /** 다시 그리기 전에 입력 칸 값을 고치는 값에 옮긴다 (지역은 P.draft.regions 가 정본) */
   function syncDraft() {
-    var box = $('partnerConsultSettings');
-    var form = box && box.querySelector('form[data-form="settings"]');
+    var form = settingsForm();
     if (!form || !P.draft) return;
     Object.keys(ITEMS).forEach(function (k) {
       var on = form.querySelector('input[name="item-' + k + '"]:checked');
@@ -751,8 +820,7 @@
   }
 
   function settingsError(text, field) {
-    var box = $('partnerConsultSettings');
-    var form = box && box.querySelector('form[data-form="settings"]');
+    var form = settingsForm();
     if (!form) return;
     var el = form.querySelector('[data-err]');
     if (el) {
@@ -772,8 +840,7 @@
   }
 
   function addRegion() {
-    var box = $('partnerConsultSettings');
-    var form = box && box.querySelector('form[data-form="settings"]');
+    var form = settingsForm();
     if (!form || !P.draft) return;
     var R = window.SeganRegions || {};
     var sido = form.querySelector('select[name="sido"]').value;
@@ -951,8 +1018,7 @@
   // ── 동작 ───────────────────────────────────────────────
   function setBusy(on) {
     P.busy = on;
-    ['partner-consults', 'partnerConsultSettings'].forEach(function (id) {
-      var root = $(id);
+    [$('partner-consults'), $('partnerConsultSettings'), host].forEach(function (root) {
       if (!root) return;
       root.querySelectorAll('button, input, select, textarea').forEach(function (el) {
         if (on && !el.disabled) {
@@ -1097,6 +1163,7 @@
       return;
     }
     if (act === 'decline-send') return sendDecline(id);
+    if (act === 'settings-open') return openSettings();
     if (act === 'region-add') return addRegion();
     if (act === 'region-remove') return removeRegion(Number(el.getAttribute('data-i')));
   }
@@ -1194,6 +1261,7 @@
     var list = $('partner-consults');
     var set = $('partnerConsultSettings');
     if (!list) return;
+    closeSettings();
     list.hidden = true;
     list.innerHTML = '';
     if (set) {
