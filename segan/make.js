@@ -5,8 +5,15 @@
    (진행 → 완료 + 예상 견적서), 6 상담 신청은 consult.html?g=<id> 로 간다 (결과의 「상담 신청」 버튼과 같다).
 
    생성 백엔드는 ai-design.html 이 쓰는 그대로다 (generate-api: POST /api/generate → 202, GET 으로 읽기).
-   품목 · 스타일 · 도어 색 · 냉장고 · 치수 값도 ai-design.html 과 같은 목록이다 (시험이 둘을 비교한다).
+   품목 · 냉장고 값도 ai-design.html 과 같은 목록이다 (시험이 둘을 비교한다).
    새 API 칸 · 품목 · 선택지를 만들지 않는다.
+
+   ② 요청 · AI 상담 (2026-11-21 대표님 — 스타일 · 도어 색 · 치수 · 설비 칸을 뺐다. 그 값은 워커 기본값 · 자동 인식):
+     고객이 「원하는 연출」을 적고, 「AI 상담」을 누르면 POST /api/chat (app:true · 긴 변 768 로 줄인 방 사진) 으로
+     한 마디씩 묻고 답한다. 「정리하기」 → POST /api/chat/brief → 「연출컷 참고 내용」 칸(고칠 수 있다).
+     생성 본문 customer_request = 참고 내용 (없으면 적은 글). 정리 때 AI 가 목록 안에서 고른 도어 색 · 스타일은
+     door_color · design_style 로 싣고, 고객이 참고 내용을 고치면 버린다 (글이 FINISH 줄보다 앞선다 — 워커 프롬프트).
+     상담은 로그인한 고객만 — 로그인 전에는 사진이 이 기기 밖으로 나가지 않는다.
 
    ① 사진 — 고른 사진은 칸 안에 원본 전체가 보이게 그린다(전체 보기, 기본). 채워 보기는 보기만 바꾼다 —
    올리는 사진은 자르지 않는다 (긴 변 1600 JPEG 로 줄이기만 한다, ai-design.html 과 같다).
@@ -45,7 +52,7 @@
    쓰는 페이지: segan/make.html (data-tab="make")
    의존: js/config.js · supabase-js (없으면 로그인 안 된 것으로 본다)
    ============================================================ */
-/* global window, document, location, history, navigator, sessionStorage, FileReader, Image, URL, URLSearchParams, atob, fetch, setTimeout, CustomEvent */
+/* global window, document, location, history, navigator, sessionStorage, FileReader, Image, URL, URLSearchParams, atob, fetch, setTimeout, CustomEvent, Blob */
 (function () {
   'use strict';
 
@@ -63,7 +70,7 @@
     { key: 'study', label: '서재' },
     { key: 'bedroom', label: '침실' },
   ];
-  // ai-design.html #style
+  // ai-design.html #style — 고르는 칸은 뺐다(2026-11-21). 상담 정리가 고른 값 · 옛 결과 이름(consult.js)에 쓴다
   var STYLES = [
     { value: 'modern-minimal', label: '모던 미니멀' },
     { value: 'scandinavian', label: '스칸디나비안' },
@@ -71,7 +78,7 @@
     { value: 'classic', label: '클래식' },
     { value: 'luxury', label: '럭셔리' },
   ];
-  // ai-design.html #doorColor
+  // ai-design.html #doorColor — 고르는 칸은 뺐다(2026-11-21). 상담 정리가 고른 값 · 옛 결과 이름(consult.js)에 쓴다
   var DOORS = [
     { value: 'white', label: '화이트' },
     { value: 'cream', label: '크림' },
@@ -90,8 +97,6 @@
     { value: 'left', label: '좌측' },
     { value: 'right', label: '우측' },
   ];
-  // 급수 · 배기 실측값은 주방(싱크대 · 아일랜드)만 워커가 받는다
-  var KITCHEN_KINDS = ['sink', 'island'];
   // ③ 시공사례를 고른 품목으로 거를 때 쓰는 collection_posts.category (ai-design.html KINDS[].collection 과 같다)
   var CASE_KINDS = {
     sink: ['kitchen'],
@@ -333,13 +338,21 @@
   var UNPOST_ASK = '내린 뒤에는 다시 올릴 수 없습니다. 내릴까요?';
   var REGEN_ASK = '같은 사진 · 같은 설정으로 다시 만듭니다.';
 
+  // ② 요청 · AI 상담 — 워커 CUSTOMER_REQUEST_MAX · CHAT_MAX_TEXT 와 같은 길이
+  var REQUEST_MAX = 600;
+  var CHAT_TEXT_MAX = 500;
+  var CHAT_TURNS = 12; // 고객 말 수 (wrangler.toml CHAT_LIMIT 주석 「최대 12마디」)
+  var CHAT_EDGE = 768; // 상담에 같이 보내는 방 사진 긴 변
+  var CHAT_FAIL = '답을 받지 못했습니다. 잠시 뒤 다시 보내 주세요.';
+  var BRIEF_FAIL = '정리하지 못했습니다. 잠시 뒤 다시 눌러 주세요.';
+
   var DEFAULTS = {
     kind: 'sink',
-    style: 'modern-minimal',
-    door: 'white',
-    wallW: '',
-    water: '',
-    exhaust: '',
+    prompt: '', // 원하는 연출 (고객이 적은 글)
+    chat: [], // 상담 — [{ role: 'me' | 'ai', text }]
+    brief: '', // 연출컷 참고 내용 (정리 뒤 고객이 고친 글)
+    briefDoor: '', // 정리가 고른 도어 색 (DOORS 값) — 고객이 참고 내용을 고치면 ''
+    briefStyle: '', // 정리가 고른 스타일 (STYLES 값) — 같다
     fBrand: 'samsung',
     fPos: 'left',
     fModel: '',
@@ -506,17 +519,35 @@
     var o = Object.assign({}, DEFAULTS);
     if (!c || typeof c !== 'object') return o;
     if (has(KINDS, c.kind, 'key')) o.kind = c.kind;
-    if (has(STYLES, c.style)) o.style = c.style;
-    if (has(DOORS, c.door)) o.door = c.door;
     if (has(FRIDGE_BRANDS, c.fBrand)) o.fBrand = c.fBrand;
     if (has(FRIDGE_POS, c.fPos)) o.fPos = c.fPos;
-    ['wallW', 'water', 'exhaust'].forEach(function (k) {
-      if (/^\d{1,5}$/.test(String(c[k] || ''))) o[k] = String(c[k]);
+    // 옛 초안의 style · door · wallW · water · exhaust 는 읽지 않는다 (칸을 뺐다, 2026-11-21)
+    ['prompt', 'brief'].forEach(function (k) {
+      if (typeof c[k] === 'string') o[k] = c[k].slice(0, REQUEST_MAX);
     });
+    if (o.brief && has(DOORS, c.briefDoor)) o.briefDoor = c.briefDoor;
+    if (o.brief && has(STYLES, c.briefStyle)) o.briefStyle = c.briefStyle;
+    o.chat = cleanChat(c.chat);
     ['fModel', 'fKimchi'].forEach(function (k) {
       if (/^[A-Za-z0-9][A-Za-z0-9._()-]{0,39}$/.test(String(c[k] || ''))) o[k] = String(c[k]);
     });
     return o;
+  }
+
+  /** 상담 기록 — 역할을 아는 것 · 빈 글 아닌 것만, 한 마디 500자, 고객 말 CHAT_TURNS 개까지 */
+  function cleanChat(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    var mine = 0;
+    list.forEach(function (m) {
+      if (!m || (m.role !== 'me' && m.role !== 'ai') || typeof m.text !== 'string') return;
+      var t = m.text.trim().slice(0, CHAT_TEXT_MAX);
+      if (!t) return;
+      if (m.role === 'me' && ++mine > CHAT_TURNS) return;
+      if (m.role === 'ai' && mine > CHAT_TURNS) return;
+      out.push({ role: m.role, text: t });
+    });
+    return mine ? out : []; // 고객 말이 없는 기록은 상담이 아니다
   }
 
   function cleanPhoto(p) {
@@ -1090,16 +1121,163 @@
   function renderKind() {
     var c = S.choices;
     $('mkKinds').innerHTML = chips(KINDS, c.kind, 'data-kind', 'key');
-    $('mkStyles').innerHTML = chips(STYLES, c.style, 'data-style');
-    $('mkDoors').innerHTML = chips(DOORS, c.door, 'data-door');
     $('mkFBrands').innerHTML = chips(FRIDGE_BRANDS, c.fBrand, 'data-fbrand');
     $('mkFPos').innerHTML = chips(FRIDGE_POS, c.fPos, 'data-fpos');
     $('mkFridge').hidden = c.kind !== 'fridge';
-    $('mkPlumbing').hidden = KITCHEN_KINDS.indexOf(c.kind) < 0;
-    $('mkWallW').value = c.wallW;
-    $('mkWater').value = c.water;
-    $('mkExhaust').value = c.exhaust;
+    if ($('mkPrompt').value !== c.prompt) $('mkPrompt').value = c.prompt;
+    if ($('mkBrief').value !== c.brief) $('mkBrief').value = c.brief;
+    renderChat();
     if (c.kind === 'fridge') loadFridgeModels();
+  }
+
+  // ── ② AI 상담 ──────────────────────────────────────────
+  function mineCount() {
+    return S.choices.chat.filter(function (m) {
+      return m.role === 'me';
+    }).length;
+  }
+
+  function renderChat() {
+    var c = S.choices;
+    var on = !!S.session;
+    var started = c.chat.length > 0;
+    var busy = !!S.chatBusy;
+    var full = mineCount() >= CHAT_TURNS;
+    var log = $('mkChatLog');
+    var rows = c.chat.map(function (m) {
+      return '<p class="mk-chat-msg mk-chat-msg--' + m.role + '">' + esc(m.text) + '</p>';
+    });
+    if (busy)
+      rows.push(
+        '<p class="mk-chat-msg mk-chat-msg--ai mk-chat-msg--wait">' + esc(S.chatBusy) + '</p>'
+      );
+    log.innerHTML = rows.join('');
+    log.hidden = !rows.length;
+    log.scrollTop = log.scrollHeight;
+    $('mkChatRow').hidden = !(on && started && !full);
+    $('mkChatSend').disabled = busy;
+    $('mkChatStart').hidden = !on || started;
+    $('mkChatStart').disabled = busy;
+    $('mkBriefMake').hidden = !(on && started);
+    $('mkBriefMake').disabled = busy;
+    $('mkBriefMake').textContent = c.brief ? '다시 정리하기' : '정리하기';
+    $('mkChatLogin').hidden = on;
+    $('mkChatLogin').setAttribute('href', loginHref());
+    var note = full ? '상담은 ' + CHAT_TURNS + '마디까지입니다. 「정리하기」를 눌러 주세요.' : '';
+    $('mkChatNote').textContent = note;
+    $('mkChatNote').hidden = !note;
+    $('mkChatError').textContent = S.chatError || '';
+    $('mkChatError').hidden = !S.chatError;
+    $('mkBriefBox').hidden = !c.brief && !S.briefOpen;
+  }
+
+  /** 상담에 같이 보내는 방 사진 — 긴 변 CHAT_EDGE JPEG. 한 번 만들어 같은 사진 동안 다시 쓴다. 못 만들면 null (글만 보낸다) */
+  async function chatPhoto() {
+    var p = S.photo;
+    if (!p) return null;
+    if (S.chatImg && S.chatImg.from === p.base64) return S.chatImg.img;
+    var img = null;
+    try {
+      img = await api.shrinkPhoto(p, CHAT_EDGE);
+    } catch {
+      img = null;
+    }
+    S.chatImg = { from: p.base64, img: img };
+    return img;
+  }
+
+  /** base64 사진 → 긴 변 edge JPEG ({ base64, mimeType }) */
+  function shrinkPhoto(p, edge) {
+    var bin = atob(p.base64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return shrinkBlob(new Blob([bytes], { type: p.mime }), edge);
+  }
+
+  /** 상담 서버 한 번 — path: '/api/chat' | '/api/chat/brief'. 실패면 던진다 */
+  async function chatCall(path) {
+    var c = S.choices;
+    var body = { category: c.kind, app: true, messages: c.chat };
+    var img = await chatPhoto();
+    if (img) {
+      body.room_image = img.base64;
+      body.image_type = img.mimeType;
+    }
+    var res = await fetch(API_BASE + path, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify(body),
+    });
+    var data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+    if (!res.ok || !data || !data.success) throw new Error('chat ' + res.status);
+    return data;
+  }
+
+  /** 고객 말 하나를 보내고 AI 답을 붙인다. 실패하면 그 말을 입력 칸으로 되돌린다 */
+  async function sendChat(text) {
+    var t = String(text || '')
+      .trim()
+      .slice(0, CHAT_TEXT_MAX);
+    if (!t || S.chatBusy || !S.session || mineCount() >= CHAT_TURNS) return;
+    var before = S.choices.chat;
+    S.choices.chat = before.concat([{ role: 'me', text: t }]);
+    S.chatBusy = '답을 쓰는 중…';
+    S.chatError = '';
+    $('mkChatInput').value = '';
+    renderChat();
+    try {
+      var data = await chatCall('/api/chat');
+      var reply = typeof data.reply === 'string' ? data.reply.trim().slice(0, CHAT_TEXT_MAX) : '';
+      if (!reply) throw new Error('empty');
+      S.choices.chat = S.choices.chat.concat([{ role: 'ai', text: reply }]);
+    } catch {
+      S.choices.chat = before;
+      $('mkChatInput').value = t;
+      S.chatError = CHAT_FAIL;
+    }
+    S.chatBusy = '';
+    saveDraft();
+    renderChat();
+  }
+
+  /** 「AI 상담」 — 적은 글이 첫 말이다 */
+  function startChat() {
+    var t = S.choices.prompt.trim();
+    if (!t) {
+      S.chatError = '원하는 연출을 먼저 적어 주세요.';
+      renderChat();
+      $('mkPrompt').focus();
+      return Promise.resolve();
+    }
+    return sendChat(t);
+  }
+
+  /** 「정리하기」 — 상담을 연출컷 참고 내용으로. 고객이 읽고 고친다 */
+  async function makeBrief() {
+    if (S.chatBusy || !S.session || !mineCount()) return;
+    S.chatBusy = '상담 내용을 정리하는 중…';
+    S.chatError = '';
+    renderChat();
+    try {
+      var data = await chatCall('/api/chat/brief');
+      var brief = typeof data.brief === 'string' ? data.brief.trim().slice(0, REQUEST_MAX) : '';
+      if (!brief) throw new Error('empty');
+      S.choices.brief = brief;
+      S.choices.briefDoor = has(DOORS, data.door_color) ? data.door_color : '';
+      S.choices.briefStyle = has(STYLES, data.design_style) ? data.design_style : '';
+      S.briefOpen = true;
+      $('mkBrief').value = brief;
+    } catch {
+      S.chatError = BRIEF_FAIL;
+    }
+    S.chatBusy = '';
+    saveDraft();
+    renderChat();
   }
 
   function costText() {
@@ -1532,7 +1710,7 @@
     renderManage();
   }
 
-  /** ai-design.html ?regen=1 과 같은 호출 — parent_id 와 원본의 스타일 · 도어 색 */
+  /** ai-design.html ?regen=1 과 같은 호출 — parent_id 와 원본의 스타일 · 도어 색 (요청 글 customer_request 는 워커가 원본에서 잇는다) */
   async function regen() {
     var g = S.gen;
     if (!g || S.phase === 'loading') return;
@@ -1728,24 +1906,25 @@
   }
 
   /**
-   * 요청 본문 — ai-design.html run() 과 같은 칸. 상세 요청(customer_request)은 앱에서 뺐다.
+   * 요청 본문 — ai-design.html run() 과 같은 칸.
+   * 2026-11-21: 스타일 · 도어 색 · 벽 폭 · 급수 · 배기 칸을 뺐다 (워커 기본값 · 자동 인식). 요청 글은 customer_request —
+   *   연출컷 참고 내용(정리 뒤 고친 글)이 있으면 그것, 없으면 적은 글. 정리가 고른 색 · 스타일은 참고 내용과 함께만.
    * refs: 보낼 참고 사진 (encodeRefs) — [{ base64, mimeType, role, note? }]. 없으면 칸째 뺀다 (예전과 같은 본문)
    */
   function buildBody(refs) {
     var c = S.choices;
     var p = S.photo;
-    var kitchen = KITCHEN_KINDS.indexOf(c.kind) >= 0;
+    var brief = c.brief.trim();
+    var request = (brief || c.prompt.trim()).slice(0, REQUEST_MAX);
     var body = {
       room_image: p.base64,
       image_type: p.mime,
       category: c.kind,
-      design_style: c.style,
-      door_color: c.door,
+      design_style: (brief && c.briefStyle) || undefined,
+      door_color: (brief && c.briefDoor) || undefined,
+      customer_request: request || undefined,
       reference_images: refs && refs.length ? refs : undefined,
-      wall_width_override: c.wallW || undefined,
       room_focal35: p.focal35 || undefined,
-      water_from_left_override: (kitchen && c.water) || undefined,
-      exhaust_from_left_override: (kitchen && c.exhaust) || undefined,
     };
     if (c.kind === 'fridge') {
       body.fridge_options = { brand: c.fBrand, position: c.fPos };
@@ -1764,7 +1943,7 @@
   }
 
   /** 그림 파일(Blob) → 긴 변 REF_EDGE 의 JPEG base64. 투명한 곳은 흰 바탕 (JPEG 는 투명이 없다) */
-  function shrinkBlob(blob) {
+  function shrinkBlob(blob, edge) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(blob); // 같은 출처 주소라 캔버스가 더럽혀지지 않는다
       var img = new Image();
@@ -1777,7 +1956,7 @@
       };
       img.onload = function () {
         try {
-          var size = fitEdge(img.naturalWidth, img.naturalHeight, REF_EDGE);
+          var size = fitEdge(img.naturalWidth, img.naturalHeight, edge || REF_EDGE);
           var cv = document.createElement('canvas');
           cv.width = size.w;
           cv.height = size.h;
@@ -2171,6 +2350,7 @@
       }
     }
     renderBar();
+    renderChat(); // 상담 단추 · 로그인 안내는 로그인 여부를 따른다
   }
 
   // 냉장고 모델 (ai-design.html loadFridgeModels 와 같은 조회) — 못 받으면 「기본 모델」만
@@ -2308,23 +2488,45 @@
       };
     };
     pick('mkKinds', 'data-kind', 'kind');
-    pick('mkStyles', 'data-style', 'style');
-    pick('mkDoors', 'data-door', 'door');
     pick('mkFBrands', 'data-fbrand', 'fBrand');
     pick('mkFPos', 'data-fpos', 'fPos');
 
-    [
-      ['mkWallW', 'wallW'],
-      ['mkWater', 'water'],
-      ['mkExhaust', 'exhaust'],
-    ].forEach(function (t) {
-      $(t[0]).oninput = function (e) {
-        S.choices[t[1]] = String(e.target.value || '')
-          .replace(/\D/g, '')
-          .slice(0, 5);
-        saveDraft();
-      };
-    });
+    // ② 요청 · AI 상담
+    $('mkPrompt').oninput = function (e) {
+      S.choices.prompt = String(e.target.value || '').slice(0, REQUEST_MAX);
+      if (S.chatError && S.choices.prompt.trim()) {
+        S.chatError = '';
+        renderChat();
+      }
+      saveDraft();
+    };
+    $('mkBrief').oninput = function (e) {
+      S.choices.brief = String(e.target.value || '').slice(0, REQUEST_MAX);
+      // 고객이 고쳤다 — 정리가 고른 색 · 스타일은 버린다 (고친 글이 앞선다)
+      S.choices.briefDoor = '';
+      S.choices.briefStyle = '';
+      saveDraft();
+    };
+    $('mkChatStart').onclick = function () {
+      api.chatting = startChat();
+    };
+    $('mkChatSend').onclick = function () {
+      api.chatting = sendChat($('mkChatInput').value);
+    };
+    $('mkChatInput').onkeydown = function (e) {
+      if (e.key !== 'Enter' || e.isComposing) return; // 한글 조합 중 Enter 는 글자 확정
+      e.preventDefault();
+      api.chatting = sendChat($('mkChatInput').value);
+    };
+    $('mkBriefMake').onclick = function () {
+      api.chatting = makeBrief();
+    };
+    $('mkChatLogin').onclick = function (e) {
+      // 로그인 전: 고른 값 · 사진을 이 기기에만 담고 로그인하러 간다 (생성 버튼과 같은 길)
+      e.preventDefault();
+      saveDraft();
+      api.go(loginHref());
+    };
     [
       ['mkFModel', 'fModel'],
       ['mkFKimchi', 'fKimchi'],
@@ -2509,6 +2711,11 @@
     openPicker: openPicker,
     readRef: readRef,
     fitEdge: fitEdge,
+    /** ② AI 상담 — 방 사진 줄이기(시험이 바꿔 끼운다) · 지금 보내는 중인 상담 (시험이 기다린다) */
+    shrinkPhoto: shrinkPhoto,
+    CHAT_EDGE: CHAT_EDGE,
+    CHAT_TURNS: CHAT_TURNS,
+    chatting: null,
     picking: null, // 고르기 창의 목록 읽기 (시험이 기다린다)
     ready: null,
   };
