@@ -202,8 +202,12 @@ test('대화 프롬프트 — 사진 · app 이 없으면 예전 글 그대로, 
   assert.ok(!app.includes('「연출컷 생성」'));
   // 11-21 대표님 「AI 가 필요한 내용을 질문으로 이끈다」 — 차례 · 보기 · 손잡이 금지
   assert.match(app, /You lead the consultation/);
-  assert.match(app, /in this order: door colour or material/);
-  assert.match(app, /two or three concrete choices/);
+  assert.match(app, /in this order: appliances they need, only if this furniture holds appliances; door colour or material/);
+  // 11-21 대표님 「구체적으로 제시하지 말고, 마음에 드는 도어 색상이 있는지? — 모든 질문은 열린 질문」
+  assert.match(app, /never offer choices, examples, or specific colours/);
+  assert.ok(app.includes('「마음에 드는 도어 색상이 있으세요?」'));
+  assert.doesNotMatch(app, /concrete choices|suggest door colours or materials that suit/);
+  assert.match(app, /do not suggest colours, materials or options from it/);
   assert.match(app, /never suggest handles or knobs/);
   assert.ok(app.includes('Customer: 오크 도어'));
 });
