@@ -1474,8 +1474,10 @@ describe('사업자등록증 · 첫 달 무료 (2026-11-21 대표님 계획 승�
     expect(input.hasAttribute('multiple')).toBe(false);
     expect(box.querySelector('label.me-pt-pick').textContent).toBe('사업자등록증 사진 올리기');
     // 칸은 시작 카드보다 위
-    const order = [...root().children].map((c) => c.className.split(' ')[0]);
-    expect(order.indexOf('me-pt-box')).toBeLessThan(order.indexOf('me-pt-cards'));
+    const kids = [...root().children];
+    const at = (cls) => kids.findIndex((c) => c.classList.contains(cls));
+    expect(at('me-pt-cert')).toBeGreaterThanOrEqual(0);
+    expect(at('me-pt-cert')).toBeLessThan(at('me-pt-cards'));
     // 아직 무료가 아니다
     expect(root().querySelector('.me-pt-card[data-plan="expert"] button').textContent).toBe(
       '결제하고 시작'

@@ -2110,14 +2110,6 @@ button.sm-num[aria-pressed='true'] {
   resize: vertical;
 }
 
-@media (min-width: 1024px) {
-  .me-bc-card {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-    gap: 24px;
-    padding: 20px;
-  }
-}
-
 .me-hc-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -7179,6 +7171,13 @@ body.sg-locked .sg-tabbar {
 @media (min-width: 1024px) {
   .sg-app {
     padding-bottom: 0;
+  }
+
+  /* 사업자등록증 확인(segan/hq-biz-cert.js) — PC 는 사진 왼쪽 · 내용 오른쪽 */
+  .me-bc-card {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 24px;
+    padding: 20px;
   }
 
   /* 시공사례 · 좋아요 — PC 는 4칸 */
