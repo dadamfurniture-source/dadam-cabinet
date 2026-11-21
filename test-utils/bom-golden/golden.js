@@ -114,7 +114,9 @@ const MATERIAL_ROW_KEYS = [
 ];
 /** B4 가 더한 철물 행 키 — 모듈 이름·키, 경첩 보링(도어 상단 기준 mm), 플랩 보링 변. 행마다 있는 것만 싣는다. */
 const NEW_HARDWARE_KEYS_B4 = ['module', 'moduleKey', 'boring', 'boringSide'];
-const HARDWARE_ROW_KEYS = ['category', 'item', 'manufacturer', 'spec', 'qty', 'unit', 'note', ...NEW_HARDWARE_KEYS_B4, 'itemLabel'];
+/** 2026-11-21 레일 행의 종류 (under · ball) — 조립 명세가 품명 대신 이 값으로 박스에 단다. 레일 행에만 */
+const NEW_HARDWARE_KEYS_RAIL = ['railType'];
+const HARDWARE_ROW_KEYS = ['category', 'item', 'manufacturer', 'spec', 'qty', 'unit', 'note', ...NEW_HARDWARE_KEYS_B4, ...NEW_HARDWARE_KEYS_RAIL, 'itemLabel'];
 
 /** 키를 정렬한 결정적 JSON — 다이제스트용. 키 순서가 달라도 같은 값이면 같은 다이제스트다. */
 function canonical(v) {

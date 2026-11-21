@@ -393,7 +393,7 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(rows.find((r) => r.part === '서랍전후판').h).toBe(120 - 18);               // 사쿠리 −18
     const hw = new HardwareExtractor().extract({ items: [itemOf([{ id: 'l6', type: 'storage', name: 'D', pos: 'lower', w: 600, h: 758, d: 550, isDrawer: true, drawerCount: 2, drawer: { rail: 'ball' } }])] })
       .hardware.filter((h) => h.category === '레일');
-    expect(hw[0].item).toBe('댐핑 볼레일');
+    expect(hw[0].item).toBe('문주 댐핑 볼레일');
   });
 
   test('drawerFronts 로 전면 높이를 지정하면 그대로 쓴다', () => {
@@ -414,9 +414,9 @@ describe('BOM 적용 (extractors.js)', () => {
     ])] }).hardware.filter((h) => h.category === '레일');
     // 길이 = 규격 중 깊이 − 50 이하 최대: D550 → 500, D450 → 400
     expect(hw.map((h) => [h.item, h.spec, h.qty, h.note])).toEqual([
-      ['댐핑 언더레일', '500mm', 3, 'A'],
-      ['댐핑 볼레일', '400mm', 2, 'B · 두께 14'],
-      ['댐핑 언더레일', '500mm', 4, 'C'],
+      ['문주 댐핑 언더레일', '500mm', 3, 'A'],
+      ['문주 댐핑 볼레일', '400mm', 2, 'B · 두께 14'],
+      ['문주 댐핑 언더레일', '500mm', 4, 'C'],
     ]);
   });
 });

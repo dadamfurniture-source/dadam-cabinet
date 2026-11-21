@@ -140,10 +140,10 @@ describe('가스대 600', () => {
     expect(pick(r, '밴드(처짐방지)')).toEqual([]);
   });
 
-  test('레일 철물 — 댐핑 볼레일 2 (속서랍 · 소서랍) · 댐핑 언더레일 1', () => {
+  test('레일 철물 — 문주 댐핑 볼레일 2 (속서랍 · 소서랍) · 문주 댐핑 언더레일 1', () => {
     const { hardware, key } = kitchen();
     const rails = hardware.filter((h) => h.category === '레일' && h.moduleKey === `0-${key('g2')}`);
-    expect(rails.map((h) => [h.item, h.qty, h.spec])).toEqual([['댐핑 볼레일', 2, '500mm'], ['댐핑 언더레일', 1, '500mm']]);
+    expect(rails.map((h) => [h.item, h.qty, h.spec])).toEqual([['문주 댐핑 볼레일', 2, '500mm'], ['문주 댐핑 언더레일', 1, '500mm']]);
   });
 
   test('조립 — 속서랍은 위 칸 맨 위 (앞 밴드 아래 레일 여유 10), 소서랍은 칸 바닥 + 10, 레일 자리 종류대로', () => {

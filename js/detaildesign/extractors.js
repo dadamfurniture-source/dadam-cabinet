@@ -1710,7 +1710,8 @@
          */
         drawerRulesOf(mod, T) {
           const d = (mod && mod.drawer) || {};
-          const railRaw = d.rail || mod.drawerRail;
+          // 2026-11-21: 플래너 서랍장에서 고른 카탈로그 레일(railItem {brand, name, type}) — 종류는 그 레일 종류
+          const railRaw = (d.railItem && d.railItem.type) || d.rail || mod.drawerRail;
           const sakuri = d.sakuri != null ? !!d.sakuri : !!mod.drawerSakuri;
           const boxT = Number(d.boxT) || Number(mod.drawerBoxT) || T;
           // 2026-09-16: 전면 등급 — 서랍마다 소·중·대. 도어 등급은 따로 (기본 대).
@@ -3677,7 +3678,7 @@
           return [
             {
               category: '경첩',
-              item: `${this.hingeModelOf(specs)} 105도 저압 경첩`,
+              item: `문주 ${this.hingeModelOf(specs)} 105도 저압 경첩`,
               manufacturer: '문주',
               spec: `${hinges}구`,
               qty: hinges * doorCount,
@@ -3811,7 +3812,7 @@
 
             hardware.push({
               category: '경첩',
-              item: `${this.hingeModelOf(specs)} 105도 저압 경첩`,
+              item: `문주 ${this.hingeModelOf(specs)} 105도 저압 경첩`,
               manufacturer: '문주',
               spec: `${hingesPerDoor}구`,
               qty: hingesPerDoor * doorCount,
@@ -3893,8 +3894,7 @@
               if (!L || !L.boxes.length) return;
               hardware.push({
                 category: '레일',
-                item: '문주 언더레일',
-                manufacturer: '문주',
+                ...DrawerRules.railHardwareOf('under'),
                 spec: `${L.boxes[0].railLength}mm`,
                 qty: L.boxes.length,
                 unit: 'SET',
@@ -3908,8 +3908,7 @@
             (item.modules || []).filter((m) => RiceRules.isRiceCabinet(m)).forEach((mod) => {
               hardware.push({
                 category: '레일',
-                item: '문주 언더레일',
-                manufacturer: '문주',
+                ...DrawerRules.railHardwareOf('under'),
                 spec: `${bomRiceRailLengthOf(mod)}mm`,
                 qty: 1,
                 unit: 'SET',
@@ -3931,8 +3930,7 @@
                 : null;
               hardware.push({
                 category: '레일',
-                item: '문주 언더레일',
-                manufacturer: '문주',
+                ...DrawerRules.railHardwareOf('under'),
                 spec: `${extRail || 450}mm`,
                 qty: drawerCount,
                 unit: 'SET',
@@ -3951,15 +3949,17 @@
               // 2026-10-24: 키큰장 맨 아래 단 서랍은 센다 (bomTallDrawerTier — 자재 행이 박스를 낸다). 다른 단은 서랍이 없다
               if (!mod.isDrawer || mod.pos !== 'lower' || (bomTallTierOf(mod) && !bomTallDrawerTier(mod))) return;
               const depth = bomSimpleDepthOf(mod, 'lower', item, simpleRules);
+              // 2026-11-21 사장님 「기본을 문주로 다 맞추고」 — 예전 「소프트클로즈 서랍레일」 블룸
+              const sk = DrawerRules.railKeyOf((mod.drawer && mod.drawer.railItem && mod.drawer.railItem.type) || (mod.drawer && mod.drawer.rail) || mod.drawerRail);
               hardware.push({
                 category: '레일',
-                item: '소프트클로즈 서랍레일',
-                manufacturer: '블룸',
+                ...DrawerRules.railHardwareOf(sk, mod.drawer && mod.drawer.railItem),
                 spec: `${bomSimpleRailLenOf(depth)}mm`,
                 qty: mod.drawerCount || 1,
                 unit: 'SET',
                 note: mod.name || mod.type,
                 ...this.moduleTagOf(mod),
+                railType: sk,
               });
             });
             return;
@@ -3973,8 +3973,8 @@
             const depth = mod.d || 550;
             // 2026-09-15: 레일 길이 = 규격(250~500) 중 깊이 − 50 이하의 최대 (bom-drawer-rules.js railLengthFor)
             const R = DrawerRules ? DrawerRules.DRAWER_RULES : null;
-            const railKey = DrawerRules ? DrawerRules.railKeyOf((mod.drawer && mod.drawer.rail) || mod.drawerRail) : 'under';
-            const railName = R ? R.RAIL_CLEARANCE[railKey].name : '소프트클로즈 서랍레일';
+            const railItem = (mod.drawer && mod.drawer.railItem) || null;
+            const railKey = DrawerRules.railKeyOf((railItem && railItem.type) || (mod.drawer && mod.drawer.rail) || mod.drawerRail);
             let railLength = DrawerRules ? DrawerRules.railLengthFor(depth) : null;
             if (railLength === null) railLength = R ? R.RAIL_LENGTHS[0] : 250;
             const maxN = R ? R.MAX_COUNT : 4;
@@ -3992,13 +3992,13 @@
               Object.keys(counts).forEach((k) => {
                 hardware.push({
                   category: '레일',
-                  item: R.RAIL_CLEARANCE[k].name,
-                  manufacturer: '블룸',
+                  ...DrawerRules.railHardwareOf(k, railItem),
                   spec: `${railLength}mm`,
                   qty: counts[k],
                   unit: 'SET',
                   note: `${mod.name || mod.type}${k === 'ball' ? ` · 두께 ${R.RAIL_CLEARANCE.ball.thickness}` : ''}`,
                   ...this.moduleTagOf(mod),
+                  railType: k,
                 });
               });
               return;
@@ -4006,13 +4006,13 @@
 
             hardware.push({
               category: '레일',
-              item: railName,
-              manufacturer: '블룸',
+              ...DrawerRules.railHardwareOf(railKey, railItem),
               spec: `${railLength}mm`,
               qty,
               unit: 'SET',
               note: `${mod.name || mod.type}${railKey === 'ball' && R ? ` · 두께 ${R.RAIL_CLEARANCE.ball.thickness}` : ''}`,
               ...this.moduleTagOf(mod),
+              railType: railKey,
             });
           });
         }

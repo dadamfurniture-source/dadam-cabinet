@@ -24,13 +24,13 @@ describe('경첩 품번 — 몸통 두께로 갈린다', () => {
   test('15T 몸통은 H052W-5 105도 저압', () => {
     const hinges = hardwareOf(FIXTURES.sink15).filter((h) => h.category === '경첩');
     expect(hinges.length).toBeGreaterThan(0);
-    hinges.forEach((h) => expect(h.item).toBe('H052W-5 105도 저압 경첩'));
+    hinges.forEach((h) => expect(h.item).toBe('문주 H052W-5 105도 저압 경첩'));
   });
 
   test('18T 몸통은 H052W-3', () => {
     const hinges = hardwareOf(FIXTURES.sink18).filter((h) => h.category === '경첩');
     expect(hinges.length).toBeGreaterThan(0);
-    hinges.forEach((h) => expect(h.item).toBe('H052W-3 105도 저압 경첩'));
+    hinges.forEach((h) => expect(h.item).toBe('문주 H052W-3 105도 저압 경첩'));
   });
 });
 
