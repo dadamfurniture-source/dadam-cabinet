@@ -299,20 +299,22 @@ describe('소개 · 구독 — [소개 | 구독] · 폰 탭 홈', () => {
 });
 
 describe('AI 시스템 소개 (about.html)', () => {
-  test('흐름 — 연출컷 · 상담 → 본사 배분 → 팩토리(설계 · BOM · 작업지시서) → 생산 · 시공 → A/S → 학습', async () => {
+  test('흐름 — 연출컷 · 상담 → 상담 배분 → 팩토리(설계 · BOM · 작업지시서) → 생산 · 시공 → A/S → 학습', async () => {
     await load('about.html');
     const flows = $$('ol.ab-flow');
     expect(flows).toHaveLength(2);
     const steps = (ol) => [...ol.querySelectorAll('.ab-step b')].map(text);
     expect(steps(flows[0])).toEqual([
       '연출컷 · 상담',
-      '다담 본사 배분',
+      '상담 배분',
       '팩토리 — 설계 · BOM · 작업지시서',
       '생산 · 시공',
       'A/S',
       '학습',
     ]);
-    expect(steps(flows[1])).toEqual(['제작 의뢰', '본사 추천', '선택']);
+    expect(steps(flows[1])).toEqual(['제작 의뢰', '업체 추천', '선택']);
+    // 「다담 본사」라는 말은 쓰지 않는다 (2026-11-21 대표님 「다담 본사라는 말은 빼줘」)
+    expect(text($('main'))).not.toMatch(/본사/);
     expect(text($('#abMakerTitle'))).toBe('Manager 업체의 제작 의뢰');
     expect($$('.ab-points b').map(text)).toEqual([
       '실제 시공 사진 기반 연출컷',
