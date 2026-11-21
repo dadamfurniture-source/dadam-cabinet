@@ -64,9 +64,11 @@ function makeDb({ stock = true, price = true } = {}) {
       { company_id: P1, id: 'it-pb15', unit: '장', unit_price: price ? 30500 : undefined },
       { company_id: P1, id: 'it-back', unit: '장', unit_price: price ? null : undefined },
       { company_id: P1, id: 'it-hinge', unit: '개', unit_price: price ? 520 : undefined },
-      { company_id: P1, id: 'it-gas', unit: '개', unit_price: price ? 4200 : undefined },
+      { company_id: P1, id: 'it-gas', unit: '개', unit_price: price ? 4200 : undefined, supplier_id: 'cp-moa' },
       { company_id: P2, id: 'it-other', unit: '장', unit_price: price ? 99999 : undefined },
     ] : null,
+    // 거래처 — 재고 품목의 공급처 (주문 거래처 이름, 2026-11-21)
+    counterparties: stock ? [{ id: 'cp-moa', company_id: P1, name: '모아가구철물' }] : null,
     priceColumn: price,
     writes: [],
   };
@@ -370,4 +372,20 @@ test('소부품 설정 검증 — mode 는 place · stock, 수 칸은 범위 안
   // 엔진의 소부품 모드와 같은 이름
   const engine = fs.readFileSync(new URL('../../../js/detaildesign/nesting-engine.js', import.meta.url), 'utf8');
   BAND_MODES.forEach((m) => assert.match(engine, new RegExp(`id: '${m}'`)));
+});
+
+test('주문 거래처 · 바뀐 품명 (2026-11-21) — 회사를 모르는 철물은 재고 품목 공급처 이름, 예전 품명으로 이은 짝도 지금 품명 줄에', async () => {
+  const db = makeDb();
+  await withDb(db, async () => {
+    const body = { hardware: [
+      { category: '경첩', item: '문주 H052W-5 105도 저압 경첩', manufacturer: '문주' },   // 지금 품명 — 예전 품명 짝(H052W-5 …)으로 재고 단가
+      { category: '가스쇼바', item: '가스쇼바 7kg' },                                     // 회사 모름 — 재고 품목 공급처
+      { category: '손잡이', item: '목찬넬', manufacturer: '-' },                          // 짝 없음
+    ] };
+    const r = await plannerPrices(ENV, { user: u(OWNER), body });
+    assert.deepEqual(r.hardware.map((h) => [h.item, h.unit_price, h.source]), [['문주 H052W-5 105도 저압 경첩', 520, 'stock'], ['가스쇼바 7kg', 4200, 'stock'], ['목찬넬', null, null]]);
+    assert.deepEqual(r.suppliers, [null, '모아가구철물', null], '회사가 있는 경첩에는 붙이지 않는다');
+    const staff = await plannerPrices(ENV, { user: u(STAFF), body });
+    assert.equal(staff.suppliers, undefined, '직원 계정은 재고를 읽지 않는다');
+  });
 });

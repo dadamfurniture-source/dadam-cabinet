@@ -37,6 +37,7 @@ import { assertPlannerBom, plannerCompanyOf } from './planner-drafts.js';
 import { companySettings } from './production/service.js';
 import { boardPriceKeyOf, HARDWARE_PRICE_KEYS } from './quote-sheet.js';
 import { boardKey, hardwareKey } from './stock-needs.js';
+import { canonicalMatchKey, hardwareSuppliersOf, noMaker } from './hardware-names.js';
 import { canHoldStock } from './stock.js';
 import { currentPriceItems, listBoardPrice, priceColorsOf } from './price-lists.js';
 
@@ -88,7 +89,9 @@ export async function stockPricesOf(env, company) {
   for (const l of links || []) {
     const it = byId.get(l.item_id);
     const price = it ? priceOf(it.unit_price) : null;
-    if (price !== null) out.set(l.match_key, { unit_price: price, unit: text(it.unit, 8) || null });
+    // 예전 품명으로 이은 짝도 지금 품명 키로 (2026-11-21 — 이미 지금 키 줄이 있으면 그 줄)
+    const key = canonicalMatchKey(l.match_key);
+    if (price !== null && (!out.has(key) || key === l.match_key)) out.set(key, { unit_price: price, unit: text(it.unit, 8) || null });
   }
   return out;
 }
@@ -148,9 +151,16 @@ export async function plannerPrices(env, { user, body }) {
   // 줄 모양은 권한과 상관없이 본다 — 직원이 보내도 틀린 본문은 422
   if (!isPlainObject(body || {})) throw new ValidationError('본문은 객체여야 합니다');
   ['boards', 'hardware', 'edge', 'tops'].forEach((k) => linesOf(body, k));
+  // 주문 거래처 (2026-11-21 사장님 「조절 다리발 · 선반 브라켓 · 걸레받이카바 · 손잡이는 주문 거래처 회사로」) — 회사를 모르는 철물 줄마다,
+  //   재고 짝표로 이은 품목의 공급처 이름 (없으면 null) — 재고를 읽는 대표 · 실장에게만 (직원 계정은 재고를 읽지 않는다). 보낸 철물 줄 차례 그대로
   if (!canManage) return { money: false, company: who };
+  const sup = canHoldStock(company) ? await hardwareSuppliersOf(env, company.id) : new Map();
+  const suppliers = linesOf(body, 'hardware').map((h) => {
+    const k = noMaker(h) ? hardwareKey(text(h.category), text(h.item, 200)) : null;
+    return (k && sup.get(k.key)) || null;
+  });
   const [stock, settings, listItems] = await Promise.all([stockPricesOf(env, company), companySettings(env, company.id), currentPriceItems(env, company.id)]);
-  return { money: true, company: who, settings_missing: settings.missing, ...priceLines(body, stock, settings.settings.quote, listItems) };
+  return { money: true, company: who, settings_missing: settings.missing, suppliers, ...priceLines(body, stock, settings.settings.quote, listItems) };
 }
 
 /**

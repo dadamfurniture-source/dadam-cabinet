@@ -32,6 +32,7 @@ import { ConflictError, DbError, NotFoundError, ValidationError, callRpc, insert
 import { stockCompanyOf, qtyOf, STOCK_ITEMS_LIMIT } from './stock.js';
 import { bandStripsOf, bandReorderCheck, colorLabel } from './stock-bands.js';
 import { unitNameOf } from './hardware-units.js';
+import { hardwareMatchKey, linksByCanonicalKey, canonicalMatchKey } from './hardware-names.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -104,12 +105,9 @@ export function boardKey(material, thickness) {
   return m && Number.isFinite(t) && t > 0 ? { key: `B|${m}|${t}`, label: `${m} ${t}T` } : null;
 }
 
-/** 철물 키 — 분류 + 이름 */
+/** 철물 키 — 분류 + 이름. 바뀐 품명(2026-11-21 — 「댐핑 언더레일」 → 「문주 댐핑 언더레일」 등)은 지금 품명으로 (hardware-names.js) */
 export function hardwareKey(category, item) {
-  const c = clean(category);
-  const i = clean(item);
-  if (!i) return null;
-  return { key: `H|${c}|${i}`.slice(0, KEY_MAX), label: (c ? `${c} · ${i}` : i).slice(0, KEY_MAX) };
+  return hardwareMatchKey(category, item);
 }
 
 /** 재단 배치 요약 → 판재 줄. '재질_두께' 의 마지막 _ 에서 가른다 */
@@ -320,7 +318,8 @@ export async function listStockNeeds(env, { user }) {
     })
     .sort((a, b) => (a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0));
 
-  const linkBy = new Map((links || []).map((l) => [l.match_key, l]));
+  // 예전 품명으로 이은 짝도 지금 품명 키로 (hardware-names.js linksByCanonicalKey)
+  const linkBy = linksByCanonicalKey(links);
   // 밴드 — 그 색의 밴드 품목과 바로 짝 (짝표에 적지 않는다)
   for (const it of items || []) if (it.kind === 'band' && it.active !== false) linkBy.set(bandKey(it.band_color).key, { match_key: bandKey(it.band_color).key, kind: 'band', item_id: it.id, ignored: false });
   const itemBy = new Map((items || []).map((i) => [i.id, i]));
@@ -346,7 +345,7 @@ export async function listStockNeeds(env, { user }) {
     }
   }
   // 짝표에만 있고 지금 수주에는 안 나오는 자재도 싣는다 (짝을 고칠 수 있게) — 밴드는 짝표에 없다
-  for (const l of links || []) if (!mats.has(l.match_key)) mats.set(l.match_key, { key: l.match_key, kind: l.kind, label: l.label, unit: l.kind === 'board' ? '장' : '개', need: 0, orders: 0 });
+  linksByCanonicalKey(links).forEach((l, key) => { if (!mats.has(key)) mats.set(key, { key, kind: l.kind, label: key === l.match_key ? l.label : key.slice(2).replace('|', ' · '), unit: l.kind === 'board' ? '장' : '개', need: 0, orders: 0 }); });
 
   return {
     can_manage: canAct,
