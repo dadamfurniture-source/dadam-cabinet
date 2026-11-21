@@ -5732,7 +5732,8 @@ button.sm-num[aria-pressed='true'] {
 
 /* 프로젝트 줄 — 보류 · 그만둠 (segan/partner-projects.js, 2026-11-21 뒤 공정 1차).
    줄의 단추로 펼치는 칸(.pj-status) · 보류한 줄의 다시 볼 날과 메모(.pj-hold) · 아래에 접어 둔 보류 묶음(.pj-held) */
-.pj-hold {
+.pj-hold,
+.pj-visit-line {
   display: block;
   color: var(--v5-tan);
 }

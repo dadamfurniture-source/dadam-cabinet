@@ -389,6 +389,39 @@ describe('창', () => {
     ]).toEqual(['', '그만둔 프로젝트 · 「포기」']);
   });
 
+  test('실측 한 줄 (2026-11-21 뒤 공정 2차) — 프로젝트 줄과 같은 글을 맨 위에. 창의 실측 단추는 창을 닫고 프로젝트 줄에서 한다', async () => {
+    const data = DATA();
+    load({ project: () => ({ ok: true, status: 200, data }) });
+    const PP = window.SeganPartnerProjects;
+    PP.visitText = jest.fn(() => '실측 11.25 (수) 14:00 · 박실장');
+    PP.openVisit = jest.fn();
+    PP.runNext = jest.fn();
+    PP.nextOf = () => ({
+      strip: '<ol class="pj-strip"></ol>',
+      note: '',
+      act:
+        '<button type="button" data-act="visit" data-for="' +
+        P1 +
+        '">실측 일정 잡기</button><button type="button" data-act="next-visit-done" data-for="' +
+        P1 +
+        '">실측 완료 처리</button>',
+      tail: '',
+    });
+    await window.SeganProjectSheet.open(P1);
+    expect(text(node().querySelector('[data-ps="visit"]'))).toBe('실측 11.25 (수) 14:00 · 박실장');
+    expect(PP.visitText).toHaveBeenCalledWith(expect.objectContaining({ id: P1 }));
+    node().querySelector('[data-act="visit"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(PP.openVisit).toHaveBeenCalledWith(P1);
+    await window.SeganProjectSheet.open(P1);
+    node().querySelector('[data-act="next-visit-done"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(PP.runNext).toHaveBeenCalledWith('next-visit-done', P1);
+    // 실측이 없으면 줄도 없다
+    PP.visitText = () => '';
+    expect(window.SeganProjectSheet.bodyHtml(data)).not.toContain('data-ps="visit"');
+  });
+
   test('없는 것은 구역째 뺀다', async () => {
     load({
       project: () => ({

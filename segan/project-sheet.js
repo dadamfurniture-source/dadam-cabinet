@@ -235,6 +235,9 @@
         : '';
     // 보류 · 그만둠이면 그 사정을 한 줄로 (바꾸는 것은 프로젝트 줄의 「보류 · 그만둠」에서)
     if (stateText(p)) html += '<p class="ps-state" data-ps="state">' + esc(stateText(p)) + '</p>';
+    // 실측 한 줄 — 프로젝트 줄과 같은 글 (2026-11-21 뒤 공정 2차. 잡고 끝내는 것은 프로젝트 줄에서)
+    var visit = pp && typeof pp.visitText === 'function' ? pp.visitText(p) : '';
+    if (visit) html += '<p class="ps-state" data-ps="visit">' + esc(visit) + '</p>';
     if (flow) {
       html +=
         (flow.strip || '') +
@@ -425,6 +428,16 @@
         typeof pp.runNext === 'function'
       ) {
         pp.runNext(act, id);
+      } else if ((act === 'visit' || act === 'next-visit-done') && pp) {
+        // 실측 — 창을 닫고 프로젝트 줄에서 한다 (실측 칸을 열거나, 그 자리에서 끝낸다)
+        var target = btn.getAttribute('data-for') || '';
+        var after = function () {
+          if (act === 'visit' && typeof pp.openVisit === 'function') pp.openVisit(target);
+          else if (act === 'next-visit-done' && typeof pp.runNext === 'function') pp.runNext(act, target);
+        };
+        var closing = O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
+        if (closing && typeof closing.then === 'function') closing.then(after, after);
+        else after();
       }
       return;
     }

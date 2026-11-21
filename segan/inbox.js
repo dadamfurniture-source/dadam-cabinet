@@ -409,6 +409,10 @@
     // 보류를 다시 볼 날 — 프로젝트 목록의 그 줄에서 「다시 진행 · 그만둠」 칸을 연다
     if (act === 'status' && typeof PP.openStatus === 'function')
       PP.openStatus(el.getAttribute('data-for') || '');
+    // 실측 — 「실측 일정 잡기」는 프로젝트 목록의 그 줄에서 실측 칸을 열고, 「실측 완료 처리」는 그 자리에서 끝낸다
+    if (act === 'visit' && typeof PP.openVisit === 'function')
+      PP.openVisit(el.getAttribute('data-for') || '');
+    if (act === 'next-visit-done') PP.runNext(act, el.getAttribute('data-for') || '');
     var Sheet = window.SeganProjectSheet;
     if (act === 'project' && Sheet && typeof Sheet.open === 'function')
       Sheet.open(el.getAttribute('data-id') || '');

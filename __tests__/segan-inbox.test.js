@@ -531,6 +531,41 @@ describe('계정마다 읽음 · 누가 · 보류 다시 볼 날 (2026-11-21 뒤
   });
 });
 
+describe('실측 (2026-11-21 뒤 공정 2차)', () => {
+  test('할 일 표의 실측 단추 — 「실측 일정 잡기」는 프로젝트 목록의 그 줄 실측 칸을 열고(openVisit), 「실측 완료 처리」는 그 자리에서 끝낸다(runNext). 실측 예정(기다림)은 표에 없다', async () => {
+    const items = [
+      project(1, '실측 전', next('measure_plan', '실측 일정 잡기', 'visit', { since: ago(3) })),
+      project(2, '실측 날', next('measure_done', '실측 완료 처리', 'visit', { since: ago(1), act: { kind: 'visit_done' } })),
+      project(3, '실측 예정', next('measure_wait', '실측 예정', 'visit', { wait: true, allowed: false })),
+      project(4, '남의 실측', next('measure_plan', '실측 일정 잡기', 'visit', { allowed: false })),
+    ];
+    const { runNext } = await load({ items, inbox: () => ok({ role: 'owner', todo: [], news: [] }) });
+    const openVisit = jest.fn();
+    window.SeganPartnerProjects.openVisit = openVisit;
+    window.SeganPartnerProjects.nextOf = (p) => ({
+      act:
+        '<button type="button" class="mk-btn mk-btn--solid" data-act="' +
+        (p.next.act ? 'next-visit-done' : 'visit') +
+        '" data-for="' +
+        p.id +
+        '">' +
+        p.next.label +
+        '</button>',
+    });
+    window.SeganInbox.state.html = null;
+    window.SeganInbox.render();
+    expect(rows().map((r) => [r[0], r[1]])).toEqual([
+      ['실측 일정 잡기', '실측 전'],
+      ['실측 완료 처리', '실측 날'],
+    ]);
+    box().querySelector('[data-act="visit"]').click();
+    expect(openVisit).toHaveBeenCalledWith(P(1));
+    expect(runNext).not.toHaveBeenCalled();
+    box().querySelector('[data-act="next-visit-done"]').click();
+    expect(runNext).toHaveBeenCalledWith('next-visit-done', P(2));
+  });
+});
+
 describe('안 보이는 때', () => {
   test('서버 길을 못 읽으면(옛 서버 · 오류 · 끊김) — 프로젝트마다의 할 일만 그리고 소식 칸은 없다', async () => {
     for (const inbox of [

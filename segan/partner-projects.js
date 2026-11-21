@@ -45,6 +45,7 @@
   // 프로젝트 관리 하위 메뉴 단계 이름 — segan/me.js MENU_STAGES 와 같다
   var STAGE_LABEL = {
     consult: '상담',
+    measure: '실측', // 상담 다음 · 설계 앞 (2026-11-21 대표님 「실측 일정을 잡아야 하고 설계 전에 이루어져야 함」 — 뒤 공정 2차, DB 0079)
     design: '설계',
     quote: '견적',
     contract: '계약',
@@ -62,6 +63,8 @@
     ['install', '설치'],
     ['done', 'A/S'],
   ];
+  var VISIT_NAME_MAX = 50; // 워커 VISIT_NAME_MAX
+  var VISIT_NOTE_MAX = 200; // 워커 VISIT_NOTE_MAX
 
   var TEXT = {
     lead: '상담에서 받은 고객과 전화 · 방문 고객의 프로젝트입니다. 설계는 프로젝트에 이어 저장합니다.',
@@ -70,6 +73,28 @@
     assignEmpty: '진행 중인 프로젝트가 없습니다.',
     assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
     notMine: '대표 · 실장이 합니다',
+    // 실측 (2026-11-21 뒤 공정 2차 — 서버 PUT · PATCH /company/projects/:id/visit, DB 0079)
+    visitMine: '대표 · 실장 · 담당자가 합니다',
+    visitBtn: '실측 일정',
+    visitPlan: '실측 일정 잡기',
+    visitEdit: '일정 고치기',
+    visitDone: '실측 완료 처리',
+    visitCancel: '실측 취소',
+    visitLead: '실측을 끝내야 「설계 시작」이 다음 할 일이 됩니다.',
+    visitDate: '실측 날짜',
+    visitTime: '시각',
+    visitWho: '갈 사람',
+    visitWhoNone: '정하지 않음',
+    visitWhoName: '구성원이 아니면 이름 (안 적어도 됩니다)',
+    visitNote: '메모 (안 적어도 됩니다)',
+    visitWhenEmpty: '실측 날짜와 시각을 적어 주세요.',
+    visitLine: '실측 ',
+    visitSoon: ' 예정',
+    visitDoneLine: '실측 끝 ',
+    doneVisitSet: '실측 일정을 잡았습니다.',
+    doneVisitEdit: '실측 일정을 고쳤습니다.',
+    doneVisitDone: '실측을 끝냈습니다. 이제 설계를 시작할 수 있습니다.',
+    doneVisitCancel: '실측 일정을 취소했습니다.',
     // 보류 · 그만둠 (2026-11-21 뒤 공정 1차 — 서버 PATCH /company/projects/:id/status, DB 0078)
     held: '보류',
     holdUntil: '다시 볼 날 ',
@@ -216,6 +241,8 @@
       assignee: d.assignee_ready === true,
       // 보류 · 그만둠 — 서버가 hold_ready true 로 답할 때만 (DB 0078 전 · 옛 서버면 단추가 없다)
       hold: d.hold_ready === true,
+      // 실측 단계 — 서버가 visit_ready true 로 답할 때만 (DB 0079 전 · 옛 서버면 지금처럼 상담 다음이 설계)
+      visit: d.visit_ready === true,
       members: (Array.isArray(d.members) ? d.members : []).filter(function (m) {
         return m && typeof m === 'object' && UUID_RE.test(String(m.user_id || ''));
       }),
@@ -304,6 +331,10 @@
       .join(' · ');
     var canHold = canStatus(p);
     var holding = canHold && J.statusFor === p.id;
+    // 실측 — 잡힌 실측 한 줄 · 실측 칸 (같은 단추로 펼치고 접는다). 실측이 아직 없으면 다음 할 일 단추 「실측 일정 잡기」가 그 단추다
+    var visitNote = visitText(p);
+    var canMeasure = canVisit(p);
+    var measuring = canMeasure && J.visitFor === p.id;
     var owner = d.assignee
       ? '<small class="me-pt-owner" data-assignee>' +
         esc(p.assignee ? '담당 ' + personLabel(p.assignee) : TEXT.noAssignee) +
@@ -320,6 +351,17 @@
     var acts =
       flow.act +
       (flow.tail || '') +
+      (canMeasure && p.visit
+        ? '<button type="button" class="mk-btn' +
+          (measuring ? ' mk-btn--solid' : '') +
+          '" data-act="visit" data-for="' +
+          esc(p.id) +
+          '" aria-expanded="' +
+          measuring +
+          '">' +
+          esc(TEXT.visitBtn) +
+          '</button>'
+        : '') +
       (canAssign
         ? '<button type="button" class="mk-btn' +
           (assigning ? ' mk-btn--solid' : '') +
@@ -367,6 +409,7 @@
         : '') +
       owner +
       (holdNote ? '<small class="pj-hold">' + esc(holdNote) + '</small>' : '') +
+      (visitNote ? '<small class="pj-visit-line" data-pj="visit">' + esc(visitNote) + '</small>' : '') +
       '</span>' +
       (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
       '</span>' +
@@ -375,6 +418,7 @@
       (acts ? '<div class="rd-acts">' + acts + '</div>' : '') +
       (canAssign && J.assignFor === p.id ? assignHtml(p) : '') +
       (holding ? statusPanelHtml(p) : '') +
+      (measuring ? visitPanelHtml(p) : '') +
       (working ? '<div class="pjw" data-pj-work="' + esc(p.id) + '"></div>' : '') +
       '</li>'
     );
@@ -409,12 +453,13 @@
     if ((!anyView && J.view.assign) || (p.status && p.status !== 'active' && p.status !== 'on_hold')) return none;
     if (typeof p.step !== 'string' || !own(STAGE_LABEL, p.step)) return none;
     var at = -1;
-    STRIP.forEach(function (s, i) {
+    var cells = stripOf();
+    cells.forEach(function (s, i) {
       if (s[0] === p.step) at = i;
     });
     var strip =
       '<ol class="pj-strip" aria-label="단계">' +
-      STRIP.map(function (s, i) {
+      cells.map(function (s, i) {
         return (
           '<li' +
           (i < at ? ' class="is-done"' : i === at ? ' class="is-now" aria-current="step"' : '') +
@@ -429,14 +474,21 @@
     var since = sinceText(n.since);
     // 남을 기다리는 중 — 단추 없이 글로 (고객 답 기다림 · 4일째 · 2번 열어 봄)
     if (n.wait === true) {
-      var bits = [n.label, since, n.views > 0 ? n.views + TEXT.views : ''].filter(Boolean);
+      // 실측 날 전 — 「실측 11.25 (화) 14:00 예정」
+      var soon = n.key === 'measure_wait' ? kstParts(n.at) : null;
+      var bits = [soon ? TEXT.visitLine + soon.text + TEXT.visitSoon : n.label, since, n.views > 0 ? n.views + TEXT.views : ''].filter(Boolean);
       return { strip: strip, note: '<p class="pj-wait" data-next="' + esc(n.key) + '">' + esc(bits.join(' · ')) + '</p>', act: '' };
     }
     // 내 직책으로는 못 하는 일 — 무엇이 남았는지만 알린다
     if (n.allowed === false) {
       return {
         strip: strip,
-        note: '<p class="pj-wait" data-next="' + esc(n.key) + '">' + esc(n.label + ' — ' + TEXT.notMine) + '</p>',
+        note:
+          '<p class="pj-wait" data-next="' +
+          esc(n.key) +
+          '">' +
+          esc(n.label + ' — ' + (n.go === 'visit' ? TEXT.visitMine : TEXT.notMine)) +
+          '</p>',
         act: '',
       };
     }
@@ -445,7 +497,13 @@
     var tail = since && since !== TEXT.today ? '<small class="pj-since">' + esc(since) + '</small>' : '';
     var act = '';
     var doc = n.act && typeof n.act === 'object' && n.act.kind === 'order' ? String(n.act.document_id || '') : '';
-    if (go === 'sheet') {
+    if (go === 'visit') {
+      // 실측 — 「실측 완료 처리」는 그 자리에서, 「실측 일정 잡기」는 그 줄의 실측 칸을 연다 (같은 단추로 펼치고 접는다)
+      var finishing = n.act && typeof n.act === 'object' && n.act.kind === 'visit_done';
+      act = finishing
+        ? '<button type="button" class="' + cls + '" data-act="next-visit-done" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</button>'
+        : '<button type="button" class="' + cls + '" data-act="visit" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '" aria-expanded="' + (J.visitFor === p.id) + '">' + esc(n.label) + '</button>';
+    } else if (go === 'sheet') {
       // 보류를 다시 볼 날 — 그 줄의 「다시 진행 · 그만둠」 칸을 연다 (서버 글표는 sheet 지만 줄에는 창 단추를 두지 않는다 — 대표님 11-21)
       act =
         '<button type="button" class="' + cls + '" data-act="status" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</button>';
@@ -476,6 +534,7 @@
     if (J.busy || !J.data) return;
     if (act === 'next-sheet') return nextSheet(id);
     if (act === 'next-order') return nextOrder(id);
+    if (act === 'next-visit-done') return doVisit(id, 'PATCH', { status: 'done' }, TEXT.doneVisitDone);
   }
 
   /** 다음 할 일 — 수주 창 열기 (계약금 입금 적기 · 생산 시작 · 배송 · 완료 · 승인). 못 열면 계약 화면으로 */
@@ -857,6 +916,239 @@
     );
   }
 
+  // ── 실측 (2026-11-21 대표님 뒤 공정 2차 — 「실측 일정을 잡아야 하고 설계 전에 이루어져야 함」) ──────────────
+  //   차례는 서버가 정한다 (다음 할 일: 실측 일정 잡기 → 실측 예정 → 실측 완료 처리 → 설계 시작). 여기는 그 일정을 적는 칸이다.
+  //   서버가 visit_ready 로 답할 때만 (DB 0079) — 아니면 줄도 칸도 없이 지금처럼.
+
+  /** 지금 쓰는 단계 띠 — 실측 단계를 쓰면 상담 다음에 「실측」 칸 (여덟 칸) */
+  function stripOf() {
+    if (!(J.data && J.data.visit)) return STRIP;
+    return [STRIP[0], ['measure', STAGE_LABEL.measure]].concat(STRIP.slice(1));
+  }
+
+  /** 한국 시각으로 — { day: 'YYYY-MM-DD', time: 'HH:MM', text: '11.25 (화) 14:00' } (모르면 null) */
+  function kstParts(iso) {
+    var t = Date.parse(iso);
+    if (typeof iso !== 'string' || isNaN(t)) return null;
+    var d = new Date(t + 9 * 3600000);
+    var time = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+    return {
+      day: d.toISOString().slice(0, 10),
+      time: time,
+      text: pad(d.getUTCMonth() + 1) + '.' + pad(d.getUTCDate()) + ' (' + '일월화수목금토'.charAt(d.getUTCDay()) + ') ' + time,
+    };
+  }
+
+  /** 그 줄에 실측 칸이 있나 — 대표 · 실장 · 그 프로젝트의 담당자, 진행 중이고 아직 설계 전(상담 · 실측 단계)인 프로젝트 */
+  function canVisit(p) {
+    var d = J.data || {};
+    if (!d.visit || J.view.assign || !p) return false;
+    var mine = !!myId() && !!p.assignee && p.assignee.user_id === myId();
+    if (!d.manage && !mine) return false;
+    if (p.status && p.status !== 'active') return false;
+    return p.step === 'consult' || p.step === 'measure';
+  }
+
+  /** 잡힌 실측 한 줄 — 「실측 11.25 (화) 14:00 · 박실장 · 「메모」」 · 끝냈으면 「실측 끝 11.20」. 설계로 넘어간 줄에는 적지 않는다 */
+  function visitText(p) {
+    var v = p && p.visit && typeof p.visit === 'object' ? p.visit : null;
+    if (!v || (p.step !== 'consult' && p.step !== 'measure')) return '';
+    if (v.status === 'done') {
+      var done = kstParts(v.done_at || v.scheduled_at);
+      return done ? TEXT.visitDoneLine + done.text.slice(0, 5) : '';
+    }
+    var when = kstParts(v.scheduled_at);
+    if (!when) return '';
+    return [
+      TEXT.visitLine + when.text,
+      typeof v.assignee_name === 'string' ? v.assignee_name : '',
+      typeof v.note === 'string' && v.note ? '「' + v.note + '」' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  /** 펼친 실측 칸 — 날짜 · 시각 · 갈 사람 · 메모. 예정인 실측이 있으면 그 값으로 열고, 완료 처리 · 취소 단추가 붙는다 */
+  function visitPanelHtml(p) {
+    var d = J.data || {};
+    var u = J.visitUi || {};
+    var cur = p.visit && typeof p.visit === 'object' && p.visit.status === 'scheduled' ? p.visit : null;
+    var when = cur ? kstParts(cur.scheduled_at) : null;
+    var v = u.values || {
+      day: when ? when.day : '',
+      time: when ? when.time : '',
+      // 처음 잡을 때는 그 프로젝트의 담당자를 갈 사람으로 골라 둔다 (바꿀 수 있다)
+      assignee_id: cur ? cur.assignee_id || '' : (p.assignee && p.assignee.user_id) || '',
+      assignee_name: cur && !cur.assignee_id && cur.assignee_name ? cur.assignee_name : '',
+      note: (cur && cur.note) || '',
+    };
+    var field = function (type, name, label, extra) {
+      return (
+        '<label class="mk-input"><span>' +
+        esc(label) +
+        '</span><input type="' +
+        type +
+        '" name="' +
+        name +
+        '"' +
+        (extra || '') +
+        ' value="' +
+        esc(v[name] || '') +
+        '"></label>'
+      );
+    };
+    var options =
+      '<option value="">' +
+      esc(TEXT.visitWhoNone) +
+      '</option>' +
+      (d.members || [])
+        .map(function (m) {
+          return (
+            '<option value="' +
+            esc(m.user_id) +
+            '"' +
+            (m.user_id === v.assignee_id ? ' selected' : '') +
+            '>' +
+            esc(personLabel(m)) +
+            '</option>'
+          );
+        })
+        .join('');
+    return (
+      '<div class="pj-status pj-visit" data-pj-visit="' +
+      esc(p.id) +
+      '"><form class="me-pt-form me-pr-form" data-form="visit" novalidate><p class="mk-note">' +
+      esc(TEXT.visitLead) +
+      '</p>' +
+      field('date', 'day', TEXT.visitDate) +
+      field('time', 'time', TEXT.visitTime) +
+      '<label class="mk-input"><span>' +
+      esc(TEXT.visitWho) +
+      '</span><select name="assignee_id">' +
+      options +
+      '</select></label>' +
+      field('text', 'assignee_name', TEXT.visitWhoName, ' maxlength="' + VISIT_NAME_MAX + '"') +
+      field('text', 'note', TEXT.visitNote, ' maxlength="' + VISIT_NOTE_MAX + '"') +
+      '<div class="rd-acts"><button type="submit" class="mk-btn mk-btn--solid">' +
+      esc(cur ? TEXT.visitEdit : TEXT.visitPlan) +
+      '</button>' +
+      (cur
+        ? '<button type="button" class="mk-btn" data-act="visit-done">' +
+          esc(TEXT.visitDone) +
+          '</button><button type="button" class="mk-btn" data-act="visit-cancel">' +
+          esc(TEXT.visitCancel) +
+          '</button>'
+        : '') +
+      '</div></form>' +
+      (u.err ? '<p class="mk-error" role="alert">' + esc(u.err) + '</p>' : '') +
+      '</div>'
+    );
+  }
+
+  /** 줄의 실측 칸을 펼치거나 접는다 (같은 단추) */
+  function toggleVisit(id) {
+    if (!id) return;
+    var open = J.visitFor !== id;
+    J.visitFor = open ? id : '';
+    J.visitUi = open ? { err: '', values: null } : null;
+    J.open = false;
+    J.assignFor = '';
+    J.statusFor = '';
+    J.statusUi = null;
+    J.err = '';
+    J.msg = '';
+    render();
+    if (!open) return;
+    var first = $('partnerProjects').querySelector('form[data-form="visit"] input');
+    if (first && first.focus) first.focus();
+  }
+
+  /** 실측 칸을 냈다 — 날짜 · 시각이 있어야 한다 (한국 시각으로 보낸다) */
+  function submitVisit(form) {
+    var id = J.visitFor;
+    if (!id || !J.visitUi) return;
+    var get = function (name) {
+      var el = form.querySelector('[name="' + name + '"]');
+      return el && typeof el.value === 'string' ? el.value.trim() : '';
+    };
+    var values = {
+      day: get('day'),
+      time: get('time'),
+      assignee_id: get('assignee_id'),
+      assignee_name: get('assignee_name'),
+      note: get('note'),
+    };
+    // 못 넣어서 다시 그려도 적던 값이 남게
+    J.visitUi.values = values;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(values.day) || !/^\d{2}:\d{2}$/.test(values.time)) {
+      J.visitUi.err = TEXT.visitWhenEmpty;
+      render();
+      return;
+    }
+    var row = (J.data.items || []).filter(function (p) {
+      return p.id === id;
+    })[0];
+    var had = !!(row && row.visit && row.visit.status === 'scheduled');
+    doVisit(
+      id,
+      'PUT',
+      {
+        scheduled_at: values.day + 'T' + values.time + ':00+09:00',
+        assignee_id: values.assignee_id || null,
+        // 구성원을 골랐으면 이름 글은 보내지 않는다
+        assignee_name: values.assignee_id ? null : values.assignee_name || null,
+        note: values.note || null,
+      },
+      had ? TEXT.doneVisitEdit : TEXT.doneVisitSet
+    );
+  }
+
+  /** 실측을 잡는다 · 고친다 · 끝낸다 · 취소한다 — 끝나면 목록을 다시 읽고 왼쪽 수 · 할 일 표도 맞춘다 */
+  async function doVisit(id, method, body, done) {
+    if (!id || J.busy || !J.data) return;
+    J.busy = true;
+    var r = await setVisit(id, method, body);
+    J.busy = false;
+    if (!r.ok) {
+      // 펼친 칸이 있으면 그 자리에, 아니면(다음 할 일 단추 · 다른 칸) 목록 위에 알린다
+      if (J.visitFor === id && J.visitUi) J.visitUi.err = r.message || TEXT.generic;
+      else J.msg = r.message || TEXT.generic;
+      render();
+      return;
+    }
+    var list = await fetchList();
+    J.visitFor = '';
+    J.visitUi = null;
+    J.msg = done;
+    if (list) J.data = list;
+    render();
+    if (list) changed();
+  }
+
+  /** 다른 칸(새로 생긴 일 표 · 프로젝트 창)에서 그 프로젝트의 실측 칸을 연다 — 그 줄로 옮긴다 */
+  function openVisit(id) {
+    if (!J.data || !id) return false;
+    if (J.visitFor !== id) toggleVisit(id);
+    return focusProject(id);
+  }
+
+  /**
+   * PUT · PATCH /company/projects/:id/visit → { ok, status, code, message, data } — 실측 일정 잡기 · 고치기 / 완료 처리 · 취소.
+   * 대표 · 실장 · 그 프로젝트의 담당자만 (서버가 거절한다 — 403 not_allowed).
+   */
+  async function setVisit(id, method, body) {
+    if (!J.base || typeof id !== 'string' || !UUID_RE.test(id) || (method !== 'PUT' && method !== 'PATCH'))
+      return { ok: false, status: 0, code: '', message: '', data: null };
+    var r = await call(method, '/company/projects/' + id + '/visit', body);
+    return {
+      ok: r.ok,
+      status: r.status,
+      code: typeof r.body.code === 'string' ? r.body.code : '',
+      message: r.ok ? '' : errText(r),
+      data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null,
+    };
+  }
+
   /** 오늘 (한국 날짜) — 다시 볼 날의 가장 이른 값 */
   function todayKst() {
     return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
@@ -876,6 +1168,8 @@
     J.statusUi = ui;
     J.open = false;
     J.assignFor = '';
+    J.visitFor = '';
+    J.visitUi = null;
     J.err = '';
     J.msg = '';
     render();
@@ -1111,6 +1405,8 @@
     var nextAct = el.getAttribute('data-act');
     if (nextAct === 'next-sheet') return nextSheet(el.getAttribute('data-id') || '');
     if (nextAct === 'next-order') return nextOrder(el.getAttribute('data-id') || '');
+    if (nextAct === 'next-visit-done')
+      return doVisit(el.getAttribute('data-for') || '', 'PATCH', { status: 'done' }, TEXT.doneVisitDone);
     var act = el.getAttribute('data-act');
     if (act === 'open') {
       J.open = true;
@@ -1128,6 +1424,12 @@
     } else if (act === 'held') {
       J.heldOpen = !J.heldOpen;
       render();
+    } else if (act === 'visit') {
+      toggleVisit(el.getAttribute('data-for') || '');
+    } else if (act === 'visit-done') {
+      doVisit(J.visitFor, 'PATCH', { status: 'done' }, TEXT.doneVisitDone);
+    } else if (act === 'visit-cancel') {
+      doVisit(J.visitFor, 'PATCH', { status: 'cancelled' }, TEXT.doneVisitCancel);
     } else if (act === 'status') {
       toggleStatus(el.getAttribute('data-for') || '');
     } else if (act === 'status-form') {
@@ -1145,6 +1447,8 @@
     } else if (act === 'assign') {
       var aid = el.getAttribute('data-for') || '';
       J.assignFor = J.assignFor === aid ? '' : aid; // 펼친 줄의 단추를 다시 누르면 접는다
+      J.visitFor = '';
+      J.visitUi = null;
       J.open = false;
       J.err = '';
       J.msg = '';
@@ -1178,6 +1482,11 @@
     if (kind === 'assign') {
       e.preventDefault();
       submitAssign(form);
+      return;
+    }
+    if (kind === 'visit') {
+      e.preventDefault();
+      submitVisit(form);
       return;
     }
     if (kind === 'status') {
@@ -1215,6 +1524,8 @@
     J.workFor = '';
     J.statusFor = '';
     J.statusUi = null;
+    J.visitFor = '';
+    J.visitUi = null;
     J.heldOpen = false;
     if (window.SeganProjectWork) window.SeganProjectWork.unmount();
     J.mode = 'new';
@@ -1250,6 +1561,8 @@
     J.view = next;
     J.open = false;
     J.assignFor = '';
+    J.visitFor = '';
+    J.visitUi = null;
     J.err = '';
     J.msg = '';
     if (J.data) render();
@@ -1286,6 +1599,11 @@
     canStatus: canStatus,
     openStatus: openStatus,
     setStatus: setStatus,
+    kstParts: kstParts,
+    canVisit: canVisit,
+    visitText: visitText,
+    openVisit: openVisit,
+    setVisit: setVisit,
     onChange: null, // 목록이 바뀌면 부를 것 (me.js 가 건다)
   };
 })();
