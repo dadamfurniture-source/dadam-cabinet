@@ -11,6 +11,7 @@
  *                                + 지금 단계 step · 다음 할 일 next { key, label, go, act?, wait, since, allowed }
  *                                (pipeline.js — 2026-11-21 「프로젝트 한 길」. 값은 company-pipeline.js 가 모은다.
  *                                못 모았으면 두 칸 없이 준다 — 화면은 stage 로 그린다) · 내 직책 role
+ *   GET  /company/projects/:id   프로젝트 하나 — 같은 줄 + 설계 · 견적 · 수주 · 의뢰 · A/S · 일어난 일 (src/company-project.js)
  *   POST /company/projects       새 프로젝트 (대표 · 실장) { title, customer_id } | { title, customer: { name, phone } }
  *                                → { project_id, customer_id }. 새 고객은 이름 · 전화로 늘 새 행 (이름 · 전화가 같다고
  *                                기존 고객에 잇지 않는다 — projects.js 상담 확정과 같다)
@@ -151,6 +152,29 @@ function textOf(value, field, max) {
   return text;
 }
 
+/**
+ * 프로젝트 한 줄 — 목록(GET /company/projects)과 프로젝트 창(GET /company/projects/:id)이 같은 칸을 쓴다.
+ * @param {object} p        projects 행
+ * @param {{ customer?: object|null, designCount?: number, stage?: { stage, order }, flow?: { step, next }, memberOf: Map }} parts
+ */
+export function projectRow(p, { customer, designCount, stage, flow, memberOf }) {
+  const c = customer || null;
+  return {
+    id: p.id,
+    title: p.title || null,
+    status: p.status,
+    created_at: p.created_at,
+    closed_at: p.closed_at || null,
+    customer: c ? { id: c.id, name: c.name || null, phone: c.phone || null } : null,
+    design_count: designCount || 0,
+    stage: stage.stage,
+    order: stage.order,
+    ...(flow || {}),
+    // 나간 구성원이면 이름 없이 id 만 (removed — 바꾸는 것은 사람이 한다)
+    assignee: p.assignee_id ? memberOf.get(p.assignee_id) || { user_id: p.assignee_id, name: null, role: null } : null,
+  };
+}
+
 /** GET /company/projects */
 export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
   const { company, canAct, role } = await projectCompanyOf(env, user);
@@ -213,23 +237,15 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
     role,
     assignee_ready: assigneeReady,
     members,
-    items: projects.map((p) => {
-      const c = customerOf.get(p.customer_id);
-      return {
-        id: p.id,
-        title: p.title || null,
-        status: p.status,
-        created_at: p.created_at,
-        closed_at: p.closed_at || null,
-        customer: c ? { id: c.id, name: c.name || null, phone: c.phone || null } : null,
-        design_count: designCount.get(p.id) || 0,
-        stage: stages.get(p.id).stage,
-        order: stages.get(p.id).order,
-        ...(flow.has(p.id) ? flow.get(p.id) : {}),
-        // 나간 구성원이면 이름 없이 id 만 (removed — 바꾸는 것은 사람이 한다)
-        assignee: p.assignee_id ? memberOf.get(p.assignee_id) || { user_id: p.assignee_id, name: null, role: null } : null,
-      };
-    }),
+    items: projects.map((p) =>
+      projectRow(p, {
+        customer: customerOf.get(p.customer_id),
+        designCount: designCount.get(p.id),
+        stage: stages.get(p.id),
+        flow: flow.get(p.id),
+        memberOf,
+      })
+    ),
   };
 }
 
