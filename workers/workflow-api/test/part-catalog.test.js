@@ -14,7 +14,7 @@ import { ForbiddenError, NotFoundError, TooLargeError, ValidationError, clearHqC
 import { clearAdminCache } from '../src/reports/admin.js';
 import {
   PART_IMPORT_BODY_MAX_BYTES, PART_IMPORT_MAX, PART_JSON_MAX, PART_PHOTOS_BUCKET, PART_PHOTO_MAX_BYTES, PART_PRICE_MAX, PART_SIZE_MAX, PART_TEXT_MAX,
-  PART_LEDGER_UPDATE_MAX, PLANNER_PARTS_MAX, PLANNER_PART_KINDS, plannerParts, addPartPhoto, catalogCompanyOf, cleanPartItem, importParts, importPartsFromLedger, kstDay, ledgerNameKey, ledgerSupplierOf, partCatalog, partLedgerSuppliers, patchPartItem,
+  PART_LEDGER_UPDATE_MAX, PLANNER_PARTS_MAX, PLANNER_PART_KINDS, RAIL_TYPE_VALUES, railTypeOf, plannerParts, addPartPhoto, catalogCompanyOf, cleanPartItem, importParts, importPartsFromLedger, kstDay, ledgerNameKey, ledgerSupplierOf, partCatalog, partLedgerSuppliers, patchPartItem,
 } from '../src/part-catalog.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -421,6 +421,29 @@ test('고치기 — 매입가를 적으면 오늘 날짜가 같이 · 비우면 
   assert.equal(kstDay(Date.parse('2026-11-18T15:30:00Z')), '2026-11-19');
 });
 
+test('레일 종류 (2026-11-21) — 사양 「레일 종류」에 적고 · 다시 올려도 남고 · 플래너는 종류가 적힌 레일만', async () => {
+  const db = makeDb();
+  await withDb(db, async () => {
+    await importParts(ENV, { user: u(OWNER), body: { vendor: VENDOR, seen_on: '2026-11-18', items: [ITEMS[2]] } });
+    const rail = db.part_items[0];
+    const call = (body) => patchPartItem(ENV, { user: u(OWNER), params: { id: rail.id }, body });
+    // 종류를 적기 전에는 플래너 레일 목록에 없다
+    assert.equal((await plannerParts(ENV, { user: u(OWNER), query: { kind: 'rail' } })).total, 0);
+    const r = await call({ rail_type: 'ball' });
+    assert.deepEqual(r.item.specs, { '레일 종류': '볼레일' });
+    assert.equal(railTypeOf(rail), 'ball');
+    const listed = await plannerParts(ENV, { user: u(OWNER), query: { kind: 'rail' } });
+    assert.deepEqual(listed.items.map((it) => [it.name, it.rail_type]), [['번호 없는 레일', 'ball']]);
+    // 파일을 다시 올려도 (사양에 레일 종류가 없으면) 그대로
+    await importParts(ENV, { user: u(OWNER), body: { vendor: VENDOR, seen_on: '2026-11-19', items: [{ ...ITEMS[2], specs: { 길이: '450' } }] } });
+    assert.deepEqual(rail.specs, { 길이: '450', '레일 종류': '볼레일' });
+    await call({ rail_type: null });
+    assert.deepEqual(rail.specs, { 길이: '450' });
+    await assert.rejects(() => call({ rail_type: 'side' }), ValidationError);
+  });
+  assert.equal(RAIL_TYPE_VALUES.under, '언더레일');
+});
+
 test('DB 0071 적용 전 — 읽기 · 올리기 · 사진 · 고치기 모두 409 db_pending', async () => {
   const db = makeDb({ tables: false });
   await withDb(db, async () => {
@@ -504,7 +527,7 @@ test('플래너 설비 상품 — 분류 낱말로 고르고 · 글로 찾고 ·
     await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { kind: 'toString' } }), ValidationError);
     await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { ids: 'abc' } }), ValidationError);
     await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { ids: Array.from({ length: PLANNER_PARTS_MAX + 1 }, () => randomUUID()).join(',') } }), ValidationError);
-    assert.deepEqual(Object.keys(PLANNER_PART_KINDS), ['sink', 'faucet', 'hood', 'cooktop']);
+    assert.deepEqual(Object.keys(PLANNER_PART_KINDS), ['sink', 'faucet', 'hood', 'cooktop', 'rail']);
   });
   await withDb(makeDb({ tables: false }), async () => {
     await assert.rejects(() => plannerParts(ENV, { user: u(OWNER), query: { kind: 'sink' } }), (e) => e.code === 'db_pending');

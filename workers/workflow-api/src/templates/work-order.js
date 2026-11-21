@@ -67,6 +67,7 @@ import { moduleSectionsSheet } from './module-section.js';
 import { isCornerItem, isoSvg, runLengths } from './isometric.js';
 import { cutPackV2, doorPackV2 } from './work-order-layout2.js';
 import { assemblyCards } from './assembly-layout2.js';
+import { unitNameOf } from '../hardware-units.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -799,7 +800,7 @@ function partsTable(ctx, rows) {
 function hardwareRowsTable(rows) {
   if (rows.length === 0) return '';
   const body = rows
-    .map((h) => tr([esc(h.category || ''), esc(h.item || ''), esc(h.spec || ''), num(h.qty), esc(h.unit || ''), esc(h.note || '')], ['', '', '', 'num', '', '']))
+    .map((h) => tr([esc(h.category || ''), esc(h.item || ''), esc(h.spec || ''), num(h.qty), esc(unitNameOf(h.unit)), esc(h.note || '')], ['', '', '', 'num', '', '']))
     .join('');
   return `<table class="compact">${thead(['철물', '품목', '규격', '수량', '단위', '비고'], ['', '', '', 'num', '', ''])}<tbody>${body}</tbody></table>`;
 }
@@ -1345,7 +1346,7 @@ function hardwareSheet(ctx) {
       const body = rows
         .map((h) =>
           tr(
-            [esc(h.itemLabel || ''), esc(h.item || ''), esc(h.manufacturer || ''), esc(h.spec || ''), num(h.qty), esc(h.unit || ''), esc(h.note || '')],
+            [esc(h.itemLabel || ''), esc(h.item || ''), esc(h.manufacturer || ''), esc(h.spec || ''), num(h.qty), esc(unitNameOf(h.unit)), esc(h.note || '')],
             ['', '', '', '', 'num', '', ''],
           ),
         )
