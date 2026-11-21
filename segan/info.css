@@ -94,6 +94,22 @@
   outline-offset: 2px;
 }
 
+/* ── 소개: 맨 위 사진 (segan/about/hero — AI 로 연출한 이미지) ── */
+.ab-hero {
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--v5-photo);
+}
+
+.ab-hero img,
+.ab-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* ── 소개: 흐름 (상자 + 화살표, 폰은 위 → 아래) ── */
 .ab-flow {
   display: grid;
@@ -147,6 +163,41 @@
   line-height: 1.7;
   color: var(--v5-ink-60);
   word-break: keep-all;
+}
+
+/* 사진이 있는 상자 — 사진이 위, 글은 그 아래 (번호는 글 칸에 붙인다). 폰은 16:9 로 낮게, PC 는 4:3 */
+.ab-step--shot {
+  padding: 0;
+}
+
+.ab-step--shot::before {
+  content: none;
+}
+
+.ab-shot {
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--v5-photo);
+}
+
+.ab-text {
+  position: relative;
+  padding: 16px 16px 16px 52px;
+}
+
+.ab-text::before {
+  content: counter(ab-step, decimal-leading-zero);
+  position: absolute;
+  top: 17px;
+  left: 16px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+.ab-note {
+  margin-top: 28px;
 }
 
 .ab-loop {
@@ -792,6 +843,10 @@
   .ab-flow {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 26px 34px;
+  }
+
+  .ab-shot {
+    aspect-ratio: 4 / 3;
   }
 
   /* 가로 — 화살표는 왼쪽 옆 */
