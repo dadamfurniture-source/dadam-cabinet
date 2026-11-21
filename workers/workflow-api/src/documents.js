@@ -40,7 +40,8 @@ import { renderWorkOrder } from './templates/work-order.js';
 import { renderInstallationOrder } from './templates/installation-order.js';
 import { renderSiteOrder } from './templates/site-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
-import { gatherWorkOrderPayload, workOrderTotals, collectRenders, DRAWING_VERSION } from './work-order-data.js';
+import { gatherWorkOrderPayload, workOrderTotals, collectRenders, DRAWING_VERSION, hardwareOf } from './work-order-data.js';
+import { hardwareSuppliersOf, hardwareMatchKey, noMaker } from './hardware-names.js';
 import { frozenCheckList } from './work/check-items.js';
 import { specialNotesOf, withNoteChecks } from './work/special-notes.js';
 import { createSignedUrls, RENDERS_BUCKET, SIGNED_URL_TTL_SEC } from './storage.js';
@@ -211,6 +212,24 @@ export async function docPayloadOf(env, { docType, snapshot, designId, body = {}
   // 렌더를 다시 찍거나 카탈로그가 바뀌어도 이미 나간 지시서는 그대로여야 한다 (work-order-data.js).
   if (docType === 'work_order') {
     Object.assign(out, await gatherWorkOrderPayload(env, { designId, snapshot, collect: collect || undefined, prevRev }));
+  }
+  // 주문 거래처 (2026-11-21 사장님 「조절 다리발 · 선반 브라켓 · 걸레받이카바 · 손잡이는 주문 거래처 회사로 해줘」) — 회사를 모르는 철물 줄의
+  //   재고 짝 품목 공급처 이름을 발행 때 고정한다 { 'H|분류|품명': 거래처 }. 짝이 없으면 칸째 없다 (옛 문서도 없다 — 품명만)
+  //   거래처 이름은 표시용이라 못 읽어도 발행은 된다 (렌더 서명 URL 과 같다 — 품명만 나간다)
+  const noMakerRows = docType === 'work_order' && designId ? hardwareOf(snapshot).filter(noMaker) : [];
+  if (noMakerRows.length) {
+    try {
+      const d = await selectOne(env, 'designs', { id: `eq.${designId}`, select: 'company_id' });
+      const sup = d && d.company_id ? await hardwareSuppliersOf(env, d.company_id) : new Map();
+      const mine = {};
+      noMakerRows.forEach((h) => {
+        const k = hardwareMatchKey(h.category, h.item);
+        if (k && sup.has(k.key)) mine[k.key] = sup.get(k.key);
+      });
+      if (Object.keys(mine).length) out.hardware_suppliers = mine;
+    } catch (err) {
+      console.warn('[documents] 주문 거래처를 읽지 못했습니다 — 품명만 싣습니다:', err && err.message);
+    }
   }
   // 라벨 번호 차례 — 재단 차례로 고정 (2026-11-05 사장님 A 「재단 차례」 — 원장 1 조각부터). 옛 문서는 이 칸이 없어 자재 행 차례 그대로
   if (docType === 'work_order') out.label_order = 'cut';

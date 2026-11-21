@@ -12,6 +12,7 @@
 import { esc, num } from './html.js';
 import { unitNameOf } from '../hardware-units.js';
 import { moduleCadSvg } from './cad-views.js';
+import { hardwareShownOf } from '../hardware-names.js';
 
 const FRONT_RE = /^(도어|서랍도어)$/;
 
@@ -57,9 +58,10 @@ function tally(list) {
 
 /**
  * 모듈 카드 표 — 색상 · 부재 · 목찬넬 따내기 · 다리발 / 좌대 · 철물 · 전기 · 가전
- * @param {{rows:object[], hardware:object[], mod:object|null, colorName:(code:string)=>string}} o
+ * @param {{rows:object[], hardware:object[], mod:object|null, colorName:(code:string)=>string, suppliers?:object|null}} o
+ *   suppliers — 회사를 모르는 철물의 주문 거래처 (발행 때 고정, 2026-11-21) — 「거래처 품명」으로
  */
-export function moduleInfoRows({ rows, hardware, mod, colorName }) {
+export function moduleInfoRows({ rows, hardware, mod, colorName, suppliers = null }) {
   const body = [...new Set(rows.filter((m) => m.partClass === '본체' && m.color).map((m) => m.color))];
   const doorCodes = [...new Set(rows.filter((m) => FRONT_RE.test(String(m.part || '')) || m.partClass === '도어').map((m) => m.finishCode || m.color).filter(Boolean))];
   const back = [...new Set(rows.filter((m) => m.partClass === '뒷판' && m.color).map((m) => m.color))];
@@ -73,11 +75,12 @@ export function moduleInfoRows({ rows, hardware, mod, colorName }) {
   const legs = (mod && Array.isArray(mod.hardware) ? mod.hardware : []).filter((h) => h && h.kind === 'leg');
   const pedestal = rows.filter((m) => /좌대/.test(String(m.part || '')));
   const support = [
-    legs.length ? `다리발 ${esc(legs[0].spec || legs[0].item || '')} × ${num(legs.length)}` : '',
+    // 다리발 — 주문 거래처가 있으면 「거래처 조절 다리발 150mm」 (2026-11-21), 없으면 예전 그대로
+    legs.length ? (() => { const s = hardwareShownOf(legs[0], suppliers); return s.maker ? `${esc(s.item)} ${esc(legs[0].spec || '')} × ${num(legs.length)}` : `다리발 ${esc(legs[0].spec || legs[0].item || '')} × ${num(legs.length)}`; })() : '',
     pedestal.length ? `좌대 ${pedestal.map((m) => `${num(m.w)}×${num(m.h)} × ${num(m.qty)}`).join(' · ')}` : '',
   ].filter(Boolean).join(' · ');
   const isElec = (h) => h.category === '전기';
-  const metal = tally(hardware.filter((h) => !isElec(h) && h.category !== '다리발').map((h) => ({ key: `${esc(h.category || '')} ${esc(h.item || '')}${h.spec && h.spec !== '-' ? ` ${esc(h.spec)}` : ''}`, qty: Number(h.qty) || 0, unit: h.unit })));
+  const metal = tally(hardware.filter((h) => !isElec(h) && h.category !== '다리발').map((h) => ({ key: `${esc(h.category || '')} ${esc(hardwareShownOf(h, suppliers).item)}${h.spec && h.spec !== '-' ? ` ${esc(h.spec)}` : ''}`, qty: Number(h.qty) || 0, unit: h.unit })));
   const elec = tally(hardware.filter(isElec).map((h) => ({ key: `${esc(h.item || '')}${h.spec && h.spec !== '-' ? ` ${esc(h.spec)}` : ''}`, qty: Number(h.qty) || 0, unit: h.unit })));
   return [
     ['색상', color || '<span class="muted">—</span>'],
@@ -131,7 +134,7 @@ export function assemblyCards(ctx) {
     const svg = mod ? moduleCadSvg(mod) : '';
     const lab = labelOf.get(k);
     const size = mod && mod.box ? `몸통 ${num(mod.box.W)} × ${num(mod.box.H)} × ${num(mod.box.D)} · ${num(mod.box.T)}T` : '';
-    const info = moduleInfoRows({ rows, hardware, mod, colorName }).map(([h, d]) => `<tr><th>${esc(h)}</th><td>${d}</td></tr>`).join('');
+    const info = moduleInfoRows({ rows, hardware, mod, colorName, suppliers: ctx.hardwareSuppliers }).map(([h, d]) => `<tr><th>${esc(h)}</th><td>${d}</td></tr>`).join('');
     return `<div class="asm-card"><h3>${esc(lab.module || k)} <small>${esc(lab.item)}${size ? ` · ${esc(size)}` : ''}</small></h3><div class="asm-3d">${svg || '<div class="ph">조립 명세 없음 — 플래너에서 다시 보내 주세요</div>'}</div><table>${info}</table></div>`;
   });
   if (!cards.length) return '';
