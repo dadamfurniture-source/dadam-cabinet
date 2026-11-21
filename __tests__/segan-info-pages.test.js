@@ -299,7 +299,7 @@ describe('소개 · 구독 — [소개 | 구독] · 폰 탭 홈', () => {
 });
 
 describe('AI 시스템 소개 (about.html)', () => {
-  test('흐름 — 연출컷 · 상담 → 본사 배분 → 팩토리(설계 · BOM · 작업지시서) → 생산 · 시공 → A/S → 학습 (그림 없이 상자로)', async () => {
+  test('흐름 — 연출컷 · 상담 → 본사 배분 → 팩토리(설계 · BOM · 작업지시서) → 생산 · 시공 → A/S → 학습', async () => {
     await load('about.html');
     const flows = $$('ol.ab-flow');
     expect(flows).toHaveLength(2);
@@ -314,13 +314,72 @@ describe('AI 시스템 소개 (about.html)', () => {
     ]);
     expect(steps(flows[1])).toEqual(['제작 의뢰', '본사 추천', '선택']);
     expect(text($('#abMakerTitle'))).toBe('Manager 업체의 제작 의뢰');
-    expect($$('main img')).toHaveLength(0);
     expect($$('.ab-points b').map(text)).toEqual([
       '실제 시공 사진 기반 연출컷',
       '설계부터 작업지시서까지 한 앱',
       '상담을 가까운 팩토리로',
       '등급별 도구',
     ]);
+  });
+
+  test('사진 — 맨 위 한 장 + 「일이 흐르는 길」 여섯 칸 (2026-11-21 대표님 「시각자료 힉스필드로」), 제작 의뢰 세 칸은 글만', async () => {
+    await load('about.html');
+    const imgs = $$('main img');
+    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([
+      'about/hero.jpg',
+      'about/step-1.jpg',
+      'about/step-2.jpg',
+      'about/step-3.jpg',
+      'about/step-4.jpg',
+      'about/step-5.jpg',
+      'about/step-6.jpg',
+    ]);
+    for (const img of imgs) {
+      const src = img.getAttribute('src');
+      // 가벼운 webp 먼저, jpg 는 못 읽는 브라우저용 — 두 파일 다 있다
+      const source = img.parentNode.querySelector('source');
+      expect(img.parentNode.tagName).toBe('PICTURE');
+      expect(source.getAttribute('type')).toBe('image/webp');
+      expect(source.getAttribute('srcset')).toBe(src.replace(/\.jpg$/, '.webp'));
+      for (const f of [src, source.getAttribute('srcset')]) {
+        const file = path.join(ROOT, 'segan', f);
+        expect([f, fs.existsSync(file)]).toEqual([f, true]);
+        expect(fs.statSync(file).size).toBeLessThan(160 * 1024); // 화면용 크기로 줄인 것
+      }
+      // 자리를 먼저 잡는다 (밀림 없음) · 무엇의 사진인지 글로도
+      expect(img.getAttribute('width')).toMatch(/^\d+$/);
+      expect(img.getAttribute('height')).toMatch(/^\d+$/);
+      expect(img.getAttribute('alt').length).toBeGreaterThan(5);
+      expect(img.getAttribute('decoding')).toBe('async');
+    }
+    // 맨 위 사진은 바로, 흐름 칸 사진은 보일 때 받는다
+    expect(imgs[0].hasAttribute('loading')).toBe(false);
+    expect(imgs[0].getAttribute('fetchpriority')).toBe('high');
+    expect([imgs[0].getAttribute('width'), imgs[0].getAttribute('height')]).toEqual([
+      '1600',
+      '900',
+    ]);
+    expect(imgs.slice(1).every((i) => i.getAttribute('loading') === 'lazy')).toBe(true);
+    // 흐름 여섯 칸 — 사진 · 글(번호는 글 칸에) 차례. 제작 의뢰 세 칸은 글만
+    const flows = $$('ol.ab-flow');
+    const first = [...flows[0].children];
+    expect(first).toHaveLength(6);
+    for (const li of first) {
+      expect(li.className).toBe('ab-step ab-step--shot');
+      expect([...li.children].map((c) => c.className)).toEqual(['ab-shot', 'ab-text']);
+      expect(li.querySelectorAll('.ab-text b, .ab-text span')).toHaveLength(2);
+    }
+    expect(flows[1].querySelector('img, .ab-shot')).toBeNull();
+    // AI 로 만든 사진임을 밝힌다
+    expect(text($('.ab-note'))).toBe('이 화면의 사진은 AI 로 연출한 이미지입니다.');
+    // 사진 칸 모습 — 잘리지 않게 꽉 채움, 폰은 16:9 · PC 는 4:3, 받기 전에는 사진 바탕색
+    const css = read('segan/info.css');
+    expect(css).toMatch(/\.ab-hero img,\s*\.ab-shot img \{[^}]*object-fit:\s*cover;/);
+    expect(css).toMatch(
+      /\n\.ab-shot \{[^}]*aspect-ratio:\s*16 \/ 9;[^}]*background:\s*var\(--v5-photo\);/
+    );
+    expect(css).toMatch(/\n {2}\.ab-shot \{\s*aspect-ratio:\s*4 \/ 3;/);
+    expect(css).toMatch(/\n\.ab-hero \{[^}]*aspect-ratio:\s*16 \/ 9;/);
   });
 
   test('「AI 연출컷 시작」(make.html) · 「구독 보기」(plans.html) · 셸 + SEGAN 비서만 싣는다 (로그인 · 데이터를 묻지 않는다)', async () => {

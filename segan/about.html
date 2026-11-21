@@ -15,27 +15,27 @@
     <title>AI 시스템 소개 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112108" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112108" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112108" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112108" />
+    <link rel="icon" href="icons/icon.svg?v=2026112109" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112109" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112109" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112109" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026112108" />
-    <link rel="stylesheet" href="info.css?v=2026112108" />
+    <link rel="stylesheet" href="shell.css?v=2026112109" />
+    <link rel="stylesheet" href="info.css?v=2026112109" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112108"></script>
+    <script src="../js/config.js?v=2026112109"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112108"></script>
-    <script src="shell.js?v=2026112108" defer blocking="render"></script>
+    <script src="motion.js?v=2026112109"></script>
+    <script src="shell.js?v=2026112109" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112108" defer></script>
+    <script src="guide.js?v=2026112109" defer></script>
   </head>
   <body class="sg-app" data-tab="about">
     <div data-segan-shell="header"></div>
@@ -53,32 +53,126 @@
         까지 한 흐름으로 잇습니다.
       </p>
 
+      <!-- 사진 — 맨 위 한 장과 「일이 흐르는 길」 여섯 칸 (2026-11-21 대표님 「시각자료 힉스필드로」).
+           모두 AI 로 연출한 이미지다 (segan/about/ — 화면 아래에 그렇게 적는다) -->
+      <figure class="ab-hero">
+        <picture>
+          <source srcset="about/hero.webp" type="image/webp" />
+          <img
+            src="about/hero.jpg"
+            alt="밝은 주방의 아일랜드 위에 놓인 자재 견본과 도면, 주방 사진이 떠 있는 태블릿"
+            width="1600"
+            height="900"
+            decoding="async"
+            fetchpriority="high"
+          />
+        </picture>
+      </figure>
+
       <section aria-labelledby="abFlowTitle">
         <h2 class="in-h2" id="abFlowTitle">일이 흐르는 길</h2>
         <ol class="ab-flow">
-          <li class="ab-step">
-            <b>연출컷 · 상담</b>
-            <span>고객이 공간 사진으로 AI 연출컷과 예상 견적을 보고 상담을 신청합니다.</span>
+          <li class="ab-step ab-step--shot">
+            <picture class="ab-shot">
+              <source srcset="about/step-1.webp" type="image/webp" />
+              <img
+                src="about/step-1.jpg"
+                alt="가구가 들어갈 빈 벽을 휴대폰으로 찍는 손"
+                width="800"
+                height="600"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <div class="ab-text">
+              <b>연출컷 · 상담</b>
+              <span>고객이 공간 사진으로 AI 연출컷과 예상 견적을 보고 상담을 신청합니다.</span>
+            </div>
           </li>
-          <li class="ab-step">
-            <b>다담 본사 배분</b>
-            <span>다담 본사가 상담을 가까운 팩토리에 나눕니다.</span>
+          <li class="ab-step ab-step--shot">
+            <picture class="ab-shot">
+              <source srcset="about/step-2.webp" type="image/webp" />
+              <img
+                src="about/step-2.jpg"
+                alt="지역을 나눈 지도 위에 나무 핀을 놓는 손"
+                width="800"
+                height="600"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <div class="ab-text">
+              <b>다담 본사 배분</b>
+              <span>다담 본사가 상담을 가까운 팩토리에 나눕니다.</span>
+            </div>
           </li>
-          <li class="ab-step">
-            <b>팩토리 — 설계 · BOM · 작업지시서</b>
-            <span>팩토리가 플래너로 설계하고, BOM 과 작업지시서를 앱에서 만듭니다.</span>
+          <li class="ab-step ab-step--shot">
+            <picture class="ab-shot">
+              <source srcset="about/step-3.webp" type="image/webp" />
+              <img
+                src="about/step-3.jpg"
+                alt="주방 가구 3D 설계가 떠 있는 모니터와 도면"
+                width="800"
+                height="600"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <div class="ab-text">
+              <b>팩토리 — 설계 · BOM · 작업지시서</b>
+              <span>팩토리가 플래너로 설계하고, BOM 과 작업지시서를 앱에서 만듭니다.</span>
+            </div>
           </li>
-          <li class="ab-step">
-            <b>생산 · 시공</b>
-            <span>작업지시서대로 만들고 현장에 시공합니다.</span>
+          <li class="ab-step ab-step--shot">
+            <picture class="ab-shot">
+              <source srcset="about/step-4.webp" type="image/webp" />
+              <img
+                src="about/step-4.jpg"
+                alt="재단한 판재가 쌓인 작업대와 가구 몸통을 짜는 작업자"
+                width="800"
+                height="600"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <div class="ab-text">
+              <b>생산 · 시공</b>
+              <span>작업지시서대로 만들고 현장에 시공합니다.</span>
+            </div>
           </li>
-          <li class="ab-step">
-            <b>A/S</b>
-            <span>시공 뒤 A/S 를 앱에서 접수하고 처리합니다.</span>
+          <li class="ab-step ab-step--shot">
+            <picture class="ab-shot">
+              <source srcset="about/step-5.webp" type="image/webp" />
+              <img
+                src="about/step-5.jpg"
+                alt="가구 문의 경첩을 드라이버로 조정하는 손"
+                width="800"
+                height="600"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <div class="ab-text">
+              <b>A/S</b>
+              <span>시공 뒤 A/S 를 앱에서 접수하고 처리합니다.</span>
+            </div>
           </li>
-          <li class="ab-step">
-            <b>학습</b>
-            <span>학습을 허용한 연출컷 · 시공 사진과 설계로 다음 연출컷과 설계 제안을 다듬습니다.</span>
+          <li class="ab-step ab-step--shot">
+            <picture class="ab-shot">
+              <source srcset="about/step-6.webp" type="image/webp" />
+              <img
+                src="about/step-6.jpg"
+                alt="가지런히 늘어놓은 시공 사진과 자재 견본"
+                width="800"
+                height="600"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <div class="ab-text">
+              <b>학습</b>
+              <span>학습을 허용한 연출컷 · 시공 사진과 설계로 다음 연출컷과 설계 제안을 다듬습니다.</span>
+            </div>
           </li>
         </ol>
         <p class="ab-loop">학습한 것은 다시 처음의 연출컷 · 상담으로 돌아갑니다.</p>
@@ -126,6 +220,8 @@
         <a class="in-btn in-btn--solid" href="make.html">AI 연출컷 시작</a>
         <a class="in-btn" href="plans.html">구독 보기</a>
       </div>
+
+      <p class="in-note ab-note">이 화면의 사진은 AI 로 연출한 이미지입니다.</p>
     </main>
 
     <div data-segan-shell="footer"></div>
