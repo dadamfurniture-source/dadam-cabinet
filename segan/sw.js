@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026112113';
+const ASSET_VERSION = '2026112114';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -42,6 +42,7 @@ const SHELL = [
   SCOPE + 'blog-hardware.html', // 매거진 › 하드웨어 글
   SCOPE + 'blog-kitchen-appliances.html', // 매거진 › 주방기기 글
   SCOPE + 'blog-drawer-rails.html', // 매거진 › 철물 시리즈 01 서랍레일
+  SCOPE + 'blog-hinges.html', // 매거진 › 철물 시리즈 02 경첩
   SCOPE + 'about.html', // AI 시스템 소개 (폰 탭 SEGAN)
   SCOPE + 'plans.html', // 구독 (폰 탭 SEGAN 안 [소개 | 구독])
   SCOPE + 'renders.html', // 마이페이지 › 내 연출컷

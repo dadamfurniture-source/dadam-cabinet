@@ -181,7 +181,7 @@ describe('홈 화면 (segan/index.html)', () => {
     expect(new Set(first).size).toBe(6);
   });
 
-  test('매거진 책장 다섯 권 · 소개 · 구독 줄 — 있는 화면으로 간다 (폰 아래 탭에서 뺀 두 화면은 여기서)', () => {
+  test('매거진 책장 여섯 권 · 소개 · 구독 줄 — 있는 화면으로 간다 (폰 아래 탭에서 뺀 두 화면은 여기서)', () => {
     const posts = $$('.bk-shelf a.bk-book').map((a) => a.getAttribute('href'));
     expect(posts).toEqual([
       'blog-materials.html',
@@ -189,6 +189,7 @@ describe('홈 화면 (segan/index.html)', () => {
       'blog-hardware.html',
       'blog-kitchen-appliances.html',
       'blog-drawer-rails.html',
+      'blog-hinges.html',
     ]);
     // 매거진 화면(blog.html)의 책장과 같은 책 · 같은 차례 · 같은 표지 (책을 더하면 두 곳에 같이)
     const blogDoc = new DOMParser().parseFromString(read('segan/blog.html'), 'text/html');
