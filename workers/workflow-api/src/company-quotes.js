@@ -6,7 +6,10 @@
  *     { company { id, name, kind, plan },
  *       items [{ id, doc_no, rev, status, title, created_at, expires_at, first_viewed_at, view_count,
  *                decision, decided_at, superseded, totals { subtotal, vat, total } | null,
- *                design { id, name }, project { id, title } | null, customer_name }] }
+ *                design { id, name }, project { id, title } | null, customer_name,
+ *                order { id, status } | null }] }
+ *       order = 그 문서로 만든 수주 (문서 하나에 수주 하나 — 취소된 것도 싣는다). 승인됐는데 수주가 없으면 화면이
+ *       「계약 만들기」를 낸다 (POST /documents/:id/order — 2026-11-21 대표님 「프로젝트 한 길」, 예전에는 PC 상세설계에서만 만들었다)
  *
  * 누가       프로젝트를 가지는 업체(다담 공장 · active 협력업체 Manager · Expert · Agent)의 active 구성원 —
  *            GET /company/projects 와 같은 판정(projectCompanyOf). 다른 업체의 견적은 싣지 않는다.
@@ -15,7 +18,7 @@
  * 고객 이름   프로젝트에 이은 설계면 그 프로젝트의 고객 이름(GET /company/projects 가 구성원에게 싣는 것과 같다),
  *            잇지 않은 설계면 문서에 남은 가린 이름(customer_name_masked). 전화 · 주소는 싣지 않는다.
  * 읽는 범위   최근 고친 설계 COMPANY_QUOTE_DESIGNS 개의 문서만 본다 (주소 길이 — in.(…) 거르기).
- * 읽기만 한다 — 견적을 내고 거두는 일은 지금처럼 상세설계 화면(POST /snapshots/:id/documents · revoke).
+ * 읽기만 한다 — 견적을 내고 거두는 일은 지금처럼 상세설계 · 플래너(POST /snapshots/:id/documents · revoke).
  */
 
 import { selectMany } from './supabase.js';
@@ -25,6 +28,8 @@ import { projectCompanyOf } from './company-projects.js';
 export const COMPANY_QUOTES_LIMIT = 200;
 /** 문서를 찾아볼 설계 수 (최근 고친 순) */
 export const COMPANY_QUOTE_DESIGNS = 200;
+/** 수주를 찾아볼 행 수 (company-projects.js STAGE_ROW_LIMIT 와 같다) */
+export const QUOTE_ORDERS_LIMIT = 500;
 /** 고객에게 나가는 견적서 = 고객 확인서 */
 export const QUOTE_DOC_TYPE = 'customer_confirmation';
 
@@ -82,6 +87,16 @@ export async function listCompanyQuotes(env, { user }) {
     : [];
   const projectOf = new Map(projects.map((p) => [p.id, p]));
   const customerOf = new Map(customers.map((c) => [c.id, c]));
+  // 문서마다 수주 — 승인된 견적이 있을 때만 묻는다. 업체로 거른다 (문서 번호 목록을 주소에 싣지 않는다). 금액은 읽지 않는다
+  const orders = mine.some((d) => d.decision === 'approved')
+    ? (await selectMany(env, 'orders', {
+        company_id: `eq.${company.id}`,
+        select: 'id,document_id,status',
+        order: 'ordered_at.desc',
+        limit: String(QUOTE_ORDERS_LIMIT),
+      })) || []
+    : [];
+  const orderOf = new Map(orders.filter((o) => o.document_id).map((o) => [o.document_id, o]));
 
   return {
     company: head,
@@ -106,6 +121,7 @@ export async function listCompanyQuotes(env, { user }) {
         design: { id: design.id, name: design.name || null },
         project: project ? { id: project.id, title: project.title || null } : null,
         customer_name: (customer && customer.name) || d.customer_name_masked || null,
+        order: orderOf.has(d.id) ? { id: orderOf.get(d.id).id, status: orderOf.get(d.id).status } : null,
       };
     }),
   };
