@@ -5,6 +5,8 @@
  * (workers/workflow-api/src/planner-drafts.js plannerCompanyOf). 회원 관리에서 등급만 올리면 팩토리가 없어 플래너가 막혔다.
  * 이제 Manager 이상으로 저장할 때 대표인 팩토리가 없으면 「팩토리로 만들기」와 같은 길(account-api POST /admin/partner/companies)로
  * 같은 등급 팩토리를 만들고, 등급은 DB 트리거가 맞추게 둔다(tier · tier_source 를 쓰지 않는다).
+ * 2026-11-21 대표님 「Manager 는 가구설계 영업 사원」 — Manager 는 칸 없이 등급만 저장하고, 그 회원이 앱을 열면
+ * account-api GET /partner/me 가 「내 영업 공간」(Manager 업체)을 만든다. 칸은 Expert · Agent 만.
  * 페이지 스크립트를 jsdom 에 올리고 가짜 Supabase · 가짜 fetch 로 돌린다 (admin-users-escape.test.js 와 같은 방식).
  */
 const fs = require('fs');
@@ -132,8 +134,8 @@ describe('admin/users.html — Manager 이상 저장 때 팩토리', () => {
     expect(calls.updates[0].payload.tier).toBe('standard');
   });
 
-  test('팩토리 없는 회원을 Manager 로 — 칸에 회원 정보를 채우고, 저장하면 같은 등급 팩토리를 만든 뒤 등급은 트리거에 맡긴다', async () => {
-    const calls = await open({}, 'manager');
+  test('팩토리 없는 회원을 Expert 로 — 칸에 회원 정보를 채우고, 저장하면 같은 등급 팩토리를 만든 뒤 등급은 트리거에 맡긴다', async () => {
+    const calls = await open({}, 'expert');
     expect($('modalFactory').hidden).toBe(false);
     expect($('modalFactoryForm').hidden).toBe(false);
     expect($('modalFactoryName').value).toBe('작은가구');
@@ -143,13 +145,23 @@ describe('admin/users.html — Manager 이상 저장 때 팩토리', () => {
     expect(posts(calls)).toHaveLength(1);
     expect(posts(calls)[0]).toMatchObject({
       url: `${API}/admin/partner/companies`,
-      body: { user_id: UID, name: '작은가구', plan: 'manager', sido: '경기도', gugun: '수원시' },
+      body: { user_id: UID, name: '작은가구', plan: 'expert', sido: '경기도', gugun: '수원시' },
     });
     expect(posts(calls)[0].headers.Authorization).toBe('Bearer tok');
     expect(calls.updates).toHaveLength(1);
     expect(calls.updates[0].payload).not.toHaveProperty('tier');
     expect(calls.updates[0].payload).not.toHaveProperty('tier_source');
     expect(window.alert.mock.calls[0][0]).toContain('플래너');
+  });
+
+  test('팩토리 없는 회원을 Manager 로 — 칸 없이 「내 영업 공간」 안내, 등급만 저장 (앱을 열면 서버가 만든다, 2026-11-21)', async () => {
+    const calls = await open({}, 'manager');
+    expect($('modalFactory').hidden).toBe(false);
+    expect($('modalFactoryForm').hidden).toBe(true);
+    expect($('modalFactoryInfo').textContent).toContain('「내 영업 공간」');
+    await window.saveUserChanges();
+    expect(posts(calls)).toEqual([]);
+    expect(calls.updates[0].payload).toMatchObject({ tier: 'manager', tier_source: 'manual' });
   });
 
   test('Expert · Agent 도 같은 등급으로 만든다', async () => {
@@ -172,7 +184,7 @@ describe('admin/users.html — Manager 이상 저장 때 팩토리', () => {
 
   test('팩토리 칸이 비면 저장하지 않는다', async () => {
     window.__users = [{ ...USER, sido: null, gugun: null }];
-    const calls = await open({}, 'manager');
+    const calls = await open({}, 'expert');
     await window.saveUserChanges();
     expect(window.alert.mock.calls[0][0]).toContain('시·도');
     expect(posts(calls)).toEqual([]);
@@ -182,17 +194,17 @@ describe('admin/users.html — Manager 이상 저장 때 팩토리', () => {
   test('다른 팩토리(본사) 구성원이면(409 already_member) 등급만 저장하고 알린다', async () => {
     const calls = await open(
       { create: json(409, { success: false, code: 'already_member', error: '이미 구성원' }) },
-      'manager'
+      'expert'
     );
     await window.saveUserChanges();
-    expect(calls.updates[0].payload).toMatchObject({ tier: 'manager', tier_source: 'manual' });
+    expect(calls.updates[0].payload).toMatchObject({ tier: 'expert', tier_source: 'manual' });
     expect(window.alert.mock.calls[0][0]).toContain('그 팩토리 등급을 따릅니다');
   });
 
   test('팩토리를 못 만들면(그 밖의 실패) 회원 정보도 바꾸지 않는다', async () => {
     const calls = await open(
       { create: json(422, { success: false, code: 'invalid', field: 'name', error: '이름' }) },
-      'manager'
+      'expert'
     );
     await window.saveUserChanges();
     expect(calls.updates).toEqual([]);
@@ -212,11 +224,11 @@ describe('admin/users.html — Manager 이상 저장 때 팩토리', () => {
         gugun: '',
       },
     ];
-    await open({}, 'manager');
+    await open({}, 'expert');
     expect($('modalFactoryName').value).toBe('작은가구');
     window.viewUser('u2');
     await flush();
-    $('modalTier').value = 'manager';
+    $('modalTier').value = 'expert';
     $('modalTier').dispatchEvent(new Event('change'));
     expect($('modalFactoryName').value).toBe('박대표');
     expect($('modalFactorySido').value).toBe('');

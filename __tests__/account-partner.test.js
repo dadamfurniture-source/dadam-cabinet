@@ -951,6 +951,117 @@ describe('GET /partner/me', () => {
   });
 });
 
+// ── 2-1) 내 영업 공간 (2026-11-21 대표님 「Manager 는 가구설계 영업 사원」) ─────────
+
+const tierOf =
+  (who, tier, row = {}) =>
+  (tables) => {
+    const p = tables.profiles.find((x) => x.id === U[who]);
+    Object.assign(p, { tier }, row);
+  };
+
+describe('GET /partner/me — 내 영업 공간', () => {
+  test('사람 등급만 Manager — 그 사람이 대표인 Manager 업체를 만들어 company 로 준다, 다시 열어도 하나', async () => {
+    use({ mutate: tierOf('newbie', 'manager', { sido: '대구광역시', gugun: '북구' }) });
+    const before = db.tables.companies.length;
+    const r = await call('GET', '/partner/me', 'newbie');
+    expect(r.status).toBe(200);
+    expect(Object.keys(r.json.data.company)).toEqual(COMPANY_KEYS);
+    expect(r.json.data.company).toMatchObject({
+      name: '이름-newbie 영업 공간',
+      plan: 'manager',
+      next_plan: null,
+      status: 'active',
+      sido: '대구광역시',
+      gugun: '북구',
+      role: 'owner',
+    });
+    expect(r.json.data.members.map((x) => [x.user_id, x.role, x.status])).toEqual([
+      [U.newbie, 'owner', 'active'],
+    ]);
+    const made = db.tables.companies.filter((c) => c.name === '이름-newbie 영업 공간');
+    expect(made).toHaveLength(1);
+    expect(made[0]).toMatchObject({ kind: 'partner', created_by: U.newbie });
+    const ev = db.tables.company_events.filter((e) => e.company_id === made[0].id);
+    expect(ev).toEqual([
+      expect.objectContaining({
+        actor_user_id: U.newbie,
+        actor_kind: 'system',
+        type: 'company_created',
+        payload: { by: 'sales_space' },
+      }),
+    ]);
+
+    const again = await call('GET', '/partner/me', 'newbie');
+    expect(again.json.data.company.id).toBe(made[0].id);
+    expect(db.tables.companies).toHaveLength(before + 1);
+  });
+
+  test('이름 · 지역이 없으면 「내 영업 공간」 · 지역 빈 칸', async () => {
+    use({ mutate: tierOf('newbie', 'manager', { name: '  ', sido: '', gugun: undefined }) });
+    const r = await call('GET', '/partner/me', 'newbie');
+    expect(r.json.data.company).toMatchObject({ name: '내 영업 공간', sido: null, gugun: null });
+  });
+
+  test('만들지 않는 때 — Standard · Expert · Agent 사람 등급, 진행 중인 신청, 이미 구성원(직원 · 본사)', async () => {
+    for (const tier of ['standard', 'expert', 'agent']) {
+      use({ mutate: tierOf('newbie', tier) });
+      const r = await call('GET', '/partner/me', 'newbie');
+      expect(r.json.data.company).toBeNull();
+      expect(db.writes()).toEqual([]);
+    }
+    use({ mutate: tierOf('newbie', 'manager') });
+    addApp(db.tables, { user_id: U.newbie, status: 'applied' });
+    expect((await call('GET', '/partner/me', 'newbie')).json.data.company).toBeNull();
+    expect(db.writes()).toEqual([]);
+
+    for (const who of ['staff', 'hq']) {
+      use({ mutate: tierOf(who, 'manager') });
+      await call('GET', '/partner/me', who);
+      expect(db.writes()).toEqual([]);
+    }
+  });
+
+  test('보류 · 끝난 신청만 있으면 만든다', async () => {
+    use({ mutate: tierOf('newbie', 'manager') });
+    addApp(db.tables, { user_id: U.newbie, status: 'held' });
+    const r = await call('GET', '/partner/me', 'newbie');
+    expect(r.json.data.company).toMatchObject({ plan: 'manager', role: 'owner' });
+  });
+
+  test('같은 때 다른 요청이 먼저 만들었으면(23505) — 만든 업체를 지우고 먼저 만든 것을 준다', async () => {
+    use({
+      mutate: (t) => {
+        tierOf('newbie', 'manager')(t);
+        withManager(t);
+      },
+      onRequest: (c, t) => {
+        if (c.method === 'POST' && c.table === 'company_members' && c.body.user_id === U.newbie)
+          t.company_members.push({
+            id: 'm0000000-0000-4000-8000-0000000000ff',
+            company_id: CO.manager,
+            user_id: U.newbie,
+            role: 'owner',
+            status: 'active',
+            created_at: at(60),
+          });
+      },
+    });
+    const r = await call('GET', '/partner/me', 'newbie');
+    expect(r.status).toBe(200);
+    expect(r.json.data.company).toMatchObject({ id: CO.manager, role: 'owner' });
+    expect(db.tables.companies.filter((c) => /영업 공간/.test(c.name))).toEqual([]);
+  });
+
+  test('구성원을 못 넣으면(그 밖의 실패) 만든 업체를 지우고 500', async () => {
+    use({ mutate: tierOf('newbie', 'manager'), fail: { 'POST company_members': 500 } });
+    const before = db.tables.companies.length;
+    const r = await call('GET', '/partner/me', 'newbie');
+    expect(r.status).toBe(500);
+    expect(db.tables.companies).toHaveLength(before);
+  });
+});
+
 // ── 3) 신청 ────────────────────────────────────────────
 
 describe('POST /partner/apply', () => {
@@ -2195,9 +2306,12 @@ describe('지키는 것', () => {
     await call('POST', '/partner/plan', 'agentOwner', { next_plan: 'expert' });
     expect(db.calls.filter((c) => c.table === 'profiles' && c.method !== 'GET')).toEqual([]);
     expect(JSON.stringify(db.writes().map((c) => c.body))).not.toMatch(/"tier"/);
-    expect(read('workers/account-api/src/partner.js')).not.toMatch(
-      /['"`]profiles\?[^'"`]*tier|tier_source/
-    );
+    // 사람 등급은 읽기만 한다 (내 영업 공간 — select 에만), 쓰지 않는다
+    const src = read('workers/account-api/src/partner.js');
+    expect(src).not.toMatch(/tier_source|\btier\s*:/);
+    const reads = src.match(/['"`]profiles\?[^'"`]*tier[^'"`]*/g) || [];
+    expect(reads.length).toBeGreaterThan(0);
+    for (const q of reads) expect(q).toMatch(/select=[\w,]*\btier\b/);
   });
 
   test('이력이 실패해도 처리는 그대로 — 상태 코드만 로그, 개인정보 없음', async () => {
