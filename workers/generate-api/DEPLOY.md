@@ -104,7 +104,8 @@ alarm 으로 실행한다. 진행 상태의 정본은 `generations` 행이고 �
 | `POST /api/generate/:id/share` | JWT | `{share_url, expires_at}` — 토큰은 1회만, 다시 부르면 회전 |
 | `DELETE /api/generate/:id/share` | JWT | 회수 |
 | `POST /api/generate/:id/layout` | JWT | `{layout}` — 기본안을 Claude 비전(ANTHROPIC_MODEL)으로 읽어 구성(세그먼트·가전·도어 수)을 남긴다. 완료된 결과만(409 `not_done`), 지원 품목만(400 `unsupported_category`: sink·island·fridge·storage·wardrobe). 이미 있으면 `cached:true`, `?force=1` 이면 재분석. 5~15초 동기 |
-| `POST /api/chat` | JWT | `{reply}` — 연출컷 ③ 상세 요청의 다음 한 마디 (텍스트 모델 1회, 크레딧 없음) |
+| `POST /api/chat` | JWT | `{reply}` — 연출컷 ③ 상세 요청의 다음 한 마디 (텍스트 모델 1회, 크레딧 없음). 앱 상담은 줄인 방 사진 `room_image`(base64 1MB 까지) · `image_type` · `app:true` 를 더 보낸다 (2026-11-21) |
+| `POST /api/chat/brief` | JWT | `{brief, door_color?, design_style?}` — 앱 상담 「정리하기」: 대화를 연출컷 참고 내용(customer_request)으로 (같은 본문 · `CHAT_LIMIT`, 텍스트 모델 1회 JSON, 크레딧 없음, `src/chat-brief.js`) |
 | `GET /api/share` | `X-Share-Token` | 이미지·견적. 만료·회수 410 |
 | `GET /health` | — | 모델·공급자·콜로 (`/diag` 는 2026-10-26 지웠다) |
 
