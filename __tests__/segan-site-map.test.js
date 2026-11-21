@@ -934,7 +934,7 @@ describe('설치 화면 (#p-install)', () => {
     expect(seen('siteInstall')).toBe(true);
     expect($('siteInstall').querySelector('[data-sm="mapwrap"]').hidden).toBe(true);
     expect(text($('siteInstall').querySelector('.me-empty'))).toBe(
-      '납품 · 설치 일정이 없습니다. 일정은 프로젝트 관리의 업무 달력에서 넣습니다.'
+      '납품 · 설치 일정이 없습니다. 일정은 TODAY WORK 의 업무 달력에서 넣습니다.'
     );
     document.body.innerHTML = '';
     jest.restoreAllMocks();

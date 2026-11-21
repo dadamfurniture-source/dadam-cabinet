@@ -1,10 +1,10 @@
 /* ============================================================
-   segan/calendar.js — 「프로젝트 관리」 대시보드의 업무 달력 (segan/me.html #meCalendar)
+   segan/calendar.js — 마이페이지 「TODAY WORK」 의 업무 달력 (segan/me.html #meCalendar)
 
    누가 보나  다담 공장 구성원 · Manager · Expert · Agent 협력업체 구성원 (segan/partner-projects.js canSee 와 같다).
              고객 · 업체 없는 회원에게는 묻지도 않고 칸이 없다. 서버가 403 이면 칸째 감춘다.
              segan/me.js 가 업체 칸을 읽은 뒤 SeganCalendar.load(sb, session, partnerMe) 를 부르고,
-             프로젝트 관리 대시보드(#dash-project)에서만 이 칸을 보인다 (me-off).
+             TODAY WORK 대시보드(#dash-today) · 업무 달력 화면(#today-calendar)에서만 이 칸을 보인다 (me-off, 2026-11-21 옮김).
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET   /company/schedules?from=YYYY-MM-DD&to=YYYY-MM-DD   (한국 날짜 · 그날 포함 · 길어야 100일)
                      → { company, can_manage, range, today, truncated,
@@ -25,7 +25,7 @@
              영업 일정(상담 희망일 · 실측 · 받을 날)과 A/S 접수는 서버가 자료에서 찾아 준다 — 여기서 넣지 않는다.
              프로젝트의 작업(source work) — 프로젝트 「작업 배정」에서 날짜를 정한 철거 · 재단 · 엣지 · 조립. 재단 · 엣지 · 조립은 생산 색,
              철거는 설치 색(현장 일). 줄에 종류 · 프로젝트 · 담당(작업자 이름) · 상태(작업자 미정 · 수락 대기 · 연결됨 · 작업 중 · 완료 보고 · 끝남).
-             여기서 고치지 않는다 — 줄의 「작업 배정」(직원은 「작업자 보기」)을 누르면 아래 프로젝트 목록에서 그 프로젝트의 칸이 열린다
+             여기서 고치지 않는다 — 줄의 「작업 배정」(직원은 「작업자 보기」)을 누르면 프로젝트 관리 화면으로 넘어가 목록에서 그 프로젝트의 칸이 열린다
              (segan/partner-projects.js openWork → segan/project-work.js). 날짜 · 작업자는 거기서 정한다.
              설계 마감 = 계약금 입금날 당일 (2026-11-10 대표님 결정) — 서버가 수주의 계약금에서 찾아 준다.
              입금된 뒤에만 보인다 — 계약금 받은 날에 「계약금 입금」 (아직 안 받은 수주는 줄이 없다). 금액은 오지 않는다 (구성원 모두 본다).
@@ -110,7 +110,7 @@
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
     workOpen: '작업 배정',
     workView: '작업자 보기',
-    workGone: '아래 프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.',
+    workGone: '프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.',
     off: '쉼',
     offWho: '쉬는 사람',
     offNoName: '이름 없음',
@@ -1151,7 +1151,7 @@
       C.err = '';
       render();
     } else if (act === 'work') {
-      // 아래 프로젝트 목록에서 그 프로젝트의 「작업 배정」 칸을 연다 — 목록에 없으면 그 글만
+      // 프로젝트 관리 화면의 목록에서 그 프로젝트의 「작업 배정」 칸을 연다 (넘어가는 것은 openWork) — 목록에 없으면 그 글만
       var PP = window.SeganPartnerProjects;
       var opened = !!PP && typeof PP.openWork === 'function' && PP.openWork(el.getAttribute('data-project') || '');
       var was = C.msg;
