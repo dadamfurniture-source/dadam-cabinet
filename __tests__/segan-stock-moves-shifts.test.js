@@ -275,7 +275,7 @@ describe('자리 · 이름', () => {
     expect(moves.nextElementSibling).toBe(shifts);
     expect(shifts.nextElementSibling.id).toBe('stockOrders'); // 발주 다음이 수주 (segan/stock-orders.js)
     expect(nums.closest('section').id).toBe('meDash');
-    expect(nums.previousElementSibling.id).toBe('meCalendar');
+    expect(nums.previousElementSibling.id).toBe('meNumbers'); // 2026-11-21 — 달력이 숫자 칸 위로 올라가 재고 칸 앞은 숫자 칸
     expect(
       doc
         .querySelector('#meSubStock li[data-me-item="stock-moves"]')
