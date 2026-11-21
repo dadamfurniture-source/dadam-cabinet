@@ -10,6 +10,7 @@
  *   planner_drafts     플래너 초안 — 프로젝트에 이어진 것(요약의 projectId) · 앱으로 보낸 설계의 원본(designs.source_ref)
  *   as_requests        팩토리의 처리 중 A/S (접수 · 받음). DB 0045 전이면 없다
  *   order_payments     접수 상태 수주의 계약금 줄 · 완료된 수주의 잔금 줄 — 입금됐나 (금액은 읽지 않는다 — 직원도 보는 값)
+ *   project_visits     프로젝트의 실측 일정 — 예정 · 끝 (DB 0079 전이면 없다 → 실측 단계 없이 지금처럼)
  *
  * 덧붙여 주는 값: deposit_paid — 취소 아닌 수주에 입금된 계약금 줄이 있다 (있을 때만 true).
  *   「계약금을 받으면 보류 · 그만둠은 작동하지 않는다」(대표님 2026-11-21) — 화면이 그 줄에는 단추를 내지 않는다.
@@ -21,6 +22,7 @@
 import { selectMany } from './supabase.js';
 import { isMissingRelation } from './work-order-data.js';
 import { nextStep, stepOf } from './pipeline.js';
+import { visitsOf } from './company-project-visits.js';
 
 /** 한 번에 읽는 행 수 상한 (company-projects.js STAGE_ROW_LIMIT 와 같다) */
 const ROW_LIMIT = '500';
@@ -63,10 +65,17 @@ function pushTo(map, key, value) {
  * @param {{ company: { id, kind, plan }, viewer: { role, user_id }, nowMs?: number,
  *           projects: Array<{ id, status, created_at, hold_until? }>,
  *           designs: Array<{ id, project_id, source?, source_ref? }>,   이 프로젝트들에 이어진 설계
- *           stages: Map<string, { stage: string }> }} args               company-projects.js stagesOf
+ *           stages: Map<string, { stage: string }>,                       company-projects.js stagesOf
+ *           meta?: object }} args                                         덧붙여 알리는 값을 여기에 적는다 — visit_ready (실측 일정 표가 있다)
  */
-export async function pipelineOf(env, { company, viewer, projects, designs, stages, nowMs = Date.now() }) {
+export async function pipelineOf(env, { company, viewer, projects, designs, stages, meta = null, nowMs = Date.now() }) {
   const out = new Map();
+  // 실측 일정 (DB 0079) — 프로젝트가 하나면 그 프로젝트 것만, 없으면 표가 있는지만 본다
+  const visits = await visitsOf(env, company.id, {
+    projectId: projects.length === 1 ? projects[0].id : null,
+    limit: projects.length ? null : '1',
+  });
+  if (meta) meta.visit_ready = visits.ready;
   if (!projects.length) return out;
   const co = `eq.${company.id}`;
   const factory = isFactory(company);
@@ -256,9 +265,15 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
     const quote = quoteOf.get(p.id) || null;
     const born = bornDraft.has(p.id);
     const draft = draftOf.get(p.id) || (born ? draftById.get(bornDraft.get(p.id)) : null) || null;
+    const visit = visits.byProject.get(p.id) || null;
     const facts = {
       id: p.id,
       status: p.status,
+      assignee_id: p.assignee_id || null,
+      visit_ready: visits.ready,
+      visit: visit
+        ? { id: visit.id, status: visit.status, scheduled_at: visit.scheduled_at || null, done_at: visit.done_at || null }
+        : null,
       hold_until: p.hold_until || null,
       created_at: p.created_at,
       stage: (stages.get(p.id) || {}).stage || 'consult',
@@ -299,6 +314,8 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
       step: stepOf(facts),
       next: nextStep(facts, viewer, nowMs),
       ...(depositPaid.has(p.id) ? { deposit_paid: true } : {}),
+      // 실측 일정 줄 그대로 — company-projects.js projectRow 가 화면 꼴로 다듬는다 (표가 없으면 칸 자체가 없다)
+      ...(visits.ready ? { visit } : {}),
     });
   }
   return out;
