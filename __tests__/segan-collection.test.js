@@ -7,7 +7,7 @@
  *   - collection_posts 공개 칸만 최신순 · 24줄 키셋, 업체 이름은 RPC collection_post_companies,
  *     로그인했으면 이 쪽의 내 좋아요 (collection_likes post_id). DB 사례 뒤에 같은 STATIC
  *   - 사진 아래 색상 영역(색상 하나씩 · ♡), 누르면 사진 보기 시트(SeganShell.sheet) — 장소 · 좋아요(♡ aria-pressed) ·
- *     색상 · 예상 견적(연출컷과 같은 표준 단가표) · 업체 정보 · 이 스타일로 연출컷. 그 안의 사진을 누르면 사진만 전체 화면
+ *     색상 · 업체 정보 · 이 스타일로 연출컷. 그 안의 사진을 누르면 사진만 전체 화면 (예상 견적은 뺐다 — 2026-11-21)
  *   - 업체: 업체 이름 → (없고) AI 연출컷이면 「AI 연출컷」 → 아니면 줄 없음. 정적 사진(AI 연출)은 「AI 연출」
  *   - 좋아요: 로그인 — insert { user_id, post_id } · delete eq post_id, 로그인 전 — 가운데 작은 창으로 로그인
  *   - 다운로드 단추 · 링크 없음, 관리자 「내리기」 없음. 자재 칸은 뺐다 (/material → /segan/blog)
@@ -21,19 +21,17 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const ME = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SESSION = { access_token: 'tok', user: { id: ME } };
 const CO_P = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-const COLS = 'id,image_url,category,place_label,door_color,company_id,like_count,source,created_at';
+const COLS = 'id,image_url,place_label,door_color,company_id,like_count,source,created_at';
 const uid = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
 
 /**
  * DB 줄 (최신순) — 모두 직접 올린 사진(탭은 AI 연출컷 source 'ai_render' 를 묻지 않는다, 2026-11-20).
  * 0: 장소 · 색상 · 업체 있음, 1: 장소 · 색상 · 업체 없음, 2: 장소 · 색상 · 업체 없음, 3: 본사 업체, 그 뒤는 차례대로
- * 구분(category) — 0: 주방, 1: 실내(견적을 낼 품목을 모른다), 그 뒤는 붙박이
  */
 function rows(n) {
   return Array.from({ length: n }, (_, i) => ({
     id: uid(i),
     image_url: `https://example.supabase.co/storage/v1/object/public/collection/p${i}.jpg`,
-    category: i === 0 ? 'kitchen' : i === 1 ? 'interior' : 'builtin',
     place_label: i === 1 ? '싱크대' : i % 5 === 2 ? '' : `인천 연수구 · 주방 ${i}`,
     door_color: i === 1 ? '오크' : i === 0 ? '화이트' : '',
     company_id: i === 0 || i === 3 ? CO_P : null,
@@ -224,7 +222,7 @@ const openFull = async (i) => {
   sheet().querySelector('.pv-photo').click();
   await flush();
 };
-/** 사진 보기의 장소 줄 · 색상 [이름, 색 값] · 견적 줄 [품목, 수량, 금액] */
+/** 사진 보기의 장소 줄 · 색상 [이름, 색 값] */
 const place = () => (sheet().querySelector('.pv-place') || { textContent: null }).textContent;
 const chipOf = (li) => {
   const c = li.querySelector('.cl-chip');
@@ -235,20 +233,6 @@ const colors = () =>
     li.querySelector('span:last-child').textContent,
     chipOf(li),
   ]);
-const quoteRows = () =>
-  [...sheet().querySelectorAll('.pv-qrow')].map((r) => {
-    const small = r.querySelector('small');
-    const qty = small ? small.textContent : '';
-    return [r.firstChild.textContent.replace(qty, '').trim(), qty, r.lastChild.textContent];
-  });
-const won = (n) => n.toLocaleString('ko-KR') + '원';
-/** 서버의 견적 셈 (workers/generate-api/src/quote.js) — 앱의 표가 이것과 같아야 한다 */
-const serverQuote = (() => {
-  const src = read('workers/generate-api/src/quote.js')
-    .replace(/\r\n/g, '\n')
-    .replace(/^export /gm, '');
-  return new Function(src + '\nreturn { buildQuote, RATES };')();
-})();
 const moreAll = async () => {
   for (let i = 0; i < 10; i++) {
     if ($('clMore').hidden) break;
@@ -612,11 +596,9 @@ describe('사진 전체 화면 — 사진만. 사진 보기의 사진을 누르�
     expect(img.getAttribute('src')).toContain('p0.jpg');
     expect(img.getAttribute('alt')).toBe('시공사례 · 인천 연수구 · 주방 0 · 다담 협력 주방');
     expect(img.getAttribute('draggable')).toBe('false');
-    // 사진 말고는 「닫기」 하나 — 글 · 좋아요 · 견적 · 연출컷은 여기에 없다
+    // 사진 말고는 「닫기」 하나 — 글 · 좋아요 · 연출컷은 여기에 없다
     expect([...box.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['닫기']);
-    expect(
-      box.querySelector('.pv-facts, .pv-like, .pv-make, .pv-quote, .pv-full-info, a')
-    ).toBeNull();
+    expect(box.querySelector('.pv-facts, .pv-like, .pv-make, .pv-full-info, a')).toBeNull();
     expect(window.location.pathname + window.location.hash).toBe('/segan/collection.html');
     expect(window.SeganCollection.state.sheet.isOpen()).toBe(true);
   });
@@ -745,8 +727,8 @@ describe('사진 전체 화면 — 사진만. 사진 보기의 사진을 누르�
   });
 });
 
-describe('사진 보기 — 시트 (장소 · 좋아요 · 색상 · 예상 견적 · 업체 정보 · 이 스타일로 연출컷)', () => {
-  test('누르면 시트 — 큰 사진 · 장소 · 좋아요 수 · 색상 · 예상 견적 · 업체 정보 차례로, 주소는 그대로', async () => {
+describe('사진 보기 — 시트 (장소 · 좋아요 · 색상 · 업체 정보 · 이 스타일로 연출컷)', () => {
+  test('누르면 시트 — 큰 사진 · 장소 · 좋아요 수 · 색상 · 업체 정보 차례로, 주소는 그대로', async () => {
     await load();
     await openTile(0);
     expect(document.querySelector('.sg-sheet-wrap--sheet')).not.toBeNull();
@@ -761,12 +743,13 @@ describe('사진 보기 — 시트 (장소 · 좋아요 · 색상 · 예상 견�
     expect(place()).toBe('인천 연수구 · 주방 0');
     expect(colors()).toEqual([['화이트', '']]);
     expect(facts()).toEqual([['업체', '다담 협력 주방']]);
-    // 칸 제목 — 대표님이 말한 차례 그대로 (색상정보 · 견적 · 업체 정보)
+    // 칸 제목 — 색상 · 업체 정보. 예상 견적 칸은 없다 (2026-11-21 대표님 「견적은 일단 빼자」)
     expect([...box.querySelectorAll('.pv-h')].map((h) => h.textContent)).toEqual([
       '색상',
-      '예상 견적',
       '업체 정보',
     ]);
+    expect(box.querySelector('.pv-quote, .pv-qrow, .pv-step-btn')).toBeNull();
+    expect(box.textContent).not.toMatch(/견적|합계|부가세|가로 길이/);
     expect(likeBtn().getAttribute('aria-pressed')).toBe('false');
     expect(likeBtn().querySelector('.pv-count').textContent).toBe('4');
     // 장소와 좋아요는 한 줄
@@ -860,211 +843,20 @@ describe('사진 보기 — 시트 (장소 · 좋아요 · 색상 · 예상 견�
   });
 });
 
-describe('예상 견적 — 연출컷 견적과 같은 표준 단가표 (2026-11-21 대표님 「견적은 최대한 정확하게」)', () => {
-  test('앱의 셈 = 서버의 셈 (workers/generate-api/src/quote.js buildQuote) — 모든 품목 × 고를 수 있는 모든 가로 길이', async () => {
-    await load({ db: [] });
-    const V = window.SeganPostView;
-    const keys = Object.keys(serverQuote.RATES);
-    expect(keys.sort()).toEqual(
-      [
-        'bedroom',
-        'fridge',
-        'island',
-        'office',
-        'shoe',
-        'sink',
-        'storage',
-        'study',
-        'vanity',
-        'wardrobe',
-      ].sort()
-    );
-    expect(V.QUOTE_W).toEqual({ min: 1200, max: 6000, step: 300, start: 3000 });
-    let n = 0;
-    for (const key of keys) {
-      for (let w = V.QUOTE_W.min; w <= V.QUOTE_W.max; w += V.QUOTE_W.step) {
-        const server = serverQuote.buildQuote(key, w);
-        delete server.grade;
-        expect([key, w, V.buildQuote(key, w)]).toEqual([key, w, server]);
-        n++;
-      }
-      // 300 단위가 아닌 값도 같다 (올림 · 반올림 자리)
-      for (const w of [1000, 2750, 3333]) {
-        const server = serverQuote.buildQuote(key, w);
-        delete server.grade;
-        expect(V.buildQuote(key, w)).toEqual(server);
-      }
-    }
-    expect(n).toBe(keys.length * 17);
-    // 모르는 품목은 견적을 내지 않는다 — 서버처럼 수납장 표로 대신하지 않는다
-    expect(V.buildQuote('garage', 3000)).toBeNull();
-    expect(V.buildQuote('toString', 3000)).toBeNull();
-    expect(V.buildQuote('', 3000)).toBeNull();
-  });
-
-  test('어느 표인가 — AI 연출 사진은 사진 이름, AI 연출컷은 품목 이름, 직접 올린 사진은 구분. 모르면 견적 칸 없음', async () => {
-    await load({ db: [] });
-    const V = window.SeganPostView;
-    // 정적 36장은 모두 표가 정해진다
-    const byPlace = {};
-    for (const s of window.SeganCollection.STATIC) byPlace[s.place] = V.quoteKey(V.fromStatic(s));
-    expect(byPlace).toEqual({
-      '일자형 주방': 'sink',
-      'ㄱ자형 주방': 'sink',
-      'ㄷ자형 주방': 'sink',
-      '대면형 주방': 'sink',
-      '11자 주방': 'sink',
-      '주방 디테일': 'sink',
-      '아일랜드 주방': 'island',
-      냉장고장: 'fridge',
-      '안방 붙박이장': 'wardrobe',
-      '아이방 붙박이장': 'wardrobe',
-      '작은방 붙박이장': 'wardrobe',
-      드레스룸: 'wardrobe',
-      '현관 신발장': 'shoe',
-      화장대: 'vanity',
-      홈카페장: 'storage',
-      '거실 수납장': 'storage',
-      '다이닝 수납장': 'storage',
-      세탁실장: 'storage',
-      '서재 책장': 'study',
-    });
-    // AI 연출컷 — 서버가 적는 품목 이름(COLLECTION_PLACE_LABEL)의 거꾸로, 열 가지 모두
-    const labels = read('workers/generate-api/src/collection-post.js').match(
-      /COLLECTION_PLACE_LABEL = Object\.freeze\(\{([^}]*)\}\)/
-    )[1];
-    const pairs = [...labels.matchAll(/(\w+): '([^']+)'/g)].map((m) => [m[1], m[2]]);
-    expect(pairs).toHaveLength(10);
-    for (const [key, label] of pairs)
-      expect([label, V.quoteKey({ source: 'ai_render', place_label: label })]).toEqual([
-        label,
-        key,
-      ]);
-    expect(V.quoteKey({ source: 'ai_render', place_label: '모르는 품목' })).toBe('');
-    // 직접 올린 사진 — 구분(category). 실내 · 기타는 품목을 몰라 견적을 내지 않는다
-    const up = (category) => V.quoteKey({ source: 'upload', category, place_label: '서울 · 주방' });
-    expect(['kitchen', 'builtin', 'storage', 'interior', 'other', ''].map(up)).toEqual([
-      'sink',
-      'wardrobe',
-      'storage',
-      '',
-      '',
-      '',
-    ]);
-    expect(V.quoteKey(null)).toBe('');
-  });
-
-  test('사진 보기 — 가로 길이 3.0m 부터, 줄(품목 · 수량 · 금액) · 부가세 · 합계(VAT 포함) · 예상 범위 · 기준 글', async () => {
+describe('예상 견적은 없다 (2026-11-21 대표님 「견적은 일단 빼자」 — 넣었던 모습은 #1682)', () => {
+  test('사진 보기 · 코드 · 스타일 어디에도 견적이 없다, 읽는 칸도 예전 그대로', async () => {
     await load();
-    await openTile(0); // 직접 올린 주방 → 싱크대 표
-    const q = serverQuote.buildQuote('sink', 3000);
-    const box = sheet().querySelector('.pv-quote');
-    expect(box.querySelector('.pv-h').textContent).toBe('예상 견적');
-    expect(box.querySelector('.pv-size').textContent).toContain('가로 길이');
-    expect(box.querySelector('.pv-size-value').textContent).toBe('3.0m');
-    expect(quoteRows()).toEqual([
-      ...q.items.map((it) => [it.name, it.quantity, won(it.total)]),
-      ['부가세', '', won(q.vat)],
-    ]);
-    expect(quoteRows()[0]).toEqual(['하부장 캐비닛', '3000mm', '480,000원']);
-    expect(box.querySelector('.pv-qtotal').textContent).toBe('합계 (VAT 포함)' + won(q.total));
-    expect(box.querySelector('.pv-qsum').textContent).toBe('1,868,900원');
-    expect(box.querySelector('.pv-qrange').textContent).toBe(
-      '예상 범위 ' + won(q.range.min) + ' ~ ' + won(q.range.max)
-    );
-    // 무엇으로 셈했는지 · 실제와 다를 수 있음을 밝힌다
-    expect(box.querySelector('.pv-qnote').textContent).toBe(
-      '연출컷 견적과 같은 표준 단가로 셈한 예상 금액입니다. 실제 금액은 현장 실측 · 자재 · 구성에 따라 달라집니다.'
-    );
-    // 구분을 모르는 사진(실내)은 견적 칸이 없다
-    await openTile(1);
-    expect(sheet().querySelector('.pv-quote')).toBeNull();
-    expect(sheet().textContent).not.toMatch(/예상 견적|합계/);
-    // 정적 사진(일자형 주방)도 같은 표
     await moreAll();
-    await openTile(30);
-    expect(sheet().querySelector('.pv-qsum').textContent).toBe(won(q.total));
-  });
-
-  test('가로 길이를 300mm 씩 — 줄 · 합계 · 범위가 다시 셈된다, 1.2m ~ 6.0m 끝에서는 단추가 멈춘다', async () => {
-    await load();
-    await openTile(2); // 붙박이 → 붙박이장 표 (300mm = 1자 단위 올림)
-    const box = sheet().querySelector('.pv-quote');
-    const [minus, plus] = box.querySelectorAll('.pv-step-btn');
-    expect([minus.getAttribute('aria-label'), plus.getAttribute('aria-label')]).toEqual([
-      '가로 길이 줄이기',
-      '가로 길이 늘리기',
-    ]);
-    expect([minus.getAttribute('type'), plus.getAttribute('type')]).toEqual(['button', 'button']);
-    expect(box.querySelector('.pv-size-value').getAttribute('aria-live')).toBe('polite');
-    const shown = () => [
-      box.querySelector('.pv-size-value').textContent,
-      box.querySelector('.pv-qsum').textContent,
-      quoteRows()[0],
-    ];
-    const at = (w) => {
-      const q = serverQuote.buildQuote('wardrobe', w);
-      return [
-        (w / 1000).toFixed(1) + 'm',
-        won(q.total),
-        [q.items[0].name, q.items[0].quantity, won(q.items[0].total)],
-      ];
-    };
-    expect(shown()).toEqual(at(3000));
-    expect(quoteRows()[0][1]).toBe('3000mm (10자)');
-    plus.click();
-    expect(shown()).toEqual(at(3300));
-    minus.click();
-    minus.click();
-    expect(shown()).toEqual(at(2700));
-    for (let i = 0; i < 20; i++) minus.click();
-    expect(shown()).toEqual(at(1200));
-    expect([minus.disabled, plus.disabled]).toEqual([true, false]);
-    for (let i = 0; i < 30; i++) plus.click();
-    expect(shown()).toEqual(at(6000));
-    expect([minus.disabled, plus.disabled]).toEqual([false, true]);
-    expect(box.querySelector('.pv-qrange').textContent).toBe(
-      '예상 범위 ' +
-        won(serverQuote.buildQuote('wardrobe', 6000).range.min) +
-        ' ~ ' +
-        won(serverQuote.buildQuote('wardrobe', 6000).range.max)
-    );
-    // 다시 열면 3.0m 부터
-    await openTile(2);
-    expect(sheet().querySelector('.pv-size-value').textContent).toBe('3.0m');
-  });
-
-  test('합계는 지난 값에서 새 값으로 굴린다 (SeganMotion.roll) — 처음 그릴 때는 굴리지 않는다', async () => {
-    await load();
-    const rolls = [];
-    window.SeganMotion = {
-      roll: (el, from, to, format) => {
-        rolls.push([from, to]);
-        el.textContent = format(to);
-      },
-    };
-    try {
-      await openTile(0);
-      expect(rolls).toEqual([]);
-      sheet().querySelector('.pv-step-btn[data-step="1"]').click();
-      const a = serverQuote.buildQuote('sink', 3000).total;
-      const b = serverQuote.buildQuote('sink', 3300).total;
-      expect(rolls).toEqual([[a, b]]);
-      expect(sheet().querySelector('.pv-qsum').textContent).toBe(won(b));
-    } finally {
-      delete window.SeganMotion;
+    for (const i of [0, 1, 2, 30]) {
+      await openTile(i);
+      expect(sheet().querySelector('.pv-quote')).toBeNull();
+      expect(sheet().textContent).not.toMatch(/견적|합계/);
     }
-  });
-
-  test('모습 — 숫자는 고정폭, 가로 길이 단추는 44px, 합계 줄 아래는 진한 선', () => {
-    const css = read('segan/shell.css');
-    const block = (sel) =>
-      css.match(new RegExp(`\\n${sel.replace(/[.-]/g, '\\$&')} \\{([^}]*)\\}`))[1];
-    expect(block('.pv-step-btn')).toMatch(/width:\s*44px;/);
-    expect(block('.pv-step-btn')).toMatch(/height:\s*44px;/);
-    expect(css).toMatch(/\.pv-qrow,\s*\.pv-qtotal \{[^}]*font-variant-numeric:\s*tabular-nums;/);
-    expect(block('.pv-size-value')).toMatch(/font-variant-numeric:\s*tabular-nums;/);
-    expect(css).toMatch(/\n\.pv-qtotal \{[^}]*border-bottom-color:\s*var\(--v5-ink\);/);
+    const V = window.SeganPostView;
+    expect([V.buildQuote, V.quoteKey, V.QUOTE_W]).toEqual([undefined, undefined, undefined]);
+    expect(read('segan/collection-view.js')).not.toMatch(/QUOTE|buildQuote|pv-q|pv-step/);
+    expect(read('segan/shell.css')).not.toMatch(/\.pv-quote|\.pv-q[a-z]|\.pv-step|\.pv-size/);
+    expect(window.SeganCollection.COLS).not.toMatch(/category/);
   });
 });
 

@@ -5885,7 +5885,7 @@ button.sm-num[aria-pressed='true'] {
   outline-offset: -2px;
 }
 
-/* 칸 — 색상 · 예상 견적 · 업체 (제목은 작은 글) */
+/* 칸 — 색상 · 업체 정보 (제목은 작은 글) */
 .pv-sec {
   min-width: 0;
 }
@@ -5914,102 +5914,6 @@ button.sm-num[aria-pressed='true'] {
 .pv-colors .cl-chip {
   width: 16px;
   height: 16px;
-}
-
-/* 예상 견적 — 가로 길이(− 값 +) · 줄 · 합계 · 범위 */
-.pv-size {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 4px 0 12px;
-  font-size: 14px;
-}
-
-.pv-step {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--v5-line-25);
-}
-
-.pv-step-btn {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--v5-ink);
-  font: inherit;
-  font-size: 18px;
-  font-weight: 300;
-  cursor: pointer;
-}
-
-.pv-step-btn:disabled {
-  color: var(--v5-ink-32);
-  cursor: default;
-}
-
-.pv-step-btn:focus-visible {
-  outline: 1px solid var(--v5-ink);
-  outline-offset: -4px;
-}
-
-.pv-size-value {
-  min-width: 56px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.pv-qrows {
-  border-top: 1px solid var(--v5-line);
-}
-
-.pv-qrow,
-.pv-qtotal {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--v5-line);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-
-.pv-qrow span:last-child,
-.pv-qtotal strong {
-  flex: none;
-}
-
-.pv-qrow small {
-  margin-left: 4px;
-  font-size: 12px;
-  color: var(--v5-ink-45);
-}
-
-.pv-qtotal {
-  padding: 14px 0;
-  border-bottom-color: var(--v5-ink);
-}
-
-.pv-qtotal strong {
-  font-size: 17px;
-  font-weight: 500;
-}
-
-.pv-qrange {
-  margin: 10px 0 0;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: var(--v5-ink-62);
-}
-
-.pv-qnote {
-  margin: 6px 0 0;
-}
-
-.pv-photo img {
-  object-fit: contain;
 }
 
 /* 장소(왼쪽) · 좋아요(오른쪽) 한 줄 */
