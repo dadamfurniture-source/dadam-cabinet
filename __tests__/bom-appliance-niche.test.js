@@ -87,6 +87,9 @@ describe('규칙 파일 — 빌트인 오븐장 (PB 15T · 뒷판 절반)', () =
       '빌트인 오븐장 내경 높이 590 가 오븐 A 설치 공간 높이 600 보다 작습니다',
     ]);
     expect(OC.warningsOf({ W: 20, H: 620, D: 560, builtinOven: true })[0]).toMatch(/^빌트인 오븐장 폭 20 는 측판 두께\(30\)/);
+    // 니치 깊이 (2026-11-21 「니치 깊이 칸 더해라」) — 내경 깊이 = 천지판 깊이 560 − 17 = 543
+    expect(OC.applianceWarningsOf(box, { nicheW: 560, nicheH: 590, nicheD: 550 }, '오븐 A')).toEqual(['빌트인 오븐장 내경 깊이 543 가 오븐 A 설치 공간 깊이 550 보다 작습니다']);
+    expect(OC.applianceWarningsOf(box, { nicheW: 560, nicheH: 590, nicheD: 540 }, '오븐 A')).toEqual([]);
   });
   test('맞춘 상자는 고른 가전에 경고가 없다', () => {
     const mw = { category: 'microwave', W: 480, H: 280, D: 380, h: 280 };

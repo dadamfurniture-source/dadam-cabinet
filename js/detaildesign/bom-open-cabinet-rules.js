@@ -43,7 +43,8 @@
  *   천지판 = (W − 2×15) × (D − 17) 2장   (15T 뒷판 + 여유 2 — 위 18T 상자와 같은 짜임)
  *   뒷판   = (W − 2×15) × ⌊H/2⌋    1장   ← "15T 통판(측판 사이)으로 하고, 높이는 절반만 해서 반은 뚫려있게"
  * 뒷판을 아래 · 위 어느 절반에 둘지는 말씀에 없어 **아래 절반**으로 둔다 — [확인 필요] BUILTIN_OVEN.BACK_AT 한 곳만 고치면 된다.
- * 칸 높이는 니치에 맞춘다 (applianceBoxOf). 니치 깊이는 가전 DB 에 없어 깊이는 검사하지 않는다.
+ * 칸 높이는 니치에 맞춘다 (applianceBoxOf). 폭 · 높이 · 깊이는 니치 이상인지 본다 (applianceWarningsOf) — 깊이는 천지판 깊이(뒷판 앞까지)와
+ *   가전 DB niche_min_d_mm 를 견준다 (2026-11-21 사장님 「니치 깊이 칸 더해라」 — 칸은 DB 에 이미 있었고, 엔진까지 싣는다).
  *
  * ── 가전 칸 높이 (2026-10-30 사장님 「가전에 맞춰 단 높이」) ─────
  * 키큰장 가운데 단(가전 칸)을 고른 가전에 맞춘다 — applianceBoxOf:
@@ -181,9 +182,10 @@
    *     높이 위 여유(topGap)가 있으면 + 위, 없으면 + 20
    *     깊이 뒤 여유(backGap)가 있으면 + 뒤, 없으면 + 20
    *   가전 외경 · 여유는 가전 DB(appliance_models — width/height/depth_mm · side/top/back_gap_mm).
-   * 빌트인 오븐장(o.builtinOven)은 제조사 규칙 — 내경 폭 · 높이가 니치(nicheW · nicheH) 이상인가만 본다 (2026-10-30 사장님).
+   * 빌트인 오븐장(o.builtinOven)은 제조사 규칙 — 내경 폭 · 높이 · 깊이가 니치(nicheW · nicheH · nicheD) 이상인가만 본다
+   *   (2026-10-30 사장님 · 깊이는 2026-11-21 「니치 깊이 칸 더해라」 — 내경 깊이 = 천지판 깊이, 뒷판 앞까지).
    * @param o      {W,H,D, builtinOven?} 오픈장 몸통 외경
-   * @param outer  {W,H,D, sideGap?, topGap?, backGap?, nicheW?, nicheH?} 가전 외경과 제조사 설치 여유 · 설치 공간
+   * @param outer  {W,H,D, sideGap?, topGap?, backGap?, nicheW?, nicheH?, nicheD?} 가전 외경과 제조사 설치 여유 · 설치 공간
    * @param label  가전 이름 (경고 문구, 기본 '가전')
    * @returns {string[]}
    */
@@ -194,7 +196,7 @@
     const name = label || '가전';
     const out = [];
     if (isBuiltinOven(o)) {
-      [['innerW', 'nicheW', '폭'], ['innerH', 'nicheH', '높이']].forEach(([ik, nk, word]) => {
+      [['innerW', 'nicheW', '폭'], ['innerH', 'nicheH', '높이'], ['innerD', 'nicheD', '깊이']].forEach(([ik, nk, word]) => {
         const need = dim(outer && outer[nk]);
         if (need > 0 && g[ik] < need) out.push(`${s.label} 내경 ${word} ${g[ik]} 가 ${name} 설치 공간 ${word} ${need} 보다 작습니다`);
       });

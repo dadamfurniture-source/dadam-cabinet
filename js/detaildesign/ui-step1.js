@@ -1261,7 +1261,7 @@
         if (!a || typeof a !== 'object') return null;
         const n = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
         return { name: String(a.name || ''), W: n(a.w), H: n(a.h), D: n(a.d),
-          sideGap: n(a.sideGap), topGap: n(a.topGap), backGap: n(a.backGap), nicheW: n(a.nicheW), nicheH: n(a.nicheH) };
+          sideGap: n(a.sideGap), topGap: n(a.topGap), backGap: n(a.backGap), nicheW: n(a.nicheW), nicheH: n(a.nicheH), nicheD: n(a.nicheD) };
       }
 
       /**
