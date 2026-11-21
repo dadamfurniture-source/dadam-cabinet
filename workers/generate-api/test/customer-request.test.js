@@ -200,6 +200,32 @@ test('대화 프롬프트 — 사진 · app 이 없으면 예전 글 그대로, 
   assert.match(app, /Never state measurements/);
   assert.ok(app.includes('「정리하기」'));
   assert.ok(!app.includes('「연출컷 생성」'));
+  // 11-21 대표님 「AI 가 필요한 내용을 질문으로 이끈다」 — 차례 · 보기 · 손잡이 금지
+  assert.match(app, /You lead the consultation/);
+  assert.match(app, /in this order: door colour or material/);
+  assert.match(app, /two or three concrete choices/);
+  assert.match(app, /never suggest handles or knobs/);
+  assert.ok(app.includes('Customer: 오크 도어'));
+});
+
+test('/api/chat app — 빠른 설정(생각 low · 사진 낮은 해상도), app 없으면 예전 설정 그대로', async () => {
+  installRoute({ chatReply: '좋아요. 상판은 화이트 · 그레이 가운데 어느 쪽이 좋으세요?' });
+  const msgs = [{ role: 'ai', text: '도어 색은요?' }, { role: 'me', text: '오크' }];
+  const res = await post('/api/chat', { category: 'sink', app: true, room_image: 'A'.repeat(4000), image_type: 'image/jpeg', messages: msgs });
+  assert.deepEqual(await res.json(), { success: true, reply: '좋아요. 상판은 화이트 · 그레이 가운데 어느 쪽이 좋으세요?' });
+  const g = calls.gemini[0].generationConfig;
+  assert.deepEqual(g.thinkingConfig, { thinkingLevel: 'low' });
+  assert.equal(g.mediaResolution, 'MEDIA_RESOLUTION_LOW');
+  assert.equal(g.maxOutputTokens, 1024);
+
+  installRoute();
+  await post('/api/chat', { category: 'sink', app: true, messages: msgs });
+  assert.ok(!('mediaResolution' in calls.gemini[0].generationConfig), '사진이 없으면 해상도 키도 없다');
+
+  installRoute();
+  await post('/api/chat', { category: 'sink', messages: msgs });
+  const old = calls.gemini[0].generationConfig;
+  assert.ok(!('thinkingConfig' in old) && !('maxOutputTokens' in old), 'ai-design.html 상담은 예전 그대로');
 });
 
 test('정리 프롬프트 · 답 읽기 — 목록 안의 색 · 스타일만, brief 는 다듬어 600자', () => {
