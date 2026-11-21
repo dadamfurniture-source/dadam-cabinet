@@ -9,10 +9,10 @@
     <title>경첩, 덮음 방식 · 열림 각도 · 댐핑 읽기 · 매거진 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112126" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112126" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112126" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112126" />
+    <link rel="icon" href="icons/icon.svg?v=2026112127" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112127" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112127" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112127" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -22,21 +22,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112126" />
-    <link rel="stylesheet" href="info.css?v=2026112126" />
+    <link rel="stylesheet" href="shell.css?v=2026112127" />
+    <link rel="stylesheet" href="info.css?v=2026112127" />
     <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112126" />
+    <link rel="stylesheet" href="magazine.css?v=2026112127" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112126"></script>
+    <script src="../js/config.js?v=2026112127"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112126"></script>
-    <script src="shell.js?v=2026112126" defer blocking="render"></script>
+    <script src="motion.js?v=2026112127"></script>
+    <script src="shell.js?v=2026112127" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112126" defer></script>
+    <script src="guide.js?v=2026112127" defer></script>
     <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112126" defer blocking="render"></script>
+    <script src="blog.js?v=2026112127" defer blocking="render"></script>
   </head>
   <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
   <body class="sg-app" data-tab="blog">
@@ -152,7 +152,7 @@
 
           <h3><span class="ma-n">3.1</span>넓은 각 경첩과 안쪽 서랍</h3>
           <figure class="ma-fig">
-          <picture><source srcset="magazine/art/hinges-5.webp" type="image/webp" /><img src="magazine/art/hinges-5.jpg" alt="크게 열린 하부장 문 옆으로 안쪽 서랍이 그릇을 담은 채 빠져나온 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
+          <picture><source srcset="magazine/art/hinges-5.webp" type="image/webp" /><img src="magazine/art/hinges-5.jpg" alt="크게 열린 하부장 문 옆으로 안쪽 서랍이 그릇을 담은 채 앞으로 곧게 빠져나온 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
           <figcaption>넓게 열리는 경첩. 문이 옆판 밖으로 튀어나오지 않아 안쪽 서랍이 문에 걸리지 않고 빠져나옵니다.</figcaption>
         </figure>
           <p>장 안에 서랍을 넣는 경우, 표준 경첩으로는 열린 문이 칸 안쪽으로 조금 들어와 서랍이 걸릴 수 있습니다. 155° 안팎으로 넓게 열리는 경첩은 문이 옆판 밖으로 나오지 않아 안쪽 서랍이 문에 걸리지 않습니다. 넓은 각 경첩은 여러 회사가 155° · 165° · 170° 등으로 냅니다.</p>
