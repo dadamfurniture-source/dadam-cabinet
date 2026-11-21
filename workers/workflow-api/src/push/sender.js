@@ -10,6 +10,9 @@
  *      작업자 알림은 그 사람의 기기 모두로 간다 — 팩토리 구성원이기도 한 작업자의 기기는 업체에 묶여 등록되기 때문이다
  *      (routes.js pushCompanyFor · 2026-11-14).
  *      확인할 사진(ledger_pending)은 아직 그 업체의 대표 · 실장일 때만 (돌려받은 사진 ledger_returned 은 구성원이면).
+ *      무료가 곧 끝남(trial_ending)은 활동 중인 업체의 대표에게만, 검토할 사업자등록증(biz_cert_review)은 본사 업체의 대표 · 실장에게만.
+ *      사업자등록증 검토 결과(biz_cert_decided, company_id 없음)는 올린 사람의 기기 모두로 간다 — 업체가 아직 없을 수도,
+ *      이미 다른 업체 구성원이라 기기가 업체에 묶여 있을 수도 있다.
  *   3. 그 사람의 그 업체 기기 (업체 없는 신청이면 업체 없는 기기) 모두에 보낸다.
  *        404 · 410 · 쓸 수 없는 키 → 그 기기 등록을 지운다
  *        하나라도 받으면 → sent (sent_at)
@@ -25,7 +28,7 @@
 
 import { callRpc, selectMany, updateBy, MONEY_ROLES } from '../supabase.js';
 import { loadVapid, sendWebPush, PushError } from './webpush.js';
-import { WORK_MANAGER_KINDS, WORK_NOTIFICATION_KINDS } from './messages.js';
+import { PERSON_NOTIFICATION_KINDS, WORK_MANAGER_KINDS, WORK_NOTIFICATION_KINDS } from './messages.js';
 
 export const PUSH_SEND_CRON = '* * * * *';
 /** 한 번에 잡는 줄 수 */
@@ -38,6 +41,10 @@ const CONCURRENCY = 6;
 export const OWNER_KINDS = Object.freeze(['billing_failed', 'company_suspended']);
 /** 이 종류는 보낼 때도 대표 · 실장이어야 한다 (supabase.js MONEY_ROLES) */
 export const MONEY_KINDS = Object.freeze(['ledger_pending', 'ledger_notice', 'stock_band_low']);
+/** 이 종류는 활동 중인 업체의 대표에게만 간다 — 무료가 곧 끝남 (0077, 결제 관리는 대표가 한다. 정지된 업체에는 보내지 않는다) */
+export const OWNER_ACTIVE_KINDS = Object.freeze(['trial_ending']);
+/** 이 종류는 보낼 때도 그 업체(다담 본사)의 대표 · 실장이어야 한다 — 검토할 사업자등록증 (0077) */
+export const REVIEWER_KINDS = Object.freeze(['biz_cert_review']);
 /** 끝난 줄을 남겨 두는 기간 */
 export const RETAIN_DAYS = 30;
 /** 하루 한 번 정리하는 시각 (UTC 18:17 = KST 03:17) */
@@ -56,6 +63,8 @@ const chunks = (list, size = ID_CHUNK) => {
 /** 알림을 받을 사람인가 — 보낼 때 다시 본다. workers = [{ user_id, status }] (작업자 알림 때만 읽는다) */
 export function isEligible(row, memberships, workers = []) {
   if (row.kind === 'partner_application' && !row.company_id) return true;
+  // 사업자등록증 검토 결과 — 올린 사람 본인에게 (업체 없이 넣는다)
+  if (PERSON_NOTIFICATION_KINDS.includes(row.kind) && !row.company_id) return true;
   if (WORK_NOTIFICATION_KINDS.includes(row.kind)) {
     if (row.company_id) return false;
     const w = (workers || []).find((x) => x.user_id === row.user_id);
@@ -66,7 +75,8 @@ export function isEligible(row, memberships, workers = []) {
   if (!m) return false;
   const status = m.company && m.company.status;
   if (OWNER_KINDS.includes(row.kind)) return m.role === 'owner' && (status === 'active' || status === 'suspended');
-  if (MONEY_KINDS.includes(row.kind) || WORK_MANAGER_KINDS.includes(row.kind)) return MONEY_ROLES.includes(m.role) && status === 'active';
+  if (OWNER_ACTIVE_KINDS.includes(row.kind)) return m.role === 'owner' && status === 'active';
+  if (MONEY_KINDS.includes(row.kind) || WORK_MANAGER_KINDS.includes(row.kind) || REVIEWER_KINDS.includes(row.kind)) return MONEY_ROLES.includes(m.role) && status === 'active';
   return status === 'active';
 }
 
@@ -74,10 +84,11 @@ export function isEligible(row, memberships, workers = []) {
  * 그 줄을 받을 기기 — 같은 사람 · 같은 업체 (업체 없는 신청이면 업체 없는 기기).
  * 작업자 알림(work_*, 업체 없음)은 그 사람의 기기 모두 — 팩토리 구성원이면서 작업자인 사람의 기기는 업체에 묶여 있어
  * 업체 없는 기기만 찾으면 하나도 못 받는다. 받을 사람인지(작업자 · 승인)는 isEligible 이 이미 봤다.
+ * 사업자등록증 검토 결과(biz_cert_decided, 업체 없음)도 그 사람의 기기 모두 — 올린 사람이 다른 업체 구성원이면 기기가 업체에 묶여 있다.
  */
 export function targetsFor(row, subs) {
   const company = row.company_id || null;
-  if (!company && WORK_NOTIFICATION_KINDS.includes(row.kind)) return subs.filter((s) => s.user_id === row.user_id);
+  if (!company && (WORK_NOTIFICATION_KINDS.includes(row.kind) || PERSON_NOTIFICATION_KINDS.includes(row.kind))) return subs.filter((s) => s.user_id === row.user_id);
   return subs.filter((s) => s.user_id === row.user_id && (s.company_id || null) === company);
 }
 

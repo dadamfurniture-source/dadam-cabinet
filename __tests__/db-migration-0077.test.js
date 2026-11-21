@@ -145,3 +145,46 @@ describe('0077 — 사업자등록증 · 첫 달 무료', () => {
     expect(probe.checks.length).toBeGreaterThanOrEqual(6);
   });
 });
+
+describe('0077 — 서버가 넣는 알림 종류', () => {
+  const messages = read('workers', 'workflow-api', 'src', 'push', 'messages.js');
+  const sender = read('workers', 'workflow-api', 'src', 'push', 'sender.js');
+  const listOf = (src, name) =>
+    [
+      ...new RegExp(`${name} = Object\\.freeze\\(\\[([^\\]]+)\\]\\)`)
+        .exec(src)[1]
+        .matchAll(/'([a-z_]+)'/g),
+    ].map((x) => x[1]);
+
+  test('코드 목록 = 0077 목록 (차례만 다름) · 맨 끝 셋이 이 차례', () => {
+    const after = kindsIn(/notification_outbox_kind_check CHECK \(([^;]+)\);/.exec(f)[1]);
+    const inCode = listOf(messages, 'NOTIFICATION_KINDS');
+    expect(inCode).toHaveLength(28);
+    expect([...inCode].sort()).toEqual([...after].sort());
+    expect(inCode.slice(-3)).toEqual(['trial_ending', 'biz_cert_review', 'biz_cert_decided']);
+    expect(after.slice(-3)).toEqual(inCode.slice(-3));
+  });
+
+  test('업체 없이 넣는 종류 — 서버 목록(업체 신청 · 작업자 넷 · 검토 결과)이 0077 의 company_check 와 같다', () => {
+    const inDb = kindsIn(/notification_outbox_company_check CHECK \(([^;]+)\);/.exec(f)[1]);
+    expect(listOf(messages, 'PERSON_NOTIFICATION_KINDS')).toEqual(['biz_cert_decided']);
+    expect([
+      'partner_application',
+      ...listOf(messages, 'WORK_NOTIFICATION_KINDS'),
+      ...listOf(messages, 'PERSON_NOTIFICATION_KINDS'),
+    ]).toEqual(inDb);
+  });
+
+  test('보낼 때 규칙 — 무료 종료는 활동 중인 업체의 대표 · 검토 알림은 대표 · 실장, 정지돼도 가는 종류는 그대로', () => {
+    expect(listOf(sender, 'OWNER_ACTIVE_KINDS')).toEqual(['trial_ending']);
+    expect(listOf(sender, 'REVIEWER_KINDS')).toEqual(['biz_cert_review']);
+    expect(listOf(sender, 'OWNER_KINDS')).toEqual(['billing_failed', 'company_suspended']);
+  });
+
+  test('넣는 곳 — 검토 알림 · 검토 결과는 account-api (무료 종료는 payments-api 가 넣는다)', () => {
+    const outbox = read('workers', 'account-api', 'src', 'push-outbox.js');
+    expect(outbox).toContain("kind: 'biz_cert_review'");
+    expect(outbox).toContain("kind: 'biz_cert_decided'");
+    expect(outbox).not.toContain("kind: 'trial_ending'");
+  });
+});

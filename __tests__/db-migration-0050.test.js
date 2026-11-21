@@ -175,7 +175,7 @@ describe('0050 — Manager 업체 제작 의뢰', () => {
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
     // 뒤 번호 0053 이 제작 의뢰 거둠을, 0064 가 팩토리용 작업자 알림 셋을, 0067 이 점검 알림을 더한다 (db-migration-0053 · 0064 · 0067 시험이 본다)
-    expect(names.filter((k) => !kinds.includes(k))).toEqual(['production_cancelled', 'work_link_request', 'work_reply', 'work_report', 'system_check_failed', 'stock_band_low']);
+    expect(names.filter((k) => !kinds.includes(k))).toEqual(['production_cancelled', 'work_link_request', 'work_reply', 'work_report', 'system_check_failed', 'stock_band_low', 'trial_ending', 'biz_cert_review', 'biz_cert_decided']);   // 0077 사업자등록증 · 첫 달 무료 셋
   });
 
   test('프로브 — 서버만 읽기 · 쓰기, 설계 · 열린 의뢰 · 차례 · 기한 · 받기 · 다시 추천 · 알림 종류', () => {

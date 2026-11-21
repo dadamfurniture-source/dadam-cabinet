@@ -8,8 +8,8 @@
  * 열 곳은 앱 안(/segan/…)만 — DB 도 ^/segan/ 만 받는다.
  *
  * 다른 워커가 같은 글을 따로 들고 있다 (서로 import 하지 않는다 — 워커마다 따로 배포된다):
- *   workers/account-api/src/push-outbox.js  업체 신청 (partner_application)
- *   workers/payments-api/src/push-outbox.js 결제 실패 · 업체 정지 (billing_failed · company_suspended)
+ *   workers/account-api/src/push-outbox.js  업체 신청 (partner_application) · 사업자등록증 검토 (biz_cert_review · biz_cert_decided)
+ *   workers/payments-api/src/push-outbox.js 결제 실패 · 업체 정지 (billing_failed · company_suspended) · 무료가 곧 끝남 (trial_ending)
  * 시험이 이 파일과 같은지 본다 — 글을 바꾸면 세 곳을 같이 바꾼다.
  */
 
@@ -17,7 +17,8 @@
  * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘 · 아침 브리핑 assistant_brief 는 0030,
  * 장부 알림 ledger_notice 는 0033, A/S 접수 as_request 는 0045, 제작 의뢰 셋 production_* 은 0050,
  * 제작 의뢰 거둠 production_cancelled 는 0053, 팩토리 대표 · 실장에게 가는 작업자 알림 셋 work_link_request ·
- * work_reply · work_report 는 0064, 설계 저장 · 학습 길 점검이 막힌 날 system_check_failed 는 0067, 밴드 만들기 요청 stock_band_low 는 0074).
+ * work_reply · work_report 는 0064, 설계 저장 · 학습 길 점검이 막힌 날 system_check_failed 는 0067, 밴드 만들기 요청 stock_band_low 는 0074,
+ * 사업자등록증 · 첫 달 무료 셋 trial_ending · biz_cert_review · biz_cert_decided 는 0077).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -45,10 +46,19 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'work_report',
   'system_check_failed',
   'stock_band_low',
+  'trial_ending',
+  'biz_cert_review',
+  'biz_cert_decided',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
 export const WORK_NOTIFICATION_KINDS = Object.freeze(['work_invited', 'work_registration', 'work_assigned', 'work_schedule']);
+
+/**
+ * 올린 사람에게 가는 알림 (0077) — 업체 없이(company_id 비움) 넣는다 (올린 사람에게 업체가 아직 없다, DB notification_outbox_company_check).
+ *   biz_cert_decided  사업자등록증 본사 검토 결과 (승인 · 반려). 그 사람의 기기 모두로 간다 (sender.js)
+ */
+export const PERSON_NOTIFICATION_KINDS = Object.freeze(['biz_cert_decided']);
 
 /**
  * 팩토리 대표 · 실장에게 가는 작업자 알림 (0064) — 업체 칸이 있어야 한다. 받는 사람은 그 팩토리의 대표 · 실장 (sender.js).
@@ -482,6 +492,38 @@ function stockBandLow({ color, qty, make } = {}) {
   };
 }
 
+/** 다담 본사 › 사업자등록증 확인 — 본사 화면이 생길 자리 */
+export const HQ_BIZ_CERT_URL = '/segan/me.html#hq-biz-cert';
+/** 무료가 끝나기 며칠 전에 알리는가 (payments-api 가 넣는다) */
+export const TRIAL_ENDING_DAYS = Object.freeze([7, 1]);
+
+/**
+ * 무료 이용이 곧 끝남 (2026-11-21 대표님 「사업자등록증 등록 시 첫 달 무료」) — 업체 대표에게. { daysLeft: 7 | 1 }
+ * 금액 · 업체 이름 · 결제일은 싣지 않는다 (결제 관리에서 본다).
+ */
+function trialEnding({ daysLeft } = {}) {
+  if (!TRIAL_ENDING_DAYS.includes(daysLeft)) return null;
+  const when = daysLeft === 1 ? '내일' : `${daysLeft}일 뒤`;
+  return {
+    title: '무료 이용 종료 예정',
+    body: `무료 이용이 ${when} 끝나고 첫 결제가 진행됩니다. 결제 관리에서 결제일과 금액을 확인해 주세요.`,
+    url: PARTNER_URL,
+  };
+}
+
+/** 검토할 사업자등록증 — 다담 본사 대표 · 실장에게. 사업자번호 · 이름 · 상호는 싣지 않는다 */
+function bizCertReview() {
+  return { title: '사업자등록증 확인', body: '검토할 사업자등록증이 있습니다.', url: HQ_BIZ_CERT_URL };
+}
+
+/** 사업자등록증 검토 결과 — 올린 사람에게 (업체 없음). { approved } — 반려 사유는 싣지 않는다 (화면에서 본다) */
+function bizCertDecided({ approved } = {}) {
+  if (typeof approved !== 'boolean') return null;
+  return approved
+    ? { title: '사업자등록증 확인 완료', body: '사업자등록증 확인이 끝났습니다. 팩토리를 첫 달 무료로 시작할 수 있습니다.', url: PARTNER_URL }
+    : { title: '사업자등록증 확인', body: '사업자등록증을 확인하지 못했습니다. 다시 올리거나 바로 시작할 수 있습니다.', url: PARTNER_URL };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -508,6 +550,9 @@ const BUILDERS = Object.freeze({
   work_report: workReport,
   system_check_failed: systemCheckFailed,
   stock_band_low: stockBandLow,
+  trial_ending: trialEnding,
+  biz_cert_review: bizCertReview,
+  biz_cert_decided: bizCertDecided,
 });
 
 /**

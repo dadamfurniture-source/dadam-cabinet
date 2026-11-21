@@ -157,7 +157,7 @@ const fail = (status, code, message, extra) => new PartnerError(status, code, me
 const invalid = (field) =>
   fail(422, 'invalid', FIELD_ERRORS[field] || FIELD_ERRORS.body, { field });
 
-class DbError extends Error {
+export class DbError extends Error {
   constructor(method, status, code) {
     super(`${method} ${status}${code ? ` ${code}` : ''}`);
     this.status = status;
@@ -166,7 +166,7 @@ class DbError extends Error {
 }
 
 /** service_role REST. 실패하면 DbError(상태 · PostgreSQL 코드) — 응답 본문은 남기지 않는다 */
-async function db(env, method, path, body, { prefer = 'return=representation' } = {}) {
+export async function db(env, method, path, body, { prefer = 'return=representation' } = {}) {
   const headers = {
     apikey: env.SUPABASE_SERVICE_ROLE_KEY,
     Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
@@ -189,7 +189,7 @@ async function db(env, method, path, body, { prefer = 'return=representation' } 
 const nowIso = () => new Date().toISOString();
 
 /** DB 시각 → ISO(UTC). 없거나 읽을 수 없으면 null */
-function iso(v) {
+export function iso(v) {
   if (v === null || v === undefined || v === '') return null;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
@@ -278,7 +278,7 @@ function chunks(list, size = ID_CHUNK) {
 }
 
 /** id → { name, email } (profiles) */
-async function profilesById(env, ids) {
+export async function profilesById(env, ids) {
   const uniq = [...new Set(ids.filter((id) => typeof id === 'string' && UUID_RE.test(id)))];
   const map = new Map();
   for (const part of chunks(uniq)) {

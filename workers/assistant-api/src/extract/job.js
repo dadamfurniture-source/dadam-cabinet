@@ -26,7 +26,6 @@ import { callRpc, updateWhere, selectMany, selectOne } from '../db.js';
 import { reserveBudget, settleBudget, costMicros, rateOf, US_GEO_MULTIPLIER } from '../meter.js';
 import { claudeClient, hasServerFallback, FALLBACK_BETA, textOf } from '../claude.js';
 import {
-  SCHEMA,
   SCHEMA_VERSION,
   ASK,
   ACCOUNT_GROUPS,
@@ -98,8 +97,8 @@ export function buildExtractRequest(env, { mime, data, accounts, businessKind = 
   };
 }
 
-/** Claude 요청 — 사진 한 장의 방향만 (읽기 전에 한 번) */
-export function buildOrientRequest(env, { mime, data }) {
+/** Claude 요청 — 사진 한 장의 방향만 (읽기 전에 한 번). system 은 문서 종류마다 (사업자등록증은 cert-schema.js) */
+export function buildOrientRequest(env, { mime, data, system = ORIENT_SYSTEM }) {
   const model = env.ORIENT_MODEL || ORIENT_MODEL_DEFAULT;
   return {
     model,
@@ -110,7 +109,7 @@ export function buildOrientRequest(env, { mime, data }) {
       effort: ORIENT_EFFORT,
       format: { type: 'json_schema', schema: ORIENT_SCHEMA },
     },
-    system: ORIENT_SYSTEM,
+    system,
     messages: [
       {
         role: 'user',
@@ -164,9 +163,9 @@ export function estimateExtractMicros(env, params) {
   );
 }
 
-/** 비공개 버킷에서 사진 바이트 */
-export async function readPhoto(env, path) {
-  const url = `${env.SUPABASE_URL}/storage/v1/object/${BUCKET}/${path
+/** 비공개 버킷에서 사진 바이트 — bucket 기본은 장부 사진 (사업자등록증은 cert.js 가 business-certs 를 준다) */
+export async function readPhoto(env, path, bucket = BUCKET) {
+  const url = `${env.SUPABASE_URL}/storage/v1/object/${bucket}/${path
     .split('/')
     .map(encodeURIComponent)
     .join('/')}`;
@@ -231,7 +230,7 @@ async function close(env, id, patch) {
 }
 
 /** Claude 한 번 — 부르다 실패하면 ExtractFail('claude_상태') */
-async function ask(env, params) {
+export async function ask(env, params) {
   try {
     return await claudeClient(env).beta.messages.create(params);
   } catch (e) {
@@ -240,7 +239,7 @@ async function ask(env, params) {
 }
 
 /** 답 → { raw } | 거절 · 잘림 · 틀린 JSON 이면 { status, error } */
-function readAnswer(final) {
+export function readAnswer(final) {
   if (final.stop_reason === 'refusal') return { status: 'refused', error: 'refusal' };
   if (final.stop_reason === 'max_tokens') return { status: 'failed', error: 'cut' };
   try {

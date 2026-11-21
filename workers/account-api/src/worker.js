@@ -1,7 +1,8 @@
 /**
  * dadam-account-api — 계정 자체를 다루는 작업
  *
- * 회원탈퇴와 협력업체(신청 · 업체 · 직원 초대 · 관리자 처리 — partner.js). 별도 워커로 둔 이유:
+ * 회원탈퇴와 협력업체(신청 · 업체 · 직원 초대 · 관리자 처리 — partner.js),
+ * 사업자등록증(올리기 · 확인 · 본사 검토 — biz-cert.js, 첫 달 무료). 별도 워커로 둔 이유:
  *   auth.users 삭제는 service_role 키가 있어야 한다. 브라우저에서는 못 한다.
  *   generate-api 에는 service_role 을 두지 않기로 했고(이미지 생성 워커가
  *   사용자 삭제 권한까지 갖고 있을 이유가 없다), payments-api 는 결제 전용이다.
@@ -10,6 +11,7 @@
  */
 import { corsHeaders, handleOptions, jsonResponse } from './cors.js';
 import { matchPartnerRoute, partnerResponse, runPartnerRoute } from './partner.js';
+import { matchCertRoute, runCertRoute } from './biz-cert.js';
 import { prepareWithdrawal, soleOwnerCompanies, withdrawalDetail, withdrawalSummary } from './withdrawal.js';
 
 class AuthError extends Error {
@@ -231,10 +233,11 @@ async function handleAdminDelete(request, env) {
 }
 
 /**
- * 협력업체 길 (partner.js). 로그인 확인은 verifyJwt, 관리자 길은 /admin/delete 와 같은 assertAdmin.
+ * 협력업체 길 (partner.js) · 사업자등록증 길 (biz-cert.js — run 에 runCertRoute).
+ * 로그인 확인은 verifyJwt, 관리자 길은 /admin/delete 와 같은 assertAdmin.
  * 로그인 안 됨 → 401 unauthorized, 관리자 아님 → 403 not_admin.
  */
-async function handlePartner(request, env, route, url) {
+async function handlePartner(request, env, route, url, run = runPartnerRoute) {
   let user;
   try {
     user = await verifyJwt(request, env);
@@ -276,7 +279,7 @@ async function handlePartner(request, env, route, url) {
       );
     }
   }
-  return runPartnerRoute(request, env, route, { user, url });
+  return run(request, env, route, { user, url });
 }
 
 export default {
@@ -319,6 +322,10 @@ export default {
 
     const partnerRoute = matchPartnerRoute(request.method, url.pathname);
     if (partnerRoute) return handlePartner(request, env, partnerRoute, url);
+
+    // 사업자등록증 — 회원 길 · 본사 검토 길 (인증은 협력업체 길과 같다)
+    const certRoute = matchCertRoute(request.method, url.pathname);
+    if (certRoute) return handlePartner(request, env, certRoute, url, runCertRoute);
 
     return new Response(JSON.stringify({ success: false, error: 'Not found' }), {
       status: 404,
