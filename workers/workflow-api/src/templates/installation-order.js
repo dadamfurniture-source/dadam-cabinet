@@ -111,6 +111,27 @@ export function fixturePartsBlock(items) {
 }
 
 /**
+ * 현장 재단표 (2026-11-21 사장님 「목찬넬, 걸레받이, 상몰딩은 현장에서 재단 해야하니까. 미리 재단하지 않았으면 좋겠음」) —
+ *   막대(BOM 행 siteBar — 엔진 bom-site-bar-rules.js siteBarsOf)마다 막대에서 자를 조각 길이. 막대가 없는 동결본(옛 설계)은 칸째 없다.
+ */
+export function siteCutBlock(snapshot) {
+  const rows = ((snapshot && snapshot.bom_payload && snapshot.bom_payload.materials) || []).filter((m) => m && m.siteBar && Array.isArray(m.siteBar.layout));
+  if (!rows.length) return '';
+  const body = rows.map((m) => tr([
+    esc(m.part || ''),
+    `${num(m.thickness)}T × ${num(m.w)} × ${num(m.siteBar.barLen || m.h)}`,
+    `${num(m.qty)}개`,
+    m.siteBar.layout.map((bar, i) => `막대 ${i + 1}: ${bar.map((len) => num(len)).join(' + ')}`).join('<br>'),
+  ])).join('');
+  return `
+  <h2>현장 재단표 <span class="hint">막대로 받아 현장에서 길이로 자르는 부재</span></h2>
+  <table>
+    ${thead(['부재', '막대', '수량', '막대마다 자를 길이 (mm)'])}
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+/**
  * 가전 — 설계에 들어갈 가전 (간편 플래너 배치 단계 「가전」 → design.appliances, 2026-11-20 사장님).
  * 설계 가전이 없으면 칸째 없다 (옛 설계 · 고르지 않은 설계의 지시서는 그대로다).
  */
@@ -166,7 +187,7 @@ function coverSheet(doc, snapshot, site, worker) {
   <table>
     ${thead(['품목', '분류', 'W × H × D (mm)', '모듈 수'])}
     <tbody>${summaryRows || tr(['-', '-', '-', '-'])}</tbody>
-  </table>${fixturePartsBlock(items)}${designAppliancesBlock(design)}
+  </table>${fixturePartsBlock(items)}${designAppliancesBlock(design)}${siteCutBlock(snapshot)}
 
   ${layout2(doc) ? '' : installChecks(doc, snapshot)}<table class="sign">
     <tbody>

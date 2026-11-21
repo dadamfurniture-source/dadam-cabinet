@@ -31,6 +31,7 @@
 import { ConflictError, DbError, NotFoundError, ValidationError, callRpc, insertOne, restDelete, selectMany, selectOne, updateBy } from './supabase.js';
 import { stockCompanyOf, qtyOf, STOCK_ITEMS_LIMIT } from './stock.js';
 import { bandStripsOf, bandReorderCheck, colorLabel } from './stock-bands.js';
+import { unitNameOf } from './hardware-units.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -75,7 +76,6 @@ async function itemsWithBands(env, companyId) {
 
 /** 나쁜 차례 */
 const RANK = { ok: 0, ignored: 0, expected: 1, unlinked: 2, short: 3 };
-const UNIT_NAME = { EA: '개', SET: '세트', PAIR: '쌍' };
 
 function dbPending() {
   const err = new ConflictError('DB 0063 적용 전입니다 — 자재 잇기는 적용 뒤에 쓸 수 있습니다');
@@ -134,7 +134,7 @@ export function hardwareNeeds(rows) {
     const key = hardwareKey(r.category, r.item);
     const n = Number(r.qty);
     if (!key || !Number.isFinite(n) || n <= 0) continue;
-    const unit = UNIT_NAME[String(r.unit || '').toUpperCase()] || clean(r.unit).slice(0, 8) || '개';
+    const unit = unitNameOf(clean(r.unit));
     const cur = by.get(key.key);
     if (cur) cur.need = Math.round((cur.need + n) * 100) / 100;
     else by.set(key.key, { ...key, kind: 'hardware', need: Math.round(n * 100) / 100, unit });

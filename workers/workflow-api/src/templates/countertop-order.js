@@ -54,15 +54,19 @@ export function planSvg(req) {
  * 일자 상판 탑뷰 (2026-11-05 사장님 「하부장만 표시 · 탑뷰 · 하부장 배치는 그대로 · 개수대 · 가스대 표시 · 전체 치수는 정확하게 ·
  * 끊김 위치는 표시할 필요 없어」) — 위에서 본 하부장 칸(번호 = 지시서 모듈 번호), 개수대 칸에 싱크볼 · 수전, 가스대 칸에 쿡탑,
  * 하부장 위 수납장이 선 칸은 빗금 「상판 없음」. 선: 상판 바깥 굵은 실선 · 하부장 칸 가는 선 · 타공 파선 · 벽 아주 굵은 선 · 치수선.
- * 싱크볼 · 쿡탑 크기는 고른 모델의 타공 치수, 모델이 없으면 칸 안 자리만 (그림 크기 — 「모델 미지정」).
+ * 싱크볼 · 쿡탑 크기는 고른 모델의 타공 치수 — 모델이 없으면 타공을 그리지 않고 칸에 「모델 미정」만 (크기를 지어내지 않는다).
+ * 타공 자리 (2026-11-21 사장님 「모듈 배치, 모델이름, 타공 크기만 놓으면, 앞뒤 자리는 업체에서 보통 100으로 잡음」):
+ *   좌우 = 칸 가운데(중심 치수), 앞뒤 = 타공 앞변이 상판 앞선에서 TOP_CUTOUT_FRONT_MM — 그림에 「앞 100 (업체 기준)」.
+ *   수전 자리는 그리지 않는다 (모델 이름만 — 자리는 업체).
  */
+export const TOP_CUTOUT_FRONT_MM = 100;
 function straightPlanSvg(req) {
   const W = 700;
   const padL = 30, padR = 90, padT = 46;
   const len = Math.max(1, req.length);
   const dep = Math.max(1, req.depth);
   const s = Math.min((W - padL - padR) / len, 200 / dep);
-  const nHoles = req.cutouts.filter((c) => c.center !== null).length;
+  const nHoles = req.cutouts.filter((c) => c.center !== null && c.kind !== 'faucet').length;
   const H = Math.round(padT + dep * s + 52 + nHoles * 14 + 26);
   const X = (mm) => padL + mm * s;
   const Y = (mm) => padT + mm * s;     // 0 = 벽(뒤), dep = 앞
@@ -92,19 +96,24 @@ function straightPlanSvg(req) {
     if (d) out.push(`<rect x="${X(0).toFixed(1)}" y="${Y(0).toFixed(1)}" width="${(len * s).toFixed(1)}" height="${(d * s).toFixed(1)}" fill="none" stroke="#7c3aed" stroke-width="0.8" stroke-dasharray="6 3"/>`);
     out.push(`<text x="${X(len).toFixed(1)}" y="${(Y(0) - 8).toFixed(1)}" font-size="10" text-anchor="end" fill="#7c3aed">뒷선반 ${d ? `깊이 ${num(d)}` : '크기 미정'}${f.rearShelf.h > 0 ? ` · 높이 ${num(f.rearShelf.h)}` : ''}</text>`);
   }
-  // 타공 — 파선. 싱크볼 · 쿡탑은 모델 타공 치수, 수전은 싱크볼 뒤 가운데
+  // 타공 — 파선. 싱크볼 · 쿡탑은 모델 타공 치수 · 칸 가운데 · 앞변 = 앞선에서 100 (업체 기준). 모델이 없으면 이름 칸만
   let holeRow = 0;
-  req.cutouts.filter((c) => c.center !== null).forEach((c) => {
-    const m = mods.find((x) => x.no === c.no);
+  req.cutouts.filter((c) => c.center !== null && c.kind !== 'faucet').forEach((c) => {
     const has = c.model && c.model.w && c.model.d;
-    const cw = has ? c.model.w : Math.max(100, (m ? m.w : 600) - 160);
-    const cd = has ? c.model.d : Math.max(100, dep - 260);
-    const cx = X(c.center), cy = Y(dep / 2 + 20);
-    out.push(`<rect x="${(cx - cw * s / 2).toFixed(1)}" y="${(cy - cd * s / 2).toFixed(1)}" width="${(cw * s).toFixed(1)}" height="${(cd * s).toFixed(1)}" rx="${c.kind === 'sink' && has && c.model.r ? Math.min(6, c.model.r * s).toFixed(1) : 0}" fill="none" stroke="#1d4ed8" stroke-width="1" stroke-dasharray="5 3"/>`);
-    out.push(`<text x="${cx.toFixed(1)}" y="${(cy + 4).toFixed(1)}" font-size="10" text-anchor="middle" fill="#1d4ed8">${KIND_ICON[c.kind] || ''} ${esc(c.label)}${has ? ` ${num(c.model.w)}×${num(c.model.d)}` : ' (모델 미지정)'}</text>`);
-    if (c.kind === 'sink') {
-      const fy = (cy - cd * s / 2 + Y(0)) / 2;
-      out.push(`<circle cx="${cx.toFixed(1)}" cy="${fy.toFixed(1)}" r="4" fill="none" stroke="#1d4ed8" stroke-width="1"/><text x="${(cx + 7).toFixed(1)}" y="${(fy + 3).toFixed(1)}" font-size="9" fill="#1d4ed8">③ 수전</text>`);
+    const cx = X(c.center);
+    const name = c.model && c.model.name ? c.model.name : '';
+    if (!has) {
+      out.push(`<text x="${cx.toFixed(1)}" y="${Y(dep / 2).toFixed(1)}" font-size="10" text-anchor="middle" fill="#b45309">${KIND_ICON[c.kind] || ''} ${esc(c.label)} — ${c.model ? '모델 타공 치수 없음' : '모델 미정'}</text>`);
+    } else {
+      const cw = c.model.w, cd = c.model.d;
+      const yFront = Y(dep - TOP_CUTOUT_FRONT_MM), yBack = yFront - cd * s;
+      out.push(`<rect x="${(cx - cw * s / 2).toFixed(1)}" y="${yBack.toFixed(1)}" width="${(cw * s).toFixed(1)}" height="${(cd * s).toFixed(1)}" rx="${c.model.r ? Math.min(6, c.model.r * s).toFixed(1) : 0}" fill="none" stroke="#1d4ed8" stroke-width="1" stroke-dasharray="5 3"/>`);
+      out.push(`<text x="${cx.toFixed(1)}" y="${((yFront + yBack) / 2 - 2).toFixed(1)}" font-size="10" text-anchor="middle" fill="#1d4ed8">${KIND_ICON[c.kind] || ''} ${esc(c.label)}${name ? ` ${esc(name)}` : ''}</text>`);
+      out.push(`<text x="${cx.toFixed(1)}" y="${((yFront + yBack) / 2 + 10).toFixed(1)}" font-size="10" text-anchor="middle" fill="#1d4ed8">타공 ${num(cw)} × ${num(cd)}${c.model.r ? ` R${num(c.model.r)}` : ''}</text>`);
+      // 앞 100 — 타공 앞변 ~ 상판 앞선
+      const lx = cx + cw * s / 2 + 8;
+      out.push(`<line x1="${lx.toFixed(1)}" y1="${yFront.toFixed(1)}" x2="${lx.toFixed(1)}" y2="${Y(dep).toFixed(1)}" stroke="#1d4ed8" stroke-width="0.6"/>${['yFront', 'yDep'].map((k) => { const yy = k === 'yFront' ? yFront : Y(dep); return `<line x1="${(lx - 3).toFixed(1)}" y1="${yy.toFixed(1)}" x2="${(lx + 3).toFixed(1)}" y2="${yy.toFixed(1)}" stroke="#1d4ed8" stroke-width="0.6"/>`; }).join('')}`);
+      out.push(`<text x="${(lx + 4).toFixed(1)}" y="${((yFront + Y(dep)) / 2 + 3).toFixed(1)}" font-size="9" fill="#1d4ed8">앞 ${num(TOP_CUTOUT_FRONT_MM)} (업체 기준)</text>`);
     }
     // 중심 치수 — 왼쪽 끝에서
     holeRow += 1;
@@ -132,7 +141,7 @@ function straightPlanSvg(req) {
   const dx = X(len) + 16;
   out.push(`<line x1="${dx}" y1="${Y(0).toFixed(1)}" x2="${dx}" y2="${Y(dep).toFixed(1)}" stroke="#000" stroke-width="0.9"/><line x1="${dx - 4}" y1="${Y(0).toFixed(1)}" x2="${dx + 4}" y2="${Y(0).toFixed(1)}" stroke="#000" stroke-width="0.9"/><line x1="${dx - 4}" y1="${Y(dep).toFixed(1)}" x2="${dx + 4}" y2="${Y(dep).toFixed(1)}" stroke="#000" stroke-width="0.9"/>`);
   out.push(`<text x="${dx + 6}" y="${Y(dep / 2).toFixed(1)}" font-size="11" font-weight="700">깊이 ${num(dep)}</text>`);
-  out.push(`<text x="${X(0).toFixed(1)}" y="${(H - 6).toFixed(1)}" font-size="9" fill="#555">선: 굵은 실선 = 상판 바깥 · 아주 굵은 선 = 벽 · 가는 선 = 하부장 칸 · 파선 = 타공 · 빗금 = 상판 없음 · 치수 mm</text>`);
+  out.push(`<text x="${X(0).toFixed(1)}" y="${(H - 6).toFixed(1)}" font-size="9" fill="#555">선: 굵은 실선 = 상판 바깥 · 아주 굵은 선 = 벽 · 가는 선 = 하부장 칸 · 파선 = 타공 (칸 가운데 · 앞 ${num(TOP_CUTOUT_FRONT_MM)} 업체 기준) · 빗금 = 상판 없음 · 치수 mm</text>`);
   return `<svg class="top-plan" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="상판 탑뷰 — 하부장 배치 · 타공 · 전체 치수" font-family="'Malgun Gothic', sans-serif">${out.join('')}</svg>`;
 }
 
