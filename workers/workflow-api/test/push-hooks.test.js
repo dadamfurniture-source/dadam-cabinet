@@ -146,7 +146,7 @@ test('되살리기 요청(대표 아님) → 그 업체 active 대표들에게 o
     assert.equal(row.dedupe_key, `order_request:${event.id}:${row.user_id}`);
     assert.equal(row.title, '승인 요청');
     assert.equal(row.body, '수주 SO-20261029-A1B2 되살리기 요청이 왔습니다. 확인해 주세요.');
-    assert.equal(row.url, '/segan/me.html#partner');
+    assert.equal(row.url, '/segan/me.html#p-contract');
   }
   assertNoPii(fake);
   assert.equal(r.waits, 1, '응답 뒤에 넣는다');

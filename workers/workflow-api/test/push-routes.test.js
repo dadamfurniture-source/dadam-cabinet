@@ -17,6 +17,8 @@ import {
   isValidMessage,
   NOTIFICATION_KINDS,
   PARTNER_URL,
+  QUOTES_URL,
+  CONTRACTS_URL,
   TITLE_MAX,
   BODY_MAX,
   charLen,
@@ -91,12 +93,13 @@ const PII = ['홍길동', '010-1234-5678', '서울시 강남구', '12,345,000', 
 
 test('글 — 종류마다 제목 · 본문 · 열 곳, DB 글자 수 안, /segan/ 안', () => {
   const cases = [
-    ['order_request', { eventKind: 'revive', orderNo: 'SO-20261029-A1B2' }, '승인 요청', '수주 SO-20261029-A1B2 되살리기 요청이 왔습니다. 확인해 주세요.'],
-    ['order_request', { eventKind: 'revert', orderNo: null }, '승인 요청', '수주 완료 되돌리기 요청이 왔습니다. 확인해 주세요.'],
-    ['order_request_decided', { eventKind: 'revive', orderNo: 'SO-20261029-A1B2', approved: true }, '요청 결과', '수주 SO-20261029-A1B2 되살리기 요청이 승인되었습니다.'],
-    ['order_request_decided', { eventKind: 'revert', approved: false }, '요청 결과', '수주 완료 되돌리기 요청이 반려되었습니다.'],
-    ['confirmation_decided', { approved: true }, '고객 확인서', '고객이 확인서를 승인했습니다.'],
-    ['confirmation_decided', { approved: false }, '고객 확인서', '고객이 확인서를 반려했습니다. 수정 요청을 확인해 주세요.'],
+    // 수주 승인 요청 · 결과는 계약 화면, 고객 확인서 답은 견적 화면을 연다 (2026-11-21 — 예전에는 내 팩토리 화면)
+    ['order_request', { eventKind: 'revive', orderNo: 'SO-20261029-A1B2' }, '승인 요청', '수주 SO-20261029-A1B2 되살리기 요청이 왔습니다. 확인해 주세요.', CONTRACTS_URL],
+    ['order_request', { eventKind: 'revert', orderNo: null }, '승인 요청', '수주 완료 되돌리기 요청이 왔습니다. 확인해 주세요.', CONTRACTS_URL],
+    ['order_request_decided', { eventKind: 'revive', orderNo: 'SO-20261029-A1B2', approved: true }, '요청 결과', '수주 SO-20261029-A1B2 되살리기 요청이 승인되었습니다.', CONTRACTS_URL],
+    ['order_request_decided', { eventKind: 'revert', approved: false }, '요청 결과', '수주 완료 되돌리기 요청이 반려되었습니다.', CONTRACTS_URL],
+    ['confirmation_decided', { approved: true }, '고객 확인서', '고객이 확인서를 승인했습니다.', QUOTES_URL],
+    ['confirmation_decided', { approved: false }, '고객 확인서', '고객이 확인서를 반려했습니다. 수정 요청을 확인해 주세요.', QUOTES_URL],
     ['partner_application', { status: 'meeting' }, '팩토리 신청', '팩토리 신청 미팅이 잡혔습니다. 내 정보에서 일정을 확인해 주세요.'],
     ['partner_application', { status: 'meeting', rescheduled: true }, '팩토리 신청', '팩토리 신청 미팅 일정이 바뀌었습니다. 내 정보에서 확인해 주세요.'],
     ['partner_application', { status: 'approved' }, '팩토리 신청', '팩토리 신청이 승인되었습니다. 내 정보에서 다음 단계를 확인해 주세요.'],
@@ -105,14 +108,16 @@ test('글 — 종류마다 제목 · 본문 · 열 곳, DB 글자 수 안, /sega
     ['billing_failed', {}, '결제 실패', '팩토리 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.'],
     ['company_suspended', {}, '팩토리 정지', '결제가 되지 않아 팩토리가 정지되었습니다. 결제 관리에서 확인해 주세요.'],
   ];
-  for (const [kind, params, title, body] of cases) {
+  for (const [kind, params, title, body, url = PARTNER_URL] of cases) {
     const m = buildMessage(kind, params);
-    assert.deepEqual(m, { title, body, url: PARTNER_URL }, `${kind} ${JSON.stringify(params)}`);
+    assert.deepEqual(m, { title, body, url }, `${kind} ${JSON.stringify(params)}`);
     assert.ok(isValidMessage(m));
     assert.ok(charLen(m.title) <= TITLE_MAX && charLen(m.body) <= BODY_MAX);
     for (const v of PII) assert.ok(!m.body.includes(v) && !m.title.includes(v));
   }
   assert.equal(PARTNER_URL, '/segan/me.html#partner');
+  assert.equal(QUOTES_URL, '/segan/me.html#p-quote');
+  assert.equal(CONTRACTS_URL, '/segan/me.html#p-contract');
   assert.deepEqual(NOTIFICATION_KINDS, [
     'order_request',
     'order_request_decided',

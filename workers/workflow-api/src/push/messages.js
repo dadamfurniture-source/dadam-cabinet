@@ -63,6 +63,13 @@ export const URL_MAX = 300;
 
 /** 내 정보 › 업체 (결제 관리 · 신청 · 요청이 모두 여기서 이어진다) */
 export const PARTNER_URL = '/segan/me.html#partner';
+/**
+ * 프로젝트 관리 › 견적 — 고객이 확인서(= 견적서)에 답했을 때,
+ * 프로젝트 관리 › 계약 — 수주 승인 요청 · 결과 (「대표 승인 기다림」이 수주 표에 있다).
+ * 2026-11-21 대표님 「프로젝트 한 길」 — 예전에는 셋 다 내 팩토리 화면(#partner)을 열어 거기서 다시 찾아가야 했다.
+ */
+export const QUOTES_URL = '/segan/me.html#p-quote';
+export const CONTRACTS_URL = '/segan/me.html#p-contract';
 
 /** 서버가 만드는 수주 번호 (orders.js buildOrderNo — 'SO-' + 날짜 8자리 + 설계 id 앞 4자) */
 const ORDER_NO_RE = /^SO-\d{8}-[0-9A-F]{4}$/;
@@ -87,7 +94,7 @@ const orderPart = (orderNo) => {
 function orderRequest({ eventKind, orderNo } = {}) {
   const label = ORDER_REQUEST_LABELS[eventKind];
   if (!label) return null;
-  return { title: '승인 요청', body: `${orderPart(orderNo)} ${label} 요청이 왔습니다. 확인해 주세요.`, url: PARTNER_URL };
+  return { title: '승인 요청', body: `${orderPart(orderNo)} ${label} 요청이 왔습니다. 확인해 주세요.`, url: CONTRACTS_URL };
 }
 
 /** 요청 결과 — 요청한 사람에게. { eventKind, orderNo, approved } */
@@ -97,7 +104,7 @@ function orderRequestDecided({ eventKind, orderNo, approved } = {}) {
   return {
     title: '요청 결과',
     body: `${orderPart(orderNo)} ${label} 요청이 ${approved ? '승인' : '반려'}되었습니다.`,
-    url: PARTNER_URL,
+    url: CONTRACTS_URL,
   };
 }
 
@@ -107,7 +114,7 @@ function confirmationDecided({ approved } = {}) {
   return {
     title: '고객 확인서',
     body: approved ? '고객이 확인서를 승인했습니다.' : '고객이 확인서를 반려했습니다. 수정 요청을 확인해 주세요.',
-    url: PARTNER_URL,
+    url: QUOTES_URL,
   };
 }
 
