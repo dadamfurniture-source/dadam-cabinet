@@ -105,8 +105,7 @@ afterEach(() => {
 describe('구독 (plans.html) — 사업자등록증 첫 달 무료 안내 (2026-11-21 대표님 계획 승인)', () => {
   test('첫 글 아래 한 줄 — 누가 · 얼마 동안 · 그 전에 해지하면 결제 없음 · 번호마다 한 번', () => {
     const html = read('segan/plans.html').replace(/\s+/g, ' ');
-    // 여는 날까지 감춰 둔다 — 약관 · 처리방침 · DB 0077 이 들어간 뒤에 hidden 을 뗀다
-    const m = /<p class="in-note pl-trial" id="plTrial" hidden>(.*?)<\/p>/.exec(html);
+    const m = /<p class="in-note pl-trial" id="plTrial">(.*?)<\/p>/.exec(html);
     expect(m).not.toBeNull();
     const text = m[1].trim();
     expect(text).toBe(
