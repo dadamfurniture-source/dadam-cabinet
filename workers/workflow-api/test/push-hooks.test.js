@@ -149,7 +149,7 @@ test('되살리기 요청(대표 아님) → 그 업체 active 대표들에게 o
     assert.equal(row.url, '/segan/me.html#p-contract');
   }
   assertNoPii(fake);
-  assert.equal(r.waits, 1, '응답 뒤에 넣는다');
+  assert.equal(r.waits, 2, '응답 뒤에 넣는다 — 앱 알림 + 프로젝트 일지');
 });
 
 test('완료 되돌리기 요청(실장) → 대표들에게. 서버 모양이 아닌 수주 번호는 싣지 않는다', async () => {
@@ -266,7 +266,7 @@ test('고객이 확인서를 승인 · 반려 → 설계 업체 대표 · 실장
       assert.equal(row.body, body);
     }
     assertNoPii(fake);
-    assert.equal(r.waits, 1);
+    assert.equal(r.waits, 2); // 앱 알림 + 프로젝트 일지
   }
 });
 

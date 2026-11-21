@@ -293,6 +293,7 @@ import { listCompanyQuotes } from './company-quotes.js';
 import { getCompanyInbox, markInboxSeen } from './company-inbox.js';
 import { getCompanyProject } from './company-project.js';
 import { setProjectStatus } from './company-project-status.js';
+import { logAt } from './project-log.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
 import { listShifts, putShift } from './work-shifts.js';
@@ -453,12 +454,24 @@ async function handleListCadArtifacts(request, env, { params, user }) {
 
 // ===== 문서 =====
 
-async function handleIssueDocument(request, env, { params, user }) {
+async function handleIssueDocument(request, env, { params, user, ctx }) {
   const body = (await readJson(request)) || {};
   const result = await issueDocument(env, {
     user,
     body: { ...body, snapshot_id: params.snapshotId },
   });
+  // 프로젝트 일지 — 견적서(고객 확인서)를 보냈다 / 지시서를 냈다 (금액 · 고객 이름은 적지 않는다)
+  await logAt(
+    env,
+    ctx,
+    { document: result.document.id },
+    {
+      actor: { id: user.id },
+      type: result.document.doc_type === 'customer_confirmation' ? 'quote_sent' : 'document_issued',
+      subject: { type: 'document', id: result.document.id },
+      payload: { doc_type: result.document.doc_type, rev: result.document.rev },
+    }
+  );
 
   return jsonResponse(
     request,
@@ -534,8 +547,18 @@ async function handlePrintDocument(request, env, { params, user }) {
   return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, top, memo, sitePhotos, ...assets }));
 }
 
-async function handleRevokeDocument(request, env, { params, user }) {
+async function handleRevokeDocument(request, env, { params, user, ctx }) {
   const doc = await revokeDocument(env, { user, documentId: params.documentId });
+  await logAt(
+    env,
+    ctx,
+    { document: doc.id },
+    {
+      actor: { id: user.id },
+      type: doc.doc_type && doc.doc_type !== 'customer_confirmation' ? 'document_revoked' : 'quote_revoked',
+      subject: { type: 'document', id: doc.id },
+    }
+  );
   return jsonResponse(request, env, { success: true, data: { id: doc.id, status: doc.status } });
 }
 
@@ -551,9 +574,18 @@ function shareCredentials(request) {
   };
 }
 
-async function handlePublicConfirm(request, env) {
+async function handlePublicConfirm(request, env, { ctx } = {}) {
   const { token, pin } = shareCredentials(request);
   const { doc, snapshot } = await openSharedDocument(env, request, { token, pin });
+  // 프로젝트 일지 — 고객이 견적을 처음 열어 봤다 (돌려받은 doc 은 이번 열람을 적기 전 값이다)
+  if (doc.doc_type === 'customer_confirmation' && !doc.first_viewed_at) {
+    await logAt(
+      env,
+      ctx,
+      { design: doc.design_id },
+      { actor: { kind: 'customer' }, type: 'quote_viewed', subject: { type: 'document', id: doc.id } }
+    );
+  }
   // CAD 베타: 고객용 외관 GLB (관리자가 동결본 GLB 를 지었을 때만). 3D 는 덤이라 실패해도 확인서는 연다
   let exteriorGlbUrl = null;
   if (doc.doc_type === 'customer_confirmation') {
@@ -610,6 +642,14 @@ async function handleCreateOrder(request, env, { params, user, ctx }) {
           triggerLabel: `새 수주 ${order.customer_name ? order.customer_name + ' · ' : ''}${order.order_no}`,
         });
       })().catch((e) => console.error('production proposal failed:', e && e.message)),
+    );
+  }
+  if (!reused) {
+    await logAt(
+      env,
+      ctx,
+      { order: order.id },
+      { actor: { id: user.id }, type: 'order_created', subject: { type: 'order', id: order.id }, to: order.status }
     );
   }
   return jsonResponse(request, env, { success: true, data: { ...order, reused } }, reused ? 200 : 201);
@@ -1018,15 +1058,36 @@ async function handleGetOrder(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
-async function handleAddPayment(request, env, { params, user }) {
+async function handleAddPayment(request, env, { params, user, ctx }) {
   const body = (await readJson(request)) || {};
   const data = await addPayment(env, { orderId: params.orderId, user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  if (!data.reused) await logPaid(env, ctx, user, params.orderId, data, null);
   return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201);
 }
 
-async function handleUpdatePayment(request, env, { params, user }) {
+async function handleUpdatePayment(request, env, { params, user, ctx }) {
   const body = (await readJson(request)) || {};
-  return jsonResponse(request, env, { success: true, data: await updatePayment(env, { orderId: params.orderId, paymentId: params.paymentId, user, body }) });
+  const data = await updatePayment(env, { orderId: params.orderId, paymentId: params.paymentId, user, body });
+  // 이번 고치기로 받은 날을 적었을 때만 (받은 날을 보낸 요청)
+  if (body && typeof body.paid_on === 'string' && body.paid_on) await logPaid(env, ctx, user, params.orderId, data, params.paymentId);
+  return jsonResponse(request, env, { success: true, data });
+}
+
+/** 프로젝트 일지 — 돈이 들어왔다 (단계만: 계약금 · 중도금 · 잔금. 금액은 적지 않는다) */
+function logPaid(env, ctx, user, orderId, data, paymentId) {
+  const p = data && typeof data === 'object' ? data.payment || data : null;
+  if (!p || !p.paid_on || typeof p.stage !== 'string') return null;
+  return logAt(
+    env,
+    ctx,
+    { order: orderId },
+    {
+      actor: { id: user.id },
+      type: 'payment_paid',
+      subject: { type: 'payment', id: p.id || paymentId },
+      payload: { stage: p.stage, paid_on: p.paid_on, order_id: orderId },
+    }
+  );
 }
 
 async function handleDeletePayment(request, env, { params, user }) {
@@ -1115,7 +1176,36 @@ async function handleUpdateOrder(request, env, { params, user, ctx }) {
   // 대표 승인이 필요한 바꾸기를 대표가 아닌 사람이 했다 — 요청만 남았고 수주는 그대로다. 대표들에게 앱 알림
   if (pending) {
     await afterResponse(ctx, notifyOrderRequest(env, event));
+    await logAt(
+      env,
+      ctx,
+      { order: params.orderId },
+      {
+        actor: { id: user.id },
+        type: 'order_requested',
+        subject: { type: 'order', id: params.orderId },
+        from: event && event.from_status,
+        to: event && event.to_status,
+        payload: event && event.kind ? { kind: event.kind } : {},
+      }
+    );
     return jsonResponse(request, env, { success: true, data: event }, 202);
+  }
+  // 프로젝트 일지 — 수주 상태가 바뀌었다 (날짜 · 메모만 고친 것은 적지 않는다)
+  if (event && event.to_status) {
+    await logAt(
+      env,
+      ctx,
+      { order: params.orderId },
+      {
+        actor: { id: user.id },
+        type: 'order_status',
+        subject: { type: 'order', id: params.orderId },
+        from: event.from_status,
+        to: event.to_status,
+        payload: event.kind ? { kind: event.kind } : {},
+      }
+    );
   }
   // 취소되면 그 주문이 차지하던 공장 시간이 풀리고, 되살리면 다시 차지한다
   if (event && event.to_status === 'cancelled') {
@@ -1153,6 +1243,21 @@ async function handleDecideOrderEvent(request, env, { params, user, ctx }) {
   }
   // 요청한 사람에게 결과 앱 알림
   await afterResponse(ctx, notifyOrderRequestDecided(env, data.event));
+  if (data.event && (data.event.state === 'approved' || data.event.state === 'rejected')) {
+    await logAt(
+      env,
+      ctx,
+      { order: data.event.order_id },
+      {
+        actor: { id: user.id },
+        type: `approval_${data.event.state}`,
+        subject: { type: 'order', id: data.event.order_id },
+        from: data.event.from_status,
+        to: data.event.to_status,
+        payload: data.event.kind ? { kind: data.event.kind } : {},
+      }
+    );
+  }
   return jsonResponse(request, env, { success: true, data });
 }
 
@@ -1185,6 +1290,15 @@ async function handlePublicDecision(request, env, { ctx } = {}) {
   });
   // 설계 업체 대표 · 실장 + 설계를 만든 사람에게 앱 알림 (설계 제목 · 고객 이름은 싣지 않는다)
   await afterResponse(ctx, notifyConfirmationDecided(env, doc));
+  // 프로젝트 일지 — 고객의 답 (고객이 쓴 이름 · 메모는 적지 않는다)
+  if (doc.decision === 'approved' || doc.decision === 'rejected') {
+    await logAt(
+      env,
+      ctx,
+      { design: doc.design_id },
+      { actor: { kind: 'customer' }, type: `quote_${doc.decision}`, subject: { type: 'document', id: doc.id } }
+    );
+  }
 
   return jsonResponse(request, env, {
     success: true,
@@ -1299,8 +1413,14 @@ async function handleCompanyConsultImage(request, env, { params, user }) {
   });
 }
 
-async function handleAcceptCompanyConsult(request, env, { params, user }) {
+async function handleAcceptCompanyConsult(request, env, { params, user, ctx }) {
   const data = await acceptCompanyConsult(env, { user, consultationId: params.id });
+  await logAt(
+    env,
+    ctx,
+    { project: data.project_id },
+    { actor: { id: user.id }, type: 'consult_accepted', subject: { type: 'project', id: data.project_id } }
+  );
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
@@ -1351,9 +1471,17 @@ async function handleCompanyProjects(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
-async function handleCreateCompanyProject(request, env, { user }) {
+async function handleCreateCompanyProject(request, env, { user, ctx }) {
   const body = await readJson(request);
   const data = await createCompanyProject(env, { user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  if (!data.reused) {
+    await logAt(
+      env,
+      ctx,
+      { project: data.project_id },
+      { actor: { id: user.id }, type: 'project_created', subject: { type: 'project', id: data.project_id } }
+    );
+  }
   return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201, NO_STORE);
 }
 
@@ -1367,16 +1495,16 @@ async function handleDesignWorkSheets(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
-async function handleLinkDesignProject(request, env, { params, user }) {
+async function handleLinkDesignProject(request, env, { params, user, ctx }) {
   const body = await readJson(request);
-  const data = await linkDesignProject(env, { user, designId: params.designId, body });
+  const data = await linkDesignProject(env, { user, designId: params.designId, body, ctx });
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
 /** 프로젝트 담당자 정하기 · 비우기 — 대표 · 실장 (src/company-assignee.js) */
-async function handleSetProjectAssignee(request, env, { params, user }) {
+async function handleSetProjectAssignee(request, env, { params, user, ctx }) {
   const body = await readJson(request);
-  const data = await setProjectAssignee(env, { user, projectId: params.id, body });
+  const data = await setProjectAssignee(env, { user, projectId: params.id, body, ctx });
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
@@ -1513,7 +1641,12 @@ const router = createRouter([
   { method: 'DELETE', path: '/push/subscriptions', auth: 'jwt',  handler: handleDeletePushSubscription },
 
   { method: 'POST', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleCreateSnapshot },
-  { method: 'POST', path: '/planner/designs', auth: 'jwt', handler: workRoute(receivePlannerDesign, 201) },
+  { method: 'POST', path: '/planner/designs', auth: 'jwt', handler: workRoute(async (env, a) => {
+      const data = await receivePlannerDesign(env, a);
+      // 프로젝트 일지 — 설계를 앱으로 보냈다 (프로젝트에 이어진 설계일 때만 적힌다)
+      await logAt(env, a.ctx, { design: data.design_id }, { actor: { id: a.user.id }, type: 'design_sent', subject: { type: 'design', id: data.design_id }, payload: { rev: data.rev } });
+      return data;
+    }, 201) },
   { method: 'POST', path: '/planner/preview', auth: 'jwt', handler: workRoute(previewPlannerDoc) },
   // 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
   { method: 'GET',    path: '/planner/access',                     auth: 'jwt', handler: workRoute(plannerAccess) },
