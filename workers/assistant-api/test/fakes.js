@@ -60,6 +60,11 @@ export function makeDb(over = {}) {
     settings: [], // company_settings { company_id, settings }
     documents: {}, // 사진 id → { company_id, storage_path, mime, review_status }
     photos: {}, // 버킷 경로 → Uint8Array
+    // 사업자등록증 (DB 0077) — business_certificates 줄 · 버킷 business-certs 의 사진 (경로 → Uint8Array)
+    certificates: [],
+    certPhotos: {},
+    // assistant_global 한 줄 — 사진 읽기 전체 스위치
+    global: [{ id: true, extract_on: true }],
     // 안내 모드 (DB 0048) — assistant_global.guide_on · guide_daily_limit, assistant_guide_usage 줄
     guide: { on: true, limit: 20, rows: [] },
     // my_credit_wallet — 사람마다 (그 사람 토큰으로만 읽는다). 'fail' 이면 500
@@ -99,6 +104,12 @@ export function makeDb(over = {}) {
     if (url.pathname.startsWith(PHOTO)) {
       const p = decodeURIComponent(url.pathname.slice(PHOTO.length));
       const bytes = db.photos[p];
+      return bytes ? new Response(bytes, { status: 200 }) : new Response('{}', { status: 404 });
+    }
+    const CERT_PHOTO = '/storage/v1/object/business-certs/';
+    if (url.pathname.startsWith(CERT_PHOTO)) {
+      const p = decodeURIComponent(url.pathname.slice(CERT_PHOTO.length));
+      const bytes = db.certPhotos[p];
       return bytes ? new Response(bytes, { status: 200 }) : new Response('{}', { status: 404 });
     }
 
@@ -258,6 +269,8 @@ export function makeDb(over = {}) {
       ledger_accounts: db.accounts,
       company_settings: db.settings,
       assistant_actions: db.actions,
+      business_certificates: db.certificates,
+      assistant_global: db.global,
     };
     const rows = tables[path];
     if (!rows) throw new Error('fake: unknown table ' + path);

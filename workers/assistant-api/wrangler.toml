@@ -63,6 +63,12 @@ class_name = "ExtractJob"
 name = "GUIDE_SESSION"
 class_name = "GuideSession"
 
+# 사업자등록증 읽기 — 사업자등록증마다 하나 (idFromName(사업자등록증 id)). 저장소는 쓰지 않는다 (src/extract/cert.js)
+#   account-api 가 이름 있는 진입점 CertExtract (RPC read) 로 부른다 — workers/account-api/wrangler.toml [[services]]
+[[durable_objects.bindings]]
+name = "CERT_READER"
+class_name = "CertReader"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssistantSession"]
@@ -74,6 +80,10 @@ new_sqlite_classes = ["ExtractJob"]
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["GuideSession"]
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["CertReader"]
 
 # 사진 읽기 전에 돌리기 (src/extract/job.js rotatePhoto) — 방향을 물어 0 이 아니면 돌린 JPEG 를 읽는다. 버킷의 사진은 그대로.
 # Images 무료 플랜: 달마다 서로 다른 변환 5,000개까지 (넘으면 새 변환이 9422 오류 → 그 시도는 rotate_failed_9422)
