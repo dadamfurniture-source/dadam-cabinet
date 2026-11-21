@@ -61,15 +61,21 @@ describe('규칙 파일 — 가전 칸 상자 높이', () => {
 
 describe('규칙 파일 — 빌트인 오븐장 (PB 15T · 뒷판 절반)', () => {
   const box = { W: 600, H: 620, D: 560, builtinOven: true };
-  test('부재 — 측판 D × H 2 · 천지판 (W − 30) × (D − 17) 2 · 뒷판 (W − 30) × ⌊H/2⌋ 1, 전부 PB 15T', () => {
+  test('부재 — 측판 (D + 20) × H 2 · 천지판 (W − 30) × (측판 − 17) 2 · 뒷판 (W − 30) × ⌊H/2⌋ 1, 전부 PB 15T (2026-11-21 측판 570 식)', () => {
     const parts = OC.partsOf(box);
     expect(parts.map((p) => [p.part, p.material, p.t, p.w, p.h, p.qty])).toEqual([
-      ['측판', 'PB', 15, 560, 620, 2],
-      ['천지판', 'PB', 15, 570, 543, 2],
+      ['측판', 'PB', 15, 580, 620, 2],
+      ['천지판', 'PB', 15, 570, 563, 2],
       ['뒷판', 'PB', 15, 570, 310, 1],
     ]);
     expect(parts[2].note).toMatch(/높이 절반 \(아래\)/);
-    expect(OC.innerOf(box)).toMatchObject({ T: 15, innerW: 570, innerH: 590, innerD: 543, backH: 310, backY: 0 });
+    expect(OC.innerOf(box)).toMatchObject({ T: 15, innerW: 570, innerH: 590, innerD: 563, backH: 310, backY: 0, backPlus: 0 });
+    // 몸통 550 → 측판 570 · 천지판 553 (사장님 「측판 깊이 570 − 뒷판」 — 뒷판 자리 17 = 15T + 여유 2, 18T 상자 570 → 550 과 같은 짜임)
+    expect(OC.innerOf({ W: 600, H: 620, D: 550, builtinOven: true })).toMatchObject({ D: 570, innerD: 553, backPlus: 0 });
+    // 니치가 더 깊으면 그 칸 상자만 뒤로 (2026-11-21 「오븐 칸만 뒤로」) — 측판 = 니치 + 17
+    expect(OC.innerOf({ W: 600, H: 620, D: 550, builtinOven: true, nicheD: 560 })).toMatchObject({ D: 577, innerD: 560, backPlus: 7 });
+    expect(OC.innerOf({ W: 600, H: 620, D: 550, builtinOven: true, nicheD: 540 })).toMatchObject({ D: 570, innerD: 553, backPlus: 0 });
+    expect(OC.innerOf({ W: 600, H: 620, D: 550, nicheD: 560 })).toMatchObject({ D: 570, backPlus: 0 }, '오픈장은 니치를 보지 않는다');
     expect(BI.BACK_AT).toBe('bottom');
     expect(OC.innerOf({ W: 600, H: 621, D: 560, builtinOven: true }).backH).toBe(310);   // 내림
   });
@@ -87,9 +93,9 @@ describe('규칙 파일 — 빌트인 오븐장 (PB 15T · 뒷판 절반)', () =
       '빌트인 오븐장 내경 높이 590 가 오븐 A 설치 공간 높이 600 보다 작습니다',
     ]);
     expect(OC.warningsOf({ W: 20, H: 620, D: 560, builtinOven: true })[0]).toMatch(/^빌트인 오븐장 폭 20 는 측판 두께\(30\)/);
-    // 니치 깊이 (2026-11-21 「니치 깊이 칸 더해라」) — 내경 깊이 = 천지판 깊이 560 − 17 = 543
-    expect(OC.applianceWarningsOf(box, { nicheW: 560, nicheH: 590, nicheD: 550 }, '오븐 A')).toEqual(['빌트인 오븐장 내경 깊이 543 가 오븐 A 설치 공간 깊이 550 보다 작습니다']);
-    expect(OC.applianceWarningsOf(box, { nicheW: 560, nicheH: 590, nicheD: 540 }, '오븐 A')).toEqual([]);
+    // 니치 깊이 (2026-11-21 「니치 깊이 칸 더해라」) — 상자에 니치를 싣지 않으면 내경 깊이 563 과 견준다, 실으면 상자가 그만큼 깊어져 맞는다
+    expect(OC.applianceWarningsOf(box, { nicheW: 560, nicheH: 590, nicheD: 570 }, '오븐 A')).toEqual(['빌트인 오븐장 내경 깊이 563 가 오븐 A 설치 공간 깊이 570 보다 작습니다']);
+    expect(OC.applianceWarningsOf(Object.assign({}, box, { nicheD: 570 }), { nicheW: 560, nicheH: 590, nicheD: 570 }, '오븐 A')).toEqual([]);
   });
   test('맞춘 상자는 고른 가전에 경고가 없다', () => {
     const mw = { category: 'microwave', W: 480, H: 280, D: 380, h: 280 };
@@ -123,7 +129,7 @@ describe('배선 — 구조 → 브리지 → BOM → 조립', () => {
     expect(r.conv.warnings.filter((w) => /설치 공간/.test(w))).toEqual([]);
     const body = r.materials.filter((m) => ['측판', '천지판', '뒷판'].includes(m.part));
     expect(body.map((m) => [m.part, m.material, m.thickness, m.w, m.h, m.qty])).toEqual([
-      ['측판', 'PB', 15, 560, 620, 2], ['천지판', 'PB', 15, 570, 543, 2], ['뒷판', 'PB', 15, 570, 310, 1],
+      ['측판', 'PB', 15, 580, 620, 2], ['천지판', 'PB', 15, 570, 563, 2], ['뒷판', 'PB', 15, 570, 310, 1],
     ]);
     expect(body[0].module).toMatch(/빌트인 오븐장/);
     const m = r.spec.items[0].modules[0];
@@ -132,6 +138,21 @@ describe('배선 — 구조 → 브리지 → BOM → 조립', () => {
     expect(back.cut.h).toBe(310);
     expect(back.box.max[1] - back.box.min[1]).toBe(310);
     expect(r.spec.unplaced.filter((u) => u.moduleKey === m.moduleKey)).toEqual([]);   // 줄 부재(run-part)는 lines 가 없어 빠진다
+    expect(Check.check(r.spec).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+  test('니치가 깊은 오븐 (2026-11-21 「오븐 칸만 뒤로」) — 측판 = 니치 + 17, 앞선은 몸통 앞 + 20 그대로 · 뒤로 늘어난 만큼 backPlus, 경고 · 검사 오류 없음', () => {
+    const DEEP = Object.assign({}, OVEN, { nicheD: 590 });
+    const H = OC.applianceBoxOf(DEEP).H;
+    const r = tallTier({ moduleKind: 'open', builtinOven: true, appliance: DEEP }, H);
+    expect(r.mod.nicheD).toBe(590);
+    expect(r.conv.warnings.filter((w) => /설치 공간/.test(w))).toEqual([]);
+    const body = r.materials.filter((m) => ['측판', '천지판'].includes(m.part));
+    expect(body.map((m) => [m.part, m.w, m.h])).toEqual([['측판', 607, 620], ['천지판', 570, 590]]);
+    const m = r.spec.items[0].modules[0];
+    expect([m.frontPlus, m.backPlus]).toEqual([20, 27]);
+    const side = m.parts.find((x) => x.part === '측판');
+    // 몸통 560 이 가운데(−280 … 280) — 측판 앞끝 300 (몸통 앞 + 20), 뒤끝 −307 (몸통 뒤 − 27)
+    expect([side.box.min[2], side.box.max[2]]).toEqual([-307, 300]);
     expect(Check.check(r.spec).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
   test('니치보다 작은 상자는 브리지가 경고한다', () => {
