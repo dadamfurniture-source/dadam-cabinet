@@ -5,23 +5,34 @@
  *   AssistantSession   대화마다 Durable Object (src/session.js)
  *   ExtractJob         사진마다 Durable Object — 영수증 · 명세표 읽기 (src/extract/job.js)
  *   GuideSession       안내 모드 — 사람마다 Durable Object, 미국 콜로에서 Claude 를 부르고 답을 흘려보낸다 (src/guide.js)
+ *   CertReader         사업자등록증마다 Durable Object — 그 자리에서 읽어 답한다 (src/extract/cert.js)
  *   LedgerExtract      서비스 바인딩 RPC — workflow-api 만 부른다 (wrangler [[services]] entrypoint = "LedgerExtract").
  *                      공개 주소가 없어 바깥에서 부를 수 없다.
+ *   CertExtract        서비스 바인딩 RPC — account-api 만 부른다 (entrypoint = "CertExtract"). 공개 주소가 없다.
  *
- * 시험(node --test)은 cloudflare:workers 를 못 읽으므로 이 파일을 거치지 않고 worker.js · extract/job.js 를 바로 부른다.
+ * 시험(node --test)은 cloudflare:workers 를 못 읽으므로 이 파일을 거치지 않고 worker.js · extract/job.js · extract/cert.js 를 바로 부른다.
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import worker from './worker.js';
 import { queueExtract } from './extract/job.js';
+import { readCert } from './extract/cert.js';
 
 export { AssistantSession } from './session.js';
 export { ExtractJob } from './extract/job.js';
 export { GuideSession } from './guide.js';
+export { CertReader } from './extract/cert.js';
 
 export class LedgerExtract extends WorkerEntrypoint {
   /** { documentId, again } → { ok, queued } — 사진 읽기를 맡기고 바로 돌아온다 */
   async extract(input) {
     return queueExtract(this.env, input);
+  }
+}
+
+export class CertExtract extends WorkerEntrypoint {
+  /** { certificateId } → { ok: true, extracted } | { ok: false, reason } — 사업자등록증 한 장을 읽고 돌아온다 */
+  async read(input) {
+    return readCert(this.env, input);
   }
 }
 

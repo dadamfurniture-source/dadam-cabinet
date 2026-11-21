@@ -11,5 +11,15 @@ SUPABASE_ANON_KEY = "sb_publishable_OV4D2-LwhTMj8YJ711HTvA_lA2jk_PW"
 # CORS 허용 오리진
 CORS_ORIGINS = "https://dadamfurniture.com,https://www.dadamfurniture.com,http://127.0.0.1:8899,http://localhost:8899"
 
-# service_role 키는 여기 두지 않는다. 대시보드나 아래 명령으로 등록:
-#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# 사업자등록증 사진 읽기 — assistant-api 의 이름 있는 진입점 CertExtract (RPC read). 올린 직후 한 번 부른다 (src/biz-cert.js).
+#   바인딩이 없거나 읽기가 실패하면 읽은 값 없이 올리기만 된다 (사람이 직접 적는다).
+#   이 진입점이 들어간 assistant-api 가 먼저 배포돼 있어야 이 워커를 배포할 수 있다
+[[services]]
+binding = "ASSISTANT"
+service = "dadam-assistant-api"
+entrypoint = "CertExtract"
+
+# 시크릿 — 여기 두지 않는다. 대시보드나 아래 명령으로 등록:
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY   필수
+#   wrangler secret put NTS_SERVICE_KEY             사업자등록증 자동 확인 (공공데이터포털 국세청 상태조회 · 진위확인, src/nts.js).
+#                                                   없으면 국세청을 묻지 않고 그 건은 본사 검토로 간다 (workflow-api 와 같은 키)
