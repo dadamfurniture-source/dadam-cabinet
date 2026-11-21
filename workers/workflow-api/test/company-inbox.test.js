@@ -102,6 +102,11 @@ function tables() {
       // F 를 골랐다가 거둔 의뢰
       { id: id('06', 5), company_id: M, project_id: null, status: 'cancelled', round: 1, status_at: ago(0, 9), factory_company_id: F },
     ],
+    // 소식을 본 때 (DB 0078) — 실장은 어제 봤다, 남의 업체 줄은 섞이지 않는다
+    inbox_seen: [
+      { user_id: MANAGER, company_id: F, seen_at: ago(1) },
+      { user_id: MANAGER, company_id: X, seen_at: ago(0, 1) },
+    ],
     production_recommendations: [
       { id: id('07', 4), request_id: id('06', 4), company_id: F, round: 2, chosen: true, chosen_at: ago(0, 8), expires_at: new Date(AT + 16 * 3600000).toISOString(), response: null },
       { id: id('07', 5), request_id: id('06', 5), company_id: F, round: 1, chosen: true, chosen_at: ago(0, 9), expires_at: new Date(AT + 15 * 3600000).toISOString(), response: null },
@@ -221,4 +226,78 @@ test('구성원이 아니면 403 not_member · 토큰이 없으면 401, 쓰는 �
   assert.equal(fake.calls.rest.some((c) => c.method !== 'GET'), false);
   const anon = await withFake(world(), async () => (await worker.fetch(new Request('https://api.test/company/inbox'), ENV, { waitUntil() {} })).status);
   assert.equal(anon, 401);
+});
+
+// ── 계정마다 읽음 (2026-11-21 뒤 공정 1차 — DB 0078 inbox_seen) ──
+
+async function seen(fake, token, body) {
+  const realNow = Date.now;
+  Date.now = () => AT;
+  try {
+    return await withFake(fake, async () => {
+      const res = await worker.fetch(
+        new Request('https://api.test/company/inbox/seen', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+        ENV,
+        { waitUntil() {} }
+      );
+      const text = await res.text();
+      return { status: res.status, json: text ? JSON.parse(text) : null };
+    });
+  } finally {
+    Date.now = realNow;
+  }
+}
+
+test('읽음 — 받은 일에 이 계정이 본 때(seen_at)가 실린다: 없으면 null, 내 업체 · 내 줄만', async () => {
+  const fake = world();
+  assert.equal((await call(fake, 't_owner')).json.data.seen_at, null);
+  assert.equal((await call(fake, 't_manager')).json.data.seen_at, ago(1));
+  assert.equal((await call(fake, 't_staff')).json.data.seen_at, null);
+  // 읽기는 쓰지 않는다
+  assert.equal(fake.calls.rest.filter((c) => c.method !== 'GET').length, 0);
+});
+
+test('읽음 적기 — 처음이면 한 줄 넣고, 있으면 앞으로만 고친다. 앞날은 지금으로 당긴다', async () => {
+  const fake = world();
+  const at = ago(0, 2);
+  // 대표 — 처음
+  let r = await seen(fake, 't_owner', { at });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(r.json.data, { seen_at: at });
+  assert.deepEqual(
+    fake.db.inbox_seen.filter((x) => x.user_id === OWNER).map((x) => [x.company_id, x.seen_at]),
+    [[F, at]]
+  );
+  assert.equal((await call(fake, 't_owner')).json.data.seen_at, at);
+  // 옛 값을 보내면 그대로 둔다 (다른 기기가 늦게 보냈다)
+  r = await seen(fake, 't_owner', { at: ago(3) });
+  assert.deepEqual(r.json.data, { seen_at: at });
+  assert.equal(fake.db.inbox_seen.find((x) => x.user_id === OWNER).seen_at, at);
+  // 더 새 값은 고친다 — 한 줄 그대로
+  r = await seen(fake, 't_owner', { at: ago(0, 1) });
+  assert.deepEqual(r.json.data, { seen_at: ago(0, 1) });
+  assert.equal(fake.db.inbox_seen.filter((x) => x.user_id === OWNER).length, 1);
+  // 실장 — 이미 줄이 있다. 앞날은 지금으로
+  r = await seen(fake, 't_manager', { at: new Date(AT + 3600000).toISOString() });
+  assert.deepEqual(r.json.data, { seen_at: new Date(AT).toISOString() });
+  assert.deepEqual(
+    fake.db.inbox_seen
+      .filter((x) => x.user_id === MANAGER)
+      .map((x) => x.company_id + ' ' + x.seen_at)
+      .sort(),
+    [F + ' ' + new Date(AT).toISOString(), X + ' ' + ago(0, 1)].sort() // 남의 업체 줄은 건드리지 않는다
+  );
+});
+
+test('읽음 적기 — 시각이 아니면 422, 구성원이 아니면 403', async () => {
+  const fake = world();
+  for (const body of [{}, { at: 12 }, { at: 'yesterday' }, { at: '' }]) {
+    assert.equal((await seen(fake, 't_owner', body)).status, 422, JSON.stringify(body));
+  }
+  assert.equal((await seen(fake, 't_nobody', { at: ago(0, 1) })).status, 403);
+  assert.equal(fake.db.inbox_seen.length, 2);
 });
