@@ -49,6 +49,7 @@ function makeDb({ reports = true, consultations = [] } = {}) {
     named: [{ id: PARTNER, name: '가나 팩토리', kind: 'partner' }, { id: HQ, name: '다담 공장', kind: 'hq' }],
     admin_roles: [{ user_id: ADMIN, role: 'admin' }],
     order_reports: reports ? [] : null,
+    project_events: [],
     consultations,
     uploads: [],
   };
@@ -138,6 +139,15 @@ test('대표 — 사진을 올리고 붙여 「설치 완료」 보고, 목록�
     assert.deepEqual([r.kind, r.note, r.photo_count], ['install_done', '설치 끝났습니다', 1]);
     assert.deepEqual(db.order_reports[0], { ...db.order_reports[0], company_id: PARTNER, order_id: O1, photos: [photo_path], reported_by: OWNER });
     await addOrderReport(ENV, { user: u(OWNER), params: p, body: { kind: 'as_done' } });
+    // 프로젝트 일지 (2026-11-21) — 누가 어떤 보고를 올렸나. 메모 · 사진은 싣지 않는다
+    assert.deepEqual(
+      db.project_events.map((e) => [e.type, e.project_id, e.actor_kind, e.actor_user_id, e.subject_type, e.subject_id, e.payload]),
+      [
+        ['report_added', PRJ, 'member', OWNER, 'report', db.order_reports[0].id, { kind: 'install_done' }],
+        ['report_added', PRJ, 'member', OWNER, 'report', db.order_reports[1].id, { kind: 'as_done' }],
+      ]
+    );
+    assert.ok(!JSON.stringify(db.project_events).includes('설치 끝났습니다') && !JSON.stringify(db.project_events).includes(photo_path));
     const v = await listOrderReports(ENV, { user: u(STAFF2), params: p });
     assert.equal(v.ready, true);
     assert.equal(v.can_report, false, '담당자가 아닌 직원은 보기만');

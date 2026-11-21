@@ -227,6 +227,11 @@ const HOUR = 3600 * 1000;
 const fresh = (extra = {}) => createFake({ tables: tables(), admins: [ADMIN], ...extra });
 const call = (fake, path, token, opts) => callWorker(worker, fake, path, token, opts);
 const kindsOf = (fake, kind) => fake.db.notification_outbox.filter((n) => n.kind === kind);
+/** 프로젝트 일지 (2026-11-21 뒤 공정 1차 둘째 묶음) — 그 프로젝트에 적힌 줄 [일, 누구 쪽, 계정, 대상] */
+const logOf = (fake, projectId) =>
+  fake.db.project_events
+    .filter((e) => e.project_id === projectId)
+    .map((e) => [e.type, e.actor_kind, e.actor_user_id, e.subject_id]);
 
 /** 의뢰 내기 → 검토 → 추천(ids) — 의뢰 id */
 async function recommended(
@@ -505,6 +510,20 @@ test('흐름 — 실장이 의뢰 → 본사 검토 · 추천 → Manager 고름
     [true, 'accepted', '마바 가구', null]
   );
   assert.equal(kindsOf(fake, 'production_cancelled').length, 0);
+  // 프로젝트 일지 — 영업 사원 업체의 프로젝트: 누가 보냈고 · 본사 추천 · 누가 골랐고 · 팩토리가 받음 (팩토리 사람의 계정은 싣지 않는다).
+  //   두 번째 받기(같은 답)는 다시 적지 않는다
+  assert.deepEqual(logOf(fake, P1), [
+    ['request_created', 'member', M_CHIEF, req.id],
+    ['request_recommended', 'admin', ADMIN, req.id],
+    ['request_chosen', 'member', M_OWNER, req.id],
+    ['request_accepted', 'system', null, req.id],
+  ]);
+  // 받은 팩토리의 새 프로젝트 — 누가 받았나
+  assert.deepEqual(logOf(fake, out.project_id), [
+    ['project_created', 'member', E_CHIEF, out.project_id],
+    ['request_received', 'member', E_CHIEF, req.id],
+  ]);
+  assert.ok(fake.db.project_events.every((e) => JSON.stringify(e.payload).length < 40), '이름 · 메모를 싣지 않는다');
 });
 
 test('같은 Manager 의 다음 의뢰를 받으면 팩토리 고객 줄을 다시 쓴다', async () => {
@@ -951,6 +970,19 @@ test('못 받음 → 본사 차례 · Manager 알림, 그 팩토리는 다시 �
     eList.json.data.items.map((i) => [i.state, i.note, i.design, i.can_act]),
     [['declined', null, null, false]]
   );
+  // 프로젝트 일지 — 못 받음과 두 차례 추천이 모두 남는다 (지금 상태만 보면 「받음」 하나뿐이다)
+  assert.deepEqual(
+    logOf(fake, P1).map((e) => e[0]),
+    [
+      'request_created',
+      'request_recommended',
+      'request_chosen',
+      'request_declined',
+      'request_recommended',
+      'request_chosen',
+      'request_accepted',
+    ]
+  );
 });
 
 test('답 없음 — 24시간 지나면 1분 cron 이 expired 로, 본사 차례 · Manager 알림, 그 뒤 받기는 409', async () => {
@@ -968,6 +1000,8 @@ test('답 없음 — 24시간 지나면 1분 cron 이 expired 로, 본사 차례
   assert.deepEqual(r, { expired: 1, closed: 0, failed: 0 });
   const req = fake.db.production_requests.find((x) => x.id === id);
   assert.deepEqual([req.status, req.factory_company_id], ['expired', E]);
+  // 프로젝트 일지 — 답 없음은 사람이 한 일이 아니다 (system)
+  assert.deepEqual(logOf(fake, P1).slice(-1), [['request_expired', 'system', null, id]]);
   assert.equal(
     fake.db.production_recommendations.find((x) => x.request_id === id && x.chosen).response,
     'expired'
@@ -1039,6 +1073,10 @@ test('거두기 — 답 기다리는 중에도, 팩토리 줄은 거둠으로 �
   });
   const c = await call(fake, `/production-requests/${id}/cancel`, M_CHIEF, { method: 'POST' });
   assert.deepEqual([c.status, c.json.data.status], [200, 'cancelled']);
+  // 프로젝트 일지 — 누가 거뒀나. 이미 거둔 의뢰를 다시 거두면(같은 답) 또 적지 않는다
+  await call(fake, `/production-requests/${id}/cancel`, M_CHIEF, { method: 'POST' });
+  assert.deepEqual(logOf(fake, P1).slice(-1), [['request_cancelled', 'member', M_CHIEF, id]]);
+  assert.equal(logOf(fake, P1).filter((e) => e[0] === 'request_cancelled').length, 1);
   const req = fake.db.production_requests.find((r) => r.id === id);
   assert.deepEqual([req.status, req.factory_company_id], ['cancelled', null]);
   const chosen = fake.db.production_recommendations.find((r) => r.request_id === id && r.chosen);

@@ -13,6 +13,19 @@
  *   구성원이면 이름(나간 사람이면 null). 고객 이름은 싣지 않는다 — 화면이 「고객」이라고만 적는다.
  */
 
+import { SCHEDULE_LABELS } from './slack.js';
+
+/** 일정 종류마다 — 잡음 · 날짜 바꿈 · 취소 (종류 말은 slack.js SCHEDULE_LABELS: 실측 · 납품 · 설치 · A/S 방문 …) */
+function scheduleLabels() {
+  const out = {};
+  for (const [type, word] of Object.entries(SCHEDULE_LABELS)) {
+    out[`schedule_set_${type}`] = `${word} 일정을 잡았습니다`;
+    out[`schedule_moved_${type}`] = `${word} 일정을 바꿨습니다`;
+    out[`schedule_cancelled_${type}`] = `${word} 일정을 취소했습니다`;
+  }
+  return out;
+}
+
 /** 일지에만 있는 일의 글 (뽑은 줄의 글은 company-inbox.js NEWS_LABEL · company-project.js HISTORY_LABEL) */
 export const EVENT_LABEL = Object.freeze({
   design_sent: '설계를 앱으로 보냈습니다',
@@ -32,7 +45,19 @@ export const EVENT_LABEL = Object.freeze({
   project_cancelled: '프로젝트를 그만뒀습니다',
   assignee_set: '담당자를 정했습니다',
   assignee_cleared: '담당자를 비웠습니다',
+  // 둘째 묶음 (2026-11-21) — 제작 의뢰 · 일정 · A/S · 완료 보고 · 설계 시작
+  design_started: '설계를 시작했습니다',
+  request_sent: '제작 의뢰를 보냈습니다',
+  request_chosen: '팩토리를 골랐습니다',
+  request_cancelled: '제작 의뢰를 거뒀습니다',
+  as_cancelled: 'A/S 접수를 거뒀습니다',
+  report_install_done: '설치 완료 보고를 올렸습니다',
+  report_as_done: 'A/S 완료 보고를 올렸습니다',
+  ...scheduleLabels(),
 });
+
+/** 글이 이미 누가 했는지 말하는 일 — 「누가」를 또 붙이지 않는다 (「본사 추천이 도착했습니다 · 본사」가 되지 않게) */
+const NO_WHO = Object.freeze(['request_recommended']);
 
 /** 같은 일을 두 번 누른 것으로 보는 사이 (ms) */
 const DOUBLE_MS = 60 * 1000;
@@ -103,6 +128,53 @@ export function eventKind(ev) {
         ref: subject,
         go: null,
       };
+    case 'design_started':
+      return { kind: 'design_started', ref: subject, go: null };
+    case 'request_created':
+      return { kind: 'request_sent', ref: subject, go: 'p-make' };
+    case 'request_chosen':
+    case 'request_cancelled':
+    case 'request_recommended':
+    case 'request_accepted':
+    case 'request_declined':
+    case 'request_expired':
+    case 'request_received':
+      return { kind: e.type, ref: subject, go: 'p-make' };
+    case 'schedule_added':
+    case 'schedule_changed': {
+      const type = str(payload.type);
+      if (!type || !Object.hasOwn(SCHEDULE_LABELS, type)) return null;
+      // 고치기는 취소와 날짜 바꿈만 낸다 (메모 · 담당 글만 고친 것은 적히지도 않는다)
+      const verb =
+        e.type === 'schedule_added'
+          ? 'set'
+          : e.to_status === 'cancelled'
+            ? 'cancelled'
+            : payload.moved === true
+              ? 'moved'
+              : null;
+      if (!verb) return null;
+      const go =
+        type === 'as_visit'
+          ? 'p-as'
+          : type === 'installation' || type === 'delivery'
+            ? 'p-install'
+            : null;
+      return { kind: `schedule_${verb}_${type}`, ref: subject, go };
+    }
+    case 'as_requested':
+    case 'as_cancelled':
+    case 'as_received':
+    case 'as_done':
+      return { kind: e.type, ref: subject, go: 'p-as' };
+    case 'report_added': {
+      if (payload.kind !== 'install_done' && payload.kind !== 'as_done') return null;
+      return {
+        kind: `report_${payload.kind}`,
+        ref: subject,
+        go: payload.kind === 'as_done' ? 'p-as' : 'p-install',
+      };
+    }
     default:
       return null;
   }
@@ -154,7 +226,7 @@ export function mergeEvents(items, events, opts = {}) {
     const list = groups.get(`${it.kind}|${ref || ''}`);
     // 가장 새 일지 줄과 짝짓는다 — 뽑은 줄은 그 일의 마지막 모습이다
     const hit = list && list.length ? list.pop() : null;
-    const who = hit ? whoOf(hit.ev, memberOf) : null;
+    const who = hit && !NO_WHO.includes(it.kind) ? whoOf(hit.ev, memberOf) : null;
     out.push(who ? { ...rest, who } : rest);
   }
   for (const list of groups.values()) {
@@ -162,7 +234,7 @@ export function mergeEvents(items, events, opts = {}) {
       if (skip.includes(kind)) continue;
       const label = labelOf(kind);
       if (!label) continue;
-      const who = whoOf(ev, memberOf);
+      const who = NO_WHO.includes(kind) ? null : whoOf(ev, memberOf);
       out.push({
         kind,
         at: ev.created_at,

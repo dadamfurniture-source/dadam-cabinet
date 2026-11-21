@@ -20,6 +20,9 @@
  *   project_created · consult_accepted · assignee_changed · status_changed · design_linked · design_unlinked · design_sent ·
  *   quote_sent · quote_revoked · quote_viewed · quote_approved · quote_rejected · document_issued · document_revoked ·
  *   order_created · order_status · order_requested · approval_approved · approval_rejected · payment_paid
+ *   둘째 묶음(2026-11-21): design_started · request_created · request_chosen · request_cancelled · request_recommended ·
+ *   request_accepted · request_declined · request_expired · request_received · schedule_added · schedule_changed ·
+ *   as_requested · as_cancelled · as_received · as_done · report_added
  */
 
 import { insertOne, selectOne } from './supabase.js';
@@ -125,18 +128,22 @@ export async function locate(env, where) {
 /**
  * 프로젝트를 찾아 일지 한 줄. 찾기까지 통째로 응답 뒤에 돌린다 (ctx.waitUntil). 무엇이 실패해도 던지지 않는다.
  * @param {{ project?: string, order?: string, design?: string, document?: string }} where
- * @param {object} ev  logProject 의 ev 에서 companyId · projectId 를 뺀 것
+ * @param {object|object[]} ev  logProject 의 ev 에서 companyId · projectId 를 뺀 것 (여러 줄이면 배열 — 프로젝트는 한 번만 찾는다)
  */
 export function logAt(env, ctx, where, ev) {
+  const list = (Array.isArray(ev) ? ev : [ev]).filter((x) => x && typeof x === 'object');
   const job = (async () => {
     try {
+      if (!list.length) return;
       const at = await locate(env, where);
       if (!at) return;
-      const row = eventRow({ ...ev, companyId: at.companyId, projectId: at.projectId });
-      if (row) await write(env, row);
+      for (const item of list) {
+        const row = eventRow({ ...item, companyId: at.companyId, projectId: at.projectId });
+        if (row) await write(env, row);
+      }
     } catch (err) {
       if (!isMissingRelation(err))
-        console.warn('project log: skipped —', ev && ev.type, err && err.message);
+        console.warn('project log: skipped —', list[0] && list[0].type, err && err.message);
     }
   })();
   if (ctx && typeof ctx.waitUntil === 'function') {

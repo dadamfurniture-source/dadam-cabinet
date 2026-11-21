@@ -136,6 +136,8 @@ async function call(fake, token, path, init = {}) {
   Date.now = () => AT;
   try {
     return await withFake(fake, async () => {
+      // 응답 뒤로 미룬 일(ctx.waitUntil — 알림 · 프로젝트 일지)을 가짜 DB 가 살아 있는 동안 끝까지 기다린다
+      const waits = [];
       const res = await worker.fetch(
         new Request(`https://api.test${path}`, {
           method: init.method || 'GET',
@@ -143,9 +145,10 @@ async function call(fake, token, path, init = {}) {
           body: init.body ? JSON.stringify(init.body) : undefined,
         }),
         ENV,
-        { waitUntil() {} },
+        { waitUntil: (p) => waits.push(p) },
       );
       const text = await res.text();
+      await Promise.allSettled(waits);
       return { status: res.status, json: text ? JSON.parse(text) : null, cache: res.headers.get('Cache-Control') };
     });
   } finally {
@@ -398,7 +401,7 @@ test('좌표 적기 — DB 0058 적용 전에는 409 db_pending', async () => {
 const VISIT_AT = iso('2026-11-16T10:30:00');
 
 test('A/S 방문 일정 — 처음이면 일정 표에 as_visit 한 줄을 만들고 접수에 잇는다 → 업무 달력에 뜬다', async () => {
-  const fake = world();
+  const fake = world({ ...tables(), project_events: [] });
   const r = await put(fake, 't_manager', `/company/as-requests/${AS(1)}/visit`, { visit_at: '2026-11-16T10:30:00+09:00', assignee_name: ' 박기사 ' });
   assert.equal(r.status, 200);
   const made = fake.db.design_schedules.find((s) => s.type === 'as_visit' && s.id !== S(20));
@@ -414,6 +417,12 @@ test('A/S 방문 일정 — 처음이면 일정 표에 as_visit 한 줄을 만�
   assert.equal(fake.db.as_requests.find((x) => x.id === AS(1)).visit_schedule_id, made.id);
   // 접수 상태는 그대로 — 받음 · 끝은 따로 누른다
   assert.equal(fake.db.as_requests.find((x) => x.id === AS(1)).state, 'requested');
+  // 프로젝트 일지 (2026-11-21) — 누가 방문 날을 잡았나 (날짜 · 담당 글은 싣지 않는다)
+  assert.deepEqual(
+    fake.db.project_events.map((e) => [e.type, e.actor_user_id, e.subject_id, e.payload]),
+    [['schedule_added', MANAGER, made.id, { type: 'as_visit' }]]
+  );
+  assert.ok(fake.db.project_events[0].project_id);
 
   const cal = await call(fake, 't_staff', '/company/schedules?from=2026-11-01&to=2026-11-30');
   const onCal = cal.json.data.items.find((i) => i.key === `schedule:${made.id}`);
@@ -423,7 +432,7 @@ test('A/S 방문 일정 — 처음이면 일정 표에 as_visit 한 줄을 만�
 });
 
 test('A/S 방문 일정 — 이미 있으면 그 줄을 고친다 (취소했던 줄은 다시 예정으로), 새 줄을 만들지 않는다', async () => {
-  const fake = world();
+  const fake = world({ ...tables(), project_events: [] });
   const before = fake.db.design_schedules.length;
   const r = await put(fake, 't_owner', `/company/as-requests/${AS(2)}/visit`, { visit_at: VISIT_AT });
   assert.equal(r.status, 200);
@@ -435,6 +444,15 @@ test('A/S 방문 일정 — 이미 있으면 그 줄을 고친다 (취소했던 
   assert.equal(again.json.data.visit.status, 'scheduled');
   assert.equal(again.json.data.visit.assignee_name, '최기사');
   assert.equal(fake.db.design_schedules.length, before);
+  // 프로젝트 일지 — 날짜가 달라졌으면 「바꿈」, 취소했던 줄을 다시 잡으면 「잡음」. 같은 날짜에 담당 글만 고친 것은 적지 않는다
+  await put(fake, 't_owner', `/company/as-requests/${AS(2)}/visit`, { visit_at: VISIT_AT, assignee_name: '박기사' });
+  assert.deepEqual(
+    fake.db.project_events.map((e) => [e.type, e.actor_user_id, e.subject_id, e.payload]),
+    [
+      ['schedule_changed', OWNER, S(20), { type: 'as_visit', moved: true }],
+      ['schedule_added', OWNER, S(20), { type: 'as_visit' }],
+    ]
+  );
 });
 
 test('A/S 방문 일정 — 이어 둔 일정이 지워졌으면 새로 만든다', async () => {

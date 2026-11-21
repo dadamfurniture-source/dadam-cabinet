@@ -46,6 +46,7 @@ import { AS_STATE_LABEL } from './as-requests.js';
 import { isMissingRelation } from './work-order-data.js';
 import { assertUuid, optIso, optText } from './work/validate.js';
 import { keepAssigneeName, syncJobWithSchedule, workersOfSchedules } from './work/schedule-link.js';
+import { logAt } from './project-log.js';
 
 const KST_MS = 9 * 3600 * 1000;
 const DAY_MS = 24 * 3600 * 1000;
@@ -410,6 +411,16 @@ export async function setAsVisit(env, { user, params, body, ctx }) {
       await syncJobWithSchedule(env, ctx, { ...cur, ...next });
       const name = await keepAssigneeName(env, { ...cur, ...next });
       const visit = visitOf(name === undefined ? next : { ...next, assignee_name: name }, await workersOfSchedules(env, company.id, [cur.id]));
+      // 프로젝트 일지 — 닫혔던 줄을 다시 잡았으면 「잡음」, 날짜가 달라졌으면 「바꿈」 (담당 글만 고친 것은 적지 않는다)
+      const again = patch.status === 'scheduled';
+      if (again || Date.parse(cur.scheduled_at) !== Date.parse(visitAt)) {
+        await logAt(env, ctx, { order: row.order_id }, {
+          actor: { id: user.id },
+          type: again ? 'schedule_added' : 'schedule_changed',
+          subject: { type: 'schedule', id: cur.id },
+          payload: again ? { type: 'as_visit' } : { type: 'as_visit', moved: true },
+        });
+      }
       return { id: row.id, visit };
     }
   }
@@ -440,5 +451,11 @@ export async function setAsVisit(env, { user, params, body, ctx }) {
     await restDelete(env, 'design_schedules', { id: `eq.${made.id}` });
     throw conflict('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
   }
+  await logAt(env, ctx, { order: row.order_id }, {
+    actor: { id: user.id },
+    type: 'schedule_added',
+    subject: { type: 'schedule', id: made.id },
+    payload: { type: 'as_visit' },
+  });
   return { id: row.id, visit: visitOf(made) };
 }

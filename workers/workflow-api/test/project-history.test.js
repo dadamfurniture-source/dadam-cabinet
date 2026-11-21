@@ -318,3 +318,126 @@ test('프로젝트 한 건 — 일지가 있으면 일어난 일에 「누가」
   );
   assert.equal(JSON.stringify(r.json.data.history).includes('김고객'), false);
 });
+
+test('둘째 묶음 — 제작 의뢰 · 일정 · A/S · 완료 보고 · 설계 시작: 일지 이름 → 화면의 일, 글이 모두 있다', () => {
+  const k = (type, extra = {}) => eventKind({ type, subject_id: 's1', ...extra });
+  const seen = [];
+  const is = (got, want) => {
+    assert.deepEqual(got, want);
+    if (want) seen.push(want.kind);
+  };
+  is(k('design_started'), { kind: 'design_started', ref: 's1', go: null });
+  is(k('request_created'), { kind: 'request_sent', ref: 's1', go: 'p-make' });
+  for (const t of [
+    'request_chosen',
+    'request_cancelled',
+    'request_recommended',
+    'request_accepted',
+    'request_declined',
+    'request_expired',
+    'request_received',
+  ])
+    is(k(t), { kind: t, ref: 's1', go: 'p-make' });
+  for (const t of ['as_requested', 'as_cancelled', 'as_received', 'as_done'])
+    is(k(t), { kind: t, ref: 's1', go: 'p-as' });
+  is(k('report_added', { payload: { kind: 'install_done' } }), {
+    kind: 'report_install_done',
+    ref: 's1',
+    go: 'p-install',
+  });
+  is(k('report_added', { payload: { kind: 'as_done' } }), {
+    kind: 'report_as_done',
+    ref: 's1',
+    go: 'p-as',
+  });
+  is(k('report_added', { payload: { kind: 'x' } }), null);
+  // 일정 — 종류마다 잡음 · 날짜 바꿈 · 취소. 그 밖의 고치기(확정 · 메모)와 모르는 종류는 내지 않는다
+  is(k('schedule_added', { payload: { type: 'installation' } }), {
+    kind: 'schedule_set_installation',
+    ref: 's1',
+    go: 'p-install',
+  });
+  is(k('schedule_added', { payload: { type: 'measurement' } }), {
+    kind: 'schedule_set_measurement',
+    ref: 's1',
+    go: null,
+  });
+  is(k('schedule_added', { payload: { type: 'as_visit' } }), {
+    kind: 'schedule_set_as_visit',
+    ref: 's1',
+    go: 'p-as',
+  });
+  is(k('schedule_changed', { to_status: 'cancelled', payload: { type: 'delivery', moved: true } }), {
+    kind: 'schedule_cancelled_delivery',
+    ref: 's1',
+    go: 'p-install',
+  });
+  is(k('schedule_changed', { to_status: 'scheduled', payload: { type: 'delivery', moved: true } }), {
+    kind: 'schedule_moved_delivery',
+    ref: 's1',
+    go: 'p-install',
+  });
+  is(k('schedule_changed', { to_status: 'confirmed', payload: { type: 'delivery' } }), null);
+  is(k('schedule_added', { payload: { type: 'nope' } }), null);
+  is(k('schedule_added', { payload: { type: 'constructor' } }), null);
+  is(k('schedule_added', {}), null);
+  // 글 — 위에서 나온 일은 모두 글이 있다 (없으면 화면에 줄이 안 나온다)
+  for (const kind of seen) assert.equal(typeof HISTORY_LABEL[kind], 'string', kind);
+  assert.deepEqual(
+    [
+      HISTORY_LABEL.schedule_set_installation,
+      HISTORY_LABEL.schedule_moved_as_visit,
+      HISTORY_LABEL.schedule_cancelled_measurement,
+      HISTORY_LABEL.request_sent,
+      HISTORY_LABEL.report_install_done,
+      HISTORY_LABEL.design_started,
+    ],
+    [
+      '설치 일정을 잡았습니다',
+      'A/S 방문 일정을 바꿨습니다',
+      '실측 일정을 취소했습니다',
+      '제작 의뢰를 보냈습니다',
+      '설치 완료 보고를 올렸습니다',
+      '설계를 시작했습니다',
+    ]
+  );
+  // 누가 — 「본사 추천이 도착했습니다」는 글이 이미 누구인지 말한다. 앞 차례의 추천 · 의뢰 보내기도 줄로 남는다
+  const merged = mergeEvents(
+    [{ kind: 'request_recommended', at: '2026-11-20T00:00:00Z', label: 'x', go: 'p-make', ref: 'r1' }],
+    [
+      { type: 'request_recommended', subject_id: 'r1', actor_kind: 'admin', created_at: '2026-11-20T00:00:00Z' },
+      { type: 'request_recommended', subject_id: 'r1', actor_kind: 'admin', created_at: '2026-11-18T00:00:00Z' },
+      { type: 'request_declined', subject_id: 'r1', actor_kind: 'system', created_at: '2026-11-19T00:00:00Z' },
+      {
+        type: 'request_created',
+        subject_id: 'r1',
+        actor_kind: 'member',
+        actor_user_id: 'u1',
+        created_at: '2026-11-17T00:00:00Z',
+      },
+    ],
+    { memberOf: new Map([['u1', { name: '박실장' }]]), labelOf: (kind) => HISTORY_LABEL[kind] }
+  ).sort((a, b) => b.at.localeCompare(a.at));
+  assert.deepEqual(merged, [
+    { kind: 'request_recommended', at: '2026-11-20T00:00:00Z', label: 'x', go: 'p-make' },
+    {
+      kind: 'request_declined',
+      at: '2026-11-19T00:00:00Z',
+      label: '팩토리가 제작 의뢰를 못 받았습니다',
+      go: 'p-make',
+    },
+    {
+      kind: 'request_recommended',
+      at: '2026-11-18T00:00:00Z',
+      label: '본사 추천이 도착했습니다',
+      go: 'p-make',
+    },
+    {
+      kind: 'request_sent',
+      at: '2026-11-17T00:00:00Z',
+      label: '제작 의뢰를 보냈습니다',
+      go: 'p-make',
+      who: { kind: 'member', name: '박실장' },
+    },
+  ]);
+});
