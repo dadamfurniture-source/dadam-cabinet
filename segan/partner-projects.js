@@ -278,6 +278,7 @@
     var flow = flowOf(p);
     var acts =
       flow.act +
+      (flow.tail || '') +
       (canAssign && J.assignFor !== p.id
         ? '<button type="button" class="mk-btn" data-act="assign" data-for="' + esc(p.id) + '">담당자</button>'
         : '') +
@@ -341,9 +342,9 @@
   }
 
   /** 줄 하나의 { strip 단계 띠, note 기다림 · 못 하는 일 글, act 다음 단추 } — 진행 중 프로젝트만, 담당자 고르는 보기는 뺀다 */
-  function flowOf(p) {
-    var none = { strip: '', note: '', act: '' };
-    if (J.view.assign || (p.status && p.status !== 'active')) return none;
+  function flowOf(p, anyView) {
+    var none = { strip: '', note: '', act: '', tail: '' };
+    if ((!anyView && J.view.assign) || (p.status && p.status !== 'active')) return none;
     if (typeof p.step !== 'string' || !own(STAGE_LABEL, p.step)) return none;
     var at = -1;
     STRIP.forEach(function (s, i) {
@@ -396,7 +397,19 @@
     } else if (/^p-[a-z]+$/.test(go)) {
       act = '<a class="' + cls + '" href="#' + esc(go) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>';
     }
-    return { strip: strip, note: '', act: act ? act + tail : '' };
+    return { strip: strip, note: '', act: act, tail: act ? tail : '' };
+  }
+
+  /** 그 프로젝트의 다음 할 일 — 다른 칸이 같은 단추를 그린다 (새로 생긴 일 표 segan/inbox.js). 보기와 상관없이 */
+  function nextOf(p) {
+    return flowOf(p, true);
+  }
+
+  /** 다른 칸에서 다음 할 일 단추를 눌렀다 — 프로젝트 줄에서 누른 것과 같다 */
+  function runNext(act, id) {
+    if (J.busy || !J.data) return;
+    if (act === 'next-sheet') return nextSheet(id);
+    if (act === 'next-order') return nextOrder(id);
   }
 
   /** 다음 할 일 — 수주 창 열기 (계약금 입금 적기 · 생산 시작 · 배송 · 완료 · 승인). 못 열면 계약 화면으로 */
@@ -951,6 +964,8 @@
     load: load,
     reload: reload,
     focusProject: focusProject,
+    nextOf: nextOf,
+    runNext: runNext,
     onChange: null, // 목록이 바뀌면 부를 것 (me.js 가 건다)
   };
 })();

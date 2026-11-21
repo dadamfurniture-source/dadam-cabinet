@@ -30,7 +30,8 @@
                         생산 설정 = 표준시간 · 인력 · 외주 업체 · 상판 · 납기 · 견적 원가 (#productionSettings —
                         segan/production-settings.js, 다담 공장 · 협력업체의 대표 · 실장)
                         단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다).
-                        대시보드(#dash-project) = 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js)
+                        대시보드(#dash-project) = 새로 생긴 일(#meInbox — 할 일 · 소식, 업체 구성원만, segan/inbox.js)
+                        + 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js)
                         + 우리 팩토리 숫자(#meNumbers — 대표 · 실장, segan/company-summary.js) + 프로젝트 목록. 단계 칸은 없다 (수는 왼쪽 줄에).
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
        관리
@@ -1336,6 +1337,7 @@
     if (open) showStage(s);
     if (x) showStage(x);
     if (open && s.dash) renderDash(s.dash);
+    off('meInbox', !(open && s.dash === 'project')); // 새로 생긴 일 — 프로젝트 관리 대시보드에서만 (segan/inbox.js)
     off('meCalendar', !(open && s.dash === 'project')); // 업무 달력 — 프로젝트 관리 대시보드에서만
     off('meNumbers', !(open && s.dash === 'project')); // 우리 팩토리 숫자 — 프로젝트 관리 대시보드에서만 (segan/company-summary.js)
     off('meStockNumbers', !(open && s.dash === 'stock')); // 재고 한눈에 — 구매 · 재고 대시보드에서만 (segan/stock-moves.js)
@@ -1736,6 +1738,9 @@
       name.textContent = a.getAttribute(v.member || v.platform ? 'data-label' : 'data-customer');
     });
     paintCounts(v);
+    // 새로 생긴 일 — 프로젝트 목록이 바뀌면 할 일 표도 맞춘다 (글이 바뀔 때만 다시 그린다 — segan/inbox.js)
+    if (window.SeganInbox && typeof window.SeganInbox.render === 'function')
+      window.SeganInbox.render();
     // 내 계정 › 내 팩토리 — 업체 이름, 업체가 없으면 「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」
     var p = partnerOf();
     var label = $('mePartnerLabel');
@@ -1928,6 +1933,7 @@
     var Quotes = window.SeganQuotes;
     var Customers = window.SeganCustomers;
     var Numbers = window.SeganCompanySummary;
+    var Inbox = window.SeganInbox;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1952,6 +1958,8 @@
           synced(Customers && Customers.load ? Customers.load(auth.sb, auth.session, me) : null),
           // 우리 팩토리 숫자 = 프로젝트를 가지는 업체의 대표 · 실장 (segan/company-summary.js — 프로젝트 관리 대시보드)
           synced(Numbers && Numbers.load ? Numbers.load(auth.sb, auth.session, me) : null),
+          // 새로 생긴 일 = 프로젝트를 가지는 업체 구성원 (segan/inbox.js — 프로젝트 관리 대시보드 맨 위: 할 일 · 소식)
+          synced(Inbox && Inbox.load ? Inbox.load(auth.sb, auth.session, me) : null),
           // 생산 계획 = 다담 공장 구성원 (segan/production-plan.js — 생산 › 생산 계획 화면)
           synced(Plan && Plan.load ? Plan.load(auth.sb, auth.session, me) : null),
           // 작업자 = 다담 공장 대표 · 실장 · 관리자 (segan/production-workers.js — 인사 › 작업자 화면)

@@ -5383,6 +5383,148 @@ button.sm-num[aria-pressed='true'] {
 }
 
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
+/* 새로 생긴 일 — 프로젝트 관리 대시보드 맨 위 (segan/inbox.js, 2026-11-21). 표는 수주 표(.od-table)와 같은 것 */
+.ib {
+  margin-bottom: 28px;
+}
+
+.ib-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+
+.ib-head b {
+  font-weight: 500;
+}
+
+.ib-head small,
+.ib-n {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-60);
+}
+
+.ib-table th[scope='row'] {
+  font-weight: 400;
+}
+
+.ib-table td,
+.ib-table th[scope='row'] {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.ib-table .ib-act {
+  padding-right: 0;
+  text-align: right;
+}
+
+.ib-news {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.ib-news li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 14px;
+}
+
+.ib-news time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.75;
+  color: var(--v5-ink-60);
+}
+
+.ib-what a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ib-where {
+  color: var(--v5-ink-60);
+}
+
+/* 지난번에 본 뒤 생긴 소식 — 글자 꼬리표로도 알린다 (색만으로 가르지 않는다) */
+.ib-new {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  background: var(--v5-navy);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--v5-paper);
+}
+
+@media (max-width: 520px) {
+  .ib-news li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+/* 좁은 화면 — 표를 옆으로 밀지 않는다: 줄마다 글(할 일 · 프로젝트 · 기한)을 쌓고 단추는 늘 오른쪽에 */
+@media (max-width: 560px) {
+  .ib .od-tablewrap {
+    overflow-x: visible;
+  }
+
+  .ib-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .ib-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .ib-table tbody {
+    display: block;
+    border-top: 1px solid var(--v5-line-25);
+  }
+
+  .ib-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--v5-line);
+  }
+
+  .ib-table tbody th,
+  .ib-table tbody td {
+    display: block;
+    grid-column: 1;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+
+  .ib-table tbody td {
+    font-size: 13px;
+    color: var(--v5-ink-60);
+  }
+
+  .ib-table tbody .ib-act {
+    grid-row: 1 / span 3;
+    grid-column: 2;
+  }
+}
+
 /* 프로젝트 줄 — 단계 띠 · 다음 할 일 (segan/partner-projects.js flowOf, 2026-11-21 「프로젝트 한 길」).
    지난 단계는 채운 네모, 지금 단계는 진한 네모 + 굵은 글, 남은 단계는 빈 네모 — 색이 아니라 꼴로도 가른다 */
 .pj-strip {
