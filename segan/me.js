@@ -106,6 +106,7 @@
   var CONSULT_STATUS = { pending: '대기', confirmed: '확정', completed: '완료', cancelled: '취소' }; // admin/consultations.html
   var SUB_STATUS = {
     active: '이용 중',
+    trialing: '첫 달 무료 이용 중', // segan/billing.js STATUS_KO 와 같다
     cancelled: '해지 예약됨',
     past_due: '결제 실패 · 재시도 중',
     expired: '종료됨',

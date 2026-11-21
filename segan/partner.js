@@ -32,8 +32,20 @@
                        Manager · Expert — 결제하고 시작: 업체 이름 · 시·도 · 시·군·구 → 카드 등록
                        Agent  — 신청 → 현장 미팅 → 본사 승인: 신청 칸 7개 → POST /partner/apply
 
+   사업자등록증 첫 달 무료 (2026-11-21 대표님 계획 승인 — 새 업체 · 모든 등급 / 카드 먼저 · 30일 뒤 자동 결제 /
+   자동 확인 + 의심 건 본사 검토 / 사업자번호당 1회 · 계속사업자만. DB 0077)
+     account-api  GET /partner/cert            내 사업자등록증 · 무료를 받을 수 있는가 { cert, trial: { eligible, reason, days } }
+                  POST /partner/cert           사진 바이트(JPEG) — 올리면 AI 가 읽은 값(extracted)이 함께 온다
+                  POST /partner/cert/confirm   { biz_no, company_name, representative_name, open_date } — 사람이 확인한 값으로 자동 확인
+     업체가 아직 없는 사람의 화면(시작하기 · 신청 진행 · 승인 · 보류) 맨 위에 사업자등록증 칸(.me-pt-cert)을 둔다.
+       없음 → 「사업자등록증 사진 올리기」 / 올림(uploaded) → 읽은 값 확인 칸 / 검토(review) · 반려(rejected) → 안내 + 다시 올리기 /
+       확인됨(verified) · 받을 수 있음 → 「첫 달 무료」 — 아래 결제 칸의 글 · 단추가 「오늘 0원 · 첫 결제일 · 금액」으로 바뀌고
+       카드 등록 때 partnerSignup 에 trial: true 를 싣는다 (payments-api 가 받을 수 있는지 다시 본다 — 못 받으면 결제 없이 멈춘다).
+     사진은 영수증과 같게 캔버스로 다시 그려 JPEG 로(EXIF 빠짐 · 긴 변 2576px · 5MB 까지). 이 기기에서 못 여는 사진(HEIC 등)은 안내만.
+     /partner/cert 를 못 읽으면(서버 준비 전 · 오류) 칸을 보이지 않는다 — 지금처럼 바로 결제로 시작한다.
+
    결제 — pricing.html 과 같은 토스 requestBillingAuth → billing-success.html?plan=…
-     떠나기 전에 sessionStorage partnerSignup 에 { plan, company?, returnTo } 를 둔다 (billing-success.html 이 읽는다).
+     떠나기 전에 sessionStorage partnerSignup 에 { plan, company?, returnTo, trial? } 를 둔다 (billing-success.html 이 읽는다).
      returnTo = 결제 뒤 앱으로 돌아올 곳 (이 업체 칸, 같은 사이트 안 경로).
      창을 닫았거나 못 열었으면 지운다. 실패해 돌아오면(me.html?failed=1) 그 안내를 업체 칸에 보인다.
    지우는 동작(신청 거두기 · 내보내기 · 초대 취소 · 등급 예약)은 페이지 안에서 한 번 더 묻는다.
@@ -95,6 +107,28 @@
     { name: 'intro', label: '하는 일 한 줄', max: 200 },
   ];
 
+  // 사업자등록증 — 자동 확인에서 막힌 까닭(account-api 가 decision_reason 에 적는 코드). 본사가 반려한 글은 그대로 보인다
+  var CERT_REJECT = {
+    checksum: '사업자등록번호가 올바르지 않습니다. 번호를 확인해 다시 올려 주세요.',
+    already_used: '이 사업자등록번호는 이미 첫 달 무료를 받았습니다.',
+    not_active: '휴업 · 폐업 상태의 사업자는 첫 달 무료를 받을 수 없습니다.',
+  };
+  var CERT_FIELDS = [
+    {
+      name: 'biz_no',
+      label: '사업자등록번호',
+      re: BIZNO_RE,
+      bad: '사업자등록번호 10자리를 적어 주세요. (예: 123-45-67890)',
+    },
+    { name: 'company_name', label: '상호', max: 100 },
+    { name: 'representative_name', label: '대표자', max: 60 },
+    { name: 'open_date', label: '개업일', re: /^\d{4}-\d{2}-\d{2}$/, bad: '개업일을 골라 주세요.' },
+  ];
+  // 사진 — segan/ledger.js 와 같은 한도 (긴 변 · 화소 · 바이트 · JPEG 품질)
+  var CERT_PHOTO = { edge: 2576, pixels: 3750000, bytes: 5242880, quality: 0.85 };
+  var CERT_OPEN_FAIL = '이 기기에서 열 수 없는 사진입니다. JPG · PNG 사진으로 올려 주세요.';
+  var TRIAL_DAYS = 30; // payments-api GET /plans 의 trial_days 를 못 읽었을 때만
+
   var P = {
     sb: null,
     session: null,
@@ -104,6 +138,7 @@
     plans: null, // GET /plans data { client_key, plans: [{ id, price_krw }] }
     credits: {}, // credit_plans tier → monthly_credits
     wallet: null, // my_credit_wallet 한 줄
+    cert: null, // GET /partner/cert data { cert, trial } — 못 읽으면 null (사업자등록증 칸 없음)
     open: null, // 'manager' | 'expert' | 'agent' | 'upgrade' | 'invite'
     // 한 번 더 묻는 동작 키 ('withdraw' · 'remove:<id>' · 'revoke:<id>' · 'plan:manager' · 'plan:expert' · 'plan:cancel')
     ask: null,
@@ -361,6 +396,7 @@
       (x.mode ? ' inputmode="' + x.mode + '"' : '') +
       (x.auto ? ' autocomplete="' + x.auto + '"' : '') +
       (x.ph ? ' placeholder="' + esc(x.ph) + '"' : '') +
+      (x.value ? ' value="' + esc(x.value) + '"' : '') +
       ' /></label>'
     );
   }
@@ -395,6 +431,261 @@
         })
         .join('');
     gugun.disabled = !list.length;
+  }
+
+  // ── 사업자등록증 · 첫 달 무료 ────────────────────────────
+  /** 첫 달 무료로 시작할 수 있는가 — 서버가 받을 수 있다고 한 때만 (결제 때 서버가 다시 본다) */
+  function trialOn() {
+    return !!(P.cert && P.cert.trial && P.cert.trial.eligible === true);
+  }
+
+  function trialDays() {
+    var d = P.plans && Number(P.plans.trial_days);
+    return d > 0 ? d : TRIAL_DAYS;
+  }
+
+  function planPrice(plan) {
+    var list = (P.plans && Array.isArray(P.plans.plans) && P.plans.plans) || [];
+    for (var i = 0; i < list.length; i++)
+      if (list[i] && list[i].id === plan && list[i].price_krw != null) return list[i].price_krw;
+    return null;
+  }
+
+  /** 첫 결제일 — 오늘 + 무료 기간 (한국 시간 「M월 D일」) */
+  function firstChargeDay(now) {
+    var t = new Date((now || Date.now()) + trialDays() * 86400000 + 9 * 3600000);
+    return t.getUTCMonth() + 1 + '월 ' + t.getUTCDate() + '일';
+  }
+
+  /** 카드 등록 앞에 적는 글 — 무료면 「오늘 0원 · 첫 결제일 · 금액 · 그 전에 해지하면 결제 없음」 */
+  function payNote(plan, normal) {
+    if (!trialOn()) return normal;
+    var price = planPrice(plan);
+    return (
+      '카드를 등록해도 오늘은 결제되지 않습니다. ' +
+      trialDays() +
+      '일 뒤인 ' +
+      firstChargeDay() +
+      '에 첫 결제' +
+      (price != null ? ' ' + won(price) : '') +
+      '가 진행되고, 그 전에 해지하면 결제되지 않습니다.'
+    );
+  }
+
+  function bizNoText(v) {
+    var d = String(v || '').replace(/\D/g, '');
+    return d.length === 10
+      ? d.slice(0, 3) + '-' + d.slice(3, 5) + '-' + d.slice(5)
+      : String(v || '');
+  }
+
+  /** 읽은 값 확인 칸의 처음 값 — 사람이 확인한 값이 있으면 그것, 없으면 AI 가 읽은 값 */
+  function certValues(cert) {
+    var x = (cert && cert.extracted && typeof cert.extracted === 'object' && cert.extracted) || {};
+    var out = {};
+    CERT_FIELDS.forEach(function (f) {
+      var v = cert && cert[f.name] != null ? cert[f.name] : x[f.name];
+      out[f.name] = v == null ? '' : String(v);
+    });
+    if (out.biz_no) out.biz_no = bizNoText(out.biz_no);
+    return out;
+  }
+
+  /** 확인 칸 값 → { body } | { error, field } */
+  function certBody(values) {
+    var body = {};
+    for (var i = 0; i < CERT_FIELDS.length; i++) {
+      var f = CERT_FIELDS[i];
+      var v = String((values && values[f.name]) || '').trim();
+      if (!v) return { error: f.label + josa(f.label) + ' 적어 주세요.', field: f.name };
+      if (f.max && v.length > f.max)
+        return { error: f.label + '은(는) ' + f.max + '자까지 적을 수 있습니다.', field: f.name };
+      if (f.re && !f.re.test(v)) return { error: f.bad, field: f.name };
+      body[f.name] = f.name === 'biz_no' ? v.replace(/\D/g, '') : v;
+    }
+    return { body: body };
+  }
+
+  /** 올릴 크기 — 긴 변 · 화소 한도 안으로, 키우지 않는다 (segan/ledger.js fitSize 와 같은 셈) */
+  function certFit(width, height) {
+    var s = Math.min(
+      1,
+      CERT_PHOTO.edge / Math.max(width, height),
+      Math.sqrt(CERT_PHOTO.pixels / (width * height))
+    );
+    return {
+      width: Math.max(1, Math.floor(width * s)),
+      height: Math.max(1, Math.floor(height * s)),
+    };
+  }
+
+  /** 기기에서 열기 · JPEG 로 다시 그리기 — 시험이 바꿔 낀다 (SeganPartner.media) */
+  var media = {
+    decode: function (file) {
+      return new Promise(function (resolve, reject) {
+        var url = window.URL.createObjectURL(file);
+        var img = new window.Image();
+        img.onload = function () {
+          resolve({
+            source: img,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            release: function () {
+              window.URL.revokeObjectURL(url);
+            },
+          });
+        };
+        img.onerror = function () {
+          window.URL.revokeObjectURL(url);
+          reject(new Error('decode'));
+        };
+        img.src = url;
+      });
+    },
+    /** → Promise<Blob | null> — 흰 바탕에 그린 JPEG (위치 같은 EXIF 는 따라오지 않는다) */
+    encode: function (source, width, height) {
+      return new Promise(function (resolve) {
+        var c = document.createElement('canvas');
+        c.width = width;
+        c.height = height;
+        var ctx = c.getContext && c.getContext('2d');
+        if (!ctx || !c.toBlob) return resolve(null);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(source, 0, 0, width, height);
+        c.toBlob(resolve, 'image/jpeg', CERT_PHOTO.quality);
+      });
+    },
+  };
+
+  /** 사진 하나 → { blob } | { error } */
+  async function certPhoto(file) {
+    var img = null;
+    try {
+      img = await media.decode(file);
+    } catch {
+      return { error: CERT_OPEN_FAIL };
+    }
+    try {
+      if (!img || !(img.width > 0 && img.height > 0)) return { error: CERT_OPEN_FAIL };
+      var size = certFit(img.width, img.height);
+      var blob = await media.encode(img.source, size.width, size.height);
+      if (!blob || !blob.size) return { error: '사진을 JPEG로 바꾸지 못했습니다.' };
+      if (blob.size > CERT_PHOTO.bytes) return { error: '사진이 5MB를 넘습니다.' };
+      return { blob: blob };
+    } catch {
+      return { error: '사진을 JPEG로 바꾸지 못했습니다.' };
+    } finally {
+      if (img && img.release) img.release();
+    }
+  }
+
+  /** 사진 고르기 단추 — label 안의 file input (data-cert-file). 사진만, 한 장 */
+  function certPick(label, solid) {
+    return (
+      '<label class="mk-btn' +
+      (solid ? ' mk-btn--solid' : '') +
+      ' me-pt-pick"><input type="file" accept="image/jpeg,image/png" data-cert-file />' +
+      esc(label) +
+      '</label>'
+    );
+  }
+
+  function certConfirmHtml(cert) {
+    var v = certValues(cert);
+    var read = !!(cert.extracted && typeof cert.extracted === 'object');
+    return (
+      '<form class="me-pt-form me-pt-cert" data-form="cert" data-cert="uploaded" novalidate>' +
+      '<p class="me-pt-title">사업자등록증에서 읽은 내용을 확인해 주세요</p>' +
+      '<p class="mk-note">' +
+      (read
+        ? '사진과 다른 곳이 있으면 고쳐 주세요.'
+        : '사진을 읽지 못했습니다. 사업자등록증을 보고 직접 적어 주세요.') +
+      '</p>' +
+      input('biz_no', '사업자등록번호', {
+        mode: 'numeric',
+        max: 12,
+        ph: '123-45-67890',
+        value: v.biz_no,
+      }) +
+      input('company_name', '상호', { max: 100, value: v.company_name }) +
+      input('representative_name', '대표자', { max: 60, value: v.representative_name }) +
+      input('open_date', '개업일', { type: 'date', value: v.open_date }) +
+      errBox() +
+      acts(
+        '<button type="submit" class="mk-btn mk-btn--solid">확인</button>' +
+          certPick('다른 사진 올리기')
+      ) +
+      '</form>'
+    );
+  }
+
+  /** 사업자등록증 칸 — 업체가 아직 없는 사람의 화면 맨 위. 못 읽었으면(P.cert 없음) 빈 글 */
+  function certHtml() {
+    var c = P.cert;
+    if (!c || typeof c !== 'object') return '';
+    var cert = c.cert && typeof c.cert === 'object' ? c.cert : null;
+    var st = cert ? cert.status : 'none';
+    var days = trialDays();
+    if (st === 'uploaded') return certConfirmHtml(cert);
+    var box = function (state, title, note, actions) {
+      return (
+        '<div class="me-pt-box me-pt-cert" data-cert="' +
+        state +
+        '"><p class="me-pt-title">' +
+        esc(title) +
+        '</p><p class="mk-note">' +
+        esc(note) +
+        '</p>' +
+        errBox() +
+        (actions ? acts(actions) : '') +
+        '</div>'
+      );
+    };
+    if (st === 'verified') {
+      var who = [cert.company_name, bizNoText(cert.biz_no)].filter(Boolean).join(' · ');
+      if (trialOn())
+        return box(
+          'verified',
+          '사업자등록증이 확인됐습니다 — 첫 달 무료',
+          (who ? who + '. ' : '') +
+            '아래에서 등급을 골라 카드를 등록하면 오늘은 결제되지 않고, ' +
+            days +
+            '일 뒤에 첫 결제가 진행됩니다.',
+          ''
+        );
+      return box(
+        'used',
+        '사업자등록증이 확인됐습니다',
+        (who ? who + '. ' : '') +
+          CERT_REJECT.already_used +
+          ' 아래에서 바로 결제하고 시작할 수 있습니다.',
+        ''
+      );
+    }
+    if (st === 'review')
+      return box(
+        'review',
+        '사업자등록증을 본사에서 확인하고 있습니다',
+        '확인이 끝나면 알림을 보내 드립니다. 기다리지 않고 아래에서 바로 결제하고 시작할 수도 있습니다 (그때는 첫 달 무료가 적용되지 않습니다).',
+        certPick('다른 사진 올리기')
+      );
+    if (st === 'rejected') {
+      var why = CERT_REJECT[cert.decision_reason];
+      return box(
+        'rejected',
+        '사업자등록증을 확인하지 못했습니다',
+        why ||
+          (cert.decision_reason ? '본사 확인 결과: ' + cert.decision_reason : '다시 올려 주세요.'),
+        cert.decision_reason === 'already_used' ? '' : certPick('다시 올리기', true)
+      );
+    }
+    return box(
+      'none',
+      '사업자등록증을 올리면 첫 달 무료',
+      '사업자등록증 사진을 올리면 번호를 확인한 뒤, 카드를 등록할 때 첫 달이 결제되지 않습니다. 사업자등록번호마다 한 번, 계속사업자만 받을 수 있습니다.',
+      certPick('사업자등록증 사진 올리기', true)
+    );
   }
 
   // ── 화면: 팩토리로 시작하기 ───────────────────────────────
@@ -435,10 +726,14 @@
       '</p>' +
       input('name', '팩토리 이름', { max: 100, auto: 'organization' }) +
       regionHtml() +
-      '<p class="mk-note">카드를 등록하면 첫 달이 결제되고 바로 시작합니다.</p>' +
+      '<p class="mk-note">' +
+      esc(payNote(plan, '카드를 등록하면 첫 달이 결제되고 바로 시작합니다.')) +
+      '</p>' +
       errBox() +
       acts(
-        '<button type="submit" class="mk-btn mk-btn--solid">카드 등록하고 시작</button>' +
+        '<button type="submit" class="mk-btn mk-btn--solid">' +
+          (trialOn() ? '카드 등록하고 무료로 시작' : '카드 등록하고 시작') +
+          '</button>' +
           btn('close', '닫기')
       ) +
       '</form>'
@@ -480,11 +775,15 @@
   }
 
   function startHtml() {
+    var free = trialOn();
+    var how = free ? '카드 등록 · 첫 달 무료' : '결제하면 바로 시작';
+    var go = free ? '무료로 시작' : '결제하고 시작';
     return (
       '<p class="me-pt-lead">팩토리로 시작하면 직원과 크레딧을 함께 씁니다.</p>' +
+      certHtml() +
       '<div class="me-pt-cards">' +
-      card('manager', '결제하면 바로 시작', '결제하고 시작', 'open-manager') +
-      card('expert', '결제하면 바로 시작', '결제하고 시작', 'open-expert') +
+      card('manager', how, go, 'open-manager') +
+      card('expert', how, go, 'open-expert') +
       card('agent', '신청 → 현장 미팅 → 본사 승인', '신청하기', 'open-agent') +
       '</div>' +
       compareLink() +
@@ -560,9 +859,11 @@
       facts.join('') +
       '</dl>' +
       infoLine('agent') +
-      '<p class="mk-note">카드를 등록하고 첫 달을 결제하면 바로 Agent 팩토리로 시작합니다.</p>' +
+      '<p class="mk-note">' +
+      esc(payNote('agent', '카드를 등록하고 첫 달을 결제하면 바로 Agent 팩토리로 시작합니다.')) +
+      '</p>' +
       errBox() +
-      acts(btn('pay-agent', '결제하고 시작', true)) +
+      acts(btn('pay-agent', trialOn() ? '카드 등록하고 무료로 시작' : '결제하고 시작', true)) +
       '</div>'
     );
   }
@@ -917,8 +1218,9 @@
       (P.err ? '<p class="mk-error me-pt-err" role="alert">' + esc(P.err) + '</p>' : '');
     var a = P.me.application;
     if (view === 'company') html += companyHtml(P.me);
-    else if (view === 'pending') html += pendingHtml(a, false);
-    else if (view === 'approved') html += approvedHtml(a);
+    // 신청 진행 · 승인 화면에도 사업자등록증 칸 — 미팅을 기다리는 동안 올려 두면 승인 뒤 첫 달 무료로 시작한다
+    else if (view === 'pending') html += certHtml() + pendingHtml(a, false);
+    else if (view === 'approved') html += certHtml() + approvedHtml(a);
     else if (view === 'held') html += heldHtml(false) + startHtml();
     else html += startHtml();
     root.innerHTML = html; // 모양이 틀린 응답은 여기서 던진다 → load 가 칸째 감춘다
@@ -971,6 +1273,44 @@
     var r = await call('/partner/me');
     var d = r.ok ? r.body.data : null;
     return d && typeof d === 'object' && !Array.isArray(d) ? d : null;
+  }
+
+  /** 내 사업자등록증 · 무료 가능 여부 — 못 읽으면 null (칸을 보이지 않는다) */
+  async function fetchCert() {
+    var r = await call('/partner/cert');
+    var d = r.ok ? r.body.data : null;
+    // 약속한 모양({ cert, trial })일 때만 — 다른 응답이면 칸을 보이지 않는다
+    var ok =
+      d &&
+      typeof d === 'object' &&
+      !Array.isArray(d) &&
+      'cert' in d &&
+      d.trial &&
+      typeof d.trial === 'object';
+    return ok ? d : null;
+  }
+
+  /** 사진 바이트 올리기 → { ok, status, body } (account-api POST /partner/cert) */
+  async function postCertPhoto(blob) {
+    var res;
+    try {
+      res = await fetch(P.base + '/partner/cert', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + (await token()), 'Content-Type': 'image/jpeg' },
+        body: blob,
+        cache: 'no-store',
+      });
+    } catch {
+      return { ok: false, status: 0, body: {} };
+    }
+    var body = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    var b = body && typeof body === 'object' ? body : {};
+    return { ok: res.ok && b.success === true, status: res.status, body: b };
   }
 
   async function loadPlans() {
@@ -1116,6 +1456,59 @@
     boxError(form, errText(res), res.status === 422 ? res.body.field : null);
   }
 
+  /** 사업자등록증 사진을 골랐다 — 줄여서 올리고, 읽은 값을 확인 칸에 보인다 */
+  async function uploadCert(inputEl) {
+    var file = inputEl && inputEl.files && inputEl.files[0];
+    var box = inputEl && inputEl.closest ? inputEl.closest('.me-pt-cert') : null;
+    if (!file || P.busy) return;
+    boxError(box, '');
+    setBusy(true);
+    var ready = await certPhoto(file);
+    if (ready.error) {
+      setBusy(false);
+      if (inputEl) inputEl.value = '';
+      return boxError(box, ready.error);
+    }
+    var res = await postCertPhoto(ready.blob);
+    setBusy(false);
+    if (res.ok && res.body.data && res.body.data.cert) {
+      P.cert = { cert: res.body.data.cert, trial: res.body.data.trial || { eligible: false } };
+      P.err = '';
+      P.msg = '';
+      return render();
+    }
+    if (inputEl) inputEl.value = '';
+    var text =
+      res.status === 429
+        ? '오늘 올릴 수 있는 횟수를 넘었습니다. 내일 다시 올려 주세요.'
+        : res.status === 413 || res.status === 415 || res.status === 422
+          ? 'JPG · PNG 사진(5MB 까지)만 올릴 수 있습니다.'
+          : errText(res);
+    boxError(box, text);
+  }
+
+  /** 읽은 값 확인 — 서버가 자동 확인을 돌리고 결과(통과 · 검토 · 안 됨)를 돌려준다 */
+  async function submitCert(form) {
+    var values = {};
+    CERT_FIELDS.forEach(function (f) {
+      var el = form.elements[f.name];
+      values[f.name] = el ? el.value : '';
+    });
+    var r = certBody(values);
+    if (r.error) return boxError(form, r.error, r.field);
+    boxError(form, '');
+    setBusy(true);
+    var res = await call('/partner/cert/confirm', { method: 'POST', body: r.body });
+    setBusy(false);
+    if (res.ok && res.body.data && res.body.data.cert) {
+      P.cert = { cert: res.body.data.cert, trial: res.body.data.trial || { eligible: false } };
+      P.err = '';
+      P.msg = '';
+      return render();
+    }
+    boxError(form, errText(res), res.status === 422 ? res.body.field : null);
+  }
+
   /** Manager · Expert 시작 — 새 업체 이름 · 지역을 partnerSignup 에 두고 카드 등록 */
   function submitStart(form, plan) {
     var r = startCompany({
@@ -1125,7 +1518,15 @@
     });
     if (r.error) return boxError(form, r.error, r.field);
     boxError(form, '');
-    startBilling(plan, { plan: plan, company: r.company }, form);
+    startBilling(plan, signupOf(plan, r.company), form);
+  }
+
+  /** 카드 등록 전에 남기는 값 — 첫 달 무료를 받을 수 있으면 trial: true (서버가 다시 본다) */
+  function signupOf(plan, company) {
+    var s = { plan: plan };
+    if (company) s.company = company;
+    if (trialOn()) s.trial = true;
+    return s;
   }
 
   /** 정지 · 해지된 업체 다시 시작 — 고를 수 있는 등급일 때만 (서버가 다시 본다) */
@@ -1247,7 +1648,7 @@
       P.open = null;
       return render();
     }
-    if (act === 'pay-agent') return startBilling('agent', { plan: 'agent' }, box);
+    if (act === 'pay-agent') return startBilling('agent', signupOf('agent', null), box);
     if (act === 'restart') return restart(el.getAttribute('data-plan'), box);
     if (act === 'make-invite') return makeInvite(box);
     if (act === 'copy-invite') return copyInvite(box);
@@ -1284,10 +1685,12 @@
     if (P.busy) return;
     if (SELF_SERVE.indexOf(kind) >= 0) return submitStart(form, kind);
     if (kind === 'apply') return submitApply(form);
+    if (kind === 'cert') return submitCert(form);
   }
 
   function onChange(e) {
     var el = e.target;
+    if (el && el.hasAttribute && el.hasAttribute('data-cert-file')) return uploadCert(el);
     if (el && el.name === 'sido' && el.closest) {
       var form = el.closest('[data-form]');
       if (form) fillGugun(form);
@@ -1349,10 +1752,13 @@
         Promise.resolve(wallet).catch(function () {
           return null;
         }),
+        // 업체가 아직 없는 사람만 사업자등록증을 묻는다 (업체 대표 · 구성원에게는 칸이 없다)
+        viewOf(P.me) === 'company' ? null : fetchCert(),
       ]);
       P.plans = got[0];
       P.credits = got[1] || {};
       P.wallet = got[2] || null;
+      P.cert = got[3] || null;
       if (failed) P.err = FAILED_MSG;
       bind();
       render();
@@ -1375,6 +1781,12 @@
     viewOf: viewOf,
     applyBody: applyBody,
     startCompany: startCompany,
+    certBody: certBody,
+    certValues: certValues,
+    certFit: certFit,
+    firstChargeDay: firstChargeDay,
+    media: media,
+    CERT_FIELDS: CERT_FIELDS,
     planChanges: planChanges,
     restartPlans: restartPlans,
     inviteLink: inviteLink,

@@ -238,6 +238,15 @@
   word-break: keep-all;
 }
 
+/* 구독: 사업자등록증 첫 달 무료 안내 — 첫 글 바로 아래 한 줄 */
+.pl-trial {
+  max-width: 640px;
+  margin: -12px 0 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
 /* ── 구독: 등급 넷 ── */
 .pl-tiers {
   display: grid;

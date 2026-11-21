@@ -2495,6 +2495,35 @@ button.sm-num[aria-pressed='true'] {
   margin-top: 0;
 }
 
+/* 사업자등록증 칸 — 시작 화면 맨 위 (segan/partner.js certHtml). 사진 고르기는 label 단추 */
+.me-pt-cert {
+  margin-bottom: 16px;
+}
+
+.me-pt-cert[data-cert='verified'] {
+  border-color: var(--v5-ink);
+}
+
+.me-pt-pick {
+  position: relative;
+  cursor: pointer;
+}
+
+/* 파일 고르기 칸은 보이지 않게 — 단추(label)가 대신 눌린다. 읽어 주기 · 키보드는 그대로 닿는다 */
+.me-pt-pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.me-pt-pick:focus-within {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
 .me-pt-title {
   margin: 0;
   font-size: 15px;

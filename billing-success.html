@@ -153,8 +153,9 @@
         }
 
         // 업체 가입 — 새 앱 「내 정보 › 업체」(또는 구독 관리의 다시 결제)가 토스 카드 등록 전에 남긴 값.
-        //   { plan: 'expert' | 'agent', company?: { name, sido, gugun }, returnTo?: '/…' }
-        //   (company 는 새 Expert 업체만, returnTo 는 결제 뒤 돌아갈 같은 사이트 경로)
+        //   { plan: 'expert' | 'agent', company?: { name, sido, gugun }, returnTo?: '/…', trial?: true }
+        //   (company 는 새 Expert 업체만, returnTo 는 결제 뒤 돌아갈 같은 사이트 경로,
+        //    trial 은 사업자등록증을 확인받아 첫 달 무료로 시작할 때 — 서버가 받을 수 있는지 다시 본다)
         // 서버에 plan · company 를 함께 보내고, 요청이 끝나면 지운다. returnTo 는 그 전에 읽어 둔다.
         var SIGNUP_KEY = 'partnerSignup';
         var returnTo = null;
@@ -204,10 +205,19 @@
           agent_not_approved:
             'Agent 는 본사 승인을 받은 뒤에 결제할 수 있습니다. 내 정보 › 업체에서 신청 상태를 확인해 주세요.',
           invalid: '업체 이름과 지역(시·도, 시·군·구)을 확인해 주세요. 내 정보 › 업체에서 다시 입력할 수 있습니다.',
+          // 첫 달 무료 (payments-api src/trial.js) — 받을 수 없으면 카드를 등록하기 전에 멈춘다
+          trial_no_cert:
+            '확인된 사업자등록증이 없어 첫 달 무료로 시작하지 못했습니다. 내 정보 › 팩토리에서 다시 확인해 주세요.',
+          trial_used:
+            '이 사업자등록번호는 이미 첫 달 무료를 받았습니다. 내 정보 › 팩토리에서 바로 결제로 시작할 수 있습니다.',
+          trial_not_new: '첫 달 무료는 새로 시작하는 팩토리만 받을 수 있습니다.',
+          trial_unavailable: '첫 달 무료를 지금 확인할 수 없습니다. 잠시 후 내 정보 › 팩토리에서 다시 시도해 주세요.',
         };
         function blockedMessage(res, body) {
           if (!body || !body.code) return null;
-          if (res.status !== 403 && res.status !== 409 && res.status !== 422) return null;
+          // 503 은 첫 달 무료를 확인하지 못한 경우(trial_unavailable)만 — 그때도 결제는 되지 않았다
+          var known = res.status === 403 || res.status === 409 || res.status === 422;
+          if (!known && !(res.status === 503 && body.code === 'trial_unavailable')) return null;
           return CODE_KO[body.code] || null;
         }
 
@@ -243,6 +253,8 @@
               gugun: signup.company.gugun,
             };
           }
+          // 첫 달 무료로 시작 — 서버가 trial: true 일 때만 결제를 건너뛴다 (못 받으면 결제 없이 멈춘다)
+          if (signup && signup.trial === true) payload.trial = true;
 
           var res = null;
           var body = null;
@@ -280,19 +292,34 @@
 
           var d = body.data || {};
           var company = signup && signup.company && signup.company.name;
-          $('title').textContent = '구독이 시작되었습니다';
-          $('msg').textContent = '이제 해당 등급의 기능을 바로 쓰실 수 있습니다.';
+          var nextDay = d.next_charge_at ? new Date(d.next_charge_at).toLocaleDateString('ko-KR') : '-';
+          // 첫 달 무료로 시작했다 — 오늘 결제는 없고, 첫 결제일 · 금액을 적는다
+          var trial = d.trial === true;
+          $('title').textContent = trial ? '첫 달 무료로 시작했습니다' : '구독이 시작되었습니다';
+          $('msg').textContent = trial
+            ? '오늘은 결제되지 않았습니다. 첫 결제일 전에 해지하면 결제되지 않습니다.'
+            : '이제 해당 등급의 기능을 바로 쓰실 수 있습니다.';
           $('detail').innerHTML =
             (company ? '<div class="bs-row"><span>업체</span><span>' + esc(company) + '</span></div>' : '') +
             '<div class="bs-row"><span>등급</span><span>' +
             esc(d.plan || plan) +
             '</span></div>' +
-            '<div class="bs-row"><span>결제 금액</span><span>' +
-            won(d.amount_krw) +
-            '</span></div>' +
-            '<div class="bs-row"><span>다음 결제일</span><span>' +
-            (d.next_charge_at ? new Date(d.next_charge_at).toLocaleDateString('ko-KR') : '-') +
-            '</span></div>';
+            (trial
+              ? '<div class="bs-row"><span>오늘 결제 금액</span><span>' +
+                won(0) +
+                '</span></div>' +
+                '<div class="bs-row"><span>첫 결제일</span><span>' +
+                nextDay +
+                '</span></div>' +
+                '<div class="bs-row"><span>첫 결제 금액</span><span>' +
+                won(d.first_charge_amount_krw) +
+                '</span></div>'
+              : '<div class="bs-row"><span>결제 금액</span><span>' +
+                won(d.amount_krw) +
+                '</span></div>' +
+                '<div class="bs-row"><span>다음 결제일</span><span>' +
+                nextDay +
+                '</span></div>');
           $('detail').hidden = false;
           showBack();
           $('primary').hidden = false;

@@ -32,6 +32,7 @@
 
   var STATUS_KO = {
     active: '이용 중',
+    trialing: '첫 달 무료 이용 중', // 사업자등록증 확인으로 결제 없이 시작 (payments-api src/trial.js, DB 0077)
     cancelled: '해지 예약됨',
     past_due: '결제 실패 · 재시도 중',
     expired: '종료됨',
@@ -46,6 +47,8 @@
   var ASK = {
     pastDue: '구독을 해지할까요? 더 이상 결제를 시도하지 않습니다.',
     active: '구독을 해지할까요? 이미 결제한 기간까지는 그대로 이용하실 수 있습니다.',
+    trial:
+      '구독을 해지할까요? 결제는 진행되지 않고, 무료 기간이 끝날 때까지는 그대로 이용하실 수 있습니다.',
   };
 
   var B = {
@@ -112,6 +115,18 @@
    * Standard (결제로 받은 등급만), 업체 구독은 마지막도 실패하면 업체가 정지된다.
    */
   function notice(sub, tier, company) {
+    if (sub.status === 'trialing') {
+      // 무료 뒤 자동 결제를 미리 알린다 — 날짜 · 금액 · 그 전에 해지하면 결제 없음
+      return {
+        kind: '',
+        text:
+          '첫 달 무료 이용 중입니다. ' +
+          day(sub.next_charge_at) +
+          '에 첫 결제 ' +
+          won(sub.amount_krw) +
+          '이 진행됩니다. 그 전에 해지하면 결제되지 않습니다.',
+      };
+    }
     if (sub.status === 'past_due') {
       return {
         kind: 'err',
@@ -236,9 +251,14 @@
 
     rows += row('구독 상태', statusLabel(sub));
     rows += row('월 결제액', won(sub.amount_krw));
-    rows += row('이번 기간', day(sub.current_period_start) + ' ~ ' + day(sub.current_period_end));
+    rows += row(
+      sub.status === 'trialing' ? '무료 기간' : '이번 기간',
+      day(sub.current_period_start) + ' ~ ' + day(sub.current_period_end)
+    );
     if (sub.status === 'active') {
       rows += row('다음 결제일', day(sub.next_charge_at));
+    } else if (sub.status === 'trialing') {
+      rows += row('첫 결제일', day(sub.next_charge_at));
     } else if (sub.status === 'past_due') {
       rows += row('다음 결제 시도', day(sub.next_charge_at));
     } else if (sub.ended_at) {
@@ -264,6 +284,11 @@
       );
     } else if (sub.status === 'active') {
       setActions(link(PLANS_PAGE, '등급 변경') + button('blCancelBtn', '구독 해지', 'bl-danger'));
+    } else if (sub.status === 'trialing') {
+      // 무료 이용 중 — 첫 결제 전에 카드를 바꾸거나 해지할 수 있다 (해지하면 결제 없이 무료 기간 끝에 종료)
+      setActions(
+        button('blCardBtn', '카드 바꾸기') + button('blCancelBtn', '구독 해지', 'bl-danger')
+      );
     } else if (company) {
       // 정지 · 해지된 업체만 다시 결제한다. 업체가 아직 이용 중이면(해지 예약 — 이용 종료일까지) 단추를 두지 않는다
       //   다시 결제 = 지금 등급, 다른 등급(Manager · Expert)은 팩토리 칸에서 골라 다시 시작한다
@@ -470,7 +495,8 @@
   /** 구독 해지 — 한 번 더 묻는다 (사이트 billing.html 의 confirm 과 같은 글) */
   function askCancel() {
     var pastDue = B.sub && B.sub.status === 'past_due';
-    $('blAskText').textContent = pastDue ? ASK.pastDue : ASK.active;
+    var trial = B.sub && B.sub.status === 'trialing';
+    $('blAskText').textContent = pastDue ? ASK.pastDue : trial ? ASK.trial : ASK.active;
     $('blAsk').hidden = false;
     $('blActions').hidden = true;
   }

@@ -10,6 +10,8 @@
  *   결제    billing.html(결제 관리)과 같은 토스 requestBillingAuth → billing-success.html?plan=…,
  *           떠나기 전 sessionStorage partnerSignup = { plan, company?, returnTo: '/segan/me.html#partner' }
  *   주소    me.html#partner 로 오면 업체 칸으로 내려간다, ?failed=1 이면 안내
+ *   첫 달 무료  account-api GET /partner/cert · POST /partner/cert(사진) · /partner/cert/confirm — 업체가 없는 사람의 화면
+ *           맨 위 사업자등록증 칸. 확인되면 결제 칸이 「오늘 0원 · 첫 결제일 · 금액」으로 바뀌고 partnerSignup 에 trial: true
  */
 const fs = require('fs');
 const path = require('path');
@@ -184,6 +186,7 @@ async function load(options = {}) {
       },
     ],
     posts: {},
+    cert: fail(404, 'not_found', 'Not found'), // GET /partner/cert — 기본은 서버 준비 전(칸 없음)
     toss: undefined, // requestBillingAuth: 함수면 그 결과, Error 면 던짐 (기본: 끝나지 않는 약속 — 페이지를 떠난 셈)
     noToss: false,
     signup: undefined,
@@ -251,7 +254,9 @@ async function load(options = {}) {
       url,
       method,
       auth: (init.headers || {}).Authorization,
-      body: init.body ? JSON.parse(init.body) : undefined,
+      type: (init.headers || {})['Content-Type'],
+      // 사진 바이트(Blob)는 그대로 둔다
+      body: typeof init.body === 'string' ? JSON.parse(init.body) : init.body,
     });
     const reply = (r) => {
       if (r instanceof Error) throw r;
@@ -261,6 +266,7 @@ async function load(options = {}) {
       return reply(ok({ plan: 'agent', status: 'active', next_charge_at: '2026-11-20T00:00:00Z' }));
     if (url === PAY + '/plans') return reply(opts.plans);
     if (url === WORK + '/me/projects') return reply(fail(404, 'not_found', 'x'));
+    if (url === ACC + '/partner/cert' && method === 'GET') return reply(opts.cert);
     if (url === ACC + '/partner/me' && method === 'GET') {
       const list = Array.isArray(opts.partner) ? opts.partner : [opts.partner];
       return reply(list[Math.min(meCalls++, list.length - 1)]);
@@ -1389,6 +1395,387 @@ describe('e. 업체 있음', () => {
     expect(root().querySelector('img')).toBeNull();
     expect(root().querySelector('[onerror]')).toBeNull();
     expect(root().textContent).toContain(bad);
+  });
+});
+
+describe('사업자등록증 · 첫 달 무료 (2026-11-21 대표님 계획 승인, DB 0077)', () => {
+  const NO_TRIAL = { eligible: false, reason: 'no_cert', days: 30 };
+  const certOf = (cert, trial = NO_TRIAL) => ok({ cert, trial });
+  const CERT = {
+    id: '99999999-9999-4999-8999-999999999999',
+    status: 'uploaded',
+    extracted: {
+      biz_no: '1234567890',
+      company_name: '다담 협력 주방',
+      representative_name: '홍길동',
+      open_date: '2020-01-02',
+    },
+    biz_no: null,
+    company_name: null,
+    representative_name: null,
+    open_date: null,
+    review_reason: null,
+    decision_reason: null,
+    created_at: '2026-11-21T03:00:00Z',
+  };
+  const VERIFIED = {
+    ...CERT,
+    status: 'verified',
+    biz_no: '1234567890',
+    company_name: '다담 협력 주방',
+    representative_name: '홍길동',
+    open_date: '2020-01-02',
+  };
+  const FREE = { eligible: true, reason: null, days: 30 };
+  /** 업체도 신청도 없는 사람 — 「팩토리로 시작하기」 화면 */
+  const start = (extra = {}) => load({ partner: ok(meData()), ...extra });
+  const certBox = () => root().querySelector('.me-pt-cert');
+  const certGets = (calls) =>
+    calls.fetch.filter((f) => f.url === ACC + '/partner/cert' && f.method === 'GET');
+  /** 사진을 고른다 — 기기에서 열기 · JPEG 로 그리기는 가짜로 */
+  const pick = async (sizes = []) => {
+    const M = window.SeganPartner.media;
+    M.decode = async () => ({ source: {}, width: 4000, height: 3000, release() {} });
+    M.encode = async (src, w, h) => {
+      sizes.push([w, h]);
+      return new window.Blob(['x'.repeat(20)], { type: 'image/jpeg' });
+    };
+    const input = certBox().querySelector('input[type="file"]');
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [{ name: 'cert.jpg', type: 'image/jpeg' }],
+    });
+    input.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flush();
+    await flush();
+  };
+
+  test('서버가 준비되기 전(404) · 약속한 모양이 아니면 칸이 없다 — 지금처럼 바로 결제로 시작한다', async () => {
+    const calls = await start();
+    expect(certGets(calls)).toHaveLength(1);
+    expect(certBox()).toBeNull();
+    expect(root().querySelector('.me-pt-card[data-plan="manager"] button').textContent).toBe(
+      '결제하고 시작'
+    );
+    await start({ cert: ok({ something: 1 }) });
+    expect(certBox()).toBeNull();
+  });
+
+  test('아직 안 올렸으면 시작 카드 위에 안내와 「사업자등록증 사진 올리기」 — 사진(JPG · PNG) 한 장', async () => {
+    await start({ cert: certOf(null) });
+    const box = certBox();
+    expect(box.getAttribute('data-cert')).toBe('none');
+    expect(box.querySelector('.me-pt-title').textContent).toBe('사업자등록증을 올리면 첫 달 무료');
+    expect(box.querySelector('.mk-note').textContent).toMatch(
+      /사업자등록번호마다 한 번, 계속사업자만/
+    );
+    const input = box.querySelector('label.me-pt-pick input[type="file"]');
+    expect(input.getAttribute('accept')).toBe('image/jpeg,image/png');
+    expect(input.hasAttribute('multiple')).toBe(false);
+    expect(box.querySelector('label.me-pt-pick').textContent).toBe('사업자등록증 사진 올리기');
+    // 칸은 시작 카드보다 위
+    const order = [...root().children].map((c) => c.className.split(' ')[0]);
+    expect(order.indexOf('me-pt-box')).toBeLessThan(order.indexOf('me-pt-cards'));
+    // 아직 무료가 아니다
+    expect(root().querySelector('.me-pt-card[data-plan="expert"] button').textContent).toBe(
+      '결제하고 시작'
+    );
+  });
+
+  test('사진을 고르면 줄여서(긴 변 2576px) JPEG 바이트로 올리고, 읽은 값이 확인 칸에 채워진다', async () => {
+    const sizes = [];
+    const calls = await start({ cert: certOf(null), posts: { '/partner/cert': certOf(CERT) } });
+    await pick(sizes);
+    expect(sizes).toEqual([[2236, 1677]]); // 375만 화소 한도가 먼저 걸린다 (segan/ledger.js 와 같은 셈)
+    const post = posts(calls).find((f) => f.url === ACC + '/partner/cert');
+    expect(post.auth).toBe('Bearer tok-1');
+    expect(post.type).toBe('image/jpeg');
+    expect(post.body instanceof window.Blob).toBe(true);
+    const form = formOf('cert');
+    expect(form.getAttribute('data-cert')).toBe('uploaded');
+    expect(form.querySelector('.me-pt-title').textContent).toBe(
+      '사업자등록증에서 읽은 내용을 확인해 주세요'
+    );
+    expect(
+      [...form.querySelectorAll('input:not([type="file"])')].map((i) => [i.name, i.value])
+    ).toEqual([
+      ['biz_no', '123-45-67890'],
+      ['company_name', '다담 협력 주방'],
+      ['representative_name', '홍길동'],
+      ['open_date', '2020-01-02'],
+    ]);
+    expect(form.querySelector('[name="open_date"]').type).toBe('date');
+    expect(buttons()).toEqual(expect.arrayContaining(['확인']));
+  });
+
+  test('못 읽은 사진은 빈 칸으로 — 직접 적으라고 알린다. 못 여는 사진 · 하루 한도 · 형식 거절은 그 자리에 안내', async () => {
+    await start({ cert: certOf({ ...CERT, extracted: null }) });
+    expect(formOf('cert').querySelector('.mk-note').textContent).toMatch(/사진을 읽지 못했습니다/);
+    expect(formOf('cert').querySelector('[name="biz_no"]').value).toBe('');
+
+    // 이 기기에서 못 여는 사진
+    let calls = await start({ cert: certOf(null) });
+    window.SeganPartner.media.decode = async () => {
+      throw new Error('decode');
+    };
+    const input = certBox().querySelector('input[type="file"]');
+    Object.defineProperty(input, 'files', { configurable: true, value: [{ name: 'a.heic' }] });
+    input.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flush();
+    expect(formError(certBox()).textContent).toBe(
+      '이 기기에서 열 수 없는 사진입니다. JPG · PNG 사진으로 올려 주세요.'
+    );
+    expect(posts(calls)).toEqual([]);
+
+    for (const [status, msg] of [
+      [429, '오늘 올릴 수 있는 횟수를 넘었습니다. 내일 다시 올려 주세요.'],
+      [422, 'JPG · PNG 사진(5MB 까지)만 올릴 수 있습니다.'],
+    ]) {
+      calls = await start({
+        cert: certOf(null),
+        posts: { '/partner/cert': fail(status, 'x', '서버 글') },
+      });
+      await pick();
+      expect([status, formError(certBox()).textContent]).toEqual([status, msg]);
+      expect(certBox().getAttribute('data-cert')).toBe('none');
+    }
+  });
+
+  test('확인 — 빈 칸 · 번호 형식은 보내기 전에 막고, 맞으면 숫자 10자리로 보낸다 → 통과하면 「첫 달 무료」', async () => {
+    const calls = await start({
+      cert: certOf(CERT),
+      posts: { '/partner/cert/confirm': certOf(VERIFIED, FREE) },
+    });
+    const form = formOf('cert');
+    fill(form, { biz_no: '123-45' });
+    await submit(form);
+    expect(formError(form).textContent).toBe(
+      '사업자등록번호 10자리를 적어 주세요. (예: 123-45-67890)'
+    );
+    expect(form.querySelector('[name="biz_no"]').getAttribute('aria-invalid')).toBe('true');
+    fill(form, { biz_no: '123-45-67890', representative_name: ' ' });
+    await submit(form);
+    expect(formError(form).textContent).toBe('대표자를 적어 주세요.');
+    expect(posts(calls)).toEqual([]);
+
+    fill(form, { representative_name: ' 홍길동 ' });
+    await submit(form);
+    const post = posts(calls).find((f) => f.url === ACC + '/partner/cert/confirm');
+    expect(post.body).toEqual({
+      biz_no: '1234567890',
+      company_name: '다담 협력 주방',
+      representative_name: '홍길동',
+      open_date: '2020-01-02',
+    });
+    const box = certBox();
+    expect(box.getAttribute('data-cert')).toBe('verified');
+    expect(box.querySelector('.me-pt-title').textContent).toBe(
+      '사업자등록증이 확인됐습니다 — 첫 달 무료'
+    );
+    expect(box.querySelector('.mk-note').textContent).toContain('다담 협력 주방 · 123-45-67890');
+    expect(box.querySelector('input[type="file"]')).toBeNull(); // 확인된 뒤에는 다시 올리지 않는다
+  });
+
+  test('확인됐으면 결제 칸이 바뀐다 — 「무료로 시작」 · 오늘 0원 · 첫 결제일과 금액 · 그 전에 해지하면 결제 없음, partnerSignup 에 trial: true', async () => {
+    const calls = await start({ cert: certOf(VERIFIED, FREE) });
+    for (const plan of ['manager', 'expert']) {
+      const card = root().querySelector(`.me-pt-card[data-plan="${plan}"]`);
+      expect(card.querySelector('button').textContent).toBe('무료로 시작');
+      expect(card.querySelector('.me-pt-how').textContent).toBe('카드 등록 · 첫 달 무료');
+    }
+    // Agent 는 신청부터 — 그대로
+    expect(root().querySelector('.me-pt-card[data-plan="agent"] button').textContent).toBe(
+      '신청하기'
+    );
+    await pressCard('expert');
+    const form = formOf('expert');
+    const note = form.querySelector('.mk-note').textContent;
+    expect(note).toBe(
+      '카드를 등록해도 오늘은 결제되지 않습니다. 30일 뒤인 ' +
+        window.SeganPartner.firstChargeDay() +
+        '에 첫 결제 199,000원가 진행되고, 그 전에 해지하면 결제되지 않습니다.'
+    );
+    expect(note).not.toMatch(/첫 달이 결제되고/);
+    expect(form.querySelector('button[type="submit"]').textContent).toBe(
+      '카드 등록하고 무료로 시작'
+    );
+    fill(form, { name: '다담 협력 주방', sido: '대구광역시', gugun: '북구' });
+    await submit(form);
+    expect(calls.toss).toHaveLength(1);
+    expect(JSON.parse(calls.toss[0].signup)).toEqual({
+      plan: 'expert',
+      company: { name: '다담 협력 주방', sido: '대구광역시', gugun: '북구' },
+      trial: true,
+      returnTo: '/segan/me.html#partner',
+    });
+  });
+
+  test('받을 수 없으면 trial 을 싣지 않는다 — 안 올림 · 검토 중 · 반려 · 이미 받은 번호', async () => {
+    for (const [cert, trial, state, text] of [
+      [null, NO_TRIAL, 'none', '사업자등록증을 올리면 첫 달 무료'],
+      [
+        { ...VERIFIED, status: 'review', review_reason: 'nts_mismatch' },
+        { eligible: false, reason: 'not_verified', days: 30 },
+        'review',
+        '사업자등록증을 본사에서 확인하고 있습니다',
+      ],
+      [
+        { ...VERIFIED, status: 'rejected', decision_reason: 'not_active' },
+        { eligible: false, reason: 'not_verified', days: 30 },
+        'rejected',
+        '사업자등록증을 확인하지 못했습니다',
+      ],
+      [
+        VERIFIED,
+        { eligible: false, reason: 'already_used', days: 30 },
+        'used',
+        '사업자등록증이 확인됐습니다',
+      ],
+    ]) {
+      const calls = await start({ cert: certOf(cert, trial) });
+      expect([state, certBox().getAttribute('data-cert')]).toEqual([state, state]);
+      expect(certBox().querySelector('.me-pt-title').textContent).toBe(text);
+      expect(root().querySelector('.me-pt-card[data-plan="manager"] button').textContent).toBe(
+        '결제하고 시작'
+      );
+      await pressCard('manager');
+      const form = formOf('manager');
+      expect(form.querySelector('.mk-note').textContent).toBe(
+        '카드를 등록하면 첫 달이 결제되고 바로 시작합니다.'
+      );
+      fill(form, { name: '다담', sido: '대구광역시', gugun: '북구' });
+      await submit(form);
+      expect(JSON.parse(calls.toss[0].signup).trial).toBeUndefined();
+    }
+  });
+
+  test('검토 중 · 반려 안내 — 기다리지 않고 바로 시작할 수 있음 · 막힌 까닭 · 본사가 적은 사유는 글자로만', async () => {
+    await start({ cert: certOf({ ...VERIFIED, status: 'review' }) });
+    expect(certBox().querySelector('.mk-note').textContent).toMatch(
+      /기다리지 않고 아래에서 바로 결제하고 시작할 수도 있습니다/
+    );
+    expect(certBox().querySelector('label.me-pt-pick').textContent).toBe('다른 사진 올리기');
+    for (const [reason, text, again] of [
+      ['checksum', '사업자등록번호가 올바르지 않습니다. 번호를 확인해 다시 올려 주세요.', true],
+      ['not_active', '휴업 · 폐업 상태의 사업자는 첫 달 무료를 받을 수 없습니다.', true],
+      ['already_used', '이 사업자등록번호는 이미 첫 달 무료를 받았습니다.', false],
+      ['<b>사진이 잘렸습니다</b>', '본사 확인 결과: <b>사진이 잘렸습니다</b>', true],
+    ]) {
+      await start({ cert: certOf({ ...VERIFIED, status: 'rejected', decision_reason: reason }) });
+      expect(certBox().querySelector('.mk-note').textContent).toBe(text);
+      expect(certBox().querySelector('.mk-note b')).toBeNull();
+      expect(!!certBox().querySelector('input[type="file"]')).toBe(again);
+    }
+  });
+
+  test('Agent — 신청 진행 · 승인 화면에도 칸이 있고, 승인 뒤 확인돼 있으면 「카드 등록하고 무료로 시작」 → { plan: agent, trial: true }', async () => {
+    await load({
+      partner: ok(meData({ application: app({ status: 'applied' }) })),
+      cert: certOf(null),
+    });
+    expect(certBox().getAttribute('data-cert')).toBe('none');
+    expect(root().querySelector('[data-view="pending"]')).not.toBeNull();
+
+    const calls = await load({
+      partner: ok(meData({ application: app({ status: 'approved' }) })),
+      cert: certOf(VERIFIED, FREE),
+    });
+    expect(certBox().getAttribute('data-cert')).toBe('verified');
+    const box = root().querySelector('[data-view="approved"]');
+    expect(box.querySelector('.mk-note').textContent).toMatch(
+      /오늘은 결제되지 않습니다.*첫 결제 299,000원/
+    );
+    await press('카드 등록하고 무료로 시작');
+    expect(JSON.parse(calls.toss[0].signup)).toEqual({
+      plan: 'agent',
+      trial: true,
+      returnTo: '/segan/me.html#partner',
+    });
+  });
+
+  test('업체가 있는 사람에게는 묻지 않는다 — 칸도 없다', async () => {
+    const calls = await load({
+      partner: ok(meData({ company: company() })),
+      cert: certOf(VERIFIED, FREE),
+    });
+    expect(certGets(calls)).toEqual([]);
+    expect(certBox()).toBeNull();
+  });
+
+  test('순수 함수 — 확인 값 다듬기 · 처음 값 · 사진 크기 · 첫 결제일', async () => {
+    await start();
+    const P = window.SeganPartner;
+    expect(P.CERT_FIELDS.map((f) => f.name)).toEqual([
+      'biz_no',
+      'company_name',
+      'representative_name',
+      'open_date',
+    ]);
+    expect(
+      P.certBody({
+        biz_no: ' 123-45-67890 ',
+        company_name: '가',
+        representative_name: '나',
+        open_date: '2020-01-02',
+      })
+    ).toEqual({
+      body: {
+        biz_no: '1234567890',
+        company_name: '가',
+        representative_name: '나',
+        open_date: '2020-01-02',
+      },
+    });
+    expect(
+      P.certBody({
+        biz_no: '1234567890',
+        company_name: '',
+        representative_name: '나',
+        open_date: '2020-01-02',
+      }).field
+    ).toBe('company_name');
+    expect(
+      P.certBody({
+        biz_no: '1234567890',
+        company_name: '가',
+        representative_name: '나',
+        open_date: '2020/01/02',
+      }).field
+    ).toBe('open_date');
+    expect(
+      P.certBody({
+        biz_no: '1234567890',
+        company_name: '가'.repeat(101),
+        representative_name: '나',
+        open_date: '2020-01-02',
+      }).field
+    ).toBe('company_name');
+    // 사람이 확인한 값이 읽은 값보다 먼저
+    expect(
+      P.certValues({
+        extracted: { biz_no: '1112233333', company_name: '읽음' },
+        company_name: '확인함',
+      })
+    ).toEqual({
+      biz_no: '111-22-33333',
+      company_name: '확인함',
+      representative_name: '',
+      open_date: '',
+    });
+    expect(P.certFit(1000, 800)).toEqual({ width: 1000, height: 800 }); // 키우지 않는다
+    expect(P.certFit(5152, 1000)).toEqual({ width: 2576, height: 500 });
+    // 오늘 + 30일, 한국 날짜 (UTC 15:30 = 한국 다음 날 00:30)
+    expect(P.firstChargeDay(Date.UTC(2026, 10, 21, 3))).toBe('12월 21일');
+    expect(P.firstChargeDay(Date.UTC(2026, 10, 21, 15, 30))).toBe('12월 22일');
+  });
+
+  test('모습 — 파일 고르기 칸은 보이지 않고 단추(label)가 대신 눌린다, 확인된 칸은 진한 선', () => {
+    const css = read('segan/shell.css');
+    expect(css).toMatch(/\.me-pt-pick input \{[^}]*clip-path:\s*inset\(50%\);/);
+    expect(css).toMatch(/\.me-pt-pick:focus-within \{[^}]*outline:/);
+    expect(css).toMatch(
+      /\.me-pt-cert\[data-cert='verified'\] \{\s*border-color:\s*var\(--v5-ink\);/
+    );
   });
 });
 
