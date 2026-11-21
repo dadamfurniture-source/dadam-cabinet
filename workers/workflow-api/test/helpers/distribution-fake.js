@@ -117,6 +117,9 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     order_events: [],
     order_payments: [],
     as_requests: [],
+    // 프로젝트 일지 · 받은 일 읽음 (DB 0078)
+    project_events: [],
+    inbox_seen: [],
     ...JSON.parse(JSON.stringify(tables)),
   };
   const calls = [];

@@ -4,6 +4,8 @@
  *
  *   GET /company/projects/:id   내 업체 프로젝트 하나 (active 구성원)
  *     { role, can_manage,
+ *       actions  { hold, cancel, resume, blocked }             보류 · 그만둠 · 다시 진행을 할 수 있나 (company-project-status.js statusActions —
+ *                                                              계약금을 받은 프로젝트는 hold · cancel 이 false, blocked 'deposit'). DB 0078 전이면 모두 false
  *       project  목록 줄과 같은 칸 (company-projects.js projectRow — 단계 step · 다음 할 일 next 포함),
  *       designs  [{ id, name, updated_at }]                      이어진 설계, 최근 고친 것부터
  *       quotes   [{ id, design_id, created_at, expires_at, first_viewed_at, view_count, decision, decided_at }]
@@ -22,7 +24,14 @@
  */
 
 import { NotFoundError, ValidationError, selectMany, selectOne } from './supabase.js';
-import { projectCompanyOf, projectRow, stagesOf } from './company-projects.js';
+import {
+  PROJECT_COLUMNS,
+  PROJECT_COLUMNS_HOLD,
+  projectCompanyOf,
+  projectRow,
+  stagesOf,
+} from './company-projects.js';
+import { statusActions } from './company-project-status.js';
 import { isFactory, pipelineOf } from './company-pipeline.js';
 import { membersOf } from './company-assignee.js';
 import { isMissingRelation } from './work-order-data.js';
@@ -61,13 +70,20 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
   const co = `eq.${company.id}`;
   const one = (cols) =>
     selectOne(env, 'projects', { id: `eq.${projectId}`, company_id: co, select: cols });
-  // 담당자 칸(DB 0042) — 적용 전이면 담당자 없이
+  // 보류 칸(DB 0078) · 담당자 칸(DB 0042) — 적용 전이면 그 칸 없이
   let project;
+  let holdReady = true;
   try {
-    project = await one('id,customer_id,title,status,created_at,closed_at,assignee_id');
+    project = await one(PROJECT_COLUMNS_HOLD);
   } catch (e) {
     if (!isMissingRelation(e)) throw e;
-    project = await one('id,customer_id,title,status,created_at,closed_at');
+    holdReady = false;
+    try {
+      project = await one(PROJECT_COLUMNS);
+    } catch (e2) {
+      if (!isMissingRelation(e2)) throw e2;
+      project = await one('id,customer_id,title,status,created_at,closed_at');
+    }
   }
   if (!project) throw new NotFoundError('프로젝트를 찾을 수 없습니다');
   const factory = isFactory(company);
@@ -239,9 +255,19 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
   history.sort((a, b) => key(a.at).localeCompare(key(b.at)));
 
   const memberOf = new Map(members.map((m) => [m.user_id, m]));
+  // 보류 · 그만둠을 할 수 있나 — 취소 아닌 수주와 그 계약금으로 (서버가 거절하는 조건과 같은 함수)
+  const liveOrders = orderList.filter((o) => o.status !== 'cancelled');
+  const actions = holdReady
+    ? statusActions(
+        project,
+        { role, user_id: user.id },
+        { live: liveOrders.length, deposit: liveOrders.some((o) => !!depositOf.get(o.id)) }
+      )
+    : { hold: false, cancel: false, resume: false, blocked: null };
   return {
     role,
     can_manage: canAct,
+    actions,
     project: projectRow(project, {
       customer,
       designCount: designList.length,

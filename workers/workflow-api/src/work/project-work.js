@@ -289,6 +289,8 @@ function linkIdsOf(body) {
 async function manageScope(env, user, rawProjectId) {
   const scope = await workersCompanyOf(env, user, { manage: true, fresh: true });
   const project = await loadProject(env, scope.company, rawProjectId);
+  if (project.status === 'on_hold')
+    throw conflict('보류 중인 프로젝트에는 배정할 수 없습니다 — 다시 진행한 뒤 배정해 주세요', 'closed');
   if (project.status !== 'active') throw conflict('끝났거나 넘긴 프로젝트에는 배정할 수 없습니다', 'closed');
   return { ...scope, project };
 }

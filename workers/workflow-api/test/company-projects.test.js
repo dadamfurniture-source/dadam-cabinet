@@ -787,6 +787,29 @@ test('목록 — 영업 사원(Manager 업체): 제작 의뢰 보내기 → 본�
   assert.deepEqual(asks(), [[`eq.${M}`, null]]);
 });
 
+test('목록 — 보류: 단계는 멈춘 자리 그대로 · 다음 할 일 없음 · 줄에 다시 볼 날과 메모 (진행 중인 줄에는 그 칸이 없다)', async () => {
+  const fake = fakeOf();
+  const list = async () => (await call(fake, '/company/projects', OWNER_A)).json.data.items;
+  let row = (await list()).find((p) => p.id === PRJ_A1);
+  assert.equal('hold_until' in row, false);
+  assert.equal('status_note' in row, false);
+  Object.assign(fake.db.projects.find((p) => p.id === PRJ_A1), {
+    status: 'on_hold',
+    hold_until: '2099-12-05',
+    status_note: '이사 날짜 미정',
+    status_at: at(22),
+  });
+  row = (await list()).find((p) => p.id === PRJ_A1);
+  assert.deepEqual(
+    [row.status, row.step, row.next, row.hold_until, row.status_note, row.status_at],
+    ['on_hold', 'contract', null, '2099-12-05', '이사 날짜 미정', at(22)]
+  );
+  // 그만둔 프로젝트는 끝 — 메모는 실린다
+  Object.assign(fake.db.projects.find((p) => p.id === PRJ_A1), { status: 'cancelled', hold_until: null });
+  row = (await list()).find((p) => p.id === PRJ_A1);
+  assert.deepEqual([row.status, row.step, row.next, row.hold_until, row.status_note], ['cancelled', 'done', null, null, '이사 날짜 미정']);
+});
+
 test('목록 — 다음 할 일 값을 못 모아도 목록은 그대로 준다 (step · next 없이 — 화면은 stage 로 그린다)', async () => {
   const fake = fakeOf({
     before: (method, table) =>
