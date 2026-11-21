@@ -70,6 +70,7 @@
     assignEmpty: '진행 중인 프로젝트가 없습니다.',
     assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
     notMine: '대표 · 실장이 합니다',
+    sheet: '진행 보기',
     today: '오늘',
     days: '일째',
     views: '번 열어 봄',
@@ -276,8 +277,15 @@
     var canWork = canWorkOn(p);
     var working = canWork && J.workFor === p.id;
     var flow = flowOf(p);
+    // 진행 보기 — 프로젝트 한 건 창 (segan/project-sheet.js). 담당자 고르는 보기에서는 뺀다
+    var Sheet = window.SeganProjectSheet;
+    var canSheet = !J.view.assign && Sheet && typeof Sheet.canOpen === 'function' && Sheet.canOpen();
     var acts =
       flow.act +
+      (flow.tail || '') +
+      (canSheet
+        ? '<button type="button" class="mk-btn" data-act="sheet" data-for="' + esc(p.id) + '">' + esc(TEXT.sheet) + '</button>'
+        : '') +
       (canAssign && J.assignFor !== p.id
         ? '<button type="button" class="mk-btn" data-act="assign" data-for="' + esc(p.id) + '">담당자</button>'
         : '') +
@@ -341,9 +349,9 @@
   }
 
   /** 줄 하나의 { strip 단계 띠, note 기다림 · 못 하는 일 글, act 다음 단추 } — 진행 중 프로젝트만, 담당자 고르는 보기는 뺀다 */
-  function flowOf(p) {
-    var none = { strip: '', note: '', act: '' };
-    if (J.view.assign || (p.status && p.status !== 'active')) return none;
+  function flowOf(p, anyView) {
+    var none = { strip: '', note: '', act: '', tail: '' };
+    if ((!anyView && J.view.assign) || (p.status && p.status !== 'active')) return none;
     if (typeof p.step !== 'string' || !own(STAGE_LABEL, p.step)) return none;
     var at = -1;
     STRIP.forEach(function (s, i) {
@@ -396,7 +404,19 @@
     } else if (/^p-[a-z]+$/.test(go)) {
       act = '<a class="' + cls + '" href="#' + esc(go) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>';
     }
-    return { strip: strip, note: '', act: act ? act + tail : '' };
+    return { strip: strip, note: '', act: act, tail: act ? tail : '' };
+  }
+
+  /** 그 프로젝트의 다음 할 일 — 다른 칸이 같은 단추를 그린다 (새로 생긴 일 표 segan/inbox.js). 보기와 상관없이 */
+  function nextOf(p) {
+    return flowOf(p, true);
+  }
+
+  /** 다른 칸에서 다음 할 일 단추를 눌렀다 — 프로젝트 줄에서 누른 것과 같다 */
+  function runNext(act, id) {
+    if (J.busy || !J.data) return;
+    if (act === 'next-sheet') return nextSheet(id);
+    if (act === 'next-order') return nextOrder(id);
   }
 
   /** 다음 할 일 — 수주 창 열기 (계약금 입금 적기 · 생산 시작 · 배송 · 완료 · 승인). 못 열면 계약 화면으로 */
@@ -657,6 +677,13 @@
     return typeof m === 'string' && m ? m : TEXT.generic;
   }
 
+  /** GET /company/projects/:id → { ok, status, data } — 프로젝트 한 건 창이 읽는다 (segan/project-sheet.js) */
+  async function readProject(id) {
+    if (!J.base || typeof id !== 'string' || !UUID_RE.test(id)) return { ok: false, status: 0, data: null };
+    var r = await call('GET', '/company/projects/' + id);
+    return { ok: r.ok, status: r.status, data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null };
+  }
+
   /** GET /company/projects → { company, manage, items } | null */
   async function fetchList() {
     var r = await call('GET', '/company/projects');
@@ -812,6 +839,11 @@
     var nextAct = el.getAttribute('data-act');
     if (nextAct === 'next-sheet') return nextSheet(el.getAttribute('data-id') || '');
     if (nextAct === 'next-order') return nextOrder(el.getAttribute('data-id') || '');
+    if (nextAct === 'sheet') {
+      var Sheet = window.SeganProjectSheet;
+      if (Sheet && typeof Sheet.open === 'function') Sheet.open(el.getAttribute('data-for') || '');
+      return;
+    }
     var act = el.getAttribute('data-act');
     if (act === 'open') {
       J.open = true;
@@ -951,6 +983,9 @@
     load: load,
     reload: reload,
     focusProject: focusProject,
+    nextOf: nextOf,
+    runNext: runNext,
+    readProject: readProject,
     onChange: null, // 목록이 바뀌면 부를 것 (me.js 가 건다)
   };
 })();

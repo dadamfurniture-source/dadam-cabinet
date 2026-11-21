@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026112119';
+const ASSET_VERSION = '2026112120';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -119,6 +119,8 @@ const SHELL = [
   versioned(SCOPE + 'stock-needs.js'),
   versioned(SCOPE + 'part-catalog.js'),
   versioned(SCOPE + 'quotes.js'),
+  versioned(SCOPE + 'inbox.js'),
+  versioned(SCOPE + 'project-sheet.js'),
   versioned(SCOPE + 'customers.js'),
   versioned(SCOPE + 'company-summary.js'),
   versioned(SCOPE + 'hq-companies.js'),
