@@ -302,7 +302,7 @@ describe('AI 시스템 소개 (about.html)', () => {
   test('흐름 — 연출컷 · 상담 → 상담 배분 → 팩토리(설계 · BOM · 작업지시서) → 생산 · 시공 → A/S → 학습', async () => {
     await load('about.html');
     const flows = $$('ol.ab-flow');
-    expect(flows).toHaveLength(2);
+    expect(flows).toHaveLength(1);
     const steps = (ol) => [...ol.querySelectorAll('.ab-step b')].map(text);
     expect(steps(flows[0])).toEqual([
       '연출컷 · 상담',
@@ -312,10 +312,12 @@ describe('AI 시스템 소개 (about.html)', () => {
       'A/S',
       '학습',
     ]);
-    expect(steps(flows[1])).toEqual(['제작 의뢰', '업체 추천', '선택']);
+    // 「Manager 업체의 제작 의뢰」 칸은 지웠다 (2026-11-21 대표님 「매니저 업체 제작 의뢰는 삭제 해줘」)
+    expect($('#abMakerTitle')).toBeNull();
+    expect($$('.in-h2').map(text)).toEqual(['일이 흐르는 길', 'SEGAN 이 잘하는 것']);
+    expect(text($('main'))).not.toMatch(/제작 의뢰|제작을 의뢰/);
     // 「다담 본사」라는 말은 쓰지 않는다 (2026-11-21 대표님 「다담 본사라는 말은 빼줘」)
     expect(text($('main'))).not.toMatch(/본사/);
-    expect(text($('#abMakerTitle'))).toBe('Manager 업체의 제작 의뢰');
     expect($$('.ab-points b').map(text)).toEqual([
       '실제 시공 사진 기반 연출컷',
       '설계부터 작업지시서까지 한 앱',
@@ -324,7 +326,7 @@ describe('AI 시스템 소개 (about.html)', () => {
     ]);
   });
 
-  test('사진 — 맨 위 한 장 + 「일이 흐르는 길」 여섯 칸 (2026-11-21 대표님 「시각자료 힉스필드로」), 제작 의뢰 세 칸은 글만', async () => {
+  test('사진 — 맨 위 한 장 + 「일이 흐르는 길」 여섯 칸 (2026-11-21 대표님 「시각자료 힉스필드로」)', async () => {
     await load('about.html');
     const imgs = $$('main img');
     expect(imgs.map((i) => i.getAttribute('src'))).toEqual([
@@ -362,7 +364,7 @@ describe('AI 시스템 소개 (about.html)', () => {
       '900',
     ]);
     expect(imgs.slice(1).every((i) => i.getAttribute('loading') === 'lazy')).toBe(true);
-    // 흐름 여섯 칸 — 사진 · 글(번호는 글 칸에) 차례. 제작 의뢰 세 칸은 글만
+    // 흐름 여섯 칸 — 사진 · 글(번호는 글 칸에) 차례
     const flows = $$('ol.ab-flow');
     const first = [...flows[0].children];
     expect(first).toHaveLength(6);
@@ -371,7 +373,6 @@ describe('AI 시스템 소개 (about.html)', () => {
       expect([...li.children].map((c) => c.className)).toEqual(['ab-shot', 'ab-text']);
       expect(li.querySelectorAll('.ab-text b, .ab-text span')).toHaveLength(2);
     }
-    expect(flows[1].querySelector('img, .ab-shot')).toBeNull();
     // AI 로 만든 사진임을 밝힌다
     expect(text($('.ab-note'))).toBe('이 화면의 사진은 AI 로 연출한 이미지입니다.');
     // 사진 칸 모습 — 잘리지 않게 꽉 채움, 폰은 16:9 · PC 는 4:3, 받기 전에는 사진 바탕색

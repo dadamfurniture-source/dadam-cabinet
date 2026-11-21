@@ -15,27 +15,27 @@
     <title>AI 시스템 소개 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112110" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112110" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112110" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112110" />
+    <link rel="icon" href="icons/icon.svg?v=2026112111" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112111" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112111" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112111" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026112110" />
-    <link rel="stylesheet" href="info.css?v=2026112110" />
+    <link rel="stylesheet" href="shell.css?v=2026112111" />
+    <link rel="stylesheet" href="info.css?v=2026112111" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112110"></script>
+    <script src="../js/config.js?v=2026112111"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112110"></script>
-    <script src="shell.js?v=2026112110" defer blocking="render"></script>
+    <script src="motion.js?v=2026112111"></script>
+    <script src="shell.js?v=2026112111" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112110" defer></script>
+    <script src="guide.js?v=2026112111" defer></script>
   </head>
   <body class="sg-app" data-tab="about">
     <div data-segan-shell="header"></div>
@@ -176,22 +176,6 @@
           </li>
         </ol>
         <p class="ab-loop">학습한 것은 다시 처음의 연출컷 · 상담으로 돌아갑니다.</p>
-
-        <h2 class="in-h2" id="abMakerTitle">Manager 업체의 제작 의뢰</h2>
-        <ol class="ab-flow ab-flow--short" aria-labelledby="abMakerTitle">
-          <li class="ab-step">
-            <b>제작 의뢰</b>
-            <span>Manager 업체가 만들 가구의 제작을 의뢰합니다.</span>
-          </li>
-          <li class="ab-step">
-            <b>업체 추천</b>
-            <span>맡을 가구제작 업체를 추천받습니다.</span>
-          </li>
-          <li class="ab-step">
-            <b>선택</b>
-            <span>추천받은 업체 가운데에서 고릅니다.</span>
-          </li>
-        </ol>
       </section>
 
       <section aria-labelledby="abPointsTitle">
