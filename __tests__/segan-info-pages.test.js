@@ -378,7 +378,7 @@ describe('AI 시스템 소개 (about.html)', () => {
     expect(css).toMatch(
       /\n\.ab-shot \{[^}]*aspect-ratio:\s*16 \/ 9;[^}]*background:\s*var\(--v5-photo\);/
     );
-    expect(css).toMatch(/\n  \.ab-shot \{\s*aspect-ratio:\s*4 \/ 3;/);
+    expect(css).toMatch(/\n {2}\.ab-shot \{\s*aspect-ratio:\s*4 \/ 3;/);
     expect(css).toMatch(/\n\.ab-hero \{[^}]*aspect-ratio:\s*16 \/ 9;/);
   });
 
