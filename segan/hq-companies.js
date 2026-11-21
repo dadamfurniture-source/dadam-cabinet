@@ -24,7 +24,7 @@
   var PLAN_NAME = { manager: 'Manager', expert: 'Expert', agent: 'Agent' }; // 등급 (company.plan)
   var ROLE_NAME = { owner: '대표', manager: '실장', staff: '직원' }; // 업체 안 직책 — manager 는 「실장」
   var COMPANY_STATUS = { suspended: '결제 멈춤', closed: '해지됨' }; // active 는 적지 않는다
-  var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
+  var PROJECT_STATUS = { on_hold: '보류', closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
   var MEMBER_STATUS = { removed: '내보냄' };
   var STAGES = [
     ['consult', '상담'],

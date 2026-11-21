@@ -36,7 +36,7 @@
 
   var MEMBER_ROLES = ['owner', 'manager', 'staff'];
   var PLANS = ['manager', 'expert', 'agent']; // 프로젝트를 가지는 협력업체 (Manager 이상) — 워커 company-projects.js PROJECT_PLANS
-  var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
+  var PROJECT_STATUS = { on_hold: '보류', closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
   var ROLE_NAME = { owner: '대표', manager: '실장', staff: '직원' }; // 업체 안 역할 — manager 는 화면 「실장」
   var TITLE_MAX = 100; // 워커 PROJECT_TITLE_MAX
   var NAME_MAX = 50; // 워커 CUSTOMER_NAME_MAX
@@ -70,6 +70,29 @@
     assignEmpty: '진행 중인 프로젝트가 없습니다.',
     assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
     notMine: '대표 · 실장이 합니다',
+    // 보류 · 그만둠 (2026-11-21 뒤 공정 1차 — 서버 PATCH /company/projects/:id/status, DB 0078)
+    held: '보류',
+    holdUntil: '다시 볼 날 ',
+    statusBtn: '보류 · 그만둠',
+    statusBtnHeld: '다시 진행 · 그만둠',
+    statusBtnCancelled: '되살리기',
+    statusLoading: '불러오는 중…',
+    statusFailed: '불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.',
+    hold: '보류',
+    cancel: '그만둠',
+    resume: '다시 진행',
+    revive: '되살리기',
+    stateHeld: '보류 중',
+    stateCancelled: '그만둔 프로젝트',
+    blockedDeposit: '계약금을 받은 프로젝트는 보류 · 그만둠을 할 수 없습니다.',
+    blockedOrder: '그만두려면 계약(수주)을 먼저 취소해 주세요.',
+    holdLead: '보류하면 단계 줄의 수와 할 일에서 빠집니다. 다시 볼 날을 적으면 그날 「새로 생긴 일」에 알려 줍니다.',
+    cancelLead: '그만두면 단계 줄의 수와 할 일에서 빠집니다. 대표 · 실장이 되살릴 수 있습니다.',
+    untilLabel: '다시 볼 날 (안 적어도 됩니다)',
+    noteLabel: '메모 (안 적어도 됩니다)',
+    doneHold: '보류했습니다.',
+    doneCancel: '프로젝트를 그만뒀습니다.',
+    doneResume: '다시 진행합니다.',
     today: '오늘',
     days: '일째',
     views: '번 열어 봄',
@@ -191,6 +214,8 @@
       manage: d.can_manage === true,
       // 담당자 칸 — 서버가 assignee_ready true 로 답할 때만 (DB 0042 전 · 옛 서버면 없음)
       assignee: d.assignee_ready === true,
+      // 보류 · 그만둠 — 서버가 hold_ready true 로 답할 때만 (DB 0078 전 · 옛 서버면 단추가 없다)
+      hold: d.hold_ready === true,
       members: (Array.isArray(d.members) ? d.members : []).filter(function (m) {
         return m && typeof m === 'object' && UUID_RE.test(String(m.user_id || ''));
       }),
@@ -266,6 +291,19 @@
       .filter(Boolean)
       .join(' · ');
     var status = PROJECT_STATUS[p.status] || '';
+    // 보류 · 그만둠 — 다시 볼 날 · 메모 (서버가 그 줄에만 싣는다)
+    var holdNote = [
+      p.status === 'on_hold' && typeof p.hold_until === 'string' && p.hold_until
+        ? TEXT.holdUntil + p.hold_until.replace(/-/g, '.')
+        : '',
+      (p.status === 'on_hold' || p.status === 'cancelled') && typeof p.status_note === 'string' && p.status_note
+        ? '「' + p.status_note + '」'
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    var canHold = canStatus(p);
+    var holding = canHold && J.statusFor === p.id;
     var owner = d.assignee
       ? '<small class="me-pt-owner" data-assignee>' +
         esc(p.assignee ? '담당 ' + personLabel(p.assignee) : TEXT.noAssignee) +
@@ -303,6 +341,18 @@
           '">' +
           esc(d.manage ? '작업 배정' : '작업자 보기') +
           '</button>'
+        : '') +
+      // 보류 · 그만둠 — 담당자 · 작업 배정처럼 같은 단추로 펼치고 접는다. 계약금을 받은 진행 중 프로젝트에는 없다
+      (canHold
+        ? '<button type="button" class="mk-btn' +
+          (holding ? ' mk-btn--solid' : '') +
+          '" data-act="status" data-for="' +
+          esc(p.id) +
+          '" aria-expanded="' +
+          holding +
+          '">' +
+          esc(p.status === 'on_hold' ? TEXT.statusBtnHeld : p.status === 'cancelled' ? TEXT.statusBtnCancelled : TEXT.statusBtn) +
+          '</button>'
         : '');
     return (
       '<li class="me-pt-row" data-project="' +
@@ -316,6 +366,7 @@
         ? '<small><a href="' + esc(telHref(c.phone)) + '">' + esc(c.phone) + '</a></small>'
         : '') +
       owner +
+      (holdNote ? '<small class="pj-hold">' + esc(holdNote) + '</small>' : '') +
       '</span>' +
       (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
       '</span>' +
@@ -323,6 +374,7 @@
       flow.note +
       (acts ? '<div class="rd-acts">' + acts + '</div>' : '') +
       (canAssign && J.assignFor === p.id ? assignHtml(p) : '') +
+      (holding ? statusPanelHtml(p) : '') +
       (working ? '<div class="pjw" data-pj-work="' + esc(p.id) + '"></div>' : '') +
       '</li>'
     );
@@ -353,7 +405,8 @@
   /** 줄 하나의 { strip 단계 띠, note 기다림 · 못 하는 일 글, act 다음 단추 } — 진행 중 프로젝트만, 담당자 고르는 보기는 뺀다 */
   function flowOf(p, anyView) {
     var none = { strip: '', note: '', act: '', tail: '' };
-    if ((!anyView && J.view.assign) || (p.status && p.status !== 'active')) return none;
+    // 보류는 단계 띠를 그대로 보인다 (어디서 멈췄는지) — 다음 할 일은 다시 볼 날이 됐을 때만 서버가 준다
+    if ((!anyView && J.view.assign) || (p.status && p.status !== 'active' && p.status !== 'on_hold')) return none;
     if (typeof p.step !== 'string' || !own(STAGE_LABEL, p.step)) return none;
     var at = -1;
     STRIP.forEach(function (s, i) {
@@ -392,7 +445,11 @@
     var tail = since && since !== TEXT.today ? '<small class="pj-since">' + esc(since) + '</small>' : '';
     var act = '';
     var doc = n.act && typeof n.act === 'object' && n.act.kind === 'order' ? String(n.act.document_id || '') : '';
-    if (doc && UUID_RE.test(doc)) {
+    if (go === 'sheet') {
+      // 보류를 다시 볼 날 — 그 줄의 「다시 진행 · 그만둠」 칸을 연다 (서버 글표는 sheet 지만 줄에는 창 단추를 두지 않는다 — 대표님 11-21)
+      act =
+        '<button type="button" class="' + cls + '" data-act="status" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</button>';
+    } else if (doc && UUID_RE.test(doc)) {
       act =
         '<button type="button" class="' + cls + '" data-act="next-order" data-id="' + esc(doc) + '">' + esc(n.label) + '</button>';
     } else if (go.indexOf('order:') === 0 && UUID_RE.test(go.slice(6))) {
@@ -545,6 +602,12 @@
     var items = d.items.filter(function (p) {
       return inView(p, v);
     });
+    var held = items.filter(function (p) {
+      return p.status === 'on_hold';
+    });
+    var live = items.filter(function (p) {
+      return p.status !== 'on_hold';
+    });
     var title = v.assign
       ? '작업 분배'
       : v.stage
@@ -560,9 +623,21 @@
       '</h3>' +
       (lead ? '<p class="mk-note">' + esc(lead) + '</p>' : '') +
       (J.msg ? '<p class="me-pt-msg" role="status">' + esc(J.msg) + '</p>' : '') +
-      (items.length
-        ? '<ul class="me-pt-list me-pr-list">' + items.map(rowHtml).join('') + '</ul>'
+      (live.length
+        ? '<ul class="me-pt-list me-pr-list">' + live.map(rowHtml).join('') + '</ul>'
         : '<p class="me-empty">' + esc(empty) + '</p>') +
+      // 보류 — 아래에 접어 둔다 (왼쪽 수 · 할 일에서는 빠져 있다). 같은 단추로 펼치고 접는다
+      (held.length
+        ? '<div class="pj-held"><button type="button" class="mk-btn' +
+          (J.heldOpen ? ' mk-btn--solid' : '') +
+          '" data-act="held" aria-expanded="' +
+          (J.heldOpen ? 'true' : 'false') +
+          '">' +
+          esc(TEXT.held + ' ' + held.length) +
+          '</button>' +
+          (J.heldOpen ? '<ul class="me-pt-list me-pr-list">' + held.map(rowHtml).join('') + '</ul>' : '') +
+          '</div>'
+        : '') +
       (canCreate
         ? J.open
           ? formHtml(customersOf(items))
@@ -682,6 +757,186 @@
     if (!J.base || typeof id !== 'string' || !UUID_RE.test(id)) return { ok: false, status: 0, data: null };
     var r = await call('GET', '/company/projects/' + id);
     return { ok: r.ok, status: r.status, data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null };
+  }
+
+  // ── 보류 · 그만둠 · 다시 진행 (2026-11-21 대표님 뒤 공정 1차) ──────────────
+  //   줄의 단추로 펼친다 (담당자 · 작업 배정과 같은 꼴 — 같은 단추를 다시 누르면 접힌다).
+  //   펼칠 때 서버에서 그 프로젝트를 읽어 할 수 있는 일(actions)대로만 단추를 낸다 —
+  //   계약금을 받은 프로젝트는 보류 · 그만둠이 없다 (대표님 「계약금을 받으면 … 작동하지 않아야함」). 서버도 거절한다.
+
+  /** 내 계정 id */
+  function myId() {
+    var u = J.session && J.session.user;
+    return u && typeof u.id === 'string' ? u.id : '';
+  }
+
+  /**
+   * 그 줄에 「보류 · 그만둠」 단추가 있나 — 대표 · 실장 · 그 프로젝트의 담당자.
+   * 진행 중: 계약금을 받았으면 없다. 보류: 늘 있다(다시 진행). 그만둠: 대표 · 실장에게만(되살리기).
+   */
+  function canStatus(p) {
+    var d = J.data || {};
+    if (!d.hold || J.view.assign) return false;
+    var mine = !!myId() && !!p.assignee && p.assignee.user_id === myId();
+    if (!d.manage && !mine) return false;
+    if (p.status === 'on_hold') return true;
+    if (p.status === 'cancelled') return d.manage === true;
+    return (p.status === 'active' || !p.status) && p.deposit_paid !== true;
+  }
+
+  /** 펼친 칸 — 서버가 준 actions 대로. 확인 창 없이 그 자리에서 한 번 더 누른다 */
+  function statusPanelHtml(p) {
+    var u = J.statusUi || {};
+    var wrap = function (inner) {
+      return '<div class="pj-status" data-pj-status="' + esc(p.id) + '">' + inner + '</div>';
+    };
+    if (u.loading) return wrap('<p class="mk-note" role="status">' + esc(TEXT.statusLoading) + '</p>');
+    var data = u.data && typeof u.data === 'object' ? u.data : null;
+    if (!data) return wrap('<p class="mk-error" role="alert">' + esc(u.err || TEXT.statusFailed) + '</p>');
+    var a = data.actions && typeof data.actions === 'object' ? data.actions : {};
+    var cur = data.project && typeof data.project === 'object' ? data.project : p;
+    var btn = function (act, label, on, kind) {
+      return (
+        '<button type="button" class="mk-btn' +
+        (on ? ' mk-btn--solid' : '') +
+        '" data-act="' +
+        act +
+        '"' +
+        (kind ? ' data-kind="' + kind + '" aria-expanded="' + (u.form === kind) + '"' : '') +
+        '>' +
+        esc(label) +
+        '</button>'
+      );
+    };
+    var btns =
+      (a.resume === true ? btn('status-resume', cur.status === 'cancelled' ? TEXT.revive : TEXT.resume, true) : '') +
+      (a.hold === true ? btn('status-form', TEXT.hold, u.form === 'hold', 'hold') : '') +
+      (a.cancel === true ? btn('status-form', TEXT.cancel, u.form === 'cancel', 'cancel') : '');
+    var blocked = a.blocked === 'deposit' ? TEXT.blockedDeposit : a.blocked === 'order' ? TEXT.blockedOrder : '';
+    var v = u.values || {};
+    var noteField =
+      '<label class="mk-input"><span>' +
+      esc(TEXT.noteLabel) +
+      '</span><input type="text" name="note" maxlength="200" value="' +
+      esc(v.note || '') +
+      '"></label>';
+    var form = '';
+    if (u.form === 'hold' && a.hold === true) {
+      form =
+        '<form class="me-pt-form me-pr-form" data-form="status" data-kind="hold" novalidate><p class="mk-note">' +
+        esc(TEXT.holdLead) +
+        '</p><label class="mk-input"><span>' +
+        esc(TEXT.untilLabel) +
+        '</span><input type="date" name="hold_until" min="' +
+        esc(todayKst()) +
+        '" value="' +
+        esc(v.hold_until || '') +
+        '"></label>' +
+        noteField +
+        '<div class="rd-acts"><button type="submit" class="mk-btn mk-btn--solid">' +
+        esc(TEXT.hold) +
+        '</button></div></form>';
+    } else if (u.form === 'cancel' && a.cancel === true) {
+      form =
+        '<form class="me-pt-form me-pr-form" data-form="status" data-kind="cancel" novalidate><p class="mk-note">' +
+        esc(TEXT.cancelLead) +
+        '</p>' +
+        noteField +
+        '<div class="rd-acts"><button type="submit" class="mk-btn mk-btn--solid">' +
+        esc(TEXT.cancel) +
+        '</button></div></form>';
+    }
+    return wrap(
+      (btns ? '<div class="rd-acts">' + btns + '</div>' : '') +
+        form +
+        (blocked ? '<p class="mk-note" data-pj="blocked">' + esc(blocked) + '</p>' : '') +
+        (u.err ? '<p class="mk-error" role="alert">' + esc(u.err) + '</p>' : '')
+    );
+  }
+
+  /** 오늘 (한국 날짜) — 다시 볼 날의 가장 이른 값 */
+  function todayKst() {
+    return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  }
+
+  /** 줄의 「보류 · 그만둠」 칸을 펼치거나 접는다 — 펼칠 때 서버에서 그 프로젝트를 읽는다 */
+  async function toggleStatus(id) {
+    if (!id) return;
+    if (J.statusFor === id) {
+      J.statusFor = '';
+      J.statusUi = null;
+      render();
+      return;
+    }
+    var ui = { loading: true, data: null, form: '', err: '', values: {} };
+    J.statusFor = id;
+    J.statusUi = ui;
+    J.open = false;
+    J.assignFor = '';
+    J.err = '';
+    J.msg = '';
+    render();
+    var r = await readProject(id);
+    if (J.statusUi !== ui) return; // 그 사이에 접었다
+    ui.loading = false;
+    if (r.ok && r.data) ui.data = r.data;
+    else ui.err = TEXT.statusFailed;
+    render();
+  }
+
+  /** 상태를 바꾼다 — 끝나면 목록을 다시 읽고 왼쪽 수 · 할 일 표도 맞춘다 */
+  async function doStatus(body, done) {
+    var ui = J.statusUi;
+    var id = J.statusFor;
+    if (!ui || !id || J.busy) return;
+    var cur = ui.data && ui.data.project ? ui.data.project : null;
+    J.busy = true;
+    var r = await setStatus(id, Object.assign({ expect_status: (cur && cur.status) || 'active' }, body));
+    J.busy = false;
+    if (J.statusUi !== ui) return;
+    if (!r.ok) {
+      ui.err = r.message || TEXT.generic;
+      render();
+      return;
+    }
+    var list = await fetchList();
+    J.statusFor = '';
+    J.statusUi = null;
+    J.msg = done;
+    if (list) J.data = list;
+    // 보류한 줄이 어디로 갔는지 보이게 묶음을 펼친다
+    if (body.status === 'on_hold') J.heldOpen = true;
+    render();
+    if (list) changed();
+  }
+
+  /**
+   * 다른 칸(새로 생긴 일 표)에서 그 프로젝트의 「보류 · 그만둠」 칸을 연다 — 보류를 다시 볼 날.
+   * 보류 묶음을 펼치고 그 줄로 옮긴다.
+   */
+  async function openStatus(id) {
+    if (!J.data || !id) return false;
+    J.heldOpen = true;
+    if (J.statusFor !== id) await toggleStatus(id);
+    else render();
+    return focusProject(id);
+  }
+
+  /**
+   * PATCH /company/projects/:id/status → { ok, status, code, message, data } — 보류 · 그만둠 · 다시 진행.
+   * 계약금을 받은 프로젝트는 서버가 거절한다 (409 deposit_paid).
+   */
+  async function setStatus(id, body) {
+    if (!J.base || typeof id !== 'string' || !UUID_RE.test(id))
+      return { ok: false, status: 0, code: '', message: '', data: null };
+    var r = await call('PATCH', '/company/projects/' + id + '/status', body);
+    return {
+      ok: r.ok,
+      status: r.status,
+      code: typeof r.body.code === 'string' ? r.body.code : '',
+      message: r.ok ? '' : errText(r),
+      data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null,
+    };
   }
 
   /** GET /company/projects → { company, manage, items } | null */
@@ -853,6 +1108,23 @@
       J.open = false;
       J.err = '';
       render();
+    } else if (act === 'held') {
+      J.heldOpen = !J.heldOpen;
+      render();
+    } else if (act === 'status') {
+      toggleStatus(el.getAttribute('data-for') || '');
+    } else if (act === 'status-form') {
+      // 보류 · 그만둠 가운데 하나를 고른다 — 같은 단추를 다시 누르면 그 칸을 접는다
+      var kind = el.getAttribute('data-kind') || '';
+      if (J.statusUi) {
+        J.statusUi.form = J.statusUi.form === kind ? '' : kind;
+        J.statusUi.err = '';
+        render();
+        var first = $('partnerProjects').querySelector('form[data-form="status"] input');
+        if (first && first.focus) first.focus();
+      }
+    } else if (act === 'status-resume') {
+      doStatus({ status: 'active' }, TEXT.doneResume);
     } else if (act === 'assign') {
       var aid = el.getAttribute('data-for') || '';
       J.assignFor = J.assignFor === aid ? '' : aid; // 펼친 줄의 단추를 다시 누르면 접는다
@@ -891,6 +1163,19 @@
       submitAssign(form);
       return;
     }
+    if (kind === 'status') {
+      e.preventDefault();
+      var get = function (name) {
+        var el = form.querySelector('[name="' + name + '"]');
+        return el && typeof el.value === 'string' ? el.value.trim() : '';
+      };
+      // 못 바꿔서 다시 그려도 적던 값이 남게
+      if (J.statusUi) J.statusUi.values = { hold_until: get('hold_until'), note: get('note') };
+      if (form.getAttribute('data-kind') === 'hold')
+        doStatus({ status: 'on_hold', hold_until: get('hold_until') || null, note: get('note') || null }, TEXT.doneHold);
+      else doStatus({ status: 'cancelled', note: get('note') || null }, TEXT.doneCancel);
+      return;
+    }
     if (kind !== 'project') return;
     e.preventDefault();
     submit(form);
@@ -911,6 +1196,9 @@
     J.open = false;
     J.assignFor = '';
     J.workFor = '';
+    J.statusFor = '';
+    J.statusUi = null;
+    J.heldOpen = false;
     if (window.SeganProjectWork) window.SeganProjectWork.unmount();
     J.mode = 'new';
     J.err = '';
@@ -978,6 +1266,9 @@
     nextOf: nextOf,
     runNext: runNext,
     readProject: readProject,
+    canStatus: canStatus,
+    openStatus: openStatus,
+    setStatus: setStatus,
     onChange: null, // 목록이 바뀌면 부를 것 (me.js 가 건다)
   };
 })();

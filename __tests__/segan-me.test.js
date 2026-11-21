@@ -470,6 +470,7 @@ describe('내 프로젝트 — GET /me/projects', () => {
   });
 
   test.each([
+    ['on_hold', '보류'],
     ['closed', '끝남'],
     ['cancelled', '취소'],
     ['handed_over', '넘김'],
