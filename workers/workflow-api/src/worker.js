@@ -46,6 +46,7 @@
  *   POST /company/projects/:id/work/recruit · POST /company/schedules/:id/workers/recruit — 모집 올리기 · 내리기,
  *     POST /company/work/applications/:id/approve|reject — 신청한 작업자 뽑기 · 반려 (src/work/recruit.js, 2026-11-14)
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
+ *   GET /company/inbox — 받은 일: 할 일 묶음 · 지난 14일 소식, 읽기만 (src/company-inbox.js)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
  *   GET|PUT /company/shifts — 근무 일정(쉬는 날), 구성원이 보고 대표 · 실장이 적는다 (src/work-shifts.js, DB 0060)
@@ -286,6 +287,7 @@ import {
 } from './distribution/company.js';
 import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
 import { listCompanyQuotes } from './company-quotes.js';
+import { getCompanyInbox } from './company-inbox.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
 import { listShifts, putShift } from './work-shifts.js';
@@ -1656,6 +1658,8 @@ const router = createRouter([
   { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
   // 업체 견적 목록 — 고객 확인서 모아 읽기 (src/company-quotes.js)
   { method: 'GET',  path: '/company/quotes',                      auth: 'jwt', handler: workRoute((env, a) => listCompanyQuotes(env, a)) },
+  // 받은 일 — 프로젝트 관리 대시보드 맨 위 「새로 생긴 일」 (src/company-inbox.js, 2026-11-21)
+  { method: 'GET',  path: '/company/inbox',                       auth: 'jwt', handler: workRoute((env, a) => getCompanyInbox(env, a)) },
   // 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
   { method: 'GET',  path: '/company/customers',                   auth: 'jwt', handler: workRoute((env, a) => listCompanyCustomers(env, a)) },
   { method: 'PATCH', path: '/company/customers/:id',              auth: 'jwt', handler: workRoute((env, a) => updateCompanyCustomer(env, a)) },
