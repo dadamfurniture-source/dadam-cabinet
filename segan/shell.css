@@ -5711,7 +5711,7 @@ button.sm-num[aria-pressed='true'] {
 }
 
 /* ── 시공사례 (segan/collection.js · 마이페이지 좋아요 — 타일은 segan/collection-view.js) ──
-   사진을 정사각 칸으로 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2px (768px~ 3px).
+   사진을 정사각 칸으로 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2px (768px~ 3px). 사진 밑에 색상 영역.
    폰은 좌우 여백 없이 화면 끝까지 (안전 영역 안에서). 라운드 · 섀도 없음 */
 .cl-grid {
   display: grid;
@@ -5721,61 +5721,67 @@ button.sm-num[aria-pressed='true'] {
     calc(env(safe-area-inset-left) - max(var(--sg-px), env(safe-area-inset-left)));
 }
 
-/* 칸 — 사진 단추(.cl-tile) + 아래쪽 줄(.cl-cap: 색상 글 · ♡) */
+/* 칸 — 정사각 사진 단추(.cl-tile) + 사진 아래 색상 영역(.cl-info: 색상 하나씩 · ♡) */
 .cl-cell {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-  background: var(--v5-photo);
+  min-width: 0;
 }
 
 .cl-tile {
   position: relative;
   display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 1 / 1;
   padding: 0;
   border: 0;
   overflow: hidden;
-  background: transparent;
+  background: var(--v5-photo);
   cursor: pointer;
 }
 
-/* 아래쪽 줄 — 사진 위에 얹는다. 글 자리를 눌러도 사진이 눌린다 (♡ 만 따로 눌린다) */
-.cl-cap {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+/* 색상 영역 — 사진 밑. 색상은 하나씩 한 줄, ♡ 는 오른쪽 (누르는 곳 44px) */
+.cl-info {
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
+  align-items: flex-start;
   min-height: 44px;
-  padding: 0 0 0 8px;
-  background: linear-gradient(rgba(45, 42, 38, 0), rgba(45, 42, 38, 0.64));
-  color: var(--v5-on-dark);
-  pointer-events: none;
+  padding: 0 0 6px 6px;
 }
 
-/* 색상 — 간단하게 두 줄까지 (폰 3칸에서는 「매트 딥그린 · 카카오월넛」이 한 줄에 안 든다) */
-.cl-color {
-  display: -webkit-box;
+.cl-colors {
   flex: 1;
   min-width: 0;
-  margin: 0 0 7px;
-  overflow: hidden;
+  margin: 0;
+  padding: 7px 0 0;
+  list-style: none;
   font-size: 10.5px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.5;
   letter-spacing: 0.01em;
-  text-align: left;
-  word-break: keep-all;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  color: var(--v5-ink-62);
 }
 
-/* ♡ — 누르는 곳 44px, 눌림은 채운 하트 */
+.cl-colors li,
+.pv-colors li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.cl-colors li span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 작은 색 칸 — 자재 색 값 그대로 (밝은 색도 보이게 가는 선) */
+.cl-chip {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--v5-line-25);
+}
+
 .cl-like {
   display: inline-flex;
   flex: none;
@@ -5783,12 +5789,12 @@ button.sm-num[aria-pressed='true'] {
   justify-content: center;
   width: 44px;
   height: 44px;
+  margin-left: auto;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--v5-on-dark);
+  color: var(--v5-ink);
   cursor: pointer;
-  pointer-events: auto;
 }
 
 .cl-like .pv-heart {
@@ -5801,7 +5807,7 @@ button.sm-num[aria-pressed='true'] {
 }
 
 .cl-like:focus-visible {
-  outline: 2px solid var(--v5-on-dark);
+  outline: 1px solid var(--v5-ink);
   outline-offset: -6px;
 }
 
@@ -5862,21 +5868,171 @@ button.sm-num[aria-pressed='true'] {
   gap: 16px;
 }
 
+/* 사진 — 누르면 사진만 전체 화면 (단추) */
 .pv-photo {
+  display: block;
   max-height: 62vh;
   margin: -16px calc(-1 * max(20px, env(safe-area-inset-right))) 0
     calc(-1 * max(20px, env(safe-area-inset-left)));
+  padding: 0;
+  border: 0;
   background: var(--v5-photo);
+  cursor: zoom-in;
+}
+
+.pv-photo:focus-visible {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+/* 칸 — 색상 · 예상 견적 · 업체 (제목은 작은 글) */
+.pv-sec {
+  min-width: 0;
+}
+
+.pv-h {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: var(--v5-ink-55);
+}
+
+.pv-colors {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.pv-colors li {
+  gap: 10px;
+}
+
+.pv-colors .cl-chip {
+  width: 16px;
+  height: 16px;
+}
+
+/* 예상 견적 — 가로 길이(− 값 +) · 줄 · 합계 · 범위 */
+.pv-size {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 12px;
+  font-size: 14px;
+}
+
+.pv-step {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--v5-line-25);
+}
+
+.pv-step-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 300;
+  cursor: pointer;
+}
+
+.pv-step-btn:disabled {
+  color: var(--v5-ink-32);
+  cursor: default;
+}
+
+.pv-step-btn:focus-visible {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: -4px;
+}
+
+.pv-size-value {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-qrows {
+  border-top: 1px solid var(--v5-line);
+}
+
+.pv-qrow,
+.pv-qtotal {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-qrow span:last-child,
+.pv-qtotal strong {
+  flex: none;
+}
+
+.pv-qrow small {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--v5-ink-45);
+}
+
+.pv-qtotal {
+  padding: 14px 0;
+  border-bottom-color: var(--v5-ink);
+}
+
+.pv-qtotal strong {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.pv-qrange {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-62);
+}
+
+.pv-qnote {
+  margin: 6px 0 0;
 }
 
 .pv-photo img {
   object-fit: contain;
 }
 
+/* 장소(왼쪽) · 좋아요(오른쪽) 한 줄 */
 .pv-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
   margin-top: -6px;
+}
+
+.pv-place {
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.pv-bar .pv-like {
+  flex: none;
+  margin-left: auto;
+  padding: 0 0 0 4px;
 }
 
 .pv-like {
@@ -5950,10 +6106,9 @@ button.sm-num[aria-pressed='true'] {
 }
 
 /* ── 사진 전체 화면 (segan/collection-view.js full) — 사진만 화면 가득 ──
-   가운데 창 층(.sg-sheet-wrap--dialog)을 화면 가득 채워 쓴다. 위 막대 · 아래 탭을 덮고, 「정보」 시트(z 70)보다는 아래.
-   머리(제목 · 닫기)와 「정보」는 사진 위에 얹고, 사진을 누르면(.pv-full--bare) 감춘다 — opacity 만 움직인다 */
+   가운데 창 층(.sg-sheet-wrap--dialog)을 화면 가득 채워 쓴다. 사진 보기(시트 · 옆 패널, z 70)의 사진을 눌러 여므로 그 위에 겹친다 (가운데 창 층 z 80 그대로).
+   머리(제목 · 닫기)는 사진 위에 얹고, 사진을 누르면(.pv-full--bare) 감춘다 — opacity 만 움직인다 */
 .sg-sheet-wrap.pv-full-wrap {
-  z-index: 65;
   justify-content: center;
   padding: 0;
   background: var(--v5-dark);
@@ -5991,8 +6146,7 @@ button.sm-num[aria-pressed='true'] {
   white-space: nowrap;
 }
 
-.sg-sheet-wrap.pv-full-wrap .sg-sheet-x,
-.pv-full-info {
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-x {
   min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
@@ -6038,22 +6192,13 @@ button.sm-num[aria-pressed='true'] {
   user-select: none;
 }
 
-.pv-full-info {
-  position: absolute;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
-  transition: opacity 0.2s ease;
-}
-
-.sg-sheet-wrap.pv-full-wrap .sg-sheet-x:focus-visible,
-.pv-full-info:focus-visible {
+.sg-sheet-wrap.pv-full-wrap .sg-sheet-x:focus-visible {
   outline: 2px solid var(--v5-on-dark);
   outline-offset: 2px;
 }
 
-/* 사진만 — 머리 · 「정보」를 감춘다 (다시 누르면 보인다) */
-.pv-full--bare .sg-sheet-head,
-.pv-full--bare .pv-full-info {
+/* 사진만 — 머리(닫기)를 감춘다 (다시 누르면 보인다) */
+.pv-full--bare .sg-sheet-head {
   visibility: hidden;
   opacity: 0;
 }
@@ -6668,13 +6813,18 @@ body.sg-locked .sg-tabbar {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .cl-cap {
-    padding-left: 12px;
+  .cl-info {
+    padding: 0 0 12px 2px;
   }
 
-  .cl-color {
-    margin-bottom: 11px;
+  .cl-colors {
+    padding-top: 10px;
     font-size: 12.5px;
+  }
+
+  .cl-chip {
+    width: 11px;
+    height: 11px;
   }
 
   .sg-header {

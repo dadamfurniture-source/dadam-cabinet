@@ -5,7 +5,8 @@
  *
  *   - 「내 것」 묶음의 둘째 줄 (내 연출컷 다음) → 하위 화면 #likes
  *   - RPC collection_my_likes(p_limit 30, p_before = 마지막 liked_at) — 화면을 처음 열 때 읽는다, 「더 보기」 로 다음 쪽
- *   - 타일 · 사진 보기 · ♡ 는 시공사례와 같다 — ♡ 를 풀고 닫으면 목록에서 뺀다
+ *   - 타일(사진 아래 색상 영역 · ♡) · 사진 보기(색상 · 예상 견적 · 업체 정보) · ♡ 는 시공사례와 같다
+ *     — ♡ 를 풀고 닫으면 목록에서 뺀다
  */
 const fs = require('fs');
 const path = require('path');
@@ -127,14 +128,14 @@ const closeAll = async () => {
     await flush();
   }
 };
-/** 사진 보기 시트까지 — 사진을 누르고(전체 화면) 그 안의 「정보」를 누른다 */
+/** 사진 보기 시트 — 사진을 누른다 */
 const openSheet = async (i) => {
   await closeAll();
   tiles()[i].click();
   await flush();
-  full().querySelector('.pv-full-info').click();
-  await flush();
 };
+const colorNames = (root) =>
+  [...root.querySelectorAll('.cl-colors li, .pv-colors li')].map((li) => li.textContent);
 const facts = () =>
   [...sheet().querySelectorAll('.pv-facts > div')].map((d) => [
     d.querySelector('dt').textContent,
@@ -242,23 +243,33 @@ describe('좋아요 화면 — 시공사례와 같은 칸 · 30장씩', () => {
   });
 });
 
-describe('칸 — 시공사례와 같다: 아래쪽 줄의 ♡ · 사진을 누르면 전체 화면', () => {
-  test('좋아한 사진이라 ♡ 는 눌린 채로, 색상이 있으면 글도', async () => {
+describe('칸 — 시공사례와 같다: 사진 아래 색상 영역의 ♡ · 사진을 누르면 사진 보기', () => {
+  test('좋아한 사진이라 ♡ 는 눌린 채로, 색상은 사진 아래 영역에', async () => {
     await load();
     expect(hearts().map((h) => h.getAttribute('aria-pressed'))).toEqual(['true', 'true', 'true']);
-    expect(cells()[1].querySelector('.cl-color').textContent).toBe('월넛');
-    expect(cells()[0].querySelector('.cl-color')).toBeNull();
+    expect(cells().every((c) => c.querySelector('.cl-info .cl-like'))).toBe(true);
+    expect(colorNames(cells()[1].querySelector('.cl-info'))).toEqual(['월넛']);
+    expect(cells()[0].querySelector('.cl-colors')).toBeNull();
+    expect(document.querySelector('#meLikes .cl-cap, #meLikes .cl-tile .cl-like')).toBeNull();
   });
 
-  test('사진을 누르면 사진만 전체 화면 — 시트는 「정보」를 눌러야 열린다', async () => {
+  test('사진을 누르면 사진 보기 — 사진만 전체 화면은 그 안의 사진을 눌러야 열린다', async () => {
     await load();
     tiles()[0].click();
     await flush();
-    expect(full().querySelector('.pv-full-img').getAttribute('src')).toContain('l0.jpg');
-    expect(sheet()).toBeNull();
-    full().querySelector('.pv-full-info').click();
-    await flush();
     expect(sheet()).not.toBeNull();
+    expect(full()).toBeNull();
+    sheet().querySelector('.pv-photo').click();
+    await flush();
+    expect(full().querySelector('.pv-full-img').getAttribute('src')).toContain('l0.jpg');
+    expect(full().querySelector('.pv-full-info')).toBeNull();
+    // 전체 화면을 닫아도 사진 보기는 남고, 좋아요를 풀지 않았으니 목록도 그대로
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    await flush();
+    expect(full()).toBeNull();
+    expect(sheet()).not.toBeNull();
+    await closeAll();
+    expect(tiles()).toHaveLength(3);
   });
 
   test('칸의 ♡ 로 풀면 delete eq post_id — 다시 누를 수 있게 그 자리에 둔다, 다시 누르면 insert', async () => {
@@ -270,7 +281,7 @@ describe('칸 — 시공사례와 같다: 아래쪽 줄의 ♡ · 사진을 누�
     expect(hearts()[0].getAttribute('aria-pressed')).toBe('false');
     expect(tiles()).toHaveLength(3);
     expect(full()).toBeNull();
-    // 풀어 둔 채 「정보」를 열면 빈 ♡ 로 열리고, 그대로 닫으면 목록에서 빠진다
+    // 풀어 둔 채 사진 보기를 열면 빈 ♡ 로 열리고, 그대로 닫으면 목록에서 빠진다
     await openSheet(0);
     expect(sheet().querySelector('.pv-like').getAttribute('aria-pressed')).toBe('false');
     await closeAll();
@@ -287,14 +298,19 @@ describe('칸 — 시공사례와 같다: 아래쪽 줄의 ♡ · 사진을 누�
 });
 
 describe('사진 보기 — 시공사례와 같은 시트', () => {
-  test('누르면 장소 · 색상 · 업체, ♡ 눌림 · 수, 이 스타일로 연출컷', async () => {
+  test('누르면 장소 · 예상 견적 · 업체 정보, ♡ 눌림 · 수, 이 스타일로 연출컷', async () => {
     await load();
     await openSheet(0);
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
-    expect(facts()).toEqual([
-      ['장소', '대구 북구 · 주방 0'],
-      ['업체', '다담 협력 주방'],
+    expect(sheet().querySelector('.pv-place').textContent).toBe('대구 북구 · 주방 0');
+    expect(facts()).toEqual([['업체', '다담 협력 주방']]);
+    // 직접 올린 주방 사진(category kitchen — RPC 가 같이 준다) → 싱크대 표로 예상 견적, 색상은 몰라 칸이 없다
+    expect([...sheet().querySelectorAll('.pv-h')].map((h) => h.textContent)).toEqual([
+      '예상 견적',
+      '업체 정보',
     ]);
+    expect(sheet().querySelector('.pv-size-value').textContent).toBe('3.0m');
+    expect(sheet().querySelector('.pv-qsum').textContent).toBe('1,868,900원');
     const like = sheet().querySelector('.pv-like');
     expect(like.getAttribute('aria-pressed')).toBe('true');
     expect(like.querySelector('.pv-count').textContent).toBe('3');
@@ -305,11 +321,11 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
     await load();
     await openSheet(1);
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
-    expect(facts()).toEqual([
-      ['장소', '싱크대'],
-      ['색상', '월넛'],
-      ['업체', 'AI 연출'],
-    ]);
+    expect(sheet().querySelector('.pv-place').textContent).toBe('싱크대');
+    expect(colorNames(sheet())).toEqual(['월넛']);
+    expect(facts()).toEqual([['업체', 'AI 연출']]);
+    // 품목 이름 「싱크대」 → 싱크대 표
+    expect(sheet().querySelector('.pv-qsum').textContent).toBe('1,868,900원');
     expect(sheet().querySelector('a.pv-make')).toBeNull();
   });
 
