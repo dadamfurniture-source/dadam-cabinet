@@ -2253,7 +2253,7 @@
             const builtin = !!(R.isBuiltinOven && R.isBuiltinOven(mod));
             const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
             if (builtin) dims.builtinOven = true;
-            // 2026-11-21 사장님 「오븐 칸만 뒤로」 — 고른 오븐의 니치 깊이 (상자 깊이 = max(몸통 + 20, 니치 + 17))
+            // 2026-11-21 사장님 「오븐 칸만 뒤로」 — 고른 오븐의 니치 깊이 (상자 깊이 = max(몸통 + 20, 니치), 천지판 = 상자 깊이 · 우라 덧댐)
             if (builtin && Number(mod.nicheD) > 0) dims.nicheD = Number(mod.nicheD);
             // 같은 품목에 오픈장이 여럿이면 자재표에서 구분되어야 한다 (#1·#2 는 품목 접두사라 여기선 못 쓴다).
             const name = `${prefix}${builtin ? R.RULES.BUILTIN_OVEN.LABEL : R.RULES.LABEL}${open.length > 1 ? ` ${i + 1}` : ''}`;

@@ -8,8 +8,9 @@
  *       designs  [{ id, name, updated_at }]                      이어진 설계, 최근 고친 것부터
  *       quotes   [{ id, design_id, created_at, expires_at, first_viewed_at, view_count, decision, decided_at }]
  *                                                              견적서(고객 확인서), 새 것부터 (거둔 것 · 새 판에 밀린 것 뺌)
- *       orders   [{ id, order_no, status, ordered_at, delivered_at, completed_at, deposit }]
- *                                                              수주(취소 포함), 새 것부터. deposit = 'paid' | 'unpaid' | null
+ *       orders   [{ id, order_no, status, ordered_at, delivered_at, completed_at, deposit, balance }]
+ *                                                              수주(취소 포함), 새 것부터. deposit · balance = 'paid' | 'unpaid' | null
+ *                                                              (계약금 줄 · 잔금 줄이 입금됐나 — 줄이 없으면 null, 금액은 싣지 않는다)
  *       requests [{ id, status, status_at }]                     영업 사원 업체가 낸 제작 의뢰 (거둔 것 뺌)
  *       as       [{ id, state, created_at, received_at, done_at }]  팩토리의 A/S 접수
  *       history  [{ kind, at, label, go }] }                     일어난 일 — 오래된 것부터 (처음 → 지금)
@@ -37,6 +38,7 @@ export const HISTORY_LABEL = Object.freeze({
   project_created: '프로젝트가 생겼습니다',
   design_linked: '설계가 이어졌습니다',
   deposit_paid: '계약금이 들어왔습니다',
+  balance_paid: '잔금이 들어왔습니다',
   as_received: 'A/S 접수를 받았습니다',
   as_done: 'A/S 를 끝냈습니다',
 });
@@ -141,8 +143,8 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
       ? orEmpty(
           selectMany(env, 'order_payments', {
             order_id: inOrders,
-            stage: 'eq.deposit',
-            select: 'order_id,paid_on',
+            stage: 'in.(deposit,balance)',
+            select: 'order_id,stage,paid_on',
             limit: ROW_LIMIT,
           })
         )
@@ -184,9 +186,16 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
     console.error('company project: pipeline failed —', e && e.message);
   }
 
+  // 계약금 줄 — 입금일('' = 줄은 있는데 아직). 잔금 줄 — 받은 날들과, 안 받은 줄이 남았나
   const depositOf = new Map();
+  const balanceOf = new Map();
   for (const p of payments || []) {
-    if (p.paid_on) depositOf.set(p.order_id, p.paid_on);
+    if (p.stage === 'balance') {
+      const b = balanceOf.get(p.order_id) || { paid: [], unpaid: false };
+      if (p.paid_on) b.paid.push(p.paid_on);
+      else b.unpaid = true;
+      balanceOf.set(p.order_id, b);
+    } else if (p.paid_on) depositOf.set(p.order_id, p.paid_on);
     else if (!depositOf.has(p.order_id)) depositOf.set(p.order_id, '');
   }
   const quotes = (docs || []).filter((d) => d.status !== 'superseded' && !d.superseded_by);
@@ -207,6 +216,8 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
   for (const o of orderList) {
     tell('order_created', o.ordered_at, 'p-contract');
     if (depositOf.get(o.id)) tell('deposit_paid', depositOf.get(o.id), 'p-contract');
+    for (const day of (balanceOf.get(o.id) || { paid: [] }).paid)
+      tell('balance_paid', day, 'p-contract');
     if (o.status !== 'cancelled') {
       tell('order_delivered', o.delivered_at, 'p-install');
       tell('order_completed', o.completed_at, 'p-install');
@@ -261,6 +272,7 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
       delivered_at: o.delivered_at || null,
       completed_at: o.completed_at || null,
       deposit: depositOf.has(o.id) ? (depositOf.get(o.id) ? 'paid' : 'unpaid') : null,
+      balance: balanceOf.has(o.id) ? (balanceOf.get(o.id).unpaid ? 'unpaid' : 'paid') : null,
     })),
     requests: (requests || []).map((r) => ({
       id: r.id,

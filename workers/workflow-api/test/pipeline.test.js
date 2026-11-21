@@ -208,7 +208,7 @@ test('영업 사원(Manager 업체) — 계약금 뒤 제작 의뢰 → 본사 �
 
 test('생산 · 설치 · 끝 — 배송으로 넘기기 → 설치 완료 처리 → (팩토리) 열린 A/S', () => {
   const f = (status, extra = {}) =>
-    base({ designs: 1, stage: 'order', order: order(status, extra.order), ...extra, order: order(status, extra.order) });
+    base({ designs: 1, stage: 'order', ...extra, order: order(status, extra.order) });
   assert.deepEqual(brief(f('in_production'), staff), ['deliver', `order:${O}`, false, true]);
   const delivered = f('delivered', { order: { delivered_at: '2026-11-20T09:00:00Z' } });
   assert.deepEqual(brief(delivered, staff), ['complete', `order:${O}`, false, true]);
@@ -217,6 +217,33 @@ test('생산 · 설치 · 끝 — 배송으로 넘기기 → 설치 완료 처�
   assert.equal(next(f('completed', { stage: 'installed' })), null);
   assert.deepEqual(brief(f('completed', { stage: 'installed', as_open: 2 })), ['as', 'p-as', false, true]);
   assert.equal(next(f('completed', { stage: 'installed', as_open: 2, factory: false })), null);
+});
+
+test('잔금 — 설치를 끝낸 수주에 안 받은 잔금 줄이 있으면 「잔금 입금 적기」(대표 · 실장), 잔금 줄이 없거나 받았으면 묻지 않는다', () => {
+  const done = (extra = {}) =>
+    base({
+      designs: 1,
+      stage: 'installed',
+      order: order('completed', { completed_at: '2026-11-16T08:00:00Z' }),
+      ...extra,
+    });
+  const unpaid = done({ balance: 'unpaid' });
+  assert.deepEqual(brief(unpaid, owner), ['balance', `order:${O}`, false, true]);
+  assert.equal(next(unpaid).label, '잔금 입금 적기');
+  assert.equal(next(unpaid).since, '2026-11-16T08:00:00Z');
+  assert.deepEqual(brief(unpaid, staff), ['balance', `order:${O}`, false, false]);
+  // 단계는 그대로 「끝」 — 왼쪽 메뉴 줄에는 세지 않는다
+  assert.equal(stepOf(unpaid), 'done');
+  assert.equal(next(done({ balance: 'paid' })), null);
+  assert.equal(next(done({ balance: null })), null);
+  assert.equal(next(done()), null);
+  // 고객이 기다리는 A/S 가 먼저다 (팩토리)
+  assert.deepEqual(brief(done({ balance: 'unpaid', as_open: 1 })), ['as', 'p-as', false, true]);
+  // 영업 사원 업체는 A/S 를 받지 않으니 잔금부터
+  assert.deepEqual(brief(done({ balance: 'unpaid', as_open: 1, factory: false }), owner), ['balance', `order:${O}`, false, true]);
+  // 아직 끝나지 않은 수주에서는 잔금을 묻지 않는다
+  const delivered = base({ designs: 1, stage: 'order', order: order('delivered'), balance: 'unpaid' });
+  assert.equal(next(delivered).key, 'complete');
 });
 
 test('팩토리가 받은 제작 의뢰 프로젝트 — 받은 설계 열기(대표 · 실장) → 앱으로 보낸 뒤 생산 화면', () => {

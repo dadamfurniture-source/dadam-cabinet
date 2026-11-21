@@ -9,9 +9,10 @@
    새 API 칸 · 품목 · 선택지를 만들지 않는다.
 
    ② 요청 · AI 상담 (2026-11-21 대표님 — 스타일 · 도어 색 · 치수 · 설비 칸을 뺐다. 그 값은 워커 기본값 · 자동 인식):
-     고객이 「원하는 연출」을 적고, 「AI 상담」을 누르면 POST /api/chat (app:true · 긴 변 768 로 줄인 방 사진) 으로
-     한 마디씩 묻고 답한다. 「정리하기」 → POST /api/chat/brief → 「연출컷 참고 내용」 칸(고칠 수 있다).
-     생성 본문 customer_request = 참고 내용 (없으면 적은 글). 정리 때 AI 가 목록 안에서 고른 도어 색 · 스타일은
+     로그인하면 상담 단추 없이 AI 첫 질문(chatOpener, 화면 글 — 바로 뜬다)과 입력 칸이 보이고, 고객은 답만 한다(11-21 대표님).
+     답마다 POST /api/chat (app:true · 긴 변 512 로 줄인 방 사진) 이 다음 질문을 준다. 「정리하기」 → POST /api/chat/brief
+     → 「연출컷 참고 내용」 칸(고칠 수 있다). 로그인 전에는 「원하는 연출」 글 칸만 (로그인하면 그 글이 첫 답 칸에 들어간다).
+     생성 본문 customer_request = 참고 내용 (없으면 적은 글 · 고객 답). 정리 때 AI 가 목록 안에서 고른 도어 색 · 스타일은
      door_color · design_style 로 싣고, 고객이 참고 내용을 고치면 버린다 (글이 FINISH 줄보다 앞선다 — 워커 프롬프트).
      상담은 로그인한 고객만 — 로그인 전에는 사진이 이 기기 밖으로 나가지 않는다.
 
@@ -342,7 +343,7 @@
   var REQUEST_MAX = 600;
   var CHAT_TEXT_MAX = 500;
   var CHAT_TURNS = 12; // 고객 말 수 (wrangler.toml CHAT_LIMIT 주석 「최대 12마디」)
-  var CHAT_EDGE = 768; // 상담에 같이 보내는 방 사진 긴 변
+  var CHAT_EDGE = 512; // 상담에 같이 보내는 방 사진 긴 변 (11-21 「느림」 — 벽 · 바닥 색만 보면 된다, 서버도 낮은 해상도로 본다)
   var CHAT_FAIL = '답을 받지 못했습니다. 잠시 뒤 다시 보내 주세요.';
   var BRIEF_FAIL = '정리하지 못했습니다. 잠시 뒤 다시 눌러 주세요.';
 
@@ -1137,28 +1138,43 @@
     }).length;
   }
 
+  /** AI 첫 질문 — 화면 글이라 기다림 없이 뜬다. 다음 질문부터 서버(차례: 도어 색 → 상판 · 벽 타일 → 조명 → 분위기) */
+  function chatOpener() {
+    return (
+      (kindLabel() || '가구') +
+      ' 연출을 함께 정해 볼게요. 먼저 도어 색은 화이트 · 우드 · 그레이 가운데 어느 쪽이 좋으세요?'
+    );
+  }
+
   function renderChat() {
     var c = S.choices;
     var on = !!S.session;
-    var started = c.chat.length > 0;
+    var talked = mineCount() > 0;
     var busy = !!S.chatBusy;
     var full = mineCount() >= CHAT_TURNS;
     var log = $('mkChatLog');
-    var rows = c.chat.map(function (m) {
-      return '<p class="mk-chat-msg mk-chat-msg--' + m.role + '">' + esc(m.text) + '</p>';
-    });
-    if (busy)
+    var msgs = c.chat.length ? c.chat : [{ role: 'ai', text: chatOpener() }];
+    var rows = !on
+      ? []
+      : msgs.map(function (m) {
+          return '<p class="mk-chat-msg mk-chat-msg--' + m.role + '">' + esc(m.text) + '</p>';
+        });
+    if (on && busy)
       rows.push(
         '<p class="mk-chat-msg mk-chat-msg--ai mk-chat-msg--wait">' + esc(S.chatBusy) + '</p>'
       );
     log.innerHTML = rows.join('');
     log.hidden = !rows.length;
     log.scrollTop = log.scrollHeight;
-    $('mkChatRow').hidden = !(on && started && !full);
+    // 로그인 전에 적은 글은 첫 답 칸으로 옮겨 둔다 (한 번만 — 고객이 지우면 다시 넣지 않는다)
+    if (on && !c.chat.length && c.prompt.trim() && !S.promptCarried && !$('mkChatInput').value) {
+      $('mkChatInput').value = c.prompt.trim().slice(0, CHAT_TEXT_MAX);
+      S.promptCarried = true;
+    }
+    $('mkPromptBox').hidden = on;
+    $('mkChatRow').hidden = !(on && !full);
     $('mkChatSend').disabled = busy;
-    $('mkChatStart').hidden = !on || started;
-    $('mkChatStart').disabled = busy;
-    $('mkBriefMake').hidden = !(on && started);
+    $('mkBriefMake').hidden = !(on && talked);
     $('mkBriefMake').disabled = busy;
     $('mkBriefMake').textContent = c.brief ? '다시 정리하기' : '정리하기';
     $('mkChatLogin').hidden = on;
@@ -1225,7 +1241,9 @@
       .slice(0, CHAT_TEXT_MAX);
     if (!t || S.chatBusy || !S.session || mineCount() >= CHAT_TURNS) return;
     var before = S.choices.chat;
-    S.choices.chat = before.concat([{ role: 'me', text: t }]);
+    // 첫 답이면 화면이 띄운 첫 질문도 대화에 넣는다 (AI 가 무엇에 대한 답인지 알게)
+    var asked = before.length ? before : [{ role: 'ai', text: chatOpener() }];
+    S.choices.chat = asked.concat([{ role: 'me', text: t }]);
     S.chatBusy = '답을 쓰는 중…';
     S.chatError = '';
     $('mkChatInput').value = '';
@@ -1243,18 +1261,6 @@
     S.chatBusy = '';
     saveDraft();
     renderChat();
-  }
-
-  /** 「AI 상담」 — 적은 글이 첫 말이다 */
-  function startChat() {
-    var t = S.choices.prompt.trim();
-    if (!t) {
-      S.chatError = '원하는 연출을 먼저 적어 주세요.';
-      renderChat();
-      $('mkPrompt').focus();
-      return Promise.resolve();
-    }
-    return sendChat(t);
   }
 
   /** 「정리하기」 — 상담을 연출컷 참고 내용으로. 고객이 읽고 고친다 */
@@ -1911,11 +1917,31 @@
    *   연출컷 참고 내용(정리 뒤 고친 글)이 있으면 그것, 없으면 적은 글. 정리가 고른 색 · 스타일은 참고 내용과 함께만.
    * refs: 보낼 참고 사진 (encodeRefs) — [{ base64, mimeType, role, note? }]. 없으면 칸째 뺀다 (예전과 같은 본문)
    */
+  /** 정리 전 요청 글 — 적은 글과 고객 답(같은 글은 한 번), ' / ' 로 잇는다 */
+  function plainRequest() {
+    var out = [];
+    [S.choices.prompt]
+      .concat(
+        S.choices.chat
+          .filter(function (m) {
+            return m.role === 'me';
+          })
+          .map(function (m) {
+            return m.text;
+          })
+      )
+      .forEach(function (t) {
+        t = String(t || '').trim();
+        if (t && out.indexOf(t) < 0) out.push(t);
+      });
+    return out.join(' / ');
+  }
+
   function buildBody(refs) {
     var c = S.choices;
     var p = S.photo;
     var brief = c.brief.trim();
-    var request = (brief || c.prompt.trim()).slice(0, REQUEST_MAX);
+    var request = (brief || plainRequest()).slice(0, REQUEST_MAX);
     var body = {
       room_image: p.base64,
       image_type: p.mime,
@@ -2494,10 +2520,6 @@
     // ② 요청 · AI 상담
     $('mkPrompt').oninput = function (e) {
       S.choices.prompt = String(e.target.value || '').slice(0, REQUEST_MAX);
-      if (S.chatError && S.choices.prompt.trim()) {
-        S.chatError = '';
-        renderChat();
-      }
       saveDraft();
     };
     $('mkBrief').oninput = function (e) {
@@ -2506,9 +2528,6 @@
       S.choices.briefDoor = '';
       S.choices.briefStyle = '';
       saveDraft();
-    };
-    $('mkChatStart').onclick = function () {
-      api.chatting = startChat();
     };
     $('mkChatSend').onclick = function () {
       api.chatting = sendChat($('mkChatInput').value);

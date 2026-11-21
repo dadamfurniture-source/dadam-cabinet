@@ -732,6 +732,7 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     });
     return { ...r, sent };
   }
+  const OPENER = '싱크대 연출을 함께 정해 볼게요. 먼저 도어 색은 화이트 · 우드 · 그레이 가운데 어느 쪽이 좋으세요?';
   const log = () =>
     [...$('mkChatLog').querySelectorAll('.mk-chat-msg')].map((p) => [
       p.className.replace('mk-chat-msg mk-chat-msg--', ''),
@@ -742,7 +743,8 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     const { M, calls } = await load({ draft: { v: 1, step: 'kind', photo: PHOTO, choices: {} } });
     await flush();
     expect(visible($('mkPrompt'))).toBe(true);
-    expect($('mkChatStart').hidden).toBe(true);
+    expect($('mkChatLog').hidden).toBe(true);
+    expect($('mkChatRow').hidden).toBe(true);
     expect(visible($('mkChatLogin'))).toBe(true);
     $('mkPrompt').value = '화이트 도어';
     $('mkPrompt').dispatchEvent(new Event('input'));
@@ -756,7 +758,7 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     expect(calls.fetch).toEqual([]);
   });
 
-  test('적은 글이 첫 말 → AI 답 → 이어 묻기 → 정리하기 → 고칠 수 있는 참고 내용 · 고른 색', async () => {
+  test('로그인하면 단추 없이 AI 첫 질문 · 답 칸이 바로 — 첫 답에 그 질문이 같이 간다 → 이어 묻기 → 정리하기 → 참고 내용 · 고른 색', async () => {
     const { M, sent } = await chatLoad([
       { success: true, reply: '좋아요. 상판은 어떤 느낌이 좋을까요?' },
       { success: true, reply: '알겠습니다. 「정리하기」를 눌러 주세요.' },
@@ -767,19 +769,25 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
         design_style: 'classic',
       },
     ]);
-    expect(visible($('mkChatStart'))).toBe(true);
+    expect($('mkChatStart')).toBeNull();
     expect($('mkChatLogin').hidden).toBe(true);
+    expect($('mkPromptBox').hidden).toBe(true);
+    expect(log()).toEqual([['ai', OPENER]]);
+    expect(visible($('mkChatRow'))).toBe(true);
     expect($('mkBriefMake').hidden).toBe(true);
-    $('mkPrompt').value = '월넛 도어';
-    $('mkPrompt').dispatchEvent(new Event('input'));
-    $('mkChatStart').click();
+    expect(sent).toEqual([]); // 첫 질문은 화면 글 — 서버를 기다리지 않는다
+    $('mkChatInput').value = '월넛 도어';
+    $('mkChatSend').click();
     await M.chatting;
     expect(sent[0].url).toBe(BASE + '/api/chat');
     expect(sent[0].headers.Authorization).toBe('Bearer tok-1');
     expect(sent[0].body).toEqual({
       category: 'sink',
       app: true,
-      messages: [{ role: 'me', text: '월넛 도어' }],
+      messages: [
+        { role: 'ai', text: OPENER },
+        { role: 'me', text: '월넛 도어' },
+      ],
       room_image: SMALL.base64,
       image_type: 'image/jpeg',
     });
@@ -787,11 +795,12 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
       expect.objectContaining({ base64: 'QUJD' }),
       M.CHAT_EDGE
     );
+    expect(M.CHAT_EDGE).toBe(512);
     expect(log()).toEqual([
+      ['ai', OPENER],
       ['me', '월넛 도어'],
       ['ai', '좋아요. 상판은 어떤 느낌이 좋을까요?'],
     ]);
-    expect($('mkChatStart').hidden).toBe(true);
     expect(visible($('mkChatRow'))).toBe(true);
     expect(visible($('mkBriefMake'))).toBe(true);
 
@@ -799,17 +808,18 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     $('mkChatSend').click();
     await M.chatting;
     expect(sent[1].body.messages.map((m) => m.text)).toEqual([
+      OPENER,
       '월넛 도어',
       '좋아요. 상판은 어떤 느낌이 좋을까요?',
       '화이트 상판',
     ]);
     expect(M.shrinkPhoto).toHaveBeenCalledTimes(1); // 같은 사진은 한 번만 줄인다
-    expect(draft().choices.chat).toHaveLength(4);
+    expect(draft().choices.chat).toHaveLength(5);
 
     $('mkBriefMake').click();
     await M.chatting;
     expect(sent[2].url).toBe(BASE + '/api/chat/brief');
-    expect(sent[2].body.messages).toHaveLength(4);
+    expect(sent[2].body.messages).toHaveLength(5);
     expect(visible($('mkBriefBox'))).toBe(true);
     expect($('mkBrief').value).toBe('월넛 도어, 화이트 상판');
     expect($('mkBriefMake').textContent).toBe('다시 정리하기');
@@ -833,13 +843,27 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     expect(body.design_style).toBeUndefined();
   });
 
-  test('글을 안 적고 상담 — 안내만, 보내지 않는다', async () => {
-    const { M, sent } = await chatLoad([]);
-    $('mkChatStart').click();
-    await M.chatting;
+  test('정리 전 생성 — 적은 글과 고객 답을 잇는다 (같은 글은 한 번)', async () => {
+    const { M } = await chatLoad([], {
+      choices: {
+        kind: 'sink',
+        prompt: '밝게',
+        chat: [
+          { role: 'ai', text: '도어 색은요?' },
+          { role: 'me', text: '밝게' },
+          { role: 'ai', text: '상판은요?' },
+          { role: 'me', text: '화이트 상판' },
+        ],
+      },
+    });
+    expect(M.buildBody([]).customer_request).toBe('밝게 / 화이트 상판');
+  });
+
+  test('로그인 전에 적은 글 — 로그인하면 첫 답 칸에 들어가 있다 (보내지는 않는다)', async () => {
+    const { sent } = await chatLoad([], { choices: { kind: 'sink', prompt: '오크 도어' } });
+    expect($('mkChatInput').value).toBe('오크 도어');
+    expect(log()).toEqual([['ai', OPENER]]);
     expect(sent).toEqual([]);
-    expect(visible($('mkChatError'))).toBe(true);
-    expect($('mkChatError').textContent).toBe('원하는 연출을 먼저 적어 주세요.');
   });
 
   test('답을 못 받으면 — 보낸 말을 입력 칸으로 되돌리고 안내, 정리를 못 하면 참고 내용은 그대로', async () => {
@@ -873,10 +897,10 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     M.shrinkPhoto = jest.fn(async () => {
       throw new Error('canvas');
     });
-    $('mkChatStart').click();
+    $('mkChatSend').click();
     await M.chatting;
     expect(sent[0].body).not.toHaveProperty('room_image');
-    expect(log()).toHaveLength(2);
+    expect(log()).toHaveLength(3);
   });
 
   test('고객 말 12마디가 차면 — 입력 줄을 닫고 「정리하기」로 안내', async () => {
@@ -894,9 +918,10 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     const { M } = await chatLoad([{ success: true, reply: '<img src=x onerror=alert(1)>' }], {
       choices: { kind: 'sink', prompt: '<b>굵게</b>' },
     });
-    $('mkChatStart').click();
+    $('mkChatSend').click();
     await M.chatting;
     expect($('mkChatLog').querySelector('img, b')).toBeNull();
-    expect(log()[1][1]).toBe('<img src=x onerror=alert(1)>');
+    expect(log()[1][1]).toBe('<b>굵게</b>');
+    expect(log()[2][1]).toBe('<img src=x onerror=alert(1)>');
   });
 });

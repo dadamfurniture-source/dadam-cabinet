@@ -330,7 +330,14 @@ const dataOf = async (fake, id, token) => {
 
 test('이름 — 일어난 일의 글은 받은 일의 소식과 같은 말에 프로젝트 창의 것을 더한 것이다', () => {
   for (const [k, v] of Object.entries(NEWS_LABEL)) assert.equal(HISTORY_LABEL[k], v);
-  for (const k of ['project_created', 'design_linked', 'deposit_paid', 'as_received', 'as_done'])
+  for (const k of [
+    'project_created',
+    'design_linked',
+    'deposit_paid',
+    'balance_paid',
+    'as_received',
+    'as_done',
+  ])
     assert.ok(typeof HISTORY_LABEL[k] === 'string' && HISTORY_LABEL[k], k);
 });
 
@@ -410,6 +417,7 @@ test('팩토리 — 설계 · 견적 · 수주 · A/S: 이 프로젝트의 것�
       delivered_at: at(15),
       completed_at: at(16),
       deposit: 'paid',
+      balance: 'paid',
     },
     {
       id: O_DEAD,
@@ -419,6 +427,7 @@ test('팩토리 — 설계 · 견적 · 수주 · A/S: 이 프로젝트의 것�
       delivered_at: at(7, 11),
       completed_at: null,
       deposit: 'unpaid',
+      balance: null,
     },
   ]);
   assert.deepEqual(d.requests, []);
@@ -460,6 +469,7 @@ test('일어난 일 — 오래된 것부터: 프로젝트 → 설계 → 견적 
       ['approval_rejected', at(13), 'p-contract'],
       ['order_delivered', at(15), 'p-install'],
       ['order_completed', at(16), 'p-install'],
+      ['balance_paid', '2026-10-17', 'p-contract'], // 잔금 줄의 받은 날
       ['as_requested', at(21), 'p-as'],
       ['as_received', at(22), 'p-as'],
       ['as_done', at(24), 'p-as'],
