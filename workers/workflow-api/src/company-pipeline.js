@@ -9,7 +9,7 @@
  *   production_requests Manager 업체 = 내가 낸 제작 의뢰(거둔 것 뺌) · 팩토리 = 내가 받은 의뢰(프로젝트 · 초안 짝). DB 0050 전이면 없다
  *   planner_drafts     플래너 초안 — 프로젝트에 이어진 것(요약의 projectId) · 앱으로 보낸 설계의 원본(designs.source_ref)
  *   as_requests        팩토리의 처리 중 A/S (접수 · 받음). DB 0045 전이면 없다
- *   order_payments     접수 상태 수주의 계약금 줄 — 입금됐나 (금액은 읽지 않는다 — 직원도 보는 값)
+ *   order_payments     접수 상태 수주의 계약금 줄 · 완료된 수주의 잔금 줄 — 입금됐나 (금액은 읽지 않는다 — 직원도 보는 값)
  *
  * 금액 · 고객 연락처는 여기서 읽지도 싣지도 않는다.
  */
@@ -135,22 +135,38 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
   }
 
   // 계약금 — 접수 상태인 최신 수주만 묻는다 (그때만 「계약금 입금 적기」가 다음 할 일이다)
+  // 잔금 — 완료된 최신 수주만 묻는다 (그때만 「잔금 입금 적기」가 다음 할 일이다)
   const confirmedIds = [];
-  for (const list of liveByProject.values()) if (list[0].status === 'confirmed') confirmedIds.push(list[0].id);
-  const payments = confirmedIds.length
-    ? await orEmpty(
-        selectMany(env, 'order_payments', {
-          order_id: `in.(${confirmedIds.join(',')})`,
-          stage: 'eq.deposit',
-          select: 'order_id,paid_on',
-          limit: ROW_LIMIT,
-        })
-      )
-    : [];
+  const completedIds = [];
+  for (const list of liveByProject.values()) {
+    if (list[0].status === 'confirmed') confirmedIds.push(list[0].id);
+    else if (list[0].status === 'completed') completedIds.push(list[0].id);
+  }
+  const paymentsOf = (ids, stage) =>
+    ids.length
+      ? orEmpty(
+          selectMany(env, 'order_payments', {
+            order_id: `in.(${ids.join(',')})`,
+            stage: `eq.${stage}`,
+            select: 'order_id,paid_on',
+            limit: ROW_LIMIT,
+          })
+        )
+      : [];
+  const [balances, payments] = await Promise.all([
+    paymentsOf(completedIds, 'balance'),
+    paymentsOf(confirmedIds, 'deposit'),
+  ]);
   const depositOf = new Map();
   for (const p of payments) {
     if (p.paid_on) depositOf.set(p.order_id, 'paid');
     else if (!depositOf.has(p.order_id)) depositOf.set(p.order_id, 'unpaid');
+  }
+  // 잔금 줄이 여럿이면 하나라도 안 받은 것이 있으면 unpaid
+  const balanceOf = new Map();
+  for (const p of balances) {
+    if (!p.paid_on) balanceOf.set(p.order_id, 'unpaid');
+    else if (!balanceOf.has(p.order_id)) balanceOf.set(p.order_id, 'paid');
   }
 
   // 견적(고객 확인서) — 프로젝트마다 가장 새 살아 있는 것 (새 판에 밀린 것은 뺀다)
@@ -235,6 +251,7 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
       dead_order:
         !order && !!quote && quote.decision === 'approved' && (ordersByDoc.get(quote.id) || []).some((o) => o.status === 'cancelled'),
       deposit: order ? depositOf.get(order.id) || null : null,
+      balance: order ? balanceOf.get(order.id) || null : null,
       request: requestOf.get(p.id) || null,
       pending: pendingOf.get(p.id) || null,
       as_open: asOpen.get(p.id) || 0,

@@ -717,7 +717,19 @@ test('목록 — 계약 → 생산 → 설치 → 끝: 계약금(수금 기록�
   order.status = 'delivered';
   assert.deepEqual((await flowOf(fake, STAFF_A, PRJ_A1)).brief, ['install', 'complete', go]);
   order.status = 'completed';
+  // 완료 — 잔금 줄(rid 82)은 이미 받았다 → 할 일 없음. 잔금은 완료된 수주만, 금액 없이 묻는다
   assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['done', null, null]);
+  const askedBalance = fake.calls.filter((c) => c.method === 'GET' && c.table === 'order_payments').pop();
+  assert.equal(askedBalance.params.get('order_id'), `in.(${O})`);
+  assert.equal(askedBalance.params.get('stage'), 'eq.balance');
+  assert.equal(askedBalance.params.get('select'), 'order_id,paid_on', '금액은 읽지 않는다');
+  // 안 받은 잔금 줄이 하나라도 있으면 「잔금 입금 적기」 (대표 · 실장) — 단계는 그대로 끝
+  fake.db.order_payments.push({ id: rid(87), order_id: O, stage: 'balance', paid_on: null });
+  let b = await flowOf(fake, OWNER_A, PRJ_A1);
+  assert.deepEqual([...b.brief, b.next.label, b.next.allowed], ['done', 'balance', go, '잔금 입금 적기', true]);
+  b = await flowOf(fake, STAFF_A, PRJ_A1);
+  assert.deepEqual([b.next.key, b.next.allowed], ['balance', false]);
+  fake.db.order_payments.pop();
   // 처리 중 A/S — 팩토리는 그 접수로 (끝난 접수 · 다른 업체 것은 세지 않는다)
   fake.db.as_requests.push(
     { id: rid(84), company_id: A, order_id: O, state: 'done' },
@@ -763,7 +775,7 @@ test('목록 — 영업 사원(Manager 업체): 제작 의뢰 보내기 → 본�
   f = await flowOf(fake, OWNER_B, PRJ_B1);
   assert.deepEqual(f.brief, ['make', 'factory_design', 'planner?draft=pr-1']);
   // 팩토리는 자기가 낸 의뢰를 묻지 않는다 (받은 것만), 영업 사원은 받은 것을 묻지 않는다
-  const asks = (token) =>
+  const asks = () =>
     fake.calls
       .filter((c) => c.method === 'GET' && c.table === 'production_requests')
       .map((c) => [c.params.get('company_id'), c.params.get('factory_company_id')]);

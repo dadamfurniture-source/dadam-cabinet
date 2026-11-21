@@ -25,6 +25,7 @@
  *   order       가장 새 취소 아닌 수주 { id, status, ordered_at, delivered_at, completed_at } | null
  *   dead_order  승인된 그 확인서의 수주가 취소됐다 (다시 만들 수 없다 — 문서 하나에 수주 하나)
  *   deposit     'paid'(계약금 줄이 입금됨) | 'unpaid'(계약금 줄이 있는데 아직) | null(계약금 줄이 없다)
+ *   balance     'paid' | 'unpaid'(완료된 수주에 아직 안 받은 잔금 줄이 있다) | null(잔금 줄이 없다 — 묻지 않는다)
  *   request     Manager 업체의 가장 새 제작 의뢰(거둔 것 빼고) { id, status, status_at } | null
  *   pending     대표 승인을 기다리는 수주 요청 { order_id, kind } | null (걸려 있는 동안 수주 상태를 못 바꾼다)
  *   as_open     처리 중인 A/S 접수 수
@@ -65,6 +66,7 @@ export const NEXT_LABEL = Object.freeze({
   make: '생산 화면 열기',
   deliver: '배송으로 넘기기',
   complete: '설치 완료 처리',
+  balance: '잔금 입금 적기',
   as: 'A/S 접수 보기',
 });
 
@@ -143,7 +145,11 @@ export function nextStep(facts, viewer, nowMs = Date.now()) {
   if (order && str(order.id)) {
     const go = `order:${order.id}`;
     if (order.status === 'completed' || f.stage === 'installed') {
-      return f.as_open > 0 && f.factory ? make('as', 'p-as') : null;
+      // 고객이 기다리는 A/S 가 먼저다
+      if (f.as_open > 0 && f.factory) return make('as', 'p-as');
+      // 설치는 끝났는데 안 받은 잔금 줄이 남았다 — 수주 창의 수금 칸으로 (2026-11-21 뒤 공정. 잔금 줄이 없으면 묻지 않는다)
+      if (f.balance === 'unpaid') return make('balance', go, { since: str(order.completed_at), allowed: manage });
+      return null;
     }
     if (order.status === 'delivered') return make('complete', go, { since: str(order.delivered_at) });
     if (order.status === 'in_production') return make('deliver', go);
