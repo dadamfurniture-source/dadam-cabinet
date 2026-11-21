@@ -543,3 +543,71 @@ test('프로젝트의 작업 — 기간으로 거른다 · 작업의 프로젝�
   // 다른 줄(일정 · 상담 · 받을 날 · 설계 마감 · A/S 접수)은 그대로 온다
   assert.equal(before.json.data.items.length, 10);
 });
+
+// ── 뒤 공정 2차 (2026-11-21) — 프로젝트의 실측 일정 · 설치 날 고객 확인 (DB 0079) ─────────────
+
+test('실측 일정 — 프로젝트의 실측이 달력에 영업 색으로 (갈 사람 이름 · 끝낸 것은 completed). 취소한 것 · 기간 밖 · 남의 업체는 빼고, 표가 없으면 그 줄 없이', async () => {
+  const t = tables();
+  t.profiles = [{ id: MANAGER, name: '박실장' }];
+  t.project_visits = [
+    { id: id('0f', 1), company_id: CO, project_id: P(1), kind: 'measure', status: 'scheduled', scheduled_at: iso('2026-11-18T14:00:00'), assignee_id: MANAGER, assignee_name: null },
+    { id: id('0f', 2), company_id: CO, project_id: P(1), kind: 'measure', status: 'done', scheduled_at: iso('2026-11-05T10:00:00'), assignee_id: null, assignee_name: '외부 기사' },
+    { id: id('0f', 3), company_id: CO, project_id: P(1), kind: 'measure', status: 'cancelled', scheduled_at: iso('2026-11-19T10:00:00'), assignee_id: null, assignee_name: null },
+    { id: id('0f', 4), company_id: CO, project_id: P(1), kind: 'measure', status: 'scheduled', scheduled_at: iso('2026-12-05T10:00:00'), assignee_id: null, assignee_name: null },
+    { id: id('0f', 9), company_id: CO2, project_id: P(9), kind: 'measure', status: 'scheduled', scheduled_at: iso('2026-11-18T10:00:00'), assignee_id: null, assignee_name: null },
+  ];
+  const r = await call(world(t), 't_staff', '/company/schedules?from=2026-11-01&to=2026-11-30');
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const visits = r.json.data.items.filter((i) => i.source === 'visit');
+  assert.deepEqual(
+    visits.map((i) => [i.key, i.kind, i.type, i.label, i.day, i.time, i.status, i.assignee_name, i.project && i.project.id]),
+    [
+      [`visit:${id('0f', 2)}`, 'sales', 'measurement', '실측', '2026-11-05', '10:00', 'completed', '외부 기사', P(1)],
+      [`visit:${id('0f', 1)}`, 'sales', 'measurement', '실측', '2026-11-18', '14:00', 'scheduled', '박실장', P(1)],
+    ]
+  );
+  // 고객 이름 · 메모는 싣지 않는다 (칸 자체가 없다)
+  assert.equal('note' in visits[0], false);
+  // 표가 없으면(DB 0079 전) 그 줄만 없이 준다
+  const before = await call(world(), 't_staff', '/company/schedules?from=2026-11-01&to=2026-11-30');
+  assert.equal(before.status, 200, JSON.stringify(before.json));
+  assert.equal(before.json.data.items.some((i) => i.source === 'visit'), false);
+});
+
+test('설치 날 고객 확인 — 대표 · 실장이 설치 일정에 표시한다(때 · 사람). 날짜를 바꾸면 표시가 지워지고, 설치가 아닌 일정 · 틀린 값은 422, 직원은 403', async () => {
+  const fake = world({ ...tables(), project_events: [] });
+  const row = () => fake.db.design_schedules.find((s) => s.id === S(3));
+  const patch = (token, id, body) => call(fake, token, `/schedules/${id}`, { method: 'PATCH', body });
+  // 달력 — 설치 일정 줄에만 확인 칸이 있다 (아직 확인 전)
+  const cal = async () => (await call(fake, 't_owner', '/company/schedules?from=2026-11-01&to=2026-11-30')).json.data;
+  let data = await cal();
+  assert.equal(data.confirm_ready, true);
+  assert.equal(data.items.find((i) => i.id === S(3)).customer_confirmed_at, null);
+  assert.equal('customer_confirmed_at' in data.items.find((i) => i.id === S(2)), false);
+
+  const staff = await patch('t_staff', S(3), { customer_confirmed: true });
+  assert.deepEqual([staff.status, staff.json.code], [403, 'not_manager']);
+  const ok = await patch('t_manager', S(3), { customer_confirmed: true });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.deepEqual([typeof row().customer_confirmed_at, row().customer_confirmed_by], ['string', MANAGER]);
+  data = await cal();
+  assert.equal(data.items.find((i) => i.id === S(3)).customer_confirmed_at, row().customer_confirmed_at);
+  // 메모만 고치면 표시는 그대로, 날짜를 바꾸면 지워진다 (고객이 확인한 날짜가 아니다)
+  await patch('t_owner', S(3), { notes: '메모만' });
+  assert.equal(typeof row().customer_confirmed_at, 'string');
+  await patch('t_owner', S(3), { scheduled_at: iso('2026-11-21T10:00:00') });
+  assert.deepEqual([row().customer_confirmed_at, row().customer_confirmed_by], [null, null]);
+  // 날짜를 바꾸면서 같이 표시하면 새 날짜의 확인이다 · 지우기
+  await patch('t_owner', S(3), { scheduled_at: iso('2026-11-22T10:00:00'), customer_confirmed: true });
+  assert.deepEqual([typeof row().customer_confirmed_at, row().customer_confirmed_by], ['string', OWNER]);
+  await patch('t_owner', S(3), { customer_confirmed: false });
+  assert.deepEqual([row().customer_confirmed_at, row().customer_confirmed_by], [null, null]);
+  // 설치가 아닌 일정 · 틀린 값
+  assert.equal((await patch('t_owner', S(2), { customer_confirmed: true })).status, 422);
+  assert.equal((await patch('t_owner', S(3), { customer_confirmed: 'yes' })).status, 422);
+  // 프로젝트 일지 — 표시한 것만 적는다 (지운 것 · 날짜 바꿈으로 지워진 것은 「바꿈」 한 줄뿐). 프로젝트에 이어진 설계가 아니면 적지 않는다
+  assert.deepEqual(
+    fake.db.project_events.map((e) => e.type),
+    []
+  );
+});

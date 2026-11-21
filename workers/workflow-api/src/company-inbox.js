@@ -74,7 +74,11 @@ export const TODO_LABEL = Object.freeze({
   approval: '수주 요청 승인 · 반려',
   as: 'A/S 접수 받기',
   due: '받을 돈 확인',
+  // 설치 날 고객 확인 (2026-11-21 뒤 공정 2차, DB 0079) — 앞으로 INSTALL_CONFIRM_DAYS 일 안의 설치 일정 가운데 확인 표시가 없는 것
+  install_confirm: '설치 날 고객 확인',
 });
+/** 설치 날 며칠 앞부터 「설치 날 고객 확인」을 알리나 */
+export const INSTALL_CONFIRM_DAYS = 7;
 export const NEWS_LABEL = Object.freeze({
   consult_assigned: '새 상담이 배정됐습니다',
   quote_sent: '견적서를 보냈습니다',
@@ -292,6 +296,25 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
   if (manage) add('as', (asRows || []).filter((a) => a.state === 'requested').length, 'p-as');
   if (brief.receivables)
     add('due', brief.receivables.count, 'p-collect', { late: brief.receivables.late_count, total: brief.receivables.total });
+  // 설치 날 고객 확인 — 일정을 고칠 수 있는 대표 · 실장에게 (가장 이른 설치 날이 기한)
+  const confirmUntil = new Date(nowMs + INSTALL_CONFIRM_DAYS * 86400000).toISOString();
+  const toConfirm = manage
+    ? (
+        await orEmpty(
+          selectMany(env, 'design_schedules', {
+            type: 'eq.installation',
+            status: 'in.(scheduled,confirmed)',
+            scheduled_at: `gte.${new Date(nowMs).toISOString()}`,
+            customer_confirmed_at: 'is.null',
+            select: 'id,scheduled_at,designs!inner(company_id)',
+            'designs.company_id': co,
+            order: 'scheduled_at.asc',
+            limit: ROW_LIMIT,
+          })
+        )
+      ).filter((s) => s.scheduled_at && s.scheduled_at < confirmUntil)
+    : [];
+  if (toConfirm.length) add('install_confirm', toConfirm.length, 'p-install', { due: toConfirm[0].scheduled_at });
   // 기한이 있는 것이 먼저(이른 것부터), 그다음 넣은 차례
   todo.sort((a, b) => (a.due && b.due ? String(a.due).localeCompare(String(b.due)) : a.due ? -1 : b.due ? 1 : 0));
 

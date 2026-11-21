@@ -441,3 +441,20 @@ test('둘째 묶음 — 제작 의뢰 · 일정 · A/S · 완료 보고 · 설�
     },
   ]);
 });
+
+test('실측 끝 · 설치 날 고객 확인 (2026-11-21 뒤 공정 2차) — 일지 이름 → 화면의 일과 글', () => {
+  assert.deepEqual(eventKind({ type: 'measure_done', subject_id: 'v1' }), {
+    kind: 'measure_done',
+    ref: 'v1',
+    go: null,
+  });
+  assert.deepEqual(
+    eventKind({ type: 'schedule_confirmed', subject_id: 's1', payload: { type: 'installation' } }),
+    { kind: 'install_confirmed', ref: 's1', go: 'p-install' }
+  );
+  assert.equal(eventKind({ type: 'schedule_confirmed', subject_id: 's1', payload: { type: 'delivery' } }), null);
+  assert.deepEqual(
+    [HISTORY_LABEL.measure_done, HISTORY_LABEL.install_confirmed, HISTORY_LABEL.schedule_set_measurement],
+    ['실측을 끝냈습니다', '설치 날을 고객과 확인했습니다', '실측 일정을 잡았습니다']
+  );
+});

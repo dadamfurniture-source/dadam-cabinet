@@ -104,6 +104,8 @@ function tables() {
     ],
     // 프로젝트 일지 (DB 0078) — 시험마다 필요한 줄을 넣는다
     project_events: [],
+    // 일정 표 — 「설치 날 고객 확인」 할 일이 읽는다 (시험마다 필요한 줄을 넣는다)
+    design_schedules: [],
     // 소식을 본 때 (DB 0078) — 실장은 어제 봤다, 남의 업체 줄은 섞이지 않는다
     inbox_seen: [
       { user_id: MANAGER, company_id: F, seen_at: ago(1) },
@@ -134,8 +136,9 @@ async function call(fake, token) {
   }
 }
 
-test('이름 — 할 일 여섯 · 소식 글이 모두 있다, 14일 · 20줄', () => {
-  assert.deepEqual(Object.keys(TODO_LABEL), ['consult', 'offer', 'choose', 'approval', 'as', 'due']);
+test('이름 — 할 일 일곱 · 소식 글이 모두 있다, 14일 · 20줄', () => {
+  assert.deepEqual(Object.keys(TODO_LABEL), ['consult', 'offer', 'choose', 'approval', 'as', 'due', 'install_confirm']);
+  assert.equal(TODO_LABEL.install_confirm, '설치 날 고객 확인');
   for (const v of Object.values(NEWS_LABEL)) assert.ok(typeof v === 'string' && v);
   assert.deepEqual([NEWS_DAYS, NEWS_LIMIT], [14, 20]);
 });
@@ -408,4 +411,42 @@ test('소식 — 둘째 묶음: 제작 의뢰 · A/S 의 일지는 뽑은 줄과
   assert.deepEqual(pick('request_received'), ['member:가대표']);
   assert.deepEqual(pick('as_requested'), ['customer:null', null], '4시간 전 접수에만 일지가 있다');
   assert.equal(f.news.length, 14, '줄 수는 그대로');
+});
+
+test('할 일 — 설치 날 고객 확인: 앞으로 7일 안의 설치 일정 가운데 확인 표시가 없는 것, 대표 · 실장에게만 (가장 이른 설치 날이 기한)', async () => {
+  const at = (days) => new Date(AT + days * 86400000).toISOString();
+  const S = (i, extra = {}) => ({
+    id: id('0b', i),
+    design_id: D(1),
+    type: 'installation',
+    status: 'scheduled',
+    scheduled_at: at(3),
+    customer_confirmed_at: null,
+    ...extra,
+  });
+  const t = tables();
+  t.design_schedules = [
+    S(1), // 3일 뒤 · 확인 전 → 센다
+    S(2, { scheduled_at: at(1), status: 'confirmed' }), // 내일 · 확인 전 → 센다 (가장 이르다)
+    S(3, { customer_confirmed_at: at(-1) }), // 확인했다
+    S(4, { scheduled_at: at(10) }), // 7일 밖
+    S(5, { scheduled_at: at(-1) }), // 지난 일정
+    S(6, { status: 'cancelled' }), // 취소
+    S(7, { type: 'delivery' }), // 납품은 묻지 않는다
+    S(8, { design_id: D(9) }), // 남의 업체 설계
+  ];
+  const pick = async (token) =>
+    (await call(world(t), token)).json.data.todo.find((x) => x.kind === 'install_confirm') || null;
+  assert.deepEqual(await pick('t_owner'), {
+    kind: 'install_confirm',
+    label: '설치 날 고객 확인',
+    count: 2,
+    go: 'p-install',
+    due: at(1),
+  });
+  assert.equal((await pick('t_manager')).count, 2);
+  assert.equal(await pick('t_staff'), null);
+  // 모두 확인했으면 할 일이 없다
+  t.design_schedules = [S(3, { customer_confirmed_at: at(-1) })];
+  assert.equal(await pick('t_owner'), null);
 });

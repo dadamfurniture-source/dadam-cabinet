@@ -48,6 +48,7 @@ export const EVENT_LABEL = Object.freeze({
   // 둘째 묶음 (2026-11-21) — 제작 의뢰 · 일정 · A/S · 완료 보고 · 설계 시작
   design_started: '설계를 시작했습니다',
   measure_done: '실측을 끝냈습니다',
+  install_confirmed: '설치 날을 고객과 확인했습니다',
   request_sent: '제작 의뢰를 보냈습니다',
   request_chosen: '팩토리를 골랐습니다',
   request_cancelled: '제작 의뢰를 거뒀습니다',
@@ -133,6 +134,8 @@ export function eventKind(ev) {
       return { kind: 'design_started', ref: subject, go: null };
     case 'measure_done':
       return { kind: 'measure_done', ref: subject, go: null };
+    case 'schedule_confirmed':
+      return payload.type === 'installation' ? { kind: 'install_confirmed', ref: subject, go: 'p-install' } : null;
     case 'request_created':
       return { kind: 'request_sent', ref: subject, go: 'p-make' };
     case 'request_chosen':

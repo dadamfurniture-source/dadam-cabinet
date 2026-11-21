@@ -2,7 +2,7 @@
  * 업체 업무 달력 — 내 업체의 날짜 있는 일을 한 목록으로 (마이페이지 「프로젝트 관리」 달력).
  *
  *   GET /company/schedules?from=YYYY-MM-DD&to=YYYY-MM-DD   (한국 날짜, 둘 다 없으면 이번 달 · 길어야 SCHEDULE_RANGE_DAYS 일)
- *     → { company, can_manage, range, today, truncated, items }
+ *     → { company, can_manage, confirm_ready, range, today, truncated, items }
  *
  * 누가: 프로젝트를 가질 수 있는 업체(다담 공장 · Manager 이상 협력업체)의 active 구성원 — /company/projects 와 같다.
  * 무엇을 (종류 kind):
@@ -20,6 +20,12 @@
  *     싣지 않는다. 설치 · A/S 일정에서 생긴 작업은 그 일정 줄이 이미 있어 싣지 않는다. 표 · 칸이 아직 없으면(DB 0065 전) 건너뛴다.
  *     status = unassigned(작업자 미정) · offered(수락 대기) · confirmed(연결됨) · in_progress(작업 중) · review(완료 보고) · done(끝남),
  *     assignee_name = 배정된 작업자 이름. 여기서 고치지 않는다 — 날짜 · 작업자는 프로젝트의 「작업 배정」에서
+ *   - 프로젝트의 실측 project_visits.scheduled_at (source visit) = 영업(sales) — 설계 전에 잡는 실측 (2026-11-21 뒤 공정 2차,
+ *     company-project-visits.js). 예정 · 끝낸 것만 (취소한 것은 뺀다). status = scheduled · completed, assignee_name = 갈 사람.
+ *     여기서 고치지 않는다 — 프로젝트 줄의 「실측 일정」에서. 표가 아직 없으면(DB 0079 전) 건너뛴다
+ *
+ * 설치 날 고객 확인 (DB 0079): 설치 일정 줄에 customer_confirmed_at — 고객이 그 날짜를 확인했다고 업체가 표시한 때.
+ *   칸이 아직 없으면 그 칸 없이 주고 confirm_ready false (화면이 표시 단추를 내지 않는다).
  *
  * can_manage: 일정을 넣고 고칠 수 있나 (대표 · 실장 — src/schedules.js 가 서버에서 다시 막는다).
  * 고객 이름 · 전화 · 주소는 싣지 않는다 — 프로젝트 이름 · 설계 이름 · 수주 번호 · 상담 지역(시도 · 구군)까지.
@@ -28,6 +34,7 @@
 
 import { ValidationError, selectMany } from './supabase.js';
 import { projectCompanyOf } from './company-projects.js';
+import { membersOf } from './company-assignee.js';
 import { SCHEDULE_LABELS } from './slack.js';
 import { PAYMENT_STAGE_LABEL } from './payments.js';
 import { isMissingRelation } from './work-order-data.js';
@@ -124,14 +131,23 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
   const co = `eq.${company.id}`;
   const limit = String(SCHEDULE_FETCH);
 
-  const [schedules, consults, payments, asRows, depositPaid, workJobs] = await Promise.all([
+  // 일정 표 — 고객 확인 칸(DB 0079)까지 읽는다. 칸이 아직 없으면 그 칸 없이 (confirm_ready false)
+  const scheduleCols = 'id,type,title,status,scheduled_at,duration_min,assignee_name,location,design_id';
+  let confirmReady = true;
+  const readSchedules = (cols) =>
     selectMany(env, 'design_schedules', {
       scheduled_at: `gte.${fromIso}`,
-      select:
-        'id,type,title,status,scheduled_at,duration_min,assignee_name,location,design_id,designs!inner(company_id,name,project_id)',
+      select: `${cols},designs!inner(company_id,name,project_id)`,
       'designs.company_id': co,
       order: 'scheduled_at.asc',
       limit,
+    });
+
+  const [schedules, consults, payments, asRows, depositPaid, workJobs, visits] = await Promise.all([
+    readSchedules(`${scheduleCols},customer_confirmed_at`).catch((e) => {
+      if (!isMissingRelation(e)) throw e;
+      confirmReady = false;
+      return readSchedules(scheduleCols);
     }),
     selectMany(env, 'consultations', {
       company_id: co,
@@ -185,8 +201,21 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
       if (isMissingRelation(e)) return null;
       throw e;
     }),
+    // 프로젝트의 실측 — 설계 전에 잡는 실측 일정 (예정 · 끝. 취소한 것은 뺀다). DB 0079 전이면 없다
+    selectMany(env, 'project_visits', {
+      company_id: co,
+      kind: 'eq.measure',
+      status: 'in.(scheduled,done)',
+      scheduled_at: `gte.${fromIso}`,
+      select: 'id,project_id,status,scheduled_at,assignee_id,assignee_name',
+      order: 'scheduled_at.asc',
+      limit,
+    }).catch((e) => {
+      if (isMissingRelation(e)) return null;
+      throw e;
+    }),
   ]);
-  const truncated = [schedules, consults, payments, asRows, depositPaid, workJobs].some(
+  const truncated = [schedules, consults, payments, asRows, depositPaid, workJobs, visits].some(
     (rows) => (rows || []).length >= SCHEDULE_FETCH,
   );
 
@@ -270,6 +299,37 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
       location: s.location || null,
       design: { id: s.design_id, name: d.name || null },
       project_id: d.project_id || null,
+      order_no: null,
+      amount: null,
+      // 설치 날 고객 확인 — 설치 일정에만 싣는다 (칸이 없으면 싣지 않는다)
+      ...(s.type === 'installation' && confirmReady ? { customer_confirmed_at: s.customer_confirmed_at || null } : {}),
+    });
+  }
+
+  // 프로젝트의 실측 — 갈 사람이 구성원이면 그 이름
+  const visitLive = (visits || []).filter((v) => v.scheduled_at && v.scheduled_at < toIso);
+  const visitMemberOf = visitLive.some((v) => v.assignee_id)
+    ? new Map((await membersOf(env, company.id)).map((m) => [m.user_id, m]))
+    : new Map();
+  for (const v of visitLive) {
+    const ms = Date.parse(v.scheduled_at);
+    items.push({
+      key: `visit:${v.id}`,
+      source: 'visit',
+      id: v.id,
+      kind: 'sales',
+      type: 'measurement',
+      label: SCHEDULE_LABELS.measurement,
+      day: kstDateOf(ms),
+      at: v.scheduled_at,
+      time: kstTimeOf(ms),
+      title: null,
+      status: v.status === 'done' ? 'completed' : 'scheduled',
+      duration_min: null,
+      assignee_name: v.assignee_id ? (visitMemberOf.get(v.assignee_id) || {}).name || null : v.assignee_name || null,
+      location: null,
+      design: null,
+      project_id: v.project_id,
       order_no: null,
       amount: null,
     });
@@ -403,6 +463,8 @@ export async function listCompanySchedules(env, { user, query }, nowMs = Date.no
   return {
     company: { id: company.id, name: company.name || null },
     can_manage: canAct,
+    // 설치 날 고객 확인을 쓸 수 있나 (DB 0079 의 칸이 있다) — 화면이 그때만 표시 단추를 낸다
+    confirm_ready: confirmReady,
     range,
     today: kstDateOf(nowMs),
     truncated,
