@@ -1300,8 +1300,10 @@
     // 2026-10-30 사장님: 빌트인 오븐장(mod.builtinOven) — 15T 상자, 뒷판 높이 절반 (자리 = 규칙 파일 innerOf backH · backY)
     const bi = OpenRules && OpenRules.isBuiltinOven && OpenRules.isBuiltinOven(mod) ? OpenRules.innerOf({ W, H, D, builtinOven: true }) : null;
     const backH = bi ? bi.backH : H, backY = bi ? bi.backY : 0;
-    if (side.qty !== 2 || (!split && tb.qty !== 2) || tb.thickness !== T || tb.h >= D
-      || back.qty !== 1 || back.thickness !== T || back.w !== tb.w || back.h !== backH) return null;
+    //   빌트인 오븐장 (2026-11-21 「측판, 천지판, 니치 570 · 뒷판은 우라를 덧댐」): 천지판 = 측판 깊이, 뒷판 = 우라 3T 가 상자 뒤에 덮임 (W − 1)
+    const backT = bi ? bi.backT : T, backW = bi ? bi.backW : tb.w;
+    if (side.qty !== 2 || (!split && tb.qty !== 2) || tb.thickness !== T || (bi ? tb.h > D : tb.h >= D)
+      || back.qty !== 1 || back.thickness !== backT || back.w !== backW || back.h !== backH) return null;
     // 2026-11-20 사장님 「오픈장은 기본 570」 — 오픈 · 밥솥 상자는 몸통 깊이 + 20 (이웃 도어 자리, bom-open-cabinet-rules FRONT_PLUS).
     //   뒤끝은 몸통 뒤끝 그대로(뒤는 띄운다), 앞으로 20 나온다 — 측판 길이가 몸통 깊이(mod.d) + 20 일 때만. 홈카페장 · 빌트인 오븐장 · 옛 행은 예전처럼 가운데
     const bodyD = parseFloat(mod.d);
@@ -1319,8 +1321,10 @@
     // 천판·지판 — 측판 사이, 앞선 맞춤 (뒤에 뒷판 자리)
     parts.push(makePart(tb, 0, { o: [-W / 2 + T, 0, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { panel: 'bottom' }));
     parts.push(makePart(top, split ? 0 : 1, { o: [-W / 2 + T, H - T, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { panel: 'top' }));
-    // 뒷판 — 통판(상자 두께), 측판 사이 뒤끝 맞춤, 몸통 높이 전체 (빌트인 오븐장은 절반 — 밑단 backY)
-    parts.push(makePart(back, 0, { o: [-W / 2 + T, backY, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'between-sides' }));
+    // 뒷판 — 통판(상자 두께), 측판 사이 뒤끝 맞춤, 몸통 높이 전체
+    //   빌트인 오븐장은 우라가 측판 · 천지판 뒤끝에 덮임 (폭 가운데, 높이 절반 — 밑단 backY, 2026-11-21)
+    if (bi) parts.push(makePart(back, 0, { o: [-back.w / 2, backY, zBack - back.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'behind-sides' }));
+    else parts.push(makePart(back, 0, { o: [-W / 2 + T, backY, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'between-sides' }));
     keyed.forEach(({ row, key }) => {
       if (row === side || row === tb || row === top || row === back) return;
       if (!key) { skip(row, 'no-part-key'); return; }
