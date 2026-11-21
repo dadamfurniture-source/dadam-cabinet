@@ -11,6 +11,10 @@
  *   as_requests        팩토리의 처리 중 A/S (접수 · 받음). DB 0045 전이면 없다
  *   order_payments     접수 상태 수주의 계약금 줄 · 완료된 수주의 잔금 줄 — 입금됐나 (금액은 읽지 않는다 — 직원도 보는 값)
  *
+ * 덧붙여 주는 값: deposit_paid — 취소 아닌 수주에 입금된 계약금 줄이 있다 (있을 때만 true).
+ *   「계약금을 받으면 보류 · 그만둠은 작동하지 않는다」(대표님 2026-11-21) — 화면이 그 줄에는 단추를 내지 않는다.
+ *   서버의 판정은 company-project-status.js 가 따로 한다 (같은 규칙).
+ *
  * 금액 · 고객 연락처는 여기서 읽지도 싣지도 않는다.
  */
 
@@ -38,6 +42,9 @@ async function orEmpty(promise) {
     throw e;
   }
 }
+
+/** 주소가 길어지지 않게 id 목록을 나눠 묻는 크기 */
+const ID_CHUNK = 100;
 
 /** 다담 공장 · Expert · Agent — 생산을 하는 업체 */
 export function isFactory(company) {
@@ -162,6 +169,37 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
     if (p.paid_on) depositOf.set(p.order_id, 'paid');
     else if (!depositOf.has(p.order_id)) depositOf.set(p.order_id, 'unpaid');
   }
+  // 계약금을 받은 프로젝트 — 살아 있는 프로젝트(진행 · 보류)의 취소 아닌 수주 가운데 입금된 계약금 줄이 있는 것.
+  // 접수 상태의 최신 수주는 위에서 읽었다 — 그 밖의 수주만 더 묻는다 (100개씩 나눠서, 받은 줄만)
+  const liveProject = new Set(projects.filter((p) => !p.status || p.status === 'active' || p.status === 'on_hold').map((p) => p.id));
+  const asked = new Set(confirmedIds);
+  const restIds = [];
+  for (const [pid, list] of liveByProject) {
+    if (!liveProject.has(pid)) continue;
+    for (const o of list) if (!asked.has(o.id)) restIds.push(o.id);
+  }
+  const chunks = [];
+  for (let i = 0; i < restIds.length; i += ID_CHUNK) chunks.push(restIds.slice(i, i + ID_CHUNK));
+  const paidRows = (
+    await Promise.all(
+      chunks.map((ids) =>
+        orEmpty(
+          selectMany(env, 'order_payments', {
+            order_id: `in.(${ids.join(',')})`,
+            stage: 'eq.deposit',
+            paid_on: 'not.is.null',
+            select: 'order_id',
+            limit: ROW_LIMIT,
+          })
+        )
+      )
+    )
+  ).flat();
+  const paidOrder = new Set(paidRows.map((r) => r.order_id));
+  for (const [orderId, state] of depositOf) if (state === 'paid') paidOrder.add(orderId);
+  const depositPaid = new Set();
+  for (const [pid, list] of liveByProject) if (list.some((o) => paidOrder.has(o.id))) depositPaid.add(pid);
+
   // 잔금 줄이 여럿이면 하나라도 안 받은 것이 있으면 unpaid
   const balanceOf = new Map();
   for (const p of balances) {
@@ -257,7 +295,11 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
       pending: pendingOf.get(p.id) || null,
       as_open: asOpen.get(p.id) || 0,
     };
-    out.set(p.id, { step: stepOf(facts), next: nextStep(facts, viewer, nowMs) });
+    out.set(p.id, {
+      step: stepOf(facts),
+      next: nextStep(facts, viewer, nowMs),
+      ...(depositPaid.has(p.id) ? { deposit_paid: true } : {}),
+    });
   }
   return out;
 }

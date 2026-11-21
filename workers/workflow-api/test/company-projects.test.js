@@ -699,6 +699,9 @@ test('목록 — 계약 → 생산 → 설치 → 끝: 계약금(수금 기록�
   fake.db.order_payments[0].paid_on = '2026-10-11';
   s = await flowOf(fake, STAFF_A, PRJ_A1);
   assert.deepEqual([...s.brief, s.next.allowed], ['contract', 'produce', go, true]);
+  // 계약금을 받았다 — 줄에 deposit_paid (화면이 그 줄에는 보류 · 그만둠 단추를 내지 않는다). 받기 전에는 칸이 없다
+  const paidRow = (await call(fake, '/company/projects', OWNER_A)).json.data.items.find((p) => p.id === PRJ_A1);
+  assert.equal(paidRow.deposit_paid, true);
   // 계약금은 접수 상태 수주만 묻는다
   const asked = fake.calls.filter((c) => c.method === 'GET' && c.table === 'order_payments').pop();
   assert.equal(asked.params.get('order_id'), `in.(${O})`);
@@ -714,12 +717,29 @@ test('목록 — 계약 → 생산 → 설치 → 끝: 계약금(수금 기록�
   const order = fake.db.orders.find((o) => o.id === O);
   order.status = 'in_production';
   assert.deepEqual((await flowOf(fake, STAFF_A, PRJ_A1)).brief, ['make', 'deliver', go]);
+  // 접수를 지난 수주의 계약금도 본다 — 받은 줄만, 금액 없이
+  const later = (await call(fake, '/company/projects', OWNER_A)).json.data.items.find((p) => p.id === PRJ_A1);
+  assert.equal(later.deposit_paid, true);
+  const askedPaid = fake.calls
+    .filter((c) => c.method === 'GET' && c.table === 'order_payments' && c.params.get('paid_on') === 'not.is.null')
+    .pop();
+  assert.deepEqual(
+    [askedPaid.params.get('order_id'), askedPaid.params.get('stage'), askedPaid.params.get('select')],
+    [`in.(${O})`, 'eq.deposit', 'order_id']
+  );
+  // 계약금 줄을 지우면(받지 않았다) 칸이 없다 — 수주가 취소돼도 마찬가지
+  const kept = fake.db.order_payments.slice();
+  fake.db.order_payments = kept.filter((p) => p.stage !== 'deposit');
+  assert.equal('deposit_paid' in (await call(fake, '/company/projects', OWNER_A)).json.data.items.find((p) => p.id === PRJ_A1), false);
+  fake.db.order_payments = kept;
   order.status = 'delivered';
   assert.deepEqual((await flowOf(fake, STAFF_A, PRJ_A1)).brief, ['install', 'complete', go]);
   order.status = 'completed';
   // 완료 — 잔금 줄(rid 82)은 이미 받았다 → 할 일 없음. 잔금은 완료된 수주만, 금액 없이 묻는다
   assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['done', null, null]);
-  const askedBalance = fake.calls.filter((c) => c.method === 'GET' && c.table === 'order_payments').pop();
+  const askedBalance = fake.calls
+    .filter((c) => c.method === 'GET' && c.table === 'order_payments' && c.params.get('stage') === 'eq.balance')
+    .pop();
   assert.equal(askedBalance.params.get('order_id'), `in.(${O})`);
   assert.equal(askedBalance.params.get('stage'), 'eq.balance');
   assert.equal(askedBalance.params.get('select'), 'order_id,paid_on', '금액은 읽지 않는다');
