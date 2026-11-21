@@ -1593,7 +1593,7 @@ describe('사업자등록증 · 첫 달 무료 (2026-11-21 대표님 계획 승�
     expect(note).toBe(
       '카드를 등록해도 오늘은 결제되지 않습니다. 30일 뒤인 ' +
         window.SeganPartner.firstChargeDay() +
-        '에 첫 결제 199,000원가 진행되고, 그 전에 해지하면 결제되지 않습니다.'
+        '에 첫 결제 199,000원이 진행되고, 그 전에 해지하면 결제되지 않습니다.'
     );
     expect(note).not.toMatch(/첫 달이 결제되고/);
     expect(form.querySelector('button[type="submit"]').textContent).toBe(

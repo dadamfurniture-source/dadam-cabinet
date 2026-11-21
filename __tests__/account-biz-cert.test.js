@@ -109,6 +109,7 @@ const B = loadEsm(
   [
     'matchCertRoute',
     'runCertRoute',
+    'isPlatformReviewer',
     'autoCheck',
     'certView',
     'CERT_BUCKET',
@@ -144,6 +145,7 @@ const W = loadEsm('workers/account-api/src/worker.js', ['__default'], {
   runPartnerRoute: Pt.runPartnerRoute,
   matchCertRoute: B.matchCertRoute,
   runCertRoute: B.runCertRoute,
+  isPlatformReviewer: B.isPlatformReviewer,
   ...Wd,
 }).__default;
 
@@ -1261,10 +1263,33 @@ describe('본사 검토 — /admin/partner/certs', () => {
       ...over,
     });
 
+  test('다담 본사 대표 · 실장도 검토할 수 있다 (사이트 관리자가 아니어도) — 본사 직원 · 나간 실장 · 팩토리 대표는 못 한다', async () => {
+    let row;
+    use({ mutate: (t) => (row = reviewRow(t)) });
+    for (const who of ['hqOwner', 'hqManager']) {
+      const r = await call('GET', '/admin/partner/certs', who);
+      expect([who, r.status, r.json.data.map((c) => c.id)]).toEqual([who, 200, [row.id]]);
+    }
+    for (const who of ['hqStaff', 'hqLeft', 'partnerOwner', 'newbie']) {
+      const r = await call('GET', '/admin/partner/certs', who);
+      expect([who, r.status, r.json.code]).toEqual([who, 403, 'not_admin']);
+    }
+    // 본사 실장이 승인한다
+    const r = await call('POST', `/admin/partner/certs/${row.id}`, 'hqManager', {
+      decision: 'approve',
+    });
+    expect(r.status).toBe(200);
+    expect(row.status).toBe('verified');
+    expect(row.decided_by).toBe(U.hqManager);
+    // 다른 관리자 길(업체 신청)은 그대로 관리자만
+    const apps = await call('GET', '/admin/partner/applications', 'hqOwner');
+    expect([apps.status, apps.json.code]).toEqual([403, 'not_admin']);
+  });
+
   test('관리자가 아니면 403 not_admin · 로그인 안 됨 401 — 목록 · 처리 모두', async () => {
     let row;
     use({ mutate: (t) => (row = reviewRow(t)) });
-    for (const who of ['newbie', 'hqOwner', 'partnerOwner']) {
+    for (const who of ['newbie', 'hqStaff', 'partnerOwner']) {
       let r = await call('GET', '/admin/partner/certs', who);
       expect([r.status, r.json.code]).toEqual([403, 'not_admin']);
       r = await call('POST', `/admin/partner/certs/${row.id}`, who, { decision: 'approve' });

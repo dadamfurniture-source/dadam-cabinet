@@ -11,7 +11,7 @@
  */
 import { corsHeaders, handleOptions, jsonResponse } from './cors.js';
 import { matchPartnerRoute, partnerResponse, runPartnerRoute } from './partner.js';
-import { matchCertRoute, runCertRoute } from './biz-cert.js';
+import { isPlatformReviewer, matchCertRoute, runCertRoute } from './biz-cert.js';
 import { prepareWithdrawal, soleOwnerCompanies, withdrawalDetail, withdrawalSummary } from './withdrawal.js';
 
 class AuthError extends Error {
@@ -260,7 +260,9 @@ async function handlePartner(request, env, route, url, run = runPartnerRoute) {
   }
   if (route.admin) {
     try {
-      await assertAdmin(request, env);
+      // 사업자등록증 검토 길(reviewer)은 다담 본사 대표 · 실장도 연다 — 아니면 사이트 관리자여야 한다
+      const reviewer = route.reviewer === true && (await isPlatformReviewer(env, user.id));
+      if (!reviewer) await assertAdmin(request, env);
     } catch (e) {
       if (e instanceof AuthError) {
         return partnerResponse(

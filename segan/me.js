@@ -705,6 +705,8 @@
     'hq-design-check': { title: '설계 · 학습 점검', section: 'hqDesignCheck' },
     // 플랫폼 — 시공사례 고르기 (segan/hq-collection.js) — 본사가 고른 연출컷만 시공사례에
     'hq-collection': { title: '시공사례 고르기', section: 'hqCollection' },
+    // 플랫폼 — 사업자등록증 확인 (segan/hq-biz-cert.js) — 첫 달 무료의 자동 확인이 애매한 건을 승인 · 반려
+    'hq-biz-cert': { title: '사업자등록증 확인', section: 'hqBizCert' },
     // 플랫폼 — 팩토리 평가 (segan/partner-eval.js)
     'partner-eval': { title: '팩토리 평가', section: 'partnerEval' },
     // 플랫폼 — 완료 보고 (segan/done-reports.js)
@@ -797,6 +799,7 @@
     'meDash',
     'hqDesignCheck',
     'hqCollection',
+    'hqBizCert',
     'hqCompanies',
     'partnerEval',
     'doneReports',
@@ -1662,6 +1665,9 @@
       // 플랫폼 › 시공사례 고르기 — 본사 대표 · 실장 · 사이트 관리자 (칸을 연 때만)
       case 'hq-collection':
         return (v.platform || roles.admin === true) && available(key);
+      // 플랫폼 › 사업자등록증 확인 — 본사 대표 · 실장 · 사이트 관리자 (칸을 연 때만)
+      case 'hq-biz-cert':
+        return (v.platform || roles.admin === true) && available(key);
       // 플랫폼 › 팩토리 평가 — 사이트 관리자, 읽혔을 때만. 못 읽은 관리자에게는 PC 화면 줄 하나
       case 'partner-eval':
         return roles.admin === true && available(key);
@@ -1906,6 +1912,7 @@
     var HqCo = window.SeganHqCompanies;
     var HqCheck = window.SeganHqDesignCheck;
     var HqColl = window.SeganHqCollection;
+    var HqCert = window.SeganHqBizCert;
     var Eval = window.SeganPartnerEval;
     var Done = window.SeganDoneReports;
     var AsStat = window.SeganAsStatus;
@@ -1997,6 +2004,14 @@
           synced(
             HqColl && HqColl.load
               ? HqColl.load(auth.sb, auth.session, me, {
+                  admin: !!(auth.roles && auth.roles.admin),
+                })
+              : null
+          ),
+          // 사업자등록증 확인 = 다담 본사 구성원 · 사이트 관리자 (segan/hq-biz-cert.js — 서버가 대표 · 실장 · 관리자만)
+          synced(
+            HqCert && HqCert.load
+              ? HqCert.load(auth.sb, auth.session, me, {
                   admin: !!(auth.roles && auth.roles.admin),
                 })
               : null

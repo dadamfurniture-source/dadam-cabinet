@@ -542,19 +542,47 @@ async function adminDecideCert(env, { user, params, body }) {
   return { data: { cert: adminCertView(rows[0]) } };
 }
 
+/** 검토할 수 있는 본사 사람인가 — 다담 본사(companies.kind 'platform')의 active 대표 · 실장. 확인하지 못하면 false (관리자 확인으로 넘어간다) */
+export async function isPlatformReviewer(env, userId) {
+  try {
+    const rows = await db(
+      env,
+      'GET',
+      `company_members?user_id=eq.${userId}&status=eq.active&role=in.(owner,manager)&select=company_id`
+    );
+    const ids = [...new Set((rows || []).map((r) => r.company_id).filter(Boolean))];
+    if (!ids.length) return false;
+    const found = await db(
+      env,
+      'GET',
+      `companies?id=in.(${ids.join(',')})&kind=eq.platform&select=id&limit=1`
+    );
+    return Array.isArray(found) && found.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // ── 길 ─────────────────────────────────────────────────
 
 const ROUTES = [
   { method: 'POST', path: '/partner/cert', raw: true, run: uploadCert },
   { method: 'GET', path: '/partner/cert', run: getCert },
   { method: 'POST', path: '/partner/cert/confirm', run: confirmCert },
-  { method: 'GET', path: '/admin/partner/certs', admin: true, run: adminListCerts },
-  { method: 'POST', path: '/admin/partner/certs/:id', admin: true, run: adminDecideCert },
+  // reviewer — 사이트 관리자뿐 아니라 다담 본사 대표 · 실장도 (isPlatformReviewer, worker.js handlePartner 가 본다)
+  { method: 'GET', path: '/admin/partner/certs', admin: true, reviewer: true, run: adminListCerts },
+  {
+    method: 'POST',
+    path: '/admin/partner/certs/:id',
+    admin: true,
+    reviewer: true,
+    run: adminDecideCert,
+  },
 ].map((r) => ({ ...r, parts: r.path.split('/') }));
 
 /**
  * 요청에 맞는 길. 없으면 null (partner.js matchPartnerRoute 와 같은 모양).
- * @returns {{ run: Function, admin: boolean, raw: boolean, params: object } | null}
+ * @returns {{ run: Function, admin: boolean, reviewer: boolean, raw: boolean, params: object } | null}
  */
 export function matchCertRoute(method, pathname) {
   const parts = String(pathname || '').split('/');
@@ -580,7 +608,7 @@ export function matchCertRoute(method, pathname) {
         break;
       }
     }
-    if (ok) return { run: r.run, admin: !!r.admin, raw: !!r.raw, params };
+    if (ok) return { run: r.run, admin: !!r.admin, reviewer: !!r.reviewer, raw: !!r.raw, params };
   }
   return null;
 }

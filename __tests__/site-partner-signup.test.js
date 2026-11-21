@@ -263,6 +263,87 @@ describe('billing-success.html — partnerSignup 을 함께 보낸다', () => {
     expect(window.sessionStorage.getItem('partnerSignup')).toBeNull();
   });
 
+  test('첫 달 무료 — partnerSignup 에 trial: true 가 있을 때만 trial 을 싣고, 「오늘 0원 · 첫 결제일 · 첫 결제 금액」을 보인다', async () => {
+    const calls = bootSuccess({
+      search: '?customerKey=dadam-u1&authKey=ak_t',
+      signup: { plan: 'expert', company: COMPANY, trial: true },
+      response: json(
+        200,
+        okBody({
+          amount_krw: 0,
+          trial: true,
+          trial_days: 30,
+          first_charge_amount_krw: 199000,
+          next_charge_at: '2026-12-21T03:00:00Z',
+        })
+      ),
+    });
+    await flush();
+    expect(calls[0].body).toEqual({
+      auth_key: 'ak_t',
+      customer_key: 'dadam-u1',
+      plan: 'expert',
+      company: COMPANY,
+      trial: true,
+    });
+    expect($('title').textContent).toBe('첫 달 무료로 시작했습니다');
+    expect($('msg').textContent).toBe(
+      '오늘은 결제되지 않았습니다. 첫 결제일 전에 해지하면 결제되지 않습니다.'
+    );
+    const rows = Object.fromEntries(
+      [...$('detail').querySelectorAll('.bs-row')].map((r) => [
+        r.children[0].textContent,
+        r.children[1].textContent,
+      ])
+    );
+    expect(rows['오늘 결제 금액']).toBe('0원');
+    expect(rows['첫 결제 금액']).toBe('199,000원');
+    expect(rows['첫 결제일']).toBe(new Date('2026-12-21T03:00:00Z').toLocaleDateString('ko-KR'));
+    expect(rows['결제 금액']).toBeUndefined();
+    expect(rows['다음 결제일']).toBeUndefined();
+    expect(window.sessionStorage.getItem('partnerSignup')).toBeNull();
+    // trial 이 true 가 아니면 싣지 않는다
+    const plain = bootSuccess({
+      search: '?customerKey=dadam-u1&authKey=ak_p',
+      signup: { plan: 'expert', company: COMPANY, trial: 'yes' },
+    });
+    await flush();
+    expect(plain[0].body.trial).toBeUndefined();
+    expect($('title').textContent).toBe('구독이 시작되었습니다');
+  });
+
+  test.each([
+    [409, 'trial_no_cert', '확인된 사업자등록증이 없어 첫 달 무료로 시작하지 못했습니다.'],
+    [409, 'trial_used', '이 사업자등록번호는 이미 첫 달 무료를 받았습니다.'],
+    [409, 'trial_not_new', '첫 달 무료는 새로 시작하는 팩토리만 받을 수 있습니다.'],
+    [503, 'trial_unavailable', '첫 달 무료를 지금 확인할 수 없습니다.'],
+  ])(
+    '첫 달 무료를 받을 수 없으면(%i %s) 그 안내 + 결제되지 않음 (고객센터 안내 없음)',
+    async (status, code, text) => {
+      bootSuccess({
+        search: '?customerKey=dadam-u1&authKey=ak_5',
+        signup: { plan: 'expert', company: COMPANY, trial: true },
+        response: json(status, { success: false, code, message: 'server text' }),
+      });
+      await flush();
+      expect($('title').textContent).toBe('결제를 마치지 못했습니다');
+      expect($('msg').textContent).toContain(text);
+      expect($('msg').textContent).toContain('결제는 되지 않았습니다.');
+      expect($('msg').textContent).not.toContain('고객센터');
+    }
+  );
+
+  test('503 이어도 첫 달 무료 확인 실패가 아니면 예전 그대로 (서버 문장 + 고객센터 안내)', async () => {
+    bootSuccess({
+      search: '?customerKey=dadam-u1&authKey=ak_6',
+      signup: { plan: 'expert', company: COMPANY },
+      response: json(503, { success: false, code: 'trial_no_cert', message: '서버 점검 중' }),
+    });
+    await flush();
+    expect($('msg').textContent).toContain('서버 점검 중');
+    expect($('msg').textContent).toContain('고객센터');
+  });
+
   test('partnerSignup 이 없으면 주소의 plan 으로 (예전 길 그대로)', async () => {
     const calls = bootSuccess({ search: '?plan=expert&customerKey=dadam-u1&authKey=ak_3' });
     await flush();
