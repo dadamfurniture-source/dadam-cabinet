@@ -207,15 +207,22 @@ export async function copyDraftToFactory(env, req, factoryId, user) {
       select: 'id,name,item,model,summary',
     });
     if (!src || !src.model || typeof src.model !== 'object') return null;
+    // 이어진 프로젝트(projectId)는 영업 사원 업체의 것이다 — 받은 팩토리의 프로젝트로 바꿔 싣는다 (없으면 뺀다).
+    //   팩토리의 프로젝트 목록이 이 사본을 그 프로젝트의 설계로 안다 (company-pipeline.js — 2026-11-21 「프로젝트 한 길」)
+    const projectId = isUuid(req.factory_project_id) ? req.factory_project_id : null;
+    const withProject = (o) => {
+      const { projectId: _theirs, ...rest } = o;
+      return projectId ? { ...rest, projectId } : rest;
+    };
     try {
       await insertOne(env, 'planner_drafts', {
         company_id: factoryId,
         id,
         name: src.name || '',
         item: src.item || 'sink',
-        model: { ...src.model, id },
+        model: withProject({ ...src.model, id }),
         rev: 1,
-        summary: src.summary && typeof src.summary === 'object' ? src.summary : {},
+        summary: withProject(src.summary && typeof src.summary === 'object' ? src.summary : {}),
         created_by: user.id,
         updated_by: user.id,
       });

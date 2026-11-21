@@ -28,12 +28,16 @@
  *   렌더마다 그 동결본의 해시를 같이 적는다 (camera.snapshot) — 발행 때 다른 판의 그림을 싣지 않는다 (work-order-data.js collectRenders).
  *   응답 renders_saved (넣은 수) · renders_dropped [{ item, kind, reason: upload_failed | save_failed | db_pending }] (못 넣은 것 — 동결은 그대로).
  *   조립 명세 (D): bom.assembly 는 createSnapshot 의 validateAssembly 를 그대로 거친다.
+ *   프로젝트 (2026-11-21 대표님 「프로젝트 한 길」): project_id — 플래너가 프로젝트에서 열렸을 때 싣는다. 아직 프로젝트가 없는 설계만
+ *     보낸 업체의 그 프로젝트에 잇는다 (이미 이은 설계는 건드리지 않는다 · 그 설계의 수주 가운데 프로젝트가 빈 것도 같이 —
+ *     company-projects.js linkDesignProject 의 첫 잇기와 같다). 못 이어도 보내기는 그대로다 — 답 project_linked.
  * 숫자는 플래너(엔진)가 낸 BOM 그대로 — 여기서 다시 계산하지 않는다 (견적은 createSnapshot 이 활성 단가로).
  */
 import {
   selectOne,
   insertOne,
   insertMany,
+  updateBy,
   hqCompanyId,
   ValidationError,
   ForbiddenError,
@@ -217,6 +221,48 @@ export async function senderCompanyOf(env, user) {
 }
 
 /** 같은 출처 · 같은 id 의 앱 설계 (없으면 null) */
+const PROJECT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 보낸 설계를 프로젝트에 잇는다 — 아직 프로젝트가 없는 설계만. 던지지 않는다 (보내기를 막지 않는다).
+ * @returns {Promise<boolean>} 지금 그 프로젝트에 이어져 있나
+ */
+export async function linkToProject(env, designId, companyId, projectId) {
+  if (typeof projectId !== 'string' || !PROJECT_ID_RE.test(projectId)) return false;
+  try {
+    const design = await selectOne(env, 'designs', {
+      id: `eq.${designId}`,
+      company_id: `eq.${companyId}`,
+      select: 'id,project_id',
+    });
+    if (!design) return false;
+    if (design.project_id) return design.project_id === projectId;
+    const project = await selectOne(env, 'projects', {
+      id: `eq.${projectId}`,
+      company_id: `eq.${companyId}`,
+      select: 'id',
+    });
+    if (!project) return false;
+    const rows = await updateBy(
+      env,
+      'designs',
+      { id: `eq.${designId}`, company_id: `eq.${companyId}`, project_id: 'is.null', select: 'id' },
+      { project_id: projectId }
+    );
+    if (!rows || !rows.length) return false; // 그 사이 다른 프로젝트에 이어졌다
+    await updateBy(
+      env,
+      'orders',
+      { design_id: `eq.${designId}`, company_id: `eq.${companyId}`, project_id: 'is.null', select: 'id' },
+      { project_id: projectId }
+    );
+    return true;
+  } catch (e) {
+    console.warn('[planner] 프로젝트 잇기 실패:', e && e.statusCode ? e.statusCode : 'error');
+    return false;
+  }
+}
+
 export async function findDesign(env, hq, ref) {
   try {
     return await selectOne(env, 'designs', {
@@ -274,6 +320,8 @@ export async function receivePlannerDesign(env, { user, body }) {
     }
   }
 
+  const projectLinked = await linkToProject(env, design.id, companyId, b.project_id);
+
   const { snapshot, reused } = await createSnapshot(env, {
     designId: design.id,
     user,
@@ -283,5 +331,5 @@ export async function receivePlannerDesign(env, { user, body }) {
   // 동결본에 실린 재단 방식 (플래너가 고른 것 — 없으면 null). 방식이나 배치가 바뀌면 새 판이다 (snapshots.js)
   const cutPlan = snapshot.cut_plan_payload;
   const cutStrategy = cutPlan && typeof cutPlan.strategy === 'string' ? cutPlan.strategy : null;
-  return { design_id: design.id, created, snapshot_id: snapshot.id, rev: snapshot.rev, reused: !!reused, renders_saved: rendered.saved, renders_dropped: rendered.dropped, cut_strategy: cutStrategy };
+  return { design_id: design.id, created, snapshot_id: snapshot.id, rev: snapshot.rev, reused: !!reused, renders_saved: rendered.saved, renders_dropped: rendered.dropped, cut_strategy: cutStrategy, project_linked: projectLinked };
 }

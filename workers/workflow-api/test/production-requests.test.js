@@ -112,6 +112,7 @@ const evaln = (company_id, extra = {}) => ({
 const MODEL = {
   format: 'dadam.planner-lite/1',
   id: 'd-kitchen-01',
+  projectId: P1, // 영업 사원의 프로젝트에 이어진 설계 (2026-11-21 「프로젝트 한 길」)
   name: '김고객 댁 주방',
   item: 'sink',
   walls: [{ lines: { floor: [{ libId: 'LB-1' }] } }],
@@ -164,7 +165,7 @@ function tables() {
         item: 'sink',
         model: MODEL,
         rev: 3,
-        summary: { walls: 1, modules: 9 },
+        summary: { walls: 1, modules: 9, projectId: P1 },
         discarded_at: null,
         created_by: M_OWNER,
       },
@@ -451,6 +452,10 @@ test('흐름 — 실장이 의뢰 → 본사 검토 · 추천 → Manager 고름
   assert.equal(copy.model.id, out.draft_id, '사본 설계 안의 id 도 새 id');
   assert.equal(copy.model.format, 'dadam.planner-lite/1');
   assert.equal(copy.rev, 1);
+  // 영업 사원의 프로젝트 번호는 넘기지 않는다 — 받은 팩토리의 프로젝트로 바꿔 싣는다 (팩토리 목록이 그 프로젝트의 설계로 안다)
+  assert.equal(copy.model.projectId, out.project_id);
+  assert.equal(copy.summary.projectId, out.project_id);
+  assert.equal(copy.summary.modules, 9);
   const after = fake.db.production_requests.find((r) => r.id === req.id);
   assert.deepEqual(
     [after.status, after.factory_company_id, after.factory_project_id, after.factory_draft_id],

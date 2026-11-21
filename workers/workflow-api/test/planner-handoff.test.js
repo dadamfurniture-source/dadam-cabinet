@@ -10,7 +10,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { clearHqCompanyCache, ForbiddenError, ValidationError, ConflictError } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
-import { receivePlannerDesign, duplicatePartIds, PLANNER_SOURCE } from '../src/planner-handoff.js';
+import { receivePlannerDesign, duplicatePartIds, linkToProject, PLANNER_SOURCE } from '../src/planner-handoff.js';
 import worker from '../src/worker.js';
 import { HQ, PARTNER, companyRoute } from './fixtures/company.js';
 
@@ -300,6 +300,86 @@ test('ISO 도면 — kind iso SVG 는 버킷 renders (image/svg+xml) · design_r
     await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'module', svg: ISO_SVG }] }) }), (e) => e instanceof ValidationError);
     assert.equal(f.designPosts.length + f.snapshotPosts.length + f.uploads.length, 0, '아무것도 쓰지 않는다');
   } finally { f.restore(); }
+});
+
+test('프로젝트 잇기 — project_id 가 없으면 묻지 않고, 못 이어도 보내기는 그대로다 (답 project_linked)', async () => {
+  const f = fakeSupabase();
+  const realWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const plain = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body() });
+    assert.equal(plain.project_linked, false);
+    // 이 흉내는 projects 표를 모른다(던진다) — 잇기는 실패해도 설계 · 동결본은 만들어진다
+    const r = await receivePlannerDesign(ENV, {
+      user: { id: OWNER },
+      body: body({ project_id: 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001' }),
+    });
+    assert.deepEqual([r.snapshot_id, r.project_linked], ['S1', false]);
+    // 모양이 틀린 값은 묻지도 않는다
+    assert.equal(await linkToProject(ENV, 'D-NEW', HQ, '../x'), false);
+    assert.equal(await linkToProject(ENV, 'D-NEW', HQ, null), false);
+  } finally {
+    console.warn = realWarn;
+    f.restore();
+  }
+});
+
+test('프로젝트 잇기 — 프로젝트가 없는 설계만 그 업체의 프로젝트에 (수주의 빈 프로젝트도 같이), 이미 이은 설계 · 남의 프로젝트는 그대로', async () => {
+  const PRJ = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001';
+  const OTHER = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002';
+  const THEIRS = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000003';
+  const run = async (design, target) => {
+    const db = {
+      designs: [{ id: 'D1', company_id: HQ, ...design }],
+      projects: [
+        { id: PRJ, company_id: HQ },
+        { id: OTHER, company_id: HQ },
+        { id: THEIRS, company_id: PARTNER },
+      ],
+      orders: [
+        { id: 'O1', design_id: 'D1', company_id: HQ, project_id: null },
+        { id: 'O2', design_id: 'D9', company_id: HQ, project_id: null },
+      ],
+    };
+    const writes = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = async (url, init = {}) => {
+      const m = /\/rest\/v1\/([a-z_]+)\?(.*)$/.exec(String(url));
+      if (!m || !db[m[1]]) throw new Error('unexpected fetch ' + url);
+      const q = [...new URLSearchParams(m[2]).entries()].filter(([k]) => !['select', 'limit', 'order'].includes(k));
+      const hit = db[m[1]].filter((r) =>
+        q.every(([k, e]) => (e === 'is.null' ? r[k] === null || r[k] === undefined : 'eq.' + r[k] === e))
+      );
+      if ((init.method || 'GET') === 'PATCH') {
+        const patch = JSON.parse(init.body);
+        hit.forEach((r) => Object.assign(r, patch));
+        writes.push([m[1], hit.map((r) => r.id)]);
+      }
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => hit, text: async () => JSON.stringify(hit) };
+    };
+    try {
+      const linked = await linkToProject(ENV, 'D1', HQ, target);
+      return { linked, writes, db };
+    } finally {
+      globalThis.fetch = original;
+    }
+  };
+  // 프로젝트가 없는 설계 — 잇고, 그 설계의 수주도 같은 프로젝트로 (다른 설계의 수주는 그대로)
+  const a = await run({ project_id: null }, PRJ);
+  assert.equal(a.linked, true);
+  assert.equal(a.db.designs[0].project_id, PRJ);
+  assert.deepEqual(a.db.orders.map((o) => o.project_id), [PRJ, null]);
+  // 이미 그 프로젝트 — 그대로 참, 쓰지 않는다
+  const same = await run({ project_id: PRJ }, PRJ);
+  assert.deepEqual([same.linked, same.writes], [true, []]);
+  // 이미 다른 프로젝트에 이은 설계 — 건드리지 않는다
+  const moved = await run({ project_id: OTHER }, PRJ);
+  assert.deepEqual([moved.linked, moved.writes, moved.db.designs[0].project_id], [false, [], OTHER]);
+  // 다른 업체의 프로젝트 · 없는 프로젝트 — 잇지 않는다
+  for (const target of [THEIRS, 'aaaaaaaa-aaaa-4aaa-8aaa-0000000000ff']) {
+    const no = await run({ project_id: null }, target);
+    assert.deepEqual([no.linked, no.writes, no.db.designs[0].project_id], [false, [], null]);
+  }
 });
 
 test('다시 보내면 같은 앱 설계에 동결 — 새 설계를 만들지 않는다', async () => {
