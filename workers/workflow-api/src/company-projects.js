@@ -196,11 +196,13 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
     });
   // 보류 칸(DB 0078) · 담당자 칸(DB 0042) — 적용 전이면 그 칸 없이 (담당자가 없으면 assignee_ready false)
   let assigneeReady = true;
+  let holdReady = true;
   let projects;
   try {
     projects = (await query(PROJECT_COLUMNS_HOLD)) || [];
   } catch (e) {
     if (!isMissingRelation(e)) throw e;
+    holdReady = false;
     try {
       projects = (await query(PROJECT_COLUMNS)) || [];
     } catch (e2) {
@@ -250,6 +252,8 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
     can_manage: canAct,
     role,
     assignee_ready: assigneeReady,
+    // 보류 · 그만둠을 쓸 수 있나 (DB 0078 의 칸이 있다) — 화면이 그때만 단추를 낸다
+    hold_ready: holdReady,
     members,
     items: projects.map((p) =>
       projectRow(p, {
