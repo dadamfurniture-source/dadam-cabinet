@@ -5525,6 +5525,99 @@ button.sm-num[aria-pressed='true'] {
   }
 }
 
+/* 새로 생긴 일 표의 프로젝트 이름 — 누르면 프로젝트 한 건 창. 글처럼 보이는 단추 (밑줄로 누를 수 있음을 알린다) */
+.ib-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--v5-line-25);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* 프로젝트 한 건 창 (segan/project-sheet.js, 2026-11-21) — 수주 창(.od-detail)의 구역 · 제목 꼴을 같이 쓴다 */
+.ps-who {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--mk-dim);
+}
+
+.ps-who a {
+  color: inherit;
+  white-space: nowrap;
+}
+
+.ps > [data-ps='note'] {
+  margin: 0 0 12px;
+}
+
+.ps .od-sec {
+  margin-top: 28px;
+}
+
+.ps .od-h {
+  margin-top: 0;
+}
+
+.ps-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-60);
+}
+
+.ps-history,
+.ps-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.ps-history li,
+.ps-list li {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 14px;
+}
+
+.ps-history li {
+  grid-template-columns: 124px minmax(0, 1fr);
+  align-items: baseline;
+}
+
+.ps-history time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-60);
+}
+
+.ps-list li {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.ps-main small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.ps-more {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.ps-more a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
 /* 프로젝트 줄 — 단계 띠 · 다음 할 일 (segan/partner-projects.js flowOf, 2026-11-21 「프로젝트 한 길」).
    지난 단계는 채운 네모, 지금 단계는 진한 네모 + 굵은 글, 남은 단계는 빈 네모 — 색이 아니라 꼴로도 가른다 */
 .pj-strip {

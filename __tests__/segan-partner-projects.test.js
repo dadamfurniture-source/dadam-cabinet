@@ -104,6 +104,7 @@ async function load(options = {}) {
     'SeganMe',
     'SeganPartner',
     'SeganPartnerProjects',
+    'SeganProjectSheet',
     'SeganRegions',
     'TossPayments',
   ])
@@ -149,6 +150,7 @@ async function load(options = {}) {
       return reply(await ((init.method || 'GET') === 'POST' ? opts.create(body) : opts.list()));
     if (url.startsWith(WORK + '/company/projects/') && url.endsWith('/assignee'))
       return reply(await opts.assign(body, url));
+    if (url.startsWith(WORK + '/company/projects/') && opts.one) return reply(await opts.one(url));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
     if (url === WORK + '/me/projects') return reply(fail(404, 'not_found', 'x'));
@@ -507,6 +509,49 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     await flush();
     expect(box().querySelector('.me-pt-msg').textContent).toBe('고객이 승인한 확인서만 수주로 전환할 수 있습니다');
     delete window.SeganOrders;
+  });
+
+  test('진행 보기 — 프로젝트 한 건 창이 있을 때만 줄마다 단추, 누르면 그 프로젝트의 창 (담당자 고르는 보기에서는 없다)', async () => {
+    await load({ list: flowed([item(P1, '설계 전', { step: 'consult', next: next('design_start', '설계 시작', `planner?project=${P1}`) })]) });
+    await flush();
+    await openScreen('partner-projects');
+    expect(rowOf(P1).querySelector('[data-act="sheet"]')).toBeNull(); // 창 파일이 없다
+    const open = jest.fn();
+    let can = true;
+    window.SeganProjectSheet = { canOpen: () => can, open };
+    await window.SeganPartnerProjects.reload();
+    const btn = rowOf(P1).querySelector('[data-act="sheet"]');
+    expect(btn.textContent).toBe('진행 보기');
+    expect(btn.getAttribute('type')).toBe('button');
+    // 다음 할 일 단추 뒤에 온다
+    expect([...rowOf(P1).querySelectorAll('.rd-acts > *')].map((el) => el.textContent).slice(0, 2)).toEqual(['설계 시작', '진행 보기']);
+    btn.click();
+    expect(open).toHaveBeenCalledWith(P1);
+    // 열 수 없으면(시트 없음) 단추도 없다
+    can = false;
+    await window.SeganPartnerProjects.reload();
+    expect(rowOf(P1).querySelector('[data-act="sheet"]')).toBeNull();
+    can = true;
+    await window.SeganPartnerProjects.reload();
+    expect(rowOf(P1).querySelector('[data-act="sheet"]')).not.toBeNull();
+    window.SeganPartnerProjects.setView({ stage: '', assign: true });
+    expect(rowOf(P1).querySelector('[data-act="sheet"]')).toBeNull();
+  });
+
+  test('readProject — GET /company/projects/:id 를 읽어 { ok, status, data } 로 (번호가 이상하면 묻지 않는다)', async () => {
+    const calls = await load({
+      one: (url) => (url.endsWith(P1) ? ok({ project: { id: P1 }, history: [] }) : fail(404, 'not_found', '프로젝트를 찾을 수 없습니다')),
+    });
+    await flush();
+    const PP = window.SeganPartnerProjects;
+    expect(await PP.readProject(P1)).toEqual({ ok: true, status: 200, data: { project: { id: P1 }, history: [] } });
+    const last = calls.fetch[calls.fetch.length - 1];
+    expect([last.url, last.method, last.auth]).toEqual([WORK + '/company/projects/' + P1, 'GET', 'Bearer tok-1']);
+    expect(await PP.readProject(P3)).toEqual({ ok: false, status: 404, data: null });
+    const before = calls.fetch.length;
+    expect(await PP.readProject('../x')).toEqual({ ok: false, status: 0, data: null });
+    expect(await PP.readProject(null)).toEqual({ ok: false, status: 0, data: null });
+    expect(calls.fetch.length).toBe(before);
   });
 
   test('작업 분배 — 진행 중 프로젝트 모두 (끝난 것 빼고), 머리글 「작업 분배」, 새 고객 단추 없음 · 옛 주소 #partner-projects 는 모두', async () => {
