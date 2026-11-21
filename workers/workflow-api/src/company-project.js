@@ -15,10 +15,13 @@
  *                                                              (계약금 줄 · 잔금 줄이 입금됐나 — 줄이 없으면 null, 금액은 싣지 않는다)
  *       requests [{ id, status, status_at }]                     영업 사원 업체가 낸 제작 의뢰 (거둔 것 뺌)
  *       as       [{ id, state, created_at, received_at, done_at }]  팩토리의 A/S 접수
- *       history  [{ kind, at, label, go }] }                     일어난 일 — 오래된 것부터 (처음 → 지금)
+ *       history  [{ kind, at, label, go, who? }] }               일어난 일 — 오래된 것부터 (처음 → 지금).
+ *                                                              who { kind, name } = 누가 했나 (일지 project_events 가 있는 일만 — DB 0078 뒤의 일)
  *
  * 싣지 않는 것: 금액 · 주소 · A/S 글과 사진 · 견적 내용. 고객 이름 · 전화는 프로젝트 목록과 같다 (구성원이 이미 보는 값).
- * history 는 각 표의 시각 칸에서 뽑는다 (사건 기록표가 없다 — 그래서 「누가」는 없고, 상태가 여러 번 바뀐 것은 마지막만 남는다).
+ * history 는 각 표의 시각 칸에서 뽑고, 프로젝트 일지(project_events — project-history.js)를 얹는다:
+ * 일지가 있는 일에는 「누가」가 붙고, 시각 칸에서 못 뽑는 일(보류 · 생산 시작 · 수주 취소 · 담당자 …)과 여러 번 바뀐 것도 남는다.
+ * 일지가 생기기 전의 일은 지금처럼 「누가」 없이 마지막 모습만 나온다.
  * go 는 화면 이름이다 (p-quote · p-contract · p-make · p-install · p-as) — 주소는 화면이 만든다.
  * 읽기만 한다. 다른 업체의 프로젝트 · 없는 프로젝트는 404. 표가 아직 없으면(DB 적용 전) 그 칸만 빈다.
  */
@@ -36,18 +39,20 @@ import { isFactory, pipelineOf } from './company-pipeline.js';
 import { membersOf } from './company-assignee.js';
 import { isMissingRelation } from './work-order-data.js';
 import { NEWS_LABEL } from './company-inbox.js';
+import { EVENT_LABEL, mergeEvents } from './project-history.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** 한 프로젝트에서 읽는 행 수 */
 const ROW_LIMIT = '100';
+/** 한 프로젝트에서 읽는 일지 줄 수 */
+const EVENT_LIMIT = '300';
 
 /** 일어난 일의 글 — 받은 일의 소식(company-inbox.js NEWS_LABEL)과 같은 말 + 프로젝트 창에만 있는 것 */
 export const HISTORY_LABEL = Object.freeze({
   ...NEWS_LABEL,
+  ...EVENT_LABEL,
   project_created: '프로젝트가 생겼습니다',
   design_linked: '설계가 이어졌습니다',
-  deposit_paid: '계약금이 들어왔습니다',
-  balance_paid: '잔금이 들어왔습니다',
   as_received: 'A/S 접수를 받았습니다',
   as_done: 'A/S 를 끝냈습니다',
 });
@@ -142,7 +147,7 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
   const orderIds = orderList.map((o) => o.id);
   const inOrders = `in.(${orderIds.join(',')})`;
 
-  const [stages, docs, payments, asRows, decided] = await Promise.all([
+  const [stages, docs, payments, asRows, decided, events] = await Promise.all([
     stagesOf(env, company.id, [project.id], designList),
     designIds.length
       ? selectMany(env, 'design_documents', {
@@ -185,6 +190,17 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
           limit: ROW_LIMIT,
         })
       : [],
+    // 프로젝트 일지 — 누가 · 언제 · 무엇 (DB 0078 전이면 없다)
+    orEmpty(
+      selectMany(env, 'project_events', {
+        project_id: pid,
+        company_id: co,
+        select:
+          'id,actor_user_id,actor_kind,type,subject_type,subject_id,from_status,to_status,payload,created_at',
+        order: 'created_at.asc',
+        limit: EVENT_LIMIT,
+      })
+    ),
   ]);
 
   // 지금 단계 · 다음 할 일 — 덧붙이는 값이라, 못 모아도 나머지는 그대로 준다 (목록과 같다)
@@ -217,44 +233,52 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
   const quotes = (docs || []).filter((d) => d.status !== 'superseded' && !d.superseded_by);
 
   // ── 일어난 일 (오래된 것부터) ──
-  const history = [];
-  const tell = (kind, at, go = null) => {
-    if (typeof at === 'string' && at) history.push({ kind, at, label: HISTORY_LABEL[kind], go });
+  // 뽑은 줄 — 각 표의 시각 칸에서 (ref = 그 일의 대상 id, 일지와 짝짓는 데만 쓴다)
+  const derived = [];
+  const tell = (kind, at, go = null, ref = null) => {
+    if (typeof at === 'string' && at)
+      derived.push({ kind, at, label: HISTORY_LABEL[kind], go, ref });
   };
-  tell('project_created', project.created_at);
-  for (const d of designList) tell('design_linked', d.created_at);
+  tell('project_created', project.created_at, null, project.id);
+  for (const d of designList) tell('design_linked', d.created_at, null, d.id);
   for (const d of quotes) {
-    tell('quote_sent', d.created_at, 'p-quote');
-    tell('quote_viewed', d.first_viewed_at, 'p-quote');
-    if (d.decision === 'approved') tell('quote_approved', d.decided_at, 'p-quote');
-    if (d.decision === 'rejected') tell('quote_rejected', d.decided_at, 'p-quote');
+    tell('quote_sent', d.created_at, 'p-quote', d.id);
+    tell('quote_viewed', d.first_viewed_at, 'p-quote', d.id);
+    if (d.decision === 'approved') tell('quote_approved', d.decided_at, 'p-quote', d.id);
+    if (d.decision === 'rejected') tell('quote_rejected', d.decided_at, 'p-quote', d.id);
   }
   for (const o of orderList) {
-    tell('order_created', o.ordered_at, 'p-contract');
-    if (depositOf.get(o.id)) tell('deposit_paid', depositOf.get(o.id), 'p-contract');
+    tell('order_created', o.ordered_at, 'p-contract', o.id);
+    if (depositOf.get(o.id)) tell('deposit_paid', depositOf.get(o.id), 'p-contract', o.id);
     for (const day of (balanceOf.get(o.id) || { paid: [] }).paid)
-      tell('balance_paid', day, 'p-contract');
+      tell('balance_paid', day, 'p-contract', o.id);
     if (o.status !== 'cancelled') {
-      tell('order_delivered', o.delivered_at, 'p-install');
-      tell('order_completed', o.completed_at, 'p-install');
+      tell('order_delivered', o.delivered_at, 'p-install', o.id);
+      tell('order_completed', o.completed_at, 'p-install', o.id);
     }
   }
   for (const r of requests || []) {
     if (['recommended', 'accepted', 'declined', 'expired'].includes(r.status))
-      tell(`request_${r.status}`, r.status_at, 'p-make');
+      tell(`request_${r.status}`, r.status_at, 'p-make', r.id);
   }
-  for (const r of received || []) tell('request_received', r.status_at, 'p-make');
+  for (const r of received || []) tell('request_received', r.status_at, 'p-make', r.id);
   for (const a of asRows || []) {
-    tell('as_requested', a.created_at, 'p-as');
-    tell('as_received', a.received_at, 'p-as');
-    tell('as_done', a.done_at, 'p-as');
+    tell('as_requested', a.created_at, 'p-as', a.id);
+    tell('as_received', a.received_at, 'p-as', a.id);
+    tell('as_done', a.done_at, 'p-as', a.id);
   }
-  for (const e of decided || []) tell(`approval_${e.state}`, e.decided_at, 'p-contract');
+  for (const e of decided || [])
+    tell(`approval_${e.state}`, e.decided_at, 'p-contract', e.order_id);
+  // 일지를 얹는다 — 같은 일에는 「누가」를 붙이고, 일지에만 있는 일은 줄을 더한다
+  const memberOf = new Map(members.map((m) => [m.user_id, m]));
+  const history = mergeEvents(derived, events, {
+    memberOf,
+    labelOf: (kind) => HISTORY_LABEL[kind],
+  });
   // 날짜만 있는 칸(입금일)은 그날의 끝으로 친다 — 같은 날 생긴 수주보다 뒤에 온다
   const key = (at) => (at.length === 10 ? `${at}T23:59:59` : at);
   history.sort((a, b) => key(a.at).localeCompare(key(b.at)));
 
-  const memberOf = new Map(members.map((m) => [m.user_id, m]));
   // 보류 · 그만둠을 할 수 있나 — 취소 아닌 수주와 그 계약금으로 (서버가 거절하는 조건과 같은 함수)
   const liveOrders = orderList.filter((o) => o.status !== 'cancelled');
   const actions = holdReady

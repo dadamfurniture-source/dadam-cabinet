@@ -102,6 +102,8 @@ function tables() {
       // F 를 골랐다가 거둔 의뢰
       { id: id('06', 5), company_id: M, project_id: null, status: 'cancelled', round: 1, status_at: ago(0, 9), factory_company_id: F },
     ],
+    // 프로젝트 일지 (DB 0078) — 시험마다 필요한 줄을 넣는다
+    project_events: [],
     // 소식을 본 때 (DB 0078) — 실장은 어제 봤다, 남의 업체 줄은 섞이지 않는다
     inbox_seen: [
       { user_id: MANAGER, company_id: F, seen_at: ago(1) },
@@ -300,4 +302,60 @@ test('읽음 적기 — 시각이 아니면 422, 구성원이 아니면 403', as
   }
   assert.equal((await seen(fake, 't_nobody', { at: ago(0, 1) })).status, 403);
   assert.equal(fake.db.inbox_seen.length, 2);
+});
+
+// ── 소식에 일지를 얹는다 (2026-11-21 뒤 공정 1차 — 누가 · 일지에만 있는 일) ──
+
+test('소식 — 일지가 있으면 「누가」가 붙고, 보류 · 생산 시작 · 계약금 같은 일이 줄로 나온다 (자주 일어나는 일 · 14일 밖은 빼고)', async () => {
+  const t = tables();
+  t.profiles = [
+    { id: OWNER, name: '가대표' },
+    { id: STAFF, name: '나직원' },
+  ];
+  const e = (type, at, extra = {}) => ({
+    id: id('0f', Math.floor(Math.random() * 9000) + 1),
+    company_id: F,
+    project_id: P(1),
+    actor_user_id: OWNER,
+    actor_kind: 'member',
+    type,
+    subject_type: null,
+    subject_id: null,
+    from_status: null,
+    to_status: null,
+    payload: {},
+    created_at: at,
+    ...extra,
+  });
+  t.project_events = [
+    // 뽑은 줄과 같은 일 — 누가만 붙는다 (O(1) 배송 · 2시간 전)
+    e('order_status', ago(0, 2), { subject_id: O(1), to_status: 'delivered', actor_user_id: STAFF }),
+    // 일지에만 있는 일
+    e('status_changed', ago(0, 3), { project_id: P(2), subject_id: P(2), to_status: 'on_hold' }),
+    e('order_status', ago(1), { subject_id: O(1), to_status: 'in_production' }),
+    e('payment_paid', ago(0, 10), { subject_id: id('01', 1), payload: { stage: 'deposit', paid_on: '2026-11-21', order_id: O(1) } }),
+    // 소식에는 내지 않는 일 · 14일 밖 · 남의 업체
+    e('design_sent', ago(0, 1), { subject_id: D(1) }),
+    e('assignee_changed', ago(0, 1), { subject_id: P(1), payload: { assigned: true } }),
+    e('status_changed', ago(30), { subject_id: P(1), to_status: 'on_hold' }),
+    e('status_changed', ago(0, 1), { company_id: X, project_id: P(9), subject_id: P(9), to_status: 'cancelled' }),
+  ];
+  const r = await call(world(t), 't_staff');
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const news = r.json.data.news;
+  const who = (n) => (n.who ? n.who.kind + ':' + n.who.name : null);
+  const pick = (kind) => news.filter((n) => n.kind === kind).map((n) => [n.label, n.project && n.project.title, who(n)]);
+  // 배송 — 줄은 하나 그대로, 누가가 붙었다
+  assert.deepEqual(pick('order_delivered'), [['배송으로 넘어갔습니다', '예시 주방', 'member:나직원']]);
+  // 일지에만 있는 일
+  assert.deepEqual(pick('project_held'), [['프로젝트를 보류했습니다', '예시 붙박이장', 'member:가대표']]);
+  assert.deepEqual(pick('order_started'), [['생산을 시작했습니다', '예시 주방', 'member:가대표']]);
+  assert.deepEqual(pick('deposit_paid'), [['계약금이 들어왔습니다', '예시 주방', 'member:가대표']]);
+  // 내지 않는 것
+  for (const kind of ['design_sent', 'assignee_set', 'project_cancelled']) assert.deepEqual(pick(kind), [], kind);
+  // 새 것부터 · 금액과 고객 이름은 없다
+  assert.deepEqual([...news].map((n) => n.at), [...news].map((n) => n.at).sort().reverse());
+  assert.equal(JSON.stringify(news).includes('300000'), false);
+  // 일지가 없던 일(견적 승인)은 지금처럼 누가 없이
+  assert.equal(who(news.find((n) => n.kind === 'quote_approved')), null);
 });

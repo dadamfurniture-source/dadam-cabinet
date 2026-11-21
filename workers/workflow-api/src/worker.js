@@ -1085,7 +1085,7 @@ function logPaid(env, ctx, user, orderId, data, paymentId) {
       actor: { id: user.id },
       type: 'payment_paid',
       subject: { type: 'payment', id: p.id || paymentId },
-      payload: { stage: p.stage, paid_on: p.paid_on },
+      payload: { stage: p.stage, paid_on: p.paid_on, order_id: orderId },
     }
   );
 }

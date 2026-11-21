@@ -5,7 +5,7 @@
  *   GET /company/inbox   프로젝트를 가지는 업체(다담 공장 · active 협력업체 Manager · Expert · Agent)의 active 구성원
  *     { role,
  *       todo [{ kind, label, count, go, due?, late?, total? }],
- *       news [{ kind, at, label, go, project { id, title } | null }],
+ *       news [{ kind, at, label, go, project { id, title } | null, who? }],   who { kind, name } = 누가 했나 (일지가 있는 일만)
  *       seen_at? }   이 계정이 소식을 어디까지 봤나 (없으면 null). DB 0078 전이면 칸이 없다 — 화면이 기기 기억으로 돌아간다
  *   POST /company/inbox/seen { at }   소식을 본 때를 적는다 — 내 계정 · 내 업체의 한 줄. 본 때는 앞으로만 간다 → { seen_at }
  *     (2026-11-21 뒤 공정 1차 「계정마다 읽음」 — 폰에서 본 것이 PC 에서 다시 「새」로 뜨지 않게)
@@ -18,8 +18,9 @@
  *   approval  승인을 기다리는 수주 요청 (대표)
  *   as        아직 받지 않은 A/S 접수 (팩토리 · 대표 · 실장)
  *   due       받을 날이 오늘이거나 지난 수금 (대표 · 실장) — late = 지난 건수, total = 합계
- * news — 지난 NEWS_DAYS 일 동안 일어난 일, 새 것부터 NEWS_LIMIT 줄. 사건 기록표가 없어 각 표의 시각 칸에서 뽑는다
- *        (그래서 「누가」는 싣지 않는다). 구성원 누구나 본다.
+ * news — 지난 NEWS_DAYS 일 동안 일어난 일, 새 것부터 NEWS_LIMIT 줄. 각 표의 시각 칸에서 뽑고 프로젝트 일지
+ *        (project_events, DB 0078 — project-history.js)를 얹는다: 일지가 있는 일에는 「누가」가 붙고,
+ *        보류 · 생산 시작 · 수주 취소 · 돈 들어옴 같은 일도 나온다. 구성원 누구나 본다.
  *   상담 배정 · 견적 보냄 / 고객이 열어 봄(처음) / 고객 승인 · 수정 요청 · 수주 생김 / 배송 / 완료 ·
  *   제작 의뢰 상태(본사 추천 · 팩토리 받음 · 못 받음 · 답 없음) · A/S 접수 · 수주 요청 승인 / 반려
  *
@@ -43,6 +44,18 @@ import { isFactory } from './company-pipeline.js';
 import { briefKeysFor, loadBrief } from './brief.js';
 import { expiresAtOf, offerState } from './production-requests/common.js';
 import { isMissingRelation } from './work-order-data.js';
+import { membersOf } from './company-assignee.js';
+import { EVENT_LABEL, mergeEvents } from './project-history.js';
+
+/** 소식에 따로 내지 않는 일지 (자주 일어나거나 프로젝트 창에서 보면 되는 것) */
+const NEWS_SKIP = Object.freeze([
+  'design_sent',
+  'design_unlinked',
+  'document_issued',
+  'document_revoked',
+  'assignee_set',
+  'assignee_cleared',
+]);
 
 /** 소식을 돌아보는 날수 · 줄 수 */
 export const NEWS_DAYS = 14;
@@ -145,8 +158,18 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
     (k) => k === 'receivables' || k === 'requests' || (k === 'consults' && factory)
   );
 
-  const [seen, brief, projects, designs, orders, assigned, requests, offers, received, asRows, decided] = await Promise.all([
+  const [seen, events, brief, projects, designs, orders, assigned, requests, offers, received, asRows, decided] = await Promise.all([
     seenOf(env, user.id, company.id),
+    // 프로젝트 일지 — 지난 14일 (DB 0078 전이면 없다)
+    orEmpty(
+      selectMany(env, 'project_events', {
+        company_id: co,
+        created_at: `gte.${since}`,
+        select: 'id,project_id,actor_user_id,actor_kind,type,subject_type,subject_id,from_status,to_status,payload,created_at',
+        order: 'created_at.desc',
+        limit: ROW_LIMIT,
+      })
+    ),
     keys.length ? loadBrief(env, company.id, { nowMs, keys }) : {},
     selectMany(env, 'projects', { company_id: co, select: 'id,title', order: 'created_at.desc', limit: ROW_LIMIT }),
     selectMany(env, 'designs', { company_id: co, select: 'id,project_id', order: 'updated_at.desc', limit: ROW_LIMIT }),
@@ -270,23 +293,24 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
   todo.sort((a, b) => (a.due && b.due ? String(a.due).localeCompare(String(b.due)) : a.due ? -1 : b.due ? 1 : 0));
 
   // ── 소식 ──
-  const news = [];
-  const tell = (kind, at, go, projectId) => {
-    if (recent(at)) news.push({ kind, at, label: NEWS_LABEL[kind], go, project: projectRef(projectId) });
+  // 뽑은 줄 — 각 표의 시각 칸에서 (ref = 그 일의 대상 id, 일지와 짝짓는 데만 쓴다)
+  const derived = [];
+  const tell = (kind, at, go, projectId, ref = null) => {
+    if (recent(at)) derived.push({ kind, at, label: NEWS_LABEL[kind], go, project: projectRef(projectId), ref });
   };
   for (const a of assigned || []) tell('consult_assigned', a.assigned_at, 'p-consult', null);
   for (const d of docs) {
     const pid = projectOfDesign.get(d.design_id);
-    tell('quote_sent', d.created_at, 'p-quote', pid);
-    tell('quote_viewed', d.first_viewed_at, 'p-quote', pid);
-    if (d.decision === 'approved') tell('quote_approved', d.decided_at, 'p-quote', pid);
-    if (d.decision === 'rejected') tell('quote_rejected', d.decided_at, 'p-quote', pid);
+    tell('quote_sent', d.created_at, 'p-quote', pid, d.id);
+    tell('quote_viewed', d.first_viewed_at, 'p-quote', pid, d.id);
+    if (d.decision === 'approved') tell('quote_approved', d.decided_at, 'p-quote', pid, d.id);
+    if (d.decision === 'rejected') tell('quote_rejected', d.decided_at, 'p-quote', pid, d.id);
   }
   for (const o of orders || []) {
-    tell('order_created', o.ordered_at, 'p-contract', o.project_id);
+    tell('order_created', o.ordered_at, 'p-contract', o.project_id, o.id);
     if (o.status !== 'cancelled') {
-      tell('order_delivered', o.delivered_at, 'p-install', o.project_id);
-      tell('order_completed', o.completed_at, 'p-install', o.project_id);
+      tell('order_delivered', o.delivered_at, 'p-install', o.project_id, o.id);
+      tell('order_completed', o.completed_at, 'p-install', o.project_id, o.id);
     }
   }
   for (const r of requests || []) {
@@ -296,7 +320,16 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
   for (const r of received || []) tell('request_received', r.status_at, 'p-make', r.factory_project_id);
   for (const a of asRows || []) tell('as_requested', a.created_at, 'p-as', (orderOf.get(a.order_id) || {}).project_id);
   for (const e of decided || [])
-    tell(`approval_${e.state}`, e.decided_at, 'p-contract', (orderOf.get(e.order_id) || {}).project_id);
+    tell(`approval_${e.state}`, e.decided_at, 'p-contract', (orderOf.get(e.order_id) || {}).project_id, e.order_id);
+  // 일지를 얹는다 — 같은 일에는 「누가」를 붙이고, 일지에만 있는 일(보류 · 생산 시작 · 돈 들어옴 …)은 줄을 더한다
+  const memberOf =
+    events.length > 0 ? new Map((await membersOf(env, company.id)).map((m) => [m.user_id, m])) : new Map();
+  const news = mergeEvents(derived, events, {
+    memberOf,
+    labelOf: (kind) => NEWS_LABEL[kind] || EVENT_LABEL[kind],
+    extra: (ev) => ({ project: projectRef(ev.project_id) }),
+    skip: NEWS_SKIP,
+  });
   news.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
   return { role, todo, news: news.slice(0, NEWS_LIMIT), ...(seen === undefined ? {} : { seen_at: seen }) };
