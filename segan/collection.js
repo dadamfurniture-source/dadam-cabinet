@@ -14,7 +14,7 @@
        (최신순이 끝까지 이어지고, 이미 그린 자리 사이로 새 줄이 끼어들지 않는다)
    처음 24장 · 24장씩 더 — 아래까지 내리면 저절로(IntersectionObserver), 없으면 「더 보기」 단추.
    사진 아래 색상 영역에 색상을 하나씩과 ♡(좋아요 — DB 게시물만). 사진을 누르면 사진 보기
-   (색상 · 예상 견적 · 업체 · 좋아요 · 이 스타일로 연출컷), 그 안의 사진을 누르면 사진만 전체 화면
+   (색상 · 업체 정보 · 좋아요 · 이 스타일로 연출컷), 그 안의 사진을 누르면 사진만 전체 화면
    — segan/collection-view.js (SeganPostView) (2026-11-21 대표님)
    (예전에 자동으로 올라간 연출컷 행은 DB 에 남아 있지만 본사가 고르기 전에는 안 보인다. 연출컷도 사진 위 표시 없이, 업체 칸 「AI 연출」)
    다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
@@ -25,8 +25,7 @@
   'use strict';
 
   var PAGE = 24; // 서버에서 한 번에 · 처음 노출 · 더 보기마다 (3칸 · 4칸 모두 줄이 꽉 찬다)
-  // category = 직접 올린 사진의 구분 — 예상 견적이 어느 단가표인지 고르는 데 쓴다 (누구나 읽는 칸, DB 0051)
-  var COLS = 'id,image_url,category,place_label,door_color,company_id,like_count,source,created_at';
+  var COLS = 'id,image_url,place_label,door_color,company_id,like_count,source,created_at';
   var SELF = 'collection'; // 로그인 뒤 돌아올 곳 (segan/shell.js loginHref)
 
   // AI 연출 사진 36장 (app/portfolio/luxe-manifest.json, segan/ 에서 보므로 ../) — 장소 대신 품목, 색상 = 예림 도어 자재 이름.
@@ -407,7 +406,7 @@
     };
   }
 
-  /** 사진을 눌렀다 — 사진 보기 (색상 · 예상 견적 · 업체). 사진만 전체 화면은 그 안의 사진을 누르면 */
+  /** 사진을 눌렀다 — 사진 보기 (색상 · 업체 정보). 사진만 전체 화면은 그 안의 사진을 누르면 */
   function openPost(i, tile) {
     var p = S.posts[i];
     if (!p || !PV()) return null;

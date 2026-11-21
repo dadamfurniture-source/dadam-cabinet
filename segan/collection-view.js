@@ -20,16 +20,11 @@
      칸(.cl-cell) = 사진 단추(.cl-tile — 정사각, 누르면 사진 보기) + 사진 아래 색상 영역(.cl-info)
      색상 영역 = 색상을 하나씩 한 줄에(.cl-colors — 색 값을 알면 작은 색 칸) + ♡ 단추
      좋아요를 저장할 수 없는 사진(DB 게시물이 아닌 것)은 ♡ 없이. 색상을 몰라도 영역은 둔다 (줄 높이가 맞는다)
-   사진 보기 (open — 같은 날 「사진을 클릭하면 바로 확대 사진이 나오지 말고 색상정보, 견적, 업체 정보」)
+   사진 보기 (open — 같은 날 「사진을 클릭하면 바로 확대 사진이 나오지 말고 색상정보, 견적, 업체 정보」.
+              견적은 바로 뒤에 「견적은 일단 빼자」 — 예상 견적 칸은 뺐다. 넣었던 모습은 #1682)
      SeganShell.sheet kind 'sheet' (폰 아래 시트 · PC 1100px~ 오른쪽 옆 패널, 뒤로 가기가 닫는다, 주소 그대로)
-     사진(누르면 전체 화면) · 장소와 좋아요 한 줄 · 색상 · 예상 견적 · 업체 정보 · 「이 스타일로 연출컷」
-     (장소 · 색상 · 견적 · 업체는 아는 것만 — 모르는 칸은 보이지 않는다)
-   예상 견적 — 연출컷 견적과 같은 표준 단가표 (QUOTE_RATES = workers/generate-api/src/quote.js RATES — 시험이 두 표를 견준다)
-     품목  AI 연출 사진 = 사진 이름(STATIC place) · AI 연출컷 = 품목 이름(place_label) · 직접 올린 사진 = 구분(category).
-           어느 표인지 모르면 견적 칸을 보이지 않는다 (서버처럼 수납장 표로 대신하지 않는다)
-     가로 길이  사진에는 치수가 없다 — 보는 사람이 300mm 씩 고른다 (1.2m ~ 6.0m, 처음 3.0m =
-           연출컷이 벽 폭을 못 읽었을 때 쓰는 값. 한도는 서버 clampWall 1000 ~ 6000 안)
-     줄(품목 · 금액) · 부가세 · 합계(VAT 포함) · 예상 범위(합계의 95% ~ 130%) — 셈은 서버 buildQuote 그대로
+     사진(누르면 전체 화면) · 장소와 좋아요 한 줄 · 색상 · 업체 정보 · 「이 스타일로 연출컷」
+     (장소 · 색상 · 업체는 아는 것만 — 모르는 칸은 보이지 않는다)
    전체 화면 (full) — 사진만 화면 가득. SeganShell.sheet 의 가운데 창 층(kind 'dialog')을 화면 가득 채워 쓴다
      (뒤로 가기 · Esc · 닫기가 닫는다, 주소 그대로). 사진 보기의 사진을 누르면 연다 — 사진 보기 위에 겹친다.
      사진을 누르면 「닫기」를 감췄다 보였다, 사진 바깥(어두운 자리)을 누르면 닫는다
@@ -57,15 +52,6 @@
     make: '이 스타일로 연출컷',
     open: '정보 보기',
     zoom: '사진 크게 보기',
-    quote: '예상 견적',
-    width: '가로 길이',
-    narrower: '가로 길이 줄이기',
-    wider: '가로 길이 늘리기',
-    vat: '부가세',
-    total: '합계 (VAT 포함)',
-    range: '예상 범위',
-    quoteNote:
-      '연출컷 견적과 같은 표준 단가로 셈한 예상 금액입니다. 실제 금액은 현장 실측 · 자재 · 구성에 따라 달라집니다.',
     likeFail: '좋아요를 저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.',
     loginTitle: '로그인',
     loginBody: '로그인하면 좋아요를 저장할 수 있습니다',
@@ -81,144 +67,6 @@
   var HEART =
     '<svg class="pv-heart" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
     'stroke-width="1.3" aria-hidden="true" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10.1A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></svg>';
-
-  // ── 예상 견적 (표준 단가표) ─────────────────────────────
-  // workers/generate-api/src/quote.js 의 RATES · INSTALL · DEMOLITION_PER_1000 을 그대로 옮긴 것 — 값을 여기서 정하지 않는다.
-  // 서버 표를 고치면 이 표도 같이 고친다 (__tests__/segan-collection.test.js 가 두 표의 셈을 견준다)
-  var KITCHEN_RATE = {
-    lines: [
-      { name: '하부장 캐비닛', price: 160000 },
-      { name: '상부장 캐비닛', price: 140000, share: 0.7 },
-      { name: '상판 (인조대리석)', price: 150000 },
-    ],
-    fixed: [
-      { name: '수전', price: 40000 },
-      { name: '싱크볼', price: 80000 },
-      { name: '후드', price: 65000 },
-    ],
-  };
-  var WARDROBE_RATE = { lines: [{ name: '붙박이장 캐비닛', price: 140000, per: 300 }] };
-  var OFFICE_RATE = { lines: [{ name: '사무실 붙박이', price: 220000 }] };
-  var QUOTE_RATES = {
-    sink: KITCHEN_RATE,
-    island: KITCHEN_RATE,
-    wardrobe: WARDROBE_RATE,
-    bedroom: WARDROBE_RATE,
-    storage: { lines: [{ name: '수납장 캐비닛', price: 160000 }] },
-    fridge: {
-      lines: [
-        { name: '팬트리 하부장', price: 180000 },
-        { name: '상단 브릿지 캐비닛', price: 140000 },
-      ],
-    },
-    vanity: { lines: [{ name: '파우더룸 캐비닛', price: 250000 }] },
-    shoe: { lines: [{ name: '신발장 캐비닛', price: 400000 }] },
-    office: OFFICE_RATE,
-    study: OFFICE_RATE,
-  };
-  var QUOTE_INSTALL = 200000;
-  var QUOTE_DEMOLITION_PER_1000 = 30000;
-  var QUOTE_W = { min: 1200, max: 6000, step: 300, start: 3000 }; // 가로 길이 고르기 (mm)
-
-  // 품목 이름 → 표 (AI 연출컷의 place_label — workers/generate-api/src/collection-post.js COLLECTION_PLACE_LABEL 의 거꾸로)
-  var PLACE_QUOTE = {
-    싱크대: 'sink',
-    아일랜드: 'island',
-    붙박이장: 'wardrobe',
-    수납장: 'storage',
-    냉장고장: 'fridge',
-    화장대: 'vanity',
-    신발장: 'shoe',
-    사무실: 'office',
-    서재: 'study',
-    침실: 'bedroom',
-  };
-  // 직접 올린 사진의 구분(collection_posts.category) → 표. 실내 · 기타는 품목을 몰라 견적을 내지 않는다
-  var CATEGORY_QUOTE = { kitchen: 'sink', builtin: 'wardrobe', storage: 'storage' };
-  // AI 연출 사진 이름(segan/collection.js STATIC place) → 표. 앞에서부터 처음 맞는 것
-  var STATIC_QUOTE = [
-    [/냉장고장/, 'fridge'],
-    [/아일랜드/, 'island'],
-    [/주방/, 'sink'],
-    [/신발장/, 'shoe'],
-    [/붙박이장|드레스룸/, 'wardrobe'],
-    [/화장대/, 'vanity'],
-    [/책장|서재/, 'study'],
-    [/수납장|홈카페장|세탁실장/, 'storage'],
-  ];
-
-  /**
-   * 견적 — 서버 buildQuote(category, wallW) 와 같은 셈. 모르는 품목이면 null (서버처럼 수납장 표로 대신하지 않는다)
-   * @returns {{ items: {name, quantity, unit_price, total}[], subtotal, vat, total, range: {min, max} } | null}
-   */
-  function buildQuote(key, wallW) {
-    var rate = Object.prototype.hasOwnProperty.call(QUOTE_RATES, key) ? QUOTE_RATES[key] : null;
-    if (!rate) return null;
-    var mm = Math.max(0, Number(wallW) || 0);
-    var items = [];
-    rate.lines.forEach(function (l) {
-      var span = Math.round(mm * (l.share || 1));
-      if (l.per === 300) {
-        var units = Math.ceil(span / 300);
-        items.push({
-          name: l.name,
-          quantity: span + 'mm (' + units + '자)',
-          unit_price: l.price,
-          total: units * l.price,
-        });
-      } else {
-        items.push({
-          name: l.name,
-          quantity: span + 'mm',
-          unit_price: l.price,
-          total: Math.round((l.price * span) / 1000),
-        });
-      }
-    });
-    (rate.fixed || []).forEach(function (f) {
-      items.push({ name: f.name, quantity: '1개', unit_price: f.price, total: f.price });
-    });
-    items.push({
-      name: '시공비',
-      quantity: '1식',
-      unit_price: QUOTE_INSTALL,
-      total: QUOTE_INSTALL,
-    });
-    items.push({
-      name: '기존 철거',
-      quantity: mm + 'mm',
-      unit_price: QUOTE_DEMOLITION_PER_1000,
-      total: Math.round((QUOTE_DEMOLITION_PER_1000 * mm) / 1000),
-    });
-    var subtotal = items.reduce(function (s, i) {
-      return s + i.total;
-    }, 0);
-    var vat = Math.round(subtotal * 0.1);
-    var total = subtotal + vat;
-    return {
-      items: items,
-      subtotal: subtotal,
-      vat: vat,
-      total: total,
-      range: { min: Math.round(total * 0.95), max: Math.round(total * 1.3) },
-    };
-  }
-
-  /** 이 사진의 견적 표 — 모르면 '' (견적 칸 없음) */
-  function quoteKey(p) {
-    if (!p) return '';
-    if (p.quote_key) return p.quote_key;
-    if (p.source === 'ai_render') return PLACE_QUOTE[p.place_label] || '';
-    return CATEGORY_QUOTE[p.category] || '';
-  }
-
-  function won(n) {
-    return Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';
-  }
-
-  function meters(mm) {
-    return (mm / 1000).toFixed(1) + 'm';
-  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -245,9 +93,7 @@
       thumb: str(row.image_url),
       place_label: str(row.place_label),
       door_color: str(row.door_color),
-      category: str(row.category),
       hex: [],
-      quote_key: '',
       // 본사(다담) 일은 고객에게 「다담가구」로 보인다 — DB 의 본사 업체 이름(다담 공장)은 내부 이름
       company_name: str(c.company_kind) === 'hq' ? TEXT.hq : str(c.company_name),
       company_kind: str(c.company_kind),
@@ -266,7 +112,6 @@
         image_url: row.image_url,
         place_label: row.place_label,
         door_color: row.door_color,
-        category: row.category,
         like_count: row.like_count,
         source: row.source,
         created_at: row.created_at,
@@ -282,19 +127,13 @@
   function fromStatic(s) {
     var file = String(s.image_url || '').replace(/^.*\//, '');
     var stem = file.replace(/\.jpg$/i, '');
-    var place = str(s.place);
-    var key = '';
-    for (var i = 0; i < STATIC_QUOTE.length && !key; i++)
-      if (STATIC_QUOTE[i][0].test(place)) key = STATIC_QUOTE[i][1];
     return {
       id: '',
       image_url: STATIC_FULL + file,
       thumb: STATIC_THUMB + file,
-      place_label: place,
+      place_label: str(s.place),
       door_color: str(s.color),
-      category: '',
       hex: Array.isArray(s.hex) ? s.hex.filter(isHex) : [],
-      quote_key: key,
       company_name: TEXT.staticAi,
       company_kind: '',
       source: 'upload',
@@ -662,77 +501,6 @@
     return e.clientX >= x && e.clientX <= x + w && e.clientY >= y && e.clientY <= y + hgt;
   }
 
-  function quoteRowHTML(name, quantity, amount) {
-    return (
-      '<div class="pv-qrow"><span>' +
-      esc(name) +
-      (quantity ? ' <small>' + esc(quantity) + '</small>' : '') +
-      '</span><span>' +
-      esc(won(amount)) +
-      '</span></div>'
-    );
-  }
-
-  /** 예상 견적 칸 — 가로 길이 고르기(− 값 +) · 줄 · 합계 · 범위. 값은 bindQuote 가 채운다 */
-  function quoteHTML() {
-    return (
-      '<section class="pv-sec pv-quote"><h3 class="pv-h">' +
-      esc(TEXT.quote) +
-      '</h3><div class="pv-size"><span>' +
-      esc(TEXT.width) +
-      '</span><span class="pv-step"><button type="button" class="pv-step-btn" data-step="-1" aria-label="' +
-      esc(TEXT.narrower) +
-      '">−</button><output class="pv-size-value" aria-live="polite"></output>' +
-      '<button type="button" class="pv-step-btn" data-step="1" aria-label="' +
-      esc(TEXT.wider) +
-      '">+</button></span></div><div class="pv-qrows"></div><div class="pv-qtotal"><span>' +
-      esc(TEXT.total) +
-      '</span><strong class="pv-qsum"></strong></div><p class="pv-qrange"></p><p class="sg-note pv-qnote">' +
-      esc(TEXT.quoteNote) +
-      '</p></section>'
-    );
-  }
-
-  /** 견적 칸을 살린다 — 가로 길이를 300mm 씩 바꾸면 줄 · 합계 · 범위를 다시 셈한다 (합계는 지난 값에서 굴린다) */
-  function bindQuote(box, key) {
-    var w = QUOTE_W.start;
-    var last = null;
-    var val = box.querySelector('.pv-size-value');
-    var rows = box.querySelector('.pv-qrows');
-    var sum = box.querySelector('.pv-qsum');
-    var range = box.querySelector('.pv-qrange');
-    var minus = box.querySelector('[data-step="-1"]');
-    var plus = box.querySelector('[data-step="1"]');
-    function paint() {
-      var q = buildQuote(key, w);
-      if (!q) return;
-      val.textContent = meters(w);
-      rows.innerHTML =
-        q.items
-          .map(function (it) {
-            return quoteRowHTML(it.name, it.quantity, it.total);
-          })
-          .join('') + quoteRowHTML(TEXT.vat, '', q.vat);
-      var M = window.SeganMotion;
-      if (M && typeof M.roll === 'function' && last != null) M.roll(sum, last, q.total, won);
-      else sum.textContent = won(q.total);
-      last = q.total;
-      range.textContent = TEXT.range + ' ' + won(q.range.min) + ' ~ ' + won(q.range.max);
-      minus.disabled = w <= QUOTE_W.min;
-      plus.disabled = w >= QUOTE_W.max;
-    }
-    box.querySelector('.pv-step').addEventListener('click', function (e) {
-      var b = e.target && e.target.closest ? e.target.closest('[data-step]') : null;
-      if (!b || b.disabled) return;
-      w = Math.max(
-        QUOTE_W.min,
-        Math.min(QUOTE_W.max, w + Number(b.getAttribute('data-step')) * QUOTE_W.step)
-      );
-      paint();
-    });
-    paint();
-  }
-
   /**
    * 사진 보기를 연다.
    * @param {object} p  사진 한 장 (fromRow · fromLike · fromStatic)
@@ -750,7 +518,6 @@
     var likeable = canLike(p);
     var href = refHref(p);
 
-    var qkey = quoteKey(p);
     var colors = colorsHTML(p, 'pv-colors');
 
     var box = document.createElement('article');
@@ -791,7 +558,6 @@
           colors +
           '</section>'
         : '') +
-      (qkey ? quoteHTML() : '') +
       (l.company
         ? '<section class="pv-sec"><h3 class="pv-h">' +
           esc(TEXT.companyInfo) +
@@ -801,7 +567,6 @@
         : '') +
       (href ? '<a class="sg-btn pv-make" href="' + esc(href) + '">' + esc(TEXT.make) + '</a>' : '');
     guardImages(box);
-    if (qkey) bindQuote(box, qkey);
 
     // 사진을 누르면 사진만 전체 화면 — 이 창 위에 겹친다 (닫으면 이 창으로 돌아온다)
     var photo = box.querySelector('.pv-photo');
@@ -867,9 +632,6 @@
     full: full,
     open: open,
     colorsOf: colorsOf,
-    quoteKey: quoteKey,
-    buildQuote: buildQuote,
-    QUOTE_W: QUOTE_W,
     guardImages: guardImages,
   };
 })();

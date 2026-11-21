@@ -5,7 +5,7 @@
  *
  *   - 「내 것」 묶음의 둘째 줄 (내 연출컷 다음) → 하위 화면 #likes
  *   - RPC collection_my_likes(p_limit 30, p_before = 마지막 liked_at) — 화면을 처음 열 때 읽는다, 「더 보기」 로 다음 쪽
- *   - 타일(사진 아래 색상 영역 · ♡) · 사진 보기(색상 · 예상 견적 · 업체 정보) · ♡ 는 시공사례와 같다
+ *   - 타일(사진 아래 색상 영역 · ♡) · 사진 보기(색상 · 업체 정보) · ♡ 는 시공사례와 같다
  *     — ♡ 를 풀고 닫으면 목록에서 뺀다
  */
 const fs = require('fs');
@@ -298,19 +298,15 @@ describe('칸 — 시공사례와 같다: 사진 아래 색상 영역의 ♡ · 
 });
 
 describe('사진 보기 — 시공사례와 같은 시트', () => {
-  test('누르면 장소 · 예상 견적 · 업체 정보, ♡ 눌림 · 수, 이 스타일로 연출컷', async () => {
+  test('누르면 장소 · 업체 정보, ♡ 눌림 · 수, 이 스타일로 연출컷', async () => {
     await load();
     await openSheet(0);
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('시공사례');
     expect(sheet().querySelector('.pv-place').textContent).toBe('대구 북구 · 주방 0');
     expect(facts()).toEqual([['업체', '다담 협력 주방']]);
-    // 직접 올린 주방 사진(category kitchen — RPC 가 같이 준다) → 싱크대 표로 예상 견적, 색상은 몰라 칸이 없다
-    expect([...sheet().querySelectorAll('.pv-h')].map((h) => h.textContent)).toEqual([
-      '예상 견적',
-      '업체 정보',
-    ]);
-    expect(sheet().querySelector('.pv-size-value').textContent).toBe('3.0m');
-    expect(sheet().querySelector('.pv-qsum').textContent).toBe('1,868,900원');
+    // 색상은 몰라 칸이 없다. 예상 견적 칸도 없다 (2026-11-21 대표님 「견적은 일단 빼자」)
+    expect([...sheet().querySelectorAll('.pv-h')].map((h) => h.textContent)).toEqual(['업체 정보']);
+    expect(sheet().querySelector('.pv-quote')).toBeNull();
     const like = sheet().querySelector('.pv-like');
     expect(like.getAttribute('aria-pressed')).toBe('true');
     expect(like.querySelector('.pv-count').textContent).toBe('3');
@@ -324,8 +320,6 @@ describe('사진 보기 — 시공사례와 같은 시트', () => {
     expect(sheet().querySelector('.pv-place').textContent).toBe('싱크대');
     expect(colorNames(sheet())).toEqual(['월넛']);
     expect(facts()).toEqual([['업체', 'AI 연출']]);
-    // 품목 이름 「싱크대」 → 싱크대 표
-    expect(sheet().querySelector('.pv-qsum').textContent).toBe('1,868,900원');
     expect(sheet().querySelector('a.pv-make')).toBeNull();
   });
 
