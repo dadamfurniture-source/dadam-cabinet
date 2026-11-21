@@ -114,7 +114,7 @@ describe('구독 (plans.html) — 사업자등록증 첫 달 무료 안내 (2026
     // 30일 = 결제 서버의 무료 기간 (payments-api src/trial.js TRIAL_DAYS)
     expect(read('workers/payments-api/src/trial.js')).toMatch(/export const TRIAL_DAYS = 30;/);
     // 첫 글(.in-lead)과 금액 안내 줄(#plState) 사이
-    expect(html).toMatch(/class="in-lead"[sS]*id="plTrial"[sS]*id="plState"/);
+    expect(html).toMatch(/class="in-lead".*id="plTrial".*id="plState"/);
   });
 });
 
