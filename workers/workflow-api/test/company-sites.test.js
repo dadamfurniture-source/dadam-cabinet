@@ -229,6 +229,7 @@ test('설치 목록 — 납품 · 설치만, 날짜 차례, 취소 · 기간 밖
     project_id: P(1),
     project_title: '예시 프로젝트 1',
     order_no: 'SO-20261101-AAAA',
+    customer_confirmed_at: null, // 설치 날 고객 확인 (DB 0079) — 설치 줄에만
     address: ADDR1,
     address_detail: '1동 1호',
     sido: '시험시',
@@ -511,4 +512,20 @@ test('A/S 방문 일정 — DB 0058 적용 전에는 409 db_pending', async () =
   const r = await put(before0058(world()), 't_owner', `/company/as-requests/${AS(1)}/visit`, { visit_at: VISIT_AT });
   assert.equal(r.status, 409);
   assert.equal(r.json.code, 'db_pending');
+});
+
+test('설치 표 — 설치 날 고객 확인 칸 (DB 0079): 설치 일정 줄에만 표시한 때, 위에 confirm_ready. 납품 줄에는 칸이 없다', async () => {
+  const t = tables();
+  const install = t.design_schedules.find((s) => s.type === 'installation' && s.status !== 'cancelled');
+  assert.ok(install, '시험 자료에 설치 일정이 있어야 한다');
+  install.customer_confirmed_at = '2026-11-09T05:00:00.000Z';
+  const r = await call(world(t), 't_staff', '/company/sites?kind=install');
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.data.confirm_ready, true);
+  const row = r.json.data.items.find((i) => i.schedule_id === install.id);
+  assert.equal(row.customer_confirmed_at, '2026-11-09T05:00:00.000Z');
+  for (const i of r.json.data.items) {
+    if (i.type === 'installation') assert.ok('customer_confirmed_at' in i, i.key);
+    else assert.equal('customer_confirmed_at' in i, false, i.key);
+  }
 });
