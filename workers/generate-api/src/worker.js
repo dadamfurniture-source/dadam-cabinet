@@ -61,7 +61,7 @@ import { assertPlannerTier } from './tier-gate.js';
 import { copyApplianceImage } from './appliance-image.js';
 import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
 import { callClaudeJson } from './claude.js';
-import { requestBrief } from './chat-brief.js';
+import { requestBrief, requestChatReply } from './chat-brief.js';
 import {
   generateShareToken,
   hashShareToken,
@@ -393,6 +393,7 @@ async function readChatRequest(request, env) {
 
 async function chat(request, env) {
   const c = await readChatRequest(request, env);
+  if (c.app) return { success: true, reply: await requestChatReply(env, c) }; // 앱 연출컷 — 빠른 설정 (chat-brief.js)
   const r = await callGemini(env, {
     prompt: buildChatPrompt({ category: c.category, messages: c.messages, photo: c.images.length > 0, app: c.app }),
     images: c.images,
