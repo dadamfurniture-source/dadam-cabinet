@@ -667,10 +667,13 @@
   function openWork(id) {
     var box = $('partnerProjects');
     if (!box || box.hidden || !J.data || !id) return false;
+    // 업무 달력은 TODAY WORK 화면에 있다 (2026-11-21) — 목록이 지금 화면에 없으면 프로젝트 관리 화면(모든 단계)으로 넘어가서 연다
+    var away = box.classList.contains('me-off');
     var p = J.data.items.filter(function (x) {
-      return x.id === id && inView(x, J.view);
+      return x.id === id && (away || inView(x, J.view));
     })[0];
     if (!p || !canWorkOn(p)) return false;
+    if (away && !toList()) return false;
     if (J.workFor !== id) {
       window.SeganProjectWork.unmount();
       J.workFor = id;
@@ -916,6 +919,9 @@
    */
   async function openStatus(id) {
     if (!J.data || !id) return false;
+    // 새로 생긴 일은 TODAY WORK 화면에 있다 — 목록이 지금 화면에 없으면 프로젝트 관리 화면으로 넘어가서 연다
+    var box = $('partnerProjects');
+    if (box && !box.hidden && box.classList.contains('me-off')) toList();
     J.heldOpen = true;
     if (J.statusFor !== id) await toggleStatus(id);
     else render();
@@ -1075,6 +1081,17 @@
   }
 
   /** 그 프로젝트 줄로 옮기고 초점을 둔다 (받은 상담의 「프로젝트 열기」) — 지금 보기에 그 줄이 없으면 false */
+  /**
+   * 프로젝트 관리 화면(#dash-project — 모든 단계 목록)으로 넘어간다 (segan/me.js go — 기록 하나).
+   * TODAY WORK(새로 생긴 일 · 업무 달력)에서 목록의 칸을 열 때. 넘어갔으면 true
+   */
+  function toList() {
+    var Me = window.SeganMe;
+    if (!Me || typeof Me.go !== 'function') return false;
+    Me.go('dash-project');
+    return true;
+  }
+
   function focusProject(id) {
     var box = $('partnerProjects');
     if (!box || box.hidden || box.classList.contains('me-off') || !id) return false;

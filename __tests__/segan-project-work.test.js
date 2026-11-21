@@ -412,7 +412,7 @@ describe('작업 배정 — 대표 · 실장', () => {
     await load({ work: () => ok(WORKVIEW({ rows: WORKVIEW().rows.slice(0, 4) })) });
     await press(workBtn(P1));
     expect(tableRows().slice(4)).toEqual([
-      '설치 | 설치 일정을 넣으면 여기서 배정합니다 (프로젝트 관리 › 업무 달력).',
+      '설치 | 설치 일정을 넣으면 여기서 배정합니다 (TODAY WORK › 업무 달력).',
       'A/S | A/S 방문일을 잡으면 줄이 생깁니다.',
     ]);
   });
@@ -686,6 +686,22 @@ describe('달력에서 열기', () => {
     await flush();
     expect(panel().closest('li').getAttribute('data-project')).toBe(P1);
     expect(text(workBtn(P2))).toBe('작업 배정');
+  });
+
+  test('TODAY WORK 화면(목록이 없는 화면)에서 부르면 프로젝트 관리 화면으로 넘어가서 연다 (기록 하나)', async () => {
+    await load({ hash: '#today-calendar' });
+    expect($('partnerProjects').classList.contains('me-off')).toBe(true);
+    const before = window.history.length;
+    expect(PP().openWork(P2)).toBe(true);
+    await flush();
+    expect(window.location.hash).toBe('#dash-project');
+    expect(window.history.length).toBe(before + 1);
+    expect($('partnerProjects').classList.contains('me-off')).toBe(false);
+    expect(panel().closest('li').getAttribute('data-project')).toBe(P2);
+    // 못 여는 프로젝트면 넘어가지 않는다
+    await load({ hash: '#today-calendar' });
+    expect(PP().openWork(P3)).toBe(false);
+    expect(window.location.hash).toBe('#today-calendar');
   });
 
   test('열 수 없으면 false — 끝난 프로젝트 · 모르는 id · 인사를 안 쓰는 등급', async () => {

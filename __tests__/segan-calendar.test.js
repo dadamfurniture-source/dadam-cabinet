@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, Element, Event */
 /**
- * SEGAN 「프로젝트 관리」 대시보드의 업무 달력 (segan/calendar.js + segan/me.html #meCalendar)
+ * SEGAN 마이페이지 「TODAY WORK」 의 업무 달력 (segan/calendar.js + segan/me.html #meCalendar)
  *
  *   누가    다담 공장 구성원 · Manager · Expert · Agent 협력업체 구성원 (account-api GET /partner/me)
- *           업체 없음 → 묻지도 않고 칸이 없다. 서버 403 → 칸째 감춘다. 프로젝트 관리 대시보드(#dash-project)에서만 보인다
+ *           업체 없음 → 묻지도 않고 칸이 없다. 서버 403 → 칸째 감춘다. TODAY WORK 대시보드(#dash-today) · 업무 달력 화면(#today-calendar)에서만 보인다 (2026-11-21 옮김)
  *   데이터  workflow-api GET /company/schedules?from=&to= (본인 토큰) → { can_manage, today, truncated, items }
  *   보기    월(여섯 주) · 주 · 목록, ‹ 오늘 ›, 종류 켜고 끄기, 날을 누르면 그날 일정
  *   넣기    can_manage 일 때 「일정 더하기」 → GET /company/designs → POST /designs/:id/schedules
@@ -170,7 +170,7 @@ const PROJECTS = {
 };
 
 /**
- * me.html 을 올린다 (#dash-project).
+ * me.html 을 올린다 (#dash-today).
  * opts.sched(url) → GET /company/schedules 응답, opts.designs() → GET /company/designs,
  * opts.add(body, url) → POST /designs/:id/schedules, opts.patch(body, url) → PATCH /schedules/:id (Error 면 끊김)
  */
@@ -178,7 +178,7 @@ async function load(options = {}) {
   const opts = {
     session: SESSION,
     partner: partnerMe(),
-    hash: '#dash-project',
+    hash: '#dash-today',
     sched: () => ok(sched()),
     designs: () => ok(DESIGNS),
     add: () => ok({ batch_id: 'b1', schedules: [{ id: S2 }], slack: null }, 201),
@@ -555,7 +555,7 @@ describe('판정 · 본문 (순수 함수)', () => {
 });
 
 describe('누가 보나', () => {
-  test('업체 구성원 — 이번 달 여섯 주를 본인 토큰으로 묻고, 프로젝트 관리 대시보드에서 보인다', async () => {
+  test('업체 구성원 — 이번 달 여섯 주를 본인 토큰으로 묻고, TODAY WORK 대시보드에서 보인다', async () => {
     const calls = await load();
     const got = schedCalls(calls);
     expect(got).toHaveLength(1);
@@ -566,14 +566,44 @@ describe('누가 보나', () => {
     expect(box().querySelector('.cal-title').textContent).toBe('2026년 11월');
   });
 
-  test('다른 화면에서는 감춘다 (me-off) — 대시보드로 돌아오면 다시 보인다', async () => {
+  test('다른 화면에서는 감춘다 (me-off) — TODAY WORK 대시보드 · 업무 달력 화면에서만 보인다', async () => {
     await load({ hash: '#p-install' });
     expect(box().hidden).toBe(false); // 읽기는 했다
     expect(box().classList.contains('me-off')).toBe(true);
-    window.location.hash = '#dash-project';
-    window.dispatchEvent(new Event('hashchange'));
-    await flush();
-    expect(box().classList.contains('me-off')).toBe(false);
+    const goTo = async (hash) => {
+      window.location.hash = hash;
+      window.dispatchEvent(new Event('hashchange'));
+      await flush();
+      return box().classList.contains('me-off');
+    };
+    expect(await goTo('#dash-today')).toBe(false);
+    expect(await goTo('#today-calendar')).toBe(false);
+    // 업무 달력 화면 — 대시보드 칸 제목은 큰 메뉴 이름, 칸 단추는 없다
+    expect($('meDashTitle').textContent).toBe('TODAY WORK');
+    expect($('meDashBody').hidden).toBe(true);
+    expect($('main').getAttribute('data-me-screen')).toBe('today-calendar');
+    expect(await goTo('#today-inbox')).toBe(true); // 새로 생긴 일 화면 — 달력은 없다 (그 칸을 못 읽어 열지도 못한다)
+    expect(await goTo('#dash-project')).toBe(true); // 2026-11-21 — 프로젝트 관리 대시보드에서 옮겼다
+  });
+
+  test('메뉴 — 업무 맨 위 「TODAY WORK」, 하위 줄 「업무 달력」 (달력을 읽었을 때만)', async () => {
+    await load();
+    const menu = document.querySelector('#meHub [data-menu="today"]');
+    expect(menu.hidden).toBe(false);
+    expect(menu.querySelector('.me-menu-name').textContent).toBe('TODAY WORK');
+    expect(menu.closest('section').id).toBe('meGroupWork');
+    expect(document.querySelector('#meGroupWork [data-menu]').getAttribute('data-menu')).toBe('today');
+    const rows = [...menu.querySelectorAll('li[data-me-item]:not([hidden]) a.sg-row')];
+    expect(rows.map((a) => a.textContent)).toEqual(['업무 달력']); // 새로 생긴 일 칸은 이 시험에서 읽지 않는다
+    expect(rows[0].getAttribute('href')).toBe('#today-calendar');
+    // 프로젝트 관리 하위 줄에는 없다
+    expect(document.querySelector('#meSubProject [data-me-item="today-calendar"]')).toBeNull();
+  });
+
+  test('업무 달력이 보이지 않으면(서버 403) TODAY WORK 큰 메뉴째 없다', async () => {
+    await load({ sched: () => fail(403, 'forbidden', 'x') });
+    expect(box().hidden).toBe(true);
+    expect(document.querySelector('#meHub [data-menu="today"]').hidden).toBe(true);
   });
 
   test('업체 없는 회원(고객) — 묻지도 않는다', async () => {
@@ -1195,7 +1225,7 @@ describe('프로젝트의 작업', () => {
     workBtns()[1].click();
     await flush();
     expect(text(box().querySelector('.me-pt-msg'))).toBe(
-      '아래 프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.'
+      '프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.'
     );
     // 다시 열리면 글이 사라진다
     open.mockReturnValue(true);

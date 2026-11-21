@@ -210,9 +210,11 @@ describe('자리 · 이름', () => {
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'inbox.js')");
   });
 
-  test('me.js — 프로젝트 관리 대시보드에서만 보이고(me-off), 업체 칸을 읽은 뒤 채우고, 목록이 바뀌면 다시 그린다', () => {
+  test('me.js — TODAY WORK 대시보드 · 새로 생긴 일 화면에서만 보이고(me-off), 업체 칸을 읽은 뒤 채우고, 목록이 바뀌면 다시 그린다', () => {
     const me = read('segan/me.js');
-    expect(me).toContain("off('meInbox', !(open && s.dash === 'project'));");
+    expect(me).toContain("off('meInbox', !(today || inner === 'meInbox'));");
+    expect(me).toContain("'today-inbox': { title: '새로 생긴 일', section: 'meDash', inner: 'meInbox' },");
+    expect(read('segan/me.html')).toMatch(/data-me-item="today-inbox"[\s\S]*?href="#today-inbox"[^>]*>새로 생긴 일</);
     expect(me).toMatch(
       /synced\(Inbox && Inbox\.load \? Inbox\.load\(auth\.sb, auth\.session, me\) : null\)/
     );
@@ -407,7 +409,7 @@ describe('화면', () => {
     await load({ items: many, inbox: () => ok({ role: 'owner', todo: [], news: [] }) });
     expect(rows()).toHaveLength(20);
     expect(rows()[0][1]).toBe('프로젝트 23'); // 가장 오래 머문 것부터
-    expect(text(box().querySelector('.mk-note'))).toBe('3건 더 — 아래 프로젝트 목록에서');
+    expect(text(box().querySelector('.mk-note'))).toBe('3건 더 — 프로젝트 관리 목록에서');
     expect(text(box().querySelector('.ib-head'))).toBe('할 일 23');
   });
 
