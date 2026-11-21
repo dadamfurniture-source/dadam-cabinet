@@ -166,15 +166,24 @@ export function siteRangeOf(query, nowMs = Date.now()) {
 async function listInstallSites(env, { company, canAct, query }, nowMs) {
   const co = `eq.${company.id}`;
   const range = siteRangeOf(query, nowMs);
-  const rows =
-    (await selectMany(env, 'design_schedules', {
+  // 설치 날 고객 확인 칸(DB 0079)까지 읽는다 — 칸이 아직 없으면 그 칸 없이 (confirm_ready false)
+  const readRows = (cols) =>
+    selectMany(env, 'design_schedules', {
       scheduled_at: `gte.${dayStartIso(range.from)}`,
       type: `in.(${SITE_TYPES.join(',')})`,
       status: 'neq.cancelled',
-      select: 'id,type,status,scheduled_at,assignee_name,design_id,designs!inner(company_id,name,project_id)',
+      select: `${cols},designs!inner(company_id,name,project_id)`,
       'designs.company_id': co,
       order: 'scheduled_at.asc',
       limit: String(SITE_FETCH),
+    });
+  const siteCols = 'id,type,status,scheduled_at,assignee_name,design_id';
+  let confirmReady = true;
+  const rows =
+    (await readRows(`${siteCols},customer_confirmed_at`).catch((e) => {
+      if (!isMissingRelation(e)) throw e;
+      confirmReady = false;
+      return readRows(siteCols);
     })) || [];
   const toIso = dayStartIso(range.to, 1);
   const live = rows.filter((s) => s.scheduled_at < toIso);
@@ -201,6 +210,8 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
     company: { id: company.id, name: company.name || null },
     can_manage: canAct,
     kind: 'install',
+    // 설치 날 고객 확인을 쓸 수 있나 (DB 0079 의 칸이 있다) — 화면이 그때만 표시 · 단추를 낸다
+    confirm_ready: confirmReady,
     range,
     today: kstDateOf(nowMs),
     ready,
@@ -223,6 +234,8 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
         project_id: d.project_id || null,
         project_title: (d.project_id && titleOf.get(d.project_id)) || null,
         order_no: orderNoOf.get(s.design_id) || null,
+        // 설치 날 고객 확인 — 설치 일정에만 (업체가 표시한 때. 칸이 없으면 싣지 않는다)
+        ...(s.type === 'installation' && confirmReady ? { customer_confirmed_at: s.customer_confirmed_at || null } : {}),
         ...(siteByDesign.get(s.design_id) || NO_SITE),
       };
     }),
