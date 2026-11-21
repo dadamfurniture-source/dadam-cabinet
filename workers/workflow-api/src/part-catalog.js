@@ -16,7 +16,9 @@
  *     (2026-11-19 사장님 「…회계세무자료\거래명세서 여기에 거래명세서 자료 있음」 — PC 에 모아 둔 명세서 사진을 읽어 만든 파일).
  *     이미 같은 날이나 더 최근 날짜의 매입가가 적힌 상품은 그대로 둔다 (「거래명세표에서 가져오기」와 같다). 파일에 매입가가 없으면 건드리지 않는다.
  *   POST  /parts/items/:id/photo      사진 올리기 (본문 = 이미지 바이트) — 대표 · 실장. 201
- *   PATCH /parts/items/:id            매입가 · 쓰는지 고치기 { buy_price?(원 | null), active? } — 대표 · 실장
+ *   PATCH /parts/items/:id            매입가 · 쓰는지 · 레일 종류 고치기 { buy_price?(원 | null), active?, rail_type?('under' | 'ball' | null) } — 대표 · 실장
+ *     rail_type (2026-11-21 사장님 「플래너 구조에 서랍장 모듈을 선택하면 레일 회사, 종류를 선택」): 레일 상품이 언더레일인지 볼레일인지 —
+ *     사양 「레일 종류」(RAIL_TYPE_SPEC) 에 적는다. 플래너 서랍장은 이 값이 있는 레일만 고른다 (박스 여유가 종류로 정해진다).
  *   GET   /parts/ledger-suppliers     회계장부의 거래명세표 · 영수증에서 읽힌 파는 곳들 { suppliers[{ key, name, biz_no, docs, items }] } — 대표 · 실장
  *   POST  /parts/from-ledger          그 파는 곳의 품목 · 단가를 카탈로그로 { supplier_key, vendor_name? } — 대표 · 실장. 201
  *     (2026-11-18 사장님 「무림상사, 모아가구철물은 거래명세표에 자재 가격있고, 사진은 없음」 · 「명세표는 장부에 있고」)
@@ -26,7 +28,7 @@
  *
  *   GET   /planner/parts              간편 플래너의 설비장에서 고를 상품 { company, money, catalog, total, items[≤60] } — 플래너 업체 구성원
  *     (2026-11-19 사장님 「개수대 모듈 클릭하면 수전, 싱크볼 우측 패널에서 검색 및 선택 … 후드장도 … 가스대도」)
- *     ?kind=sink|faucet|hood|cooktop  분류 글에 그 설비 낱말(PLANNER_PART_KINDS)이 든 상품
+ *     ?kind=sink|faucet|hood|cooktop|rail  분류 글에 그 설비 낱말(PLANNER_PART_KINDS)이 든 상품 — rail 은 레일 종류가 적힌 것만 (rail_type)
  *     &q=글                            분류와 상관없이 이름 · 브랜드 · 분류 · 공급 회사에서 찾는다 (그 설비 분류의 상품이 앞에 온다)
  *     ?ids=a,b                         그 상품들의 지금 값 (플래너 BOM 창이 값을 다시 읽을 때)
  *     부르는 사람의 플래너 업체 카탈로그만 (본사 구성원 · 관리자는 다담 공장). 쓰는 상품만. 매입가는 대표 · 실장에게만.
@@ -277,7 +279,18 @@ export const PLANNER_PART_KINDS = Object.freeze({
   faucet: Object.freeze(['수전']),
   hood: Object.freeze(['후드']),
   cooktop: Object.freeze(['쿡탑', '가스레인지', '인덕션', '전기레인지']),
+  // 2026-11-21 서랍장 레일 — 레일 종류(RAIL_TYPE_SPEC)가 적힌 것만 (railTypeOf)
+  rail: Object.freeze(['레일']),
 });
+
+/** 레일 종류를 적는 사양 이름과 값 — 사람이 읽는 글로 (카탈로그 상품 사양 목록에 그대로 보인다) */
+export const RAIL_TYPE_SPEC = '레일 종류';
+export const RAIL_TYPE_VALUES = Object.freeze({ under: '언더레일', ball: '볼레일' });
+/** 상품의 레일 종류 'under' | 'ball' | null */
+export function railTypeOf(it) {
+  const v = it && isPlainObject(it.specs) ? String(it.specs[RAIL_TYPE_SPEC] || '').trim() : '';
+  return Object.keys(RAIL_TYPE_VALUES).find((k) => RAIL_TYPE_VALUES[k] === v) || null;
+}
 /** 플래너에 한 번에 주는 상품 수 · 찾는 글 길이 */
 export const PLANNER_PARTS_MAX = 60;
 export const PLANNER_PARTS_Q_MAX = 60;
@@ -290,6 +303,7 @@ const partOut = (it, canManage, vendor, photo) => ({
   // 치수는 사람이 확인한 것만 (그림에서 읽은 값은 확인 전에는 도면에 쓰지 않는다)
   width_mm: it.specs_checked === true ? it.width_mm ?? null : null, depth_mm: it.specs_checked === true ? it.depth_mm ?? null : null, height_mm: it.specs_checked === true ? it.height_mm ?? null : null,
   photo_url: photo || null,
+  rail_type: railTypeOf(it),
 });
 
 /** GET /planner/parts */
@@ -301,14 +315,14 @@ export async function plannerParts(env, { user, query }) {
   const ids = text(q.ids) ? [...new Set(text(q.ids).split(',').map((s) => s.trim()).filter(Boolean))] : null;
   if (ids) {
     if (ids.length > PLANNER_PARTS_MAX || !ids.every((id) => UUID_RE.test(id))) throw new ValidationError(`상품 id 는 한 번에 ${PLANNER_PARTS_MAX}개까지입니다`, { field: 'ids' });
-  } else if (!words) throw new ValidationError('설비 종류(kind)는 sink · faucet · hood · cooktop 가운데 하나입니다', { field: 'kind' });
+  } else if (!words) throw new ValidationError('설비 종류(kind)는 sink · faucet · hood · cooktop · rail 가운데 하나입니다', { field: 'kind' });
   const find = nameKey(q.q).slice(0, PLANNER_PARTS_Q_MAX).split(' ').filter(Boolean);
   const head = { company: { id: company.id, name: company.name }, money: !!canManage };
   if (!canHoldCatalog(company)) return { ...head, catalog: false, total: 0, items: [] };
   return db(async () => {
     const all = await itemsOf(env, company.id, { active: 'eq.true' });
     const vendors = new Map(((await selectMany(env, 'part_vendors', { company_id: `eq.${company.id}`, select: 'id,name', limit: '200' })) || []).map((v) => [v.id, v.name]));
-    const ofKind = (it) => !!words && words.some((w) => nameKey(it.category).includes(nameKey(w)));
+    const ofKind = (it) => !!words && words.some((w) => nameKey(it.category).includes(nameKey(w))) && (kind !== 'rail' || !!railTypeOf(it));
     let hit;
     if (ids) hit = all.filter((it) => ids.includes(it.id));
     else if (find.length) {
@@ -374,7 +388,10 @@ export async function importParts(env, { user, body }) {
       if (it.buy_price !== undefined && (!cur.buy_price_on || String(cur.buy_price_on) < it.buy_price_on)) Object.assign(patch, { buy_price: it.buy_price, buy_price_on: it.buy_price_on });
       // 사람이 확인한 사양 · 치수는 건드리지 않는다
       if (cur.specs_checked !== true) {
-        if (it.specs && !sameJson(cur.specs, it.specs)) patch.specs = it.specs;
+        // 레일 종류(손으로 고른 값)는 파일 사양에 없으면 그대로 둔다
+        const keep = isPlainObject(cur.specs) && cur.specs[RAIL_TYPE_SPEC] && it.specs && !(RAIL_TYPE_SPEC in it.specs) ? { [RAIL_TYPE_SPEC]: cur.specs[RAIL_TYPE_SPEC] } : {};
+        const nextSpecs = it.specs ? { ...it.specs, ...keep } : null;
+        if (nextSpecs && !sameJson(cur.specs, nextSpecs)) patch.specs = nextSpecs;
         for (const k of SIZES) if (it[k] !== undefined && cur[k] !== it[k]) patch[k] = it[k];
       }
       if (!Object.keys(patch).length) {
@@ -441,9 +458,19 @@ export async function patchPartItem(env, { user, params, body }) {
     if (typeof body.active !== 'boolean') throw new ValidationError('쓰는지(active)는 참 · 거짓이어야 합니다', { field: 'active' });
     patch.active = body.active;
   }
-  if (!Object.keys(patch).length) throw new ValidationError('고칠 값이 없습니다 (buy_price · active)');
+  const railType = 'rail_type' in body ? body.rail_type : undefined;
+  if (railType !== undefined && railType !== null && !Object.prototype.hasOwnProperty.call(RAIL_TYPE_VALUES, railType)) {
+    throw new ValidationError('레일 종류(rail_type)는 under · ball · null 가운데 하나입니다', { field: 'rail_type' });
+  }
+  if (!Object.keys(patch).length && railType === undefined) throw new ValidationError('고칠 값이 없습니다 (buy_price · active · rail_type)');
   return db(async () => {
     const it = await itemOfCompany(env, company.id, params.id);
+    if (railType !== undefined) {
+      const specs = { ...(isPlainObject(it.specs) ? it.specs : {}) };
+      if (railType === null) delete specs[RAIL_TYPE_SPEC];
+      else specs[RAIL_TYPE_SPEC] = RAIL_TYPE_VALUES[railType];
+      patch.specs = specs;
+    }
     const rows = await updateBy(env, 'part_items', { id: `eq.${it.id}`, company_id: `eq.${company.id}` }, patch);
     const next = { ...it, ...((rows && rows[0]) || patch) };
     const photo = next.photo_path ? (await signedPhotos(env, [next])).get(next.photo_path) : null;

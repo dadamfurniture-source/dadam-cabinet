@@ -89,27 +89,47 @@ test('재단선 — 톱이 끝까지 지나가는 자리만 (조각을 가르지
 });
 
 // ── 조립 새 틀 (src/templates/assembly-layout2.js) ─────────────────
-import { moduleIsoSvg, notchLinesOf, moduleInfoRows } from '../src/templates/assembly-layout2.js';
+import { notchLinesOf, moduleInfoRows } from '../src/templates/assembly-layout2.js';
+import { moduleCadSvg, solidsOfPart, unionEdges, CAD } from '../src/templates/cad-views.js';
 
 const SPEC_MOD = {
   moduleKey: 'w/floor/m1|0-lower-0',
   box: { W: 900, H: 708, D: 550, T: 15 },
   parts: [
-    { part: '측판', cut: { w: 550, h: 708 }, box: { min: [-450, 0, -275], max: [-435, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
-    { part: '측판', cut: { w: 550, h: 708 }, box: { min: [435, 0, -275], max: [450, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
+    { part: '측판', t: 15, frame: { o: [-450, 0, -275], u: '+z', v: '+y', n: '+x' }, cut: { w: 550, h: 708 }, box: { min: [-450, 0, -275], max: [-435, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
+    { part: '측판', t: 15, frame: { o: [435, 0, -275], u: '+z', v: '+y', n: '+x' }, cut: { w: 550, h: 708 }, box: { min: [435, 0, -275], max: [450, 708, 275] }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708, src: 'channel-top' }] },
     { part: '지판', cut: { w: 870, h: 550 }, box: { min: [-435, 0, -275], max: [435, 15, 275] } },
     { part: '도어', cut: { w: 446, h: 678 }, box: { min: [-448, 0, 275], max: [-2, 678, 293] } },
   ],
   hardware: [{ kind: 'leg', item: '조절 다리발', spec: '150mm', at: [-400, -150, 230], size: [42, 150, 42] }],
 };
 
-test('조립 3D — 조립 명세 판 자리 그대로, 도어는 점선 · 다리발, 굵은 W · H · D 몸통 치수', () => {
-  const svg = moduleIsoSvg(SPEC_MOD);
-  assert.match(svg, /^<svg class="mod-iso"/);
-  assert.equal((svg.match(/<polygon /g) || []).length, (3 + 1 + 1) * 3, '판 3 + 도어 1 + 다리발 1 — 면 셋씩');
-  assert.equal((svg.match(/stroke-dasharray/g) || []).length, 3, '도어 세 면은 점선');
-  for (const t of ['W 900', 'H 708', 'D 550']) assert.match(svg, new RegExp(`font-weight="700"[^>]*>${t}<`));
-  assert.equal(moduleIsoSvg({ parts: [] }), '');
+test('제작도 — 3면도 + 등각, 축척 1:S 는 종이 mm (svg 폭 mm = 그림 폭 ÷ S), 몸통 · 다리발 · 전면 연속 치수', () => {
+  const svg = moduleCadSvg(SPEC_MOD);
+  assert.match(svg, /^<svg class="mod-cad"/);
+  for (const t of ['정면도', '우측면도', '평면도', '등각']) assert.match(svg, new RegExp(`>${t}<`));
+  const S = Number(svg.match(/축척 1:(\d+)/)[1]);
+  assert.ok(CAD.SCALES.includes(S));
+  const [, , vw] = svg.match(/viewBox="([-\d.]+) [-\d.]+ ([\d.]+)/).slice(0, 3).map(Number);
+  assert.equal(Number(svg.match(/width="([\d.]+)mm"/)[1]), Math.round((vw / S) * 10) / 10);
+  assert.ok(vw / S <= CAD.PAGE_W_MM);
+  // 치수 — 몸통 폭 900 · 높이 708 · 다리발 150 · 깊이 550 · 도어 앞 18 · 도어 높이 678
+  for (const t of ['900', '708', '150', '550', '18', '678']) assert.match(svg, new RegExp(`>${t}</text>`));
+  // 따내기 — 우측면도에 40 × 70
+  assert.match(svg, />따내기 40×70</);
+  assert.equal(moduleCadSvg({ parts: [] }), '');
+});
+
+test('제작도 — 따내기는 판에서 뺀 상자 (엔진 solidsOf 와 같은 셈) · 합집합 외곽만 선', () => {
+  const side = { part: '측판', t: 15, cut: { w: 550, h: 708 }, frame: { o: [-450, 0, -275], u: '+z', v: '+y', n: '+x' }, features: [{ type: 'notch', u0: 510, u1: 550, v0: 638, v1: 708 }] };
+  assert.deepEqual(solidsOfPart(side), [
+    { min: [-450, 0, -275], max: [-435, 708, 235] },
+    { min: [-450, 0, 235], max: [-435, 638, 275] },
+  ]);
+  // ㄱ자 두 칸 — 이음 선 없이 외곽 여섯 변
+  const e = unionEdges([{ x0: 0, x1: 10, y0: 0, y1: 10 }, { x0: 10, x1: 14, y0: 0, y1: 7 }]);
+  assert.equal(e.length, 6);
+  assert.ok(!e.some((s) => s[0] === 10 && s[2] === 10 && Math.min(s[1], s[3]) === 0 && Math.max(s[1], s[3]) === 7), '이음 선 없음');
 });
 
 test('모듈 내용 — 색상 · 부재 · 목찬넬 따내기 · 다리발 · 철물 (같은 것끼리 더함) · 전기', () => {
@@ -167,4 +187,23 @@ test('정면도 글자 배율 — 새 틀은 크게, 기본은 그대로', () =>
   const b = elevationSvg(item, { textScale: 1.35 });
   assert.ok(fsOf(b) > fsOf(a) * 1.3);
   assert.equal(elevationSvg(item, { textScale: 1 }), a);
+});
+
+// ── 현장 재단 막대 (2026-11-21) ─────────────────────────────────
+import { siteCutBlock } from '../src/templates/installation-order.js';
+import { validateAssembly } from '../src/snapshots.js';
+
+test('현장 재단표 — 막대마다 자를 길이 · 막대가 없으면 칸째 없다', () => {
+  const bar = { part: '목찬넬 막대', material: 'MDF', thickness: 18, w: 100, h: 2440, qty: 2, siteBar: { kind: 'channel', barLen: 2440, layout: [[1800, 600], [1700]] } };
+  const html = siteCutBlock({ bom_payload: { materials: [{ part: '측판', w: 550, h: 720, qty: 2 }, bar] } });
+  assert.match(html, /현장 재단표/);
+  assert.match(html, /<td>목찬넬 막대<\/td><td>18T × 100 × 2,440<\/td><td>2개<\/td><td>막대 1: 1,800 \+ 600<br>막대 2: 1,700<\/td>/);
+  assert.equal(siteCutBlock({ bom_payload: { materials: [{ part: '측판', w: 550, h: 720, qty: 2 }] } }), '');
+});
+
+test('조립 명세 검사 — 막대로 바뀐 조각 행(bom.sitePieces)도 판 자리로 인정', () => {
+  const assembly = { schema: 'dadam.assembly/1', rulesVersion: 'x', unplaced: [], items: [{ modules: [{ moduleKey: 'm', parts: [{ id: 'p1', rowPartId: 'm-chan-0' }] }], runs: [] }] };
+  const materials = [{ partId: 'bar-channel-0', part: '목찬넬 막대', material: 'MDF', w: 100, h: 2440, qty: 1 }];
+  assert.throws(() => validateAssembly(assembly, { materials }), /조립 명세가 BOM 과 맞지 않습니다/);
+  assert.equal(validateAssembly(assembly, { materials, sitePieces: [{ partId: 'm-chan-0', part: '목찬넬(전면)', w: 52, h: 600, qty: 1 }] }).partCount, 1);
 });

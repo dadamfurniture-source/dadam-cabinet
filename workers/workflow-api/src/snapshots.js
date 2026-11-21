@@ -413,7 +413,9 @@ export function validateAssembly(assembly, bom) {
   if (!Array.isArray(assembly.unplaced)) throw new ValidationError('bom.assembly.unplaced 배열이 필요합니다');
 
   // 자재 행 partId → qty (validateCutPlan 과 같은 규약)
-  const materials = bom && Array.isArray(bom.materials) ? bom.materials : [];
+  //   2026-11-21: 현장 재단 막대로 바뀐 조각 행(bom.sitePieces — 목찬넬 · 걸레받이 · 상몰딩)도 명세의 판 자리다 (재단은 막대 행)
+  const materials = (bom && Array.isArray(bom.materials) ? bom.materials : [])
+    .concat(bom && Array.isArray(bom.sitePieces) ? bom.sitePieces.map((m) => (m && m.partId ? m : null)).filter(Boolean) : []);
   const qtyById = new Map();
   materials.forEach((m, i) => {
     if (!m || typeof m !== 'object') return;

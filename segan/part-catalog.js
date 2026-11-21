@@ -14,7 +14,7 @@
                                                매입가 · 숨긴 상품은 대표 · 실장에게만 온다. 사진은 서명 주소(한 시간)
                POST  /parts/import             카탈로그 파일의 한 묶음 { vendor, seen_on, items[≤30] } → { added, updated, same, ids }
                POST  /parts/items/:id/photo    사진 바이트
-               PATCH /parts/items/:id          { buy_price?(원 | null), active? }
+               PATCH /parts/items/:id          { buy_price?(원 | null), active?, rail_type?(under | ball | null — 레일 상품의 「레일 종류」) }
                GET   /parts/ledger-suppliers   회계장부 사진에서 읽힌 파는 곳들 { suppliers[{ key, name, biz_no, docs, items }] }
                POST  /parts/from-ledger        { supplier_key } → { vendor, added, updated, same, left } (left 가 남으면 다시 부른다)
    화면      공급 회사 고르기 → 분류 · 찾기 → 상품 줄(사진 · 이름 · 브랜드 · 분류 · 참고가 · 매입가) → 펼치면 옵션 · 추가상품 · 사양.
@@ -60,6 +60,10 @@
     addons: '추가상품',
     specs: '사양',
     size: '크기',
+    railType: '레일 종류',
+    railNone: '고르기 전',
+    railUnder: '언더레일',
+    railBall: '볼레일',
     source: '원래 상품 쪽',
     soldout: '품절',
     saved: '저장했습니다.',
@@ -401,6 +405,14 @@
     if (J.canManage) {
       h += '<label class="pc-buy"><span class="pc-k">' + esc(TEXT.buy) + '</span> <input type="text" inputmode="numeric" data-pc-buy="' + esc(it.id) + '" value="' + (it.buy_price === null ? '' : esc(it.buy_price.toLocaleString('ko-KR'))) + '" aria-label="' + esc(it.name + ' ' + TEXT.buy) + '"' + (J.busy ? ' disabled' : '') + '></label>';
       h += '<button type="button" class="pc-btn" data-pc-toggle="' + esc(it.id) + '"' + (J.busy ? ' disabled' : '') + '>' + esc(it.active ? TEXT.hide : TEXT.unhide) + '</button>';
+      // 2026-11-21 레일 상품 — 언더 · 볼 (플래너 서랍장에서 고를 수 있게 · 박스 여유가 종류로 정해진다)
+      if (/레일/.test(it.category)) {
+        var rt = railTypeOf(it);
+        h += '<label class="pc-buy"><span class="pc-k">' + esc(TEXT.railType) + '</span> <select data-pc-rail="' + esc(it.id) + '" aria-label="' + esc(it.name + ' ' + TEXT.railType) + '"' + (J.busy ? ' disabled' : '') + '>'
+          + [['', TEXT.railNone], ['under', TEXT.railUnder], ['ball', TEXT.railBall]].map(function (o) {
+            return '<option value="' + o[0] + '"' + (rt === (o[0] || null) ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+          }).join('') + '</select></label>';
+      }
     }
     return h + '</div></li>';
   }
@@ -572,6 +584,12 @@
     }
     J.busy = false;
     render();
+  }
+
+  /** 상품 사양 「레일 종류」 → 'under' | 'ball' | null (서버 part-catalog.js railTypeOf 와 같은 값) */
+  function railTypeOf(it) {
+    var v = str(it && it.specs ? it.specs[TEXT.railType] : '').trim();
+    return v === TEXT.railUnder ? 'under' : v === TEXT.railBall ? 'ball' : null;
   }
 
   function itemById(id) {
@@ -750,6 +768,10 @@
           J.msg = '';
           render();
         } else if (n !== it.buy_price) patch(it.id, { buy_price: n });
+      } else if (t.getAttribute && t.getAttribute('data-pc-rail')) {
+        var ri = itemById(t.getAttribute('data-pc-rail'));
+        var next = t.value === 'under' || t.value === 'ball' ? t.value : null;
+        if (ri && next !== railTypeOf(ri)) patch(ri.id, { rail_type: next });
       }
     });
   }

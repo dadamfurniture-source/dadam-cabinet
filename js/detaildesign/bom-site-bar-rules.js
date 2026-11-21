@@ -15,7 +15,9 @@
  *   좌대 걸레받이        좌대 걸레받이 (좌대 H × 폭)           행 w                  h
  *   상몰딩               상몰딩 (몰딩 H × 조각 길이)           행 w                  h
  *
- *   막대 = MDF 18T × 막대 폭 × 2440, 엣지 2면(장) (긴 두 변 — 양끝은 현장에서 자른다).
+ *   막대 = MDF 18T × 막대 폭 × 막대 길이, 엣지 2면(장) (긴 두 변 — 양끝은 현장에서 자른다).
+ *   막대 길이 = 원장 긴 변 2440 − 가장자리 여백 × 2 (opts.barLen — 재단 배치와 같은 원장 · 여백으로 부르는 쪽이 준다.
+ *     여백을 모르면 2440 이지만 그 막대는 원장 쓸 자리에 들지 않는다 — 재단 엔진 기본 여백 10 이면 2420).
  *   목찬넬 막대는 엣지를 바른 뒤 공장에서 전면 · 지면으로 켠다 — 전면 · 지면 행은 한 쌍이라 전면 조각만 센다 (지면 행은 같이 사라진다).
  *   막대 수 = 조각 길이를 2440 에 큰 것부터 채워 넣은 수 (조각 사이 톱날 KERF — 재단 엔진 nesting-engine.js DEFAULT_KERF 와 같은 값).
  *   조각 길이 = 행 길이(발주 길이) × 수량 — 800 보다 짧은 조각은 800 (assembly-rules LINE_PIECE_MIN, 2026-10-26 사장님 "최소 800").
@@ -96,7 +98,7 @@
   /**
    * 조각 행을 막대 행으로 — 설계 한 벌의 BOM 행 전부를 받는다.
    * @param {object[]} rows  BOM 행 (part · material · thickness(또는 t) · w · h · qty · finishCode · color · partId · edgeT · slot …)
-   * @param {{kerf?:number, colorOf?:(r:object)=>string}} [opts]
+   * @param {{kerf?:number, barLen?:number, colorOf?:(r:object)=>string}} [opts]
    * @returns {{rows:object[], pieces:object[], bars:object[]}}
    *   rows = 막대로 바꾼 BOM (막대 행은 그 종류의 첫 조각 행 자리에), pieces = 막대로 들어간 원래 조각 행, bars = 막대 행
    *   막대 행: part · material 'MDF' · thickness 18 · w 막대 폭 · h 2440 · qty 막대 수 · edge 2면(장) · note ·
@@ -105,6 +107,7 @@
   function siteBarsOf(rows, opts) {
     const o = opts || {};
     const kerf = o.kerf != null ? Number(o.kerf) : SITE_BAR_RULES.KERF;
+    const barLen = Number(o.barLen) > 0 ? Math.round(Number(o.barLen)) : SITE_BAR_RULES.LEN;
     const colorOf = typeof o.colorOf === 'function' ? o.colorOf : (r) => String(r.color || '');
     const groups = new Map();
     const pieces = [];
@@ -130,25 +133,25 @@
     const result = out.map((x) => {
       if (!x || !x.kind || !x.list) return x;
       const k = x.kind;
-      const pk = packBars(x.list.map((p) => p.len), SITE_BAR_RULES.LEN, kerf);
+      const pk = packBars(x.list.map((p) => p.len), barLen, kerf);
       const qty = pk.bars.length + pk.over.length;
       const total = x.list.reduce((s, p) => s + p.len, 0);
       const note = [k.note, `조각 ${x.list.length}개 · 길이 합 ${Math.round(total)}`,
-        pk.over.length ? `[확인 필요] ${SITE_BAR_RULES.LEN} 보다 긴 조각 ${pk.over.join(' · ')}` : ''].filter(Boolean).join(' · ');
+        pk.over.length ? `[확인 필요] ${barLen} 보다 긴 조각 ${pk.over.join(' · ')}` : ''].filter(Boolean).join(' · ');
       const f = x.first;
       const row = Object.assign({}, f, {
         module: SITE_BAR_RULES.MODULE,
         part: k.part,
         material: 'MDF',
         w: x.barW,
-        h: SITE_BAR_RULES.LEN,
+        h: barLen,
         qty,
         edge: SITE_BAR_RULES.EDGE,
         edges: { L: true, R: true, T: false, B: false },
-        edgeLen: 2 * SITE_BAR_RULES.LEN,
+        edgeLen: 2 * barLen,
         note,
         partId: `bar-${k.key}-${seq++}`,
-        siteBar: { kind: k.key, barLen: SITE_BAR_RULES.LEN, kerf, pieces: x.list, layout: pk.bars, over: pk.over },
+        siteBar: { kind: k.key, barLen, kerf, pieces: x.list, layout: pk.bars, over: pk.over },
       });
       if ('thickness' in f) row.thickness = 18;
       if ('t' in f) row.t = 18;
