@@ -1306,8 +1306,10 @@
     //   뒤끝은 몸통 뒤끝 그대로(뒤는 띄운다), 앞으로 20 나온다 — 측판 길이가 몸통 깊이(mod.d) + 20 일 때만. 홈카페장 · 빌트인 오븐장 · 옛 행은 예전처럼 가운데
     const bodyD = parseFloat(mod.d);
     const FP = OpenRules && OpenRules.RULES && OpenRules.RULES.FRONT_PLUS;
-    const plus = !homecafe && !bi && FP && bodyD > 0 && Math.abs(D - bodyD - FP) < 0.5 ? FP : 0;
-    const zBack = -(D - plus) / 2, zFront = zBack + D;
+    //   빌트인 오븐장 (2026-11-21 사장님 「측판 깊이 570」 · 「오븐 칸만 뒤로」): 앞으로 20 은 같고, 니치가 깊으면 측판이 몸통 뒤끝보다 뒤로 더 나간다 (ext)
+    const plus = !homecafe && FP && bodyD > 0 && (bi ? D >= bodyD + FP - 0.5 : Math.abs(D - bodyD - FP) < 0.5) ? FP : 0;
+    const ext = bi && plus ? Math.max(0, D - bodyD - plus) : 0;
+    const zBack = plus ? -bodyD / 2 - ext : -(D - plus) / 2, zFront = zBack + D;
     const zBodyFront = zFront - plus;   // 몸통 앞선 — 상몰딩 · 밥솥장 위 목대 · 좌대가 이웃 장과 같은 자리
     const parts = [], unplaced = [];
     const hcShelves = [];   // 홈카페장 선반 — 아래에서 구조 자리(opts.shelfY) 순으로
@@ -1386,6 +1388,8 @@
         box: { W, H, D, T },
         // 상자가 몸통 앞으로 나온 길이 (2026-11-20 — 오픈 상자 + 20). 다리발 · 좌대는 몸통 깊이(D − frontPlus) 자리
         ...(plus ? { frontPlus: plus } : {}),
+        // 몸통 뒤끝보다 뒤로 나간 길이 — 빌트인 오븐장 니치가 깊을 때 (2026-11-21)
+        ...(ext ? { backPlus: ext } : {}),
         sakuri: false,
         place: (opts.place && opts.place[mk]) || null,
         parts,
@@ -1745,7 +1749,7 @@
           const b = m.box, half = C.LEG_SIZE / 2;
           const xs = [-b.W / 2 + C.LEG_INSET + half, b.W / 2 - C.LEG_INSET - half];
           // 오픈 상자는 몸통 앞으로 frontPlus 나와 있다 — 다리발은 몸통 깊이 자리 (이웃 하부장과 같은 줄, 2026-11-20)
-          const bodyD = b.D - (Number(m.frontPlus) || 0);
+          const bodyD = b.D - (Number(m.frontPlus) || 0) - (Number(m.backPlus) || 0);
           const zFront = bodyD / 2 - C.KICK_SETBACK - C.KICK_T - half, zBack = -bodyD / 2 + C.LEG_INSET + half;
           const leg = (x, z, tags) => push(m, { kind: 'leg', at: [x, -legH, z], size: [C.LEG_SIZE, legH, C.LEG_SIZE], tags });
           [[xs[0], zFront, 'leftFront'], [xs[0], zBack, 'leftBack'], [xs[1], zFront, 'rightFront'], [xs[1], zBack, 'rightBack']]

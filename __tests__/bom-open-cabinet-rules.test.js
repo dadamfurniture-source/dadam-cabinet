@@ -71,9 +71,10 @@ describe('오픈장 — 규칙 자체', () => {
     expect(R.warningsOf({ W: 30, H: 450, D: 570 }).join()).toMatch(/좁아/);
   });
 
-  test('깊이가 뒷판 자리보다 얕으면 경고한다 (18T 상자는 + 20 이라 몸통 깊이가 있으면 늘 남는다 — 빌트인 오븐장으로)', () => {
-    expect(R.warningsOf({ W: 500, H: 450, D: 15, builtinOven: true }).join()).toMatch(/얕아/);
+  test('상자는 몸통 깊이 + 20 이라 몸통 깊이가 있으면 천지판이 늘 남는다 — 빌트인 오븐장도 (2026-11-21 측판 570)', () => {
+    expect(R.warningsOf({ W: 500, H: 450, D: 15, builtinOven: true }).join()).not.toMatch(/얕아/);
     expect(R.warningsOf({ W: 500, H: 450, D: 15 }).join()).not.toMatch(/얕아/);
+    expect(R.warningsOf({ W: 500, H: 450, D: 0 }).join()).toMatch(/아직 정해지지 않았습니다/);
   });
 });
 
