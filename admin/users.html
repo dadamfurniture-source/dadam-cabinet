@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026112101"></script>
+    <script src="../js/admin-access.js?v=2026112103"></script>
     <style>
       * {
         margin: 0;
@@ -594,7 +594,7 @@
       </div>
 
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026112101"></script>
+      <script src="../js/admin-shell.js?v=2026112103"></script>
 
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
@@ -1190,6 +1190,12 @@
           if (factoryOf.plan !== tier)
             t += ` — 플래너 · 프로젝트는 팩토리 등급(${plan})을 따릅니다. 팩토리 등급은 결제 · 「팩토리 신청」에서 바뀝니다.`;
           info.textContent = t;
+          return;
+        }
+        // Manager = 가구설계 영업 사원 — 팩토리 없이 저장하면 그 회원이 앱을 열 때 「내 영업 공간」이 생긴다 (account-api ensureSalesSpace)
+        if (tier === 'manager') {
+          info.textContent =
+            '팩토리가 없습니다. 이 회원이 앱을 열면 「내 영업 공간」(Manager)이 자동으로 생겨 플래너 · 고객 · 견적을 씁니다.';
           return;
         }
         info.textContent = '';

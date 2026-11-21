@@ -10,10 +10,10 @@
     <title>매거진 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112101" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112101" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112101" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112101" />
+    <link rel="icon" href="icons/icon.svg?v=2026112103" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112103" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112103" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112103" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -23,21 +23,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112101" />
-    <link rel="stylesheet" href="info.css?v=2026112101" />
+    <link rel="stylesheet" href="shell.css?v=2026112103" />
+    <link rel="stylesheet" href="info.css?v=2026112103" />
     <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112101" />
+    <link rel="stylesheet" href="magazine.css?v=2026112103" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112101"></script>
+    <script src="../js/config.js?v=2026112103"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112101"></script>
-    <script src="shell.js?v=2026112101" defer blocking="render"></script>
+    <script src="motion.js?v=2026112103"></script>
+    <script src="shell.js?v=2026112103" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112101" defer></script>
+    <script src="guide.js?v=2026112103" defer></script>
     <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112101" defer blocking="render"></script>
+    <script src="blog.js?v=2026112103" defer blocking="render"></script>
   </head>
   <body class="sg-app" data-tab="blog">
     <div data-segan-shell="header"></div>

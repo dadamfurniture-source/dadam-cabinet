@@ -716,11 +716,16 @@
     // 기준정보 — 참고 이미지 (segan/theme-images-view.js — 보기 · 찾기)
     'ref-images': { title: '참고 이미지', section: 'themeImages' },
     // 내 계정
+    // Manager 업체 = 가구설계 영업 사원의 「내 영업 공간」 (2026-11-21 대표님), 그 밖은 「내 팩토리」
     partner: {
-      title: '내 팩토리',
-      section: 'partner',
-      parts: ['mePartnerTitle', 'mePartner', 'meBooks'],
-      filled: 'mePartner',
+      pick: function () {
+        return {
+          title: salesSpace() ? TEXT.salesSpace : TEXT.factory,
+          section: 'partner',
+          parts: ['mePartnerTitle', 'mePartner', 'meBooks'],
+          filled: 'mePartner',
+        };
+      },
     },
     likes: { title: '좋아요', section: 'meLikeSection' },
     notify: { title: '알림', section: 'mePush' },
@@ -850,6 +855,7 @@
     wait: '확인하는 중…',
     none: '볼 수 있는 내용이 없습니다.',
     factory: '내 팩토리',
+    salesSpace: '내 영업 공간', // Manager 업체 — segan/partner.js 와 같은 글
     start: '팩토리로 시작하기',
     applying: '팩토리 신청',
     noAsMine: '접수한 A/S가 없습니다. 설치가 끝난 프로젝트의 「설치」 화면에서 A/S를 신청합니다.',
@@ -938,6 +944,11 @@
       factory: hq || FACTORY_PLANS.indexOf(plan) >= 0,
       people: hq || (PEOPLE_PLANS.indexOf(plan) >= 0 && MONEY_ROLES.indexOf(c.role) >= 0),
     };
+  }
+
+  /** 내 업체가 Manager 등급 — 「내 영업 공간」으로 부른다 */
+  function salesSpace() {
+    return viewer().plan === 'manager';
   }
 
   /**
@@ -1696,8 +1707,12 @@
         p.view === 'start'
           ? TEXT.start
           : p.view === 'company' || p.view === 'hidden'
-            ? TEXT.factory
+            ? salesSpace()
+              ? TEXT.salesSpace
+              : TEXT.factory
             : TEXT.applying;
+    var head = $('mePartnerTitle');
+    if (head) head.textContent = salesSpace() ? TEXT.salesSpace : TEXT.factory;
     var val = $('mePartnerVal');
     if (val)
       val.textContent =

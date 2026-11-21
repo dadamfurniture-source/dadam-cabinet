@@ -858,7 +858,9 @@
     var c = d.company;
     var owner = c.role === 'owner';
     var active = c.status === 'active';
-    var facts = [fact('팩토리 이름', c.name)];
+    // Manager 업체 = 가구설계 영업 사원의 「내 영업 공간」 (2026-11-21 대표님)
+    var sales = c.plan === 'manager';
+    var facts = [fact(sales ? '영업 공간 이름' : '팩토리 이름', c.name)];
     if (owner) {
       facts.push(
         fact(
