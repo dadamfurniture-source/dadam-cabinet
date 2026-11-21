@@ -195,6 +195,15 @@ test('한도: /api/chat 은 CHAT_LIMIT 이 막으면 429 — 사용자 id 로 �
   assert.equal(calls.gemini, 0);
 });
 
+test('한도: /api/chat/brief(상담 정리)도 같은 CHAT_LIMIT 로 429', async () => {
+  install();
+  const CHAT_LIMIT = limiter({ ok: false });
+  const res = await post('/api/chat/brief', { category: 'sink', messages: [{ role: 'me', text: '무광 화이트' }] }, { CHAT_LIMIT });
+  assert.equal(res.status, 429);
+  assert.deepEqual(CHAT_LIMIT.keys, [USER_ID]);
+  assert.equal(calls.gemini, 0);
+});
+
 test('한도: 한도기가 실패하면 요청은 그대로 간다 (고객 요청을 한도기 고장으로 막지 않는다)', async () => {
   install();
   const CHAT_LIMIT = limiter({ throws: true });
