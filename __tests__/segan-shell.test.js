@@ -63,6 +63,7 @@ const CURRENT = {
   'blog-edge-finish.html': ['blog', 'blog'],
   'blog-hardware.html': ['blog', 'blog'],
   'blog-kitchen-appliances.html': ['blog', 'blog'],
+  'blog-drawer-rails.html': ['blog', 'blog'],
   'about.html': ['about', 'home'], // 폰은 홈 안의 줄로 들어온다
   'plans.html': ['plans', 'home'],
   'me.html': ['me', 'me'],

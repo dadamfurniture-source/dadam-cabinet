@@ -547,6 +547,150 @@
   font-weight: 500;
 }
 
+/* 시리즈 글 (철물 시리즈 — blog-drawer-rails.html 부터) — 차례 · 번호 붙은 중제목 · 소제목 · 사진 · 낱말 풀이 · 로고 */
+.ma-series {
+  margin: -4px 0 10px;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: var(--v5-ink-55);
+}
+
+.ma-toc {
+  margin: 0 0 8px;
+  padding: 16px 18px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.ma-toc-h {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--v5-ink-55);
+}
+
+.ma-article .ma-toc ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ma-article .ma-toc a {
+  display: flex;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 14.5px;
+  text-decoration: none;
+}
+
+.ma-toc a span,
+.ma-n {
+  flex: none;
+  color: var(--v5-tan);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.ma-article section[id] {
+  scroll-margin-top: 80px;
+}
+
+/* 번호가 붙은 중제목은 굵은 선 위에 (시리즈 글) */
+.ma-article h2:has(> .ma-n) {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-top: 2px solid var(--v5-ink);
+  font-size: 20px;
+}
+
+.ma-article h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 32px 0 12px;
+  font-size: 16.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+.ma-article b {
+  font-weight: 500;
+}
+
+.ma-fig {
+  max-width: 100%;
+  margin: 16px 0 18px;
+}
+
+.ma-fig picture,
+.ma-fig img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ma-fig img {
+  background: var(--v5-photo);
+}
+
+.ma-fig figcaption {
+  margin-top: 9px;
+  padding-left: 12px;
+  border-left: 2px solid var(--v5-line-25);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--v5-ink-62);
+}
+
+.ma-defs {
+  margin: 0 0 14px;
+  border-top: 1px solid var(--v5-line-18);
+}
+
+.ma-defs dt {
+  padding-top: 13px;
+  font-weight: 500;
+}
+
+.ma-defs dd {
+  margin: 4px 0 0;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--v5-line-18);
+  color: var(--v5-ink-62);
+}
+
+/* 브랜드 표의 로고 — 공식 누리집 로고를 그대로, 흰 글자 로고만 어두운 바탕 */
+.ma-logo {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  margin-bottom: 6px;
+}
+
+.ma-logo img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 120px;
+  max-height: 24px;
+}
+
+.ma-logo--dark {
+  width: fit-content;
+  padding: 4px 8px;
+  background: var(--v5-dark);
+}
+
+.ma-brand {
+  display: block;
+}
+
 /* 끝 — 고객이 확인할 것 (네모는 꾸밈, 누르는 칸이 아니다) */
 .ma-final {
   margin: 48px 0 0;

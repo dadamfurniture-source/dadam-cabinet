@@ -353,6 +353,7 @@ const ARTICLES = [
     5,
     'KITCHEN',
   ],
+  ['drawer-rails', '하드웨어', '서랍레일, 볼레일 · 언더레일 · 박스 시스템 읽기', 6, 'RAIL'],
 ];
 /** 표지 하나 — [글 이름(클래스), 제호, 호수, 아래 글] */
 const coverOf = (el) => [
@@ -533,8 +534,9 @@ describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min, 
     const article = $('article.ma-article');
     expect(article.getAttribute('data-slug')).toBe(slug);
     expect(text(article)).not.toMatch(/다담|SEGAN|저희|상담 신청|연출컷/);
+    // 같은 글 안의 차례(#절)도 된다 — 시리즈 글
     for (const a of article.querySelectorAll('a'))
-      expect(a.getAttribute('href')).toMatch(/^blog-[a-z-]+\.html$/);
+      expect(a.getAttribute('href')).toMatch(/^(?:blog-[a-z-]+\.html|#[a-z0-9-]+)$/);
   });
 
   test('표는 칸마다 옆으로 넘기는 상자 안 · 끝에 「고객이 확인할 것」 · 아래에 다른 글 셋', async () => {

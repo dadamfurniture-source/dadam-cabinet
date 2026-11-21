@@ -10,10 +10,10 @@
     <title>매거진 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112106" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112106" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112106" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112106" />
+    <link rel="icon" href="icons/icon.svg?v=2026112107" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112107" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112107" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112107" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -23,21 +23,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112106" />
-    <link rel="stylesheet" href="info.css?v=2026112106" />
+    <link rel="stylesheet" href="shell.css?v=2026112107" />
+    <link rel="stylesheet" href="info.css?v=2026112107" />
     <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112106" />
+    <link rel="stylesheet" href="magazine.css?v=2026112107" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112106"></script>
+    <script src="../js/config.js?v=2026112107"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112106"></script>
-    <script src="shell.js?v=2026112106" defer blocking="render"></script>
+    <script src="motion.js?v=2026112107"></script>
+    <script src="shell.js?v=2026112107" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112106" defer></script>
+    <script src="guide.js?v=2026112107" defer></script>
     <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112106" defer blocking="render"></script>
+    <script src="blog.js?v=2026112107" defer blocking="render"></script>
   </head>
   <body class="sg-app" data-tab="blog">
     <div data-segan-shell="header"></div>
@@ -177,6 +177,38 @@
                 <small class="bk-cat">주방기기</small>
                 <b class="bk-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
                 <small class="bk-time">읽는 시간 약 5분</small>
+              </span>
+            </a>
+          </li>
+          <li class="bk-cell">
+            <a class="bk-book" href="blog-drawer-rails.html" draggable="false">
+              <span class="bk-niche">
+                <span class="bk-glow"></span>
+                <span class="bk-stand">
+                  <span class="bk-cover bk-cover--drawer-rails" aria-hidden="true">
+                    <picture class="bk-art">
+                      <source srcset="magazine/cover-drawer-rails.webp" type="image/webp" />
+                      <img
+                        src="magazine/cover-drawer-rails.jpg"
+                        alt=""
+                        width="480"
+                        height="640"
+                        decoding="async"
+                        draggable="false"
+                      />
+                    </picture>
+                    <span class="bk-head">
+                      <span class="bk-no">05</span>
+                      <span class="bk-tag">MAGAZINE · 하드웨어</span>
+                    </span>
+                    <span class="bk-mast">RAIL</span>
+                  </span>
+                </span>
+              </span>
+              <span class="bk-info">
+                <small class="bk-cat">하드웨어</small>
+                <b class="bk-title">서랍레일, 볼레일 · 언더레일 · 박스 시스템 읽기</b>
+                <small class="bk-time">읽는 시간 약 6분</small>
               </span>
             </a>
           </li>
