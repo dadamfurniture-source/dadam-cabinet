@@ -52,6 +52,13 @@ describe('현장 재단 막대 (bom-site-bar-rules siteBarsOf)', () => {
     ]);
   });
 
+  test('막대 길이 = 원장 2440 − 여백 × 2 (opts.barLen) — 재단 배치의 원장 쓸 자리에 든다, 넘는 조각은 [확인 필요]', () => {
+    const rows = [{ part: '상몰딩', material: 'MDF', thickness: 18, w: 60, h: 2400, qty: 1 }, { part: '상몰딩', material: 'MDF', thickness: 18, w: 60, h: 2430, qty: 1 }];
+    const r = B.siteBarsOf(rows, { barLen: 2420, kerf: 3.6 });
+    expect([r.bars[0].h, r.bars[0].qty, r.bars[0].edgeLen, r.bars[0].siteBar.barLen, r.bars[0].siteBar.kerf]).toEqual([2420, 2, 4840, 2420, 3.6]);
+    expect(r.bars[0].note).toMatch(/\[확인 필요\] 2420 보다 긴 조각 2430/);
+  });
+
   test('색이 다르면 다른 막대', () => {
     const row = (color) => ({ part: '상몰딩', material: 'MDF', thickness: 18, w: 60, h: 1000, qty: 1, color });
     expect(B.siteBarsOf([row('A'), row('A'), row('B')]).bars.map((b) => [b.color, b.qty, b.siteBar.layout])).toEqual([
