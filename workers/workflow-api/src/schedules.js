@@ -15,6 +15,7 @@
  */
 
 import {
+  ConflictError,
   ForbiddenError,
   ValidationError,
   NotFoundError,
@@ -29,6 +30,7 @@ import {
 } from './supabase.js';
 import { buildScheduleBlocks, postToWebhook, SCHEDULE_LABELS } from './slack.js';
 import { logAt } from './project-log.js';
+import { isMissingRelation } from './work-order-data.js';
 
 export const SCHEDULE_TYPES = Object.keys(SCHEDULE_LABELS);
 const SCHEDULE_STATUSES = ['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled'];
@@ -289,13 +291,57 @@ export async function updateSchedule(env, { scheduleId, user, patch, ctx }) {
     throw new ValidationError('완료 시각이 착수 시각보다 빠를 수 없습니다');
   }
 
+  // 설치 날 고객 확인 (DB 0079, 2026-11-21 뒤 공정 2차) — 전화로 확인한 것을 업체가 표시한다. 설치 일정에만.
+  //   날짜를 바꾸면 표시를 지운다 (고객이 확인한 날짜가 아니게 되므로) — 같은 요청에서 다시 표시하면 새 날짜의 확인이다
+  let confirmed = null;
+  if (patch.customer_confirmed !== undefined) {
+    if (typeof patch.customer_confirmed !== 'boolean')
+      throw new ValidationError('customer_confirmed 는 true · false 입니다');
+    if (row.type !== 'installation') throw new ValidationError('고객 확인은 설치 일정에만 표시합니다');
+    confirmed = patch.customer_confirmed;
+    allowed.customer_confirmed_at = confirmed ? new Date().toISOString() : null;
+    allowed.customer_confirmed_by = confirmed ? user.id : null;
+  } else if (
+    row.customer_confirmed_at &&
+    allowed.scheduled_at !== undefined &&
+    Date.parse(allowed.scheduled_at) !== Date.parse(row.scheduled_at)
+  ) {
+    allowed.customer_confirmed_at = null;
+    allowed.customer_confirmed_by = null;
+  }
+
   if (Object.keys(allowed).length === 0) {
     throw new ValidationError('변경할 필드가 없습니다');
   }
 
   // 일정 변경은 Slack 을 자동으로 다시 보내지 않는다 (스팸 방지).
   // 필요하면 재전송 엔드포인트를 명시적으로 호출한다.
-  const next = await updateById(env, 'design_schedules', scheduleId, allowed);
+  let next;
+  try {
+    next = await updateById(env, 'design_schedules', scheduleId, allowed);
+  } catch (e) {
+    // 고객 확인 칸이 아직 없다 (DB 0079 전)
+    if (confirmed !== null && isMissingRelation(e)) {
+      const err = new ConflictError('DB 0079 적용 전입니다 — 고객 확인 표시는 적용 뒤에 쓸 수 있습니다');
+      err.code = 'db_pending';
+      throw err;
+    }
+    throw e;
+  }
+  // 프로젝트 일지 — 고객 확인을 표시했다 (지운 것은 적지 않는다)
+  if (confirmed === true) {
+    await logAt(
+      env,
+      ctx,
+      { design: row.design_id },
+      {
+        actor: { id: user.id },
+        type: 'schedule_confirmed',
+        subject: { type: 'schedule', id: scheduleId },
+        payload: { type: row.type },
+      }
+    );
+  }
   // 프로젝트 일지 — 취소와 날짜 바꿈만 (메모 · 담당 · 착수 · 완료 시각은 적지 않는다)
   const cancelled = allowed.status === 'cancelled' && row.status !== 'cancelled';
   const moved =

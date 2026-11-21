@@ -24,6 +24,7 @@
  *   request_accepted · request_declined · request_expired · request_received · schedule_added · schedule_changed ·
  *   as_requested · as_cancelled · as_received · as_done · report_added
  *   실측(2026-11-21 뒤 공정 2차): schedule_added · schedule_changed (payload.type measurement, 대상 visit) · measure_done
+ *   설치 날 고객 확인: schedule_confirmed (payload.type installation)
  */
 
 import { insertOne, selectOne } from './supabase.js';
