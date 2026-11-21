@@ -12,8 +12,11 @@
         단추는 프로젝트 줄과 같은 것이다 (SeganPartnerProjects.nextOf · runNext) — 줄과 표가 어긋나지 않는다.
         프로젝트 이름을 누르면 그 프로젝트의 창이 열린다 (segan/project-sheet.js).
         묶음이 이미 세는 일(팩토리 고르기 · 수주 요청 승인)은 줄마다 다시 적지 않는다.
-   소식 — 서버 news: 지난 14일 동안 일어난 일, 새 것부터. 지난번에 본 뒤 생긴 것은 「새」
-     (이 기기가 기억한다 — localStorage. 할 일은 상태라 어느 기기에서나 같다).
+   소식 — 서버 news: 지난 14일 동안 일어난 일, 새 것부터. 줄 끝에 「누가」(구성원 이름 · 고객 — 일지가 있는 일만).
+     지난번에 본 뒤 생긴 것은 「새」 — **계정이 기억한다** (2026-11-21 뒤 공정 1차: 서버 seen_at · POST /company/inbox/seen).
+     서버가 seen_at 을 주지 않으면(DB 0078 전 · 옛 서버) 지금처럼 이 기기가 기억한다 (localStorage — 사람마다 따로).
+     할 일은 상태라 어느 기기에서나 같다.
+   보류한 프로젝트는 할 일 표에 없다 — 다시 볼 날이 되면 「보류 — 다시 볼 날입니다」 한 줄로 나온다 (누르면 그 줄의 칸).
 
    누가: 프로젝트를 가지는 업체의 구성원 (SeganPartnerProjects.canSee). 고객 · 본사 구성원에게는 없다.
    서버 길을 못 읽으면(옛 서버 · 오류) 프로젝트마다의 할 일만 그린다. 그릴 것이 하나도 없으면 칸을 감춘다.
@@ -25,7 +28,7 @@
   'use strict';
 
   var PROJECT_MAX = 20; // 프로젝트마다의 할 일 줄 수
-  var SEEN_KEY = 'segan.inbox.seen'; // + 업체 id — 지난번에 본 가장 새 소식의 때
+  var SEEN_KEY = 'segan.inbox.seen'; // + 업체 id + 사람 id — 지난번에 본 가장 새 소식의 때 (서버가 기억하지 못할 때만)
   // 서버 묶음이 이미 세는 일 — 프로젝트 줄의 next.key
   var COVERED = { choose: 'choose', approve: 'approval' };
   var TEXT = {
@@ -50,6 +53,10 @@
     days: '일째',
     lateDue: '지난 것 ',
     noTitle: '프로젝트',
+    whoCustomer: '고객',
+    whoAdmin: '본사',
+    whoWorker: '작업자',
+    whoMember: '구성원',
   };
 
   var I = {
@@ -60,6 +67,8 @@
     ready: false, // 볼 사람이다
     data: null, // GET /company/inbox data (못 읽었으면 null)
     seenAt: '', // 이 화면을 연 때의 「지난번에 본 때」 — 이 방문 동안 「새」 표시의 기준
+    server: false, // 서버가 본 때를 기억한다 (응답에 seen_at 칸이 있다)
+    sent: '', // 서버에 마지막으로 보낸 본 때 — 같은 값을 다시 보내지 않는다
     html: null,
   };
 
@@ -147,20 +156,33 @@
           label: r.label,
           go: typeof r.go === 'string' && /^p-[a-z]+$/.test(r.go) ? r.go : '',
           project: typeof obj(r.project).title === 'string' ? obj(r.project).title : '',
+          who: whoText(r.who),
         };
       })
       .filter(Boolean);
   }
 
+  /** 누가 — 구성원 이름 · 「고객」 · 「본사」 (모르면 빈 글자). 고객 이름은 오지 않는다 */
+  function whoText(who) {
+    var w = obj(who);
+    if (w.kind === 'member') return typeof w.name === 'string' && w.name ? w.name : TEXT.whoMember;
+    if (w.kind === 'customer') return TEXT.whoCustomer;
+    if (w.kind === 'admin') return TEXT.whoAdmin;
+    if (w.kind === 'worker') return TEXT.whoWorker;
+    return '';
+  }
+
   /**
    * 프로젝트마다의 할 일 — 진행 중 프로젝트의 next 가운데 남을 기다리지 않고 내가 할 수 있는 것.
+   * 보류한 프로젝트는 다시 볼 날이 됐을 때만 (next.key hold_due).
    * covered = 서버 묶음이 이미 센 종류(kind) — 그 일은 줄마다 다시 적지 않는다. 오래 머문 것부터.
    */
   function projectTodos(items, covered) {
     return (Array.isArray(items) ? items : [])
       .filter(function (p) {
         var n = p && obj(p.next);
-        if (!p || (p.status && p.status !== 'active') || typeof n.label !== 'string' || !n.label)
+        if (!p || typeof n.label !== 'string' || !n.label) return false;
+        if (p.status && p.status !== 'active' && !(p.status === 'on_hold' && n.key === 'hold_due'))
           return false;
         if (n.wait === true || n.allowed === false) return false;
         return !(COVERED[n.key] && covered[COVERED[n.key]]);
@@ -178,7 +200,15 @@
   // ── 그리기 ─────────────────────────────────────────────
   function seenKey() {
     var c = obj(obj(I.me).company);
-    return SEEN_KEY + '.' + (typeof c.id === 'string' ? c.id : 'hq');
+    var u = obj(obj(I.session).user);
+    // 사람마다 따로 — 한 기기를 두 계정이 써도 「새」 기준이 섞이지 않는다
+    return (
+      SEEN_KEY +
+      '.' +
+      (typeof c.id === 'string' ? c.id : 'hq') +
+      '.' +
+      (typeof u.id === 'string' ? u.id : 'me')
+    );
   }
   function readSeen() {
     try {
@@ -286,7 +316,8 @@
           var fresh = !!I.seenAt && n.at > I.seenAt;
           var body =
             esc(n.label) +
-            (n.project ? ' <span class="ib-where">· ' + esc(n.project) + '</span>' : '');
+            (n.project ? ' <span class="ib-where">· ' + esc(n.project) + '</span>' : '') +
+            (n.who ? ' <span class="ib-where">· ' + esc(n.who) + '</span>' : '');
           return (
             '<li' +
             (fresh ? ' class="is-new"' : '') +
@@ -354,7 +385,18 @@
     box.hidden = false;
     // 가장 새 소식의 때를 적어 둔다 — 다음에 열면 그 뒤에 생긴 것만 「새」
     var newest = newsOf(I.data)[0];
-    if (newest && !box.classList.contains('me-off')) writeSeen(newest.at);
+    if (newest && !box.classList.contains('me-off')) markSeen(newest.at);
+  }
+
+  /** 본 때를 적는다 — 서버가 기억하면 서버에(같은 값은 한 번만), 아니면 이 기기에 */
+  function markSeen(at) {
+    if (!I.server) {
+      writeSeen(at);
+      return;
+    }
+    if (!at || I.sent === at || (I.seenAt && at <= I.seenAt)) return;
+    I.sent = at;
+    postSeen(at);
   }
 
   function onClick(e) {
@@ -364,6 +406,9 @@
     var act = el.getAttribute('data-act');
     if (act === 'next-sheet' || act === 'next-order')
       PP.runNext(act, el.getAttribute('data-id') || '');
+    // 보류를 다시 볼 날 — 프로젝트 목록의 그 줄에서 「다시 진행 · 그만둠」 칸을 연다
+    if (act === 'status' && typeof PP.openStatus === 'function')
+      PP.openStatus(el.getAttribute('data-for') || '');
     var Sheet = window.SeganProjectSheet;
     if (act === 'project' && Sheet && typeof Sheet.open === 'function')
       Sheet.open(el.getAttribute('data-id') || '');
@@ -402,6 +447,20 @@
     return b.data;
   }
 
+  /** POST /company/inbox/seen — 실패해도 조용히 (다음에 다시 「새」로 보일 뿐이다) */
+  async function postSeen(at) {
+    try {
+      await fetch(I.base + '/company/inbox/seen', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + (await token()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ at: at }),
+        cache: 'no-store',
+      });
+    } catch {
+      /* 다음에 다시 보낸다 */
+    }
+  }
+
   /** 다시 읽고 그린다 — 할 일을 끝낸 뒤 (묶음의 수가 바뀐다) */
   async function refresh() {
     if (!I.ready || !I.base) return;
@@ -434,12 +493,16 @@
       box.innerHTML = '';
     }
     if (!I.ready) return;
-    I.seenAt = readSeen();
+    I.server = false;
+    I.sent = '';
     if (!box.getAttribute('data-bound')) {
       box.setAttribute('data-bound', '1');
       box.addEventListener('click', onClick);
     }
     I.data = await read();
+    // 「새」의 기준 — 서버가 계정마다 기억하면 그 값(없으면 처음 본 것), 아니면 이 기기의 값
+    I.server = !!I.data && Object.prototype.hasOwnProperty.call(I.data, 'seen_at');
+    I.seenAt = I.server ? (typeof I.data.seen_at === 'string' ? I.data.seen_at : '') : readSeen();
     render();
   }
 
@@ -450,6 +513,7 @@
     dueText: dueText,
     sinceText: sinceText,
     whenText: whenText,
+    whoText: whoText,
     todoOf: todoOf,
     newsOf: newsOf,
     projectTodos: projectTodos,

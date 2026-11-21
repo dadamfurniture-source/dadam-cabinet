@@ -5730,6 +5730,49 @@ button.sm-num[aria-pressed='true'] {
   text-underline-offset: 3px;
 }
 
+/* 프로젝트 줄 — 보류 · 그만둠 (segan/partner-projects.js, 2026-11-21 뒤 공정 1차).
+   줄의 단추로 펼치는 칸(.pj-status) · 보류한 줄의 다시 볼 날과 메모(.pj-hold) · 아래에 접어 둔 보류 묶음(.pj-held) */
+.pj-hold {
+  display: block;
+  color: var(--v5-tan);
+}
+
+.pj-status {
+  margin-top: 12px;
+  padding: 14px 0 2px;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pj-status > .rd-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pj-status > .mk-note,
+.pj-status > .mk-error {
+  margin: 10px 0 0;
+}
+
+.pj-held {
+  margin-top: 18px;
+}
+
+.pj-held > .me-pt-list {
+  margin-top: 10px;
+}
+
+/* 프로젝트 창 · 새로 생긴 일 — 누가 했나 (이름은 흐리게) · 보류 상태 한 줄 */
+.ps-by {
+  color: var(--v5-ink-60);
+}
+
+.ps-state {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--v5-tan);
+}
+
 /* 프로젝트 줄 — 단계 띠 · 다음 할 일 (segan/partner-projects.js flowOf, 2026-11-21 「프로젝트 한 길」).
    지난 단계는 채운 네모, 지금 단계는 진한 네모 + 굵은 글, 남은 단계는 빈 네모 — 색이 아니라 꼴로도 가른다 */
 .pj-strip {

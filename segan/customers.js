@@ -27,7 +27,7 @@
   var NAME_MAX = 50; // 서버 CUSTOMER_NAME_MAX
   var PHONE_MAX = 20;
   var PHONE_RE = /^[0-9][0-9-]{7,19}$/; // 서버 PHONE_RE — 숫자 · 하이픈 8~20자
-  var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
+  var PROJECT_STATUS = { on_hold: '보류', closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
   var PAGE = 50;
 
   var TEXT = {

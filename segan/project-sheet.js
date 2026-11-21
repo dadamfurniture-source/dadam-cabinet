@@ -7,7 +7,8 @@
    창에 있는 것 (위에서부터)
      고객 · 전화 · 담당 · 시작한 날
      단계 띠 · 다음 할 일 — 프로젝트 줄과 같은 것 (SeganPartnerProjects.nextOf · runNext)
-     일어난 일 — 오래된 것부터 (프로젝트 생김 → 설계 → 견적 → 계약 → 배송 · 완료 → A/S)
+     일어난 일 — 오래된 것부터 (프로젝트 생김 → 설계 → 견적 → 계약 → 배송 · 완료 → A/S).
+       줄 끝에 「누가」 — 구성원 이름 · 고객 · 본사 (일지가 있는 일만 — 2026-11-21 뒤 공정 1차)
      설계 · 견적 · 계약 · 제작 의뢰 · A/S — 있는 것만, 저마다 그 화면으로 가는 링크 (계약은 수주 창을 연다)
 
    읽기: workflow-api GET /company/projects/:id (src/company-project.js) — SeganPartnerProjects.readProject 가 읽는다
@@ -49,6 +50,15 @@
     depositPaid: '계약금 받음',
     depositUnpaid: '계약금 전',
     noOrderNo: '번호 없음',
+    balancePaid: '잔금 받음',
+    balanceUnpaid: '잔금 전',
+    whoCustomer: '고객',
+    whoAdmin: '본사',
+    whoWorker: '작업자',
+    whoMember: '구성원',
+    held: '보류 중',
+    cancelled: '그만둔 프로젝트',
+    holdUntil: '다시 볼 날 ',
   };
   // 수주 상태 — segan/orders.js STATUS 와 같은 이름 (그 파일이 있으면 그것을 쓴다)
   var ORDER_STATUS = {
@@ -134,6 +144,32 @@
     return [state, views].filter(Boolean).join(' · ');
   }
 
+  /** 누가 — 구성원 이름 · 「고객」 · 「본사」 (모르면 빈 글자). 고객 이름은 오지 않는다 */
+  function byText(who) {
+    var w = obj(who);
+    if (w.kind === 'member') return typeof w.name === 'string' && w.name ? w.name : TEXT.whoMember;
+    if (w.kind === 'customer') return TEXT.whoCustomer;
+    if (w.kind === 'admin') return TEXT.whoAdmin;
+    if (w.kind === 'worker') return TEXT.whoWorker;
+    return '';
+  }
+
+  /** 보류 · 그만둠 한 줄 — 「보류 중 · 다시 볼 날 2026.12.05 · 「메모」」 (진행 중이면 빈 글자) */
+  function stateText(p) {
+    var r = obj(p);
+    var state = r.status === 'on_hold' ? TEXT.held : r.status === 'cancelled' ? TEXT.cancelled : '';
+    if (!state) return '';
+    return [
+      state,
+      r.status === 'on_hold' && typeof r.hold_until === 'string' && r.hold_until
+        ? TEXT.holdUntil + r.hold_until.replace(/-/g, '.')
+        : '',
+      typeof r.status_note === 'string' && r.status_note ? '「' + r.status_note + '」' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
   /** 맨 위 한 줄 — 고객 · 담당 · 시작한 날 (전화는 따로 링크로) */
   function whoText(p) {
     var r = obj(p);
@@ -197,6 +233,8 @@
             : '') +
           '</p>'
         : '';
+    // 보류 · 그만둠이면 그 사정을 한 줄로 (바꾸는 것은 프로젝트 줄의 「보류 · 그만둠」에서)
+    if (stateText(p)) html += '<p class="ps-state" data-ps="state">' + esc(stateText(p)) + '</p>';
     if (flow) {
       html +=
         (flow.strip || '') +
@@ -221,6 +259,7 @@
                 esc(whenText(h.at)) +
                 '</time><span>' +
                 esc(h.label) +
+                (byText(h.who) ? ' <span class="ps-by">· ' + esc(byText(h.who)) + '</span>' : '') +
                 '</span></li>'
               );
             })
@@ -280,11 +319,20 @@
                     : o.deposit === 'unpaid'
                       ? TEXT.depositUnpaid
                       : '';
+              // 잔금 — 끝난 수주에서만 (잔금 줄이 없으면 적지 않는다)
+              var balance =
+                o.status !== 'completed'
+                  ? ''
+                  : o.balance === 'paid'
+                    ? TEXT.balancePaid
+                    : o.balance === 'unpaid'
+                      ? TEXT.balanceUnpaid
+                      : '';
               return rowHtml(
                 (o.order_no || TEXT.noOrderNo) +
                   ' · ' +
                   (status[o.status] || ORDER_STATUS[o.status] || ''),
-                [dayText(o.ordered_at), deposit].filter(Boolean).join(' · '),
+                [dayText(o.ordered_at), deposit, balance].filter(Boolean).join(' · '),
                 '<button type="button" class="mk-btn" data-act="order" data-id="' +
                   esc(o.id) +
                   '">' +
@@ -457,6 +505,8 @@
     state: S,
     whenText: whenText,
     quoteText: quoteText,
+    byText: byText,
+    stateText: stateText,
     whoText: whoText,
     bodyHtml: bodyHtml,
     canOpen: canOpen,

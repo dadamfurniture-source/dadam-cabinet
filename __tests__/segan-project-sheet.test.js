@@ -321,6 +321,74 @@ describe('창', () => {
     expect(node().textContent).not.toMatch(/[0-9]원|₩/);
   });
 
+  test('누가 · 잔금 · 보류 상태 (2026-11-21 뒤 공정 1차) — 일어난 일 줄 끝에 이름 · 고객, 끝난 수주에 잔금, 보류면 맨 위 한 줄', async () => {
+    const data = DATA();
+    data.history[0].who = { kind: 'member', name: '박실장' };
+    data.history[1].who = { kind: 'customer', name: null };
+    data.history[2].who = { kind: 'member', name: null };
+    data.orders = [
+      {
+        id: O2,
+        order_no: 'A-002',
+        status: 'completed',
+        ordered_at: '2026-11-08T00:00:00Z',
+        delivered_at: null,
+        completed_at: '2026-11-16T00:00:00Z',
+        deposit: 'paid',
+        balance: 'unpaid',
+      },
+      {
+        id: O1,
+        order_no: 'A-001',
+        status: 'in_production',
+        ordered_at: '2026-11-07T05:00:00Z',
+        deposit: 'paid',
+        balance: 'unpaid',
+      },
+    ];
+    data.project = {
+      ...data.project,
+      status: 'on_hold',
+      hold_until: '2026-12-05',
+      status_note: '이사 <날짜> 미정',
+      next: null,
+    };
+    load({ project: () => ({ ok: true, status: 200, data }) });
+    window.SeganPartnerProjects.nextOf = () => ({
+      strip: '<ol class="pj-strip"></ol>',
+      note: '',
+      act: '',
+      tail: '',
+    });
+    await window.SeganProjectSheet.open(P1);
+    expect(rows('history')).toEqual([
+      '2026.11.01 09:30프로젝트가 생겼습니다 · 박실장',
+      '2026.11.05 12:00견적서를 <i>보냈습니다</i> · 고객',
+      '2026.11.08계약금이 들어왔습니다 · 구성원',
+    ]);
+    // 잔금은 끝난 수주에서만 적는다
+    expect(rows('orders')).toEqual([
+      'A-002 · 완료2026.11.08 · 계약금 받음 · 잔금 전열기',
+      'A-001 · 생산 중2026.11.07 · 계약금 받음열기',
+    ]);
+    expect(text(node().querySelector('[data-ps="state"]'))).toBe(
+      '보류 중 · 다시 볼 날 2026.12.05 · 「이사 <날짜> 미정」'
+    );
+    // 창에서는 상태를 바꾸지 않는다 — 프로젝트 줄의 「보류 · 그만둠」에서 한다
+    expect(node().querySelector('form')).toBeNull();
+    const S = window.SeganProjectSheet;
+    expect([
+      S.byText({ kind: 'admin' }),
+      S.byText({ kind: 'worker' }),
+      S.byText({ kind: 'system' }),
+      S.byText(null),
+    ]).toEqual(['본사', '작업자', '', '']);
+    expect([
+      S.stateText({ status: 'active' }),
+      S.stateText({ status: 'cancelled', status_note: '포기' }),
+    ]).toEqual(['', '그만둔 프로젝트 · 「포기」']);
+  });
+
   test('없는 것은 구역째 뺀다', async () => {
     load({
       project: () => ({

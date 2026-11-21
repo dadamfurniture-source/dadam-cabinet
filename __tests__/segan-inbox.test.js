@@ -8,7 +8,9 @@
  *      (남을 기다리는 일 · 내 직책으로 못 하는 일 · 묶음이 이미 센 일은 뺀다, 오래 머문 것부터, 20줄까지)
  *   3) 소식 — 새 것부터, 지난번에 본 뒤 생긴 것은 「새」(이 기기가 기억한다)
  *   4) 서버 길을 못 읽으면 프로젝트마다의 할 일만, 그릴 것이 없으면 칸을 감춘다. 볼 사람이 아니면 묻지 않는다
- *   5) 서버에 쓰지 않는다 — 단추는 프로젝트 칸의 것을 그대로 쓴다 (nextOf · runNext)
+ *   5) 서버에 쓰는 것은 「어디까지 봤나」 하나뿐 (POST /company/inbox/seen — 계정마다 읽음, 2026-11-21 뒤 공정 1차).
+ *      단추는 프로젝트 칸의 것을 그대로 쓴다 (nextOf · runNext · openStatus)
+ *   6) 「누가」 — 구성원 이름 · 고객. 보류한 프로젝트는 다시 볼 날이 됐을 때만 할 일 표에
  * 시험 데이터는 모두 가짜다.
  */
 const fs = require('fs');
@@ -148,6 +150,14 @@ async function load(options = {}) {
       auth: (init.headers || {}).Authorization,
       cache: init.cache,
     });
+    if ((init.method || 'GET') === 'POST') {
+      calls[calls.length - 1].body = JSON.parse(init.body);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { seen_at: calls[calls.length - 1].body.at } }),
+      };
+    }
     const r = await opts.inbox(url);
     if (r instanceof Error) throw r;
     return { ok: r.ok, status: r.status, json: async () => r.body };
@@ -209,12 +219,13 @@ describe('자리 · 이름', () => {
     expect(me).toMatch(/window\.SeganInbox\.render\(\);/);
   });
 
-  test('서버에 쓰지 않는다 — 읽기만, 확인 창도 띄우지 않는다', () => {
+  test('서버에 쓰는 것은 본 때 하나뿐(/company/inbox/seen) — 확인 창도 띄우지 않는다', () => {
     const code = read('segan/inbox.js')
       .split('\n')
       .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
       .join('\n');
-    expect(code).not.toMatch(/method:/);
+    expect(code.match(/method:/g)).toHaveLength(1);
+    expect(code).toMatch(/I\.base \+ '\/company\/inbox\/seen', \{\s*method: 'POST',/);
     expect(code).not.toMatch(/\b(confirm|alert|prompt)\(/);
     expect(code).not.toMatch(/sessionStorage|indexedDB/);
   });
@@ -278,7 +289,7 @@ describe('글 (순수)', () => {
       I.newsOf({
         news: [{ label: 'x', at: 't', go: '../x', project: { title: 7 } }, { label: '' }, 3],
       })
-    ).toEqual([{ kind: '', at: 't', label: 'x', go: '', project: '' }]);
+    ).toEqual([{ kind: '', at: 't', label: 'x', go: '', project: '', who: '' }]);
     expect(I.todoOf(null)).toEqual([]);
   });
 });
@@ -355,7 +366,8 @@ describe('화면', () => {
       'p-quote',
     ]);
     // 본 때를 적어 둔다 → 다음에 열면 그 뒤에 생긴 것만 「새」
-    expect(localStorage.getItem('segan.inbox.seen.' + CO)).toBe(ago(0, 1));
+    // 서버가 본 때를 주지 않았다(DB 0078 전 · 옛 서버) — 이 기기가 기억한다. 사람마다 따로 (열쇠에 사람 id)
+    expect(localStorage.getItem('segan.inbox.seen.' + CO + '.me')).toBe(ago(0, 1));
     const later = DATA();
     later.news.unshift({
       kind: 'as_requested',
@@ -406,6 +418,114 @@ describe('화면', () => {
     expect(text(box().querySelector('[data-ib="no-news"]'))).toBe(
       '최근 14일 동안 새로 생긴 일이 없습니다.'
     );
+  });
+});
+
+describe('계정마다 읽음 · 누가 · 보류 다시 볼 날 (2026-11-21 뒤 공정 1차)', () => {
+  test('서버가 본 때를 주면 그것이 「새」의 기준이다 — 가장 새 소식의 때를 한 번만 서버에 보내고, 기기에는 적지 않는다', async () => {
+    const data = { ...DATA(), seen_at: ago(1) }; // 어제 봤다
+    const { calls } = await load({
+      inbox: () => ok(data),
+      session: { access_token: 'tok-1', user: { id: 'user-1' } },
+    });
+    // 어제 뒤에 생긴 한 줄만 「새」
+    expect(
+      [...box().querySelectorAll('.ib-news li')].map((li) => !!li.querySelector('.ib-new'))
+    ).toEqual([true, false, false]);
+    await new Promise((r) => setTimeout(r, 0));
+    const posts = calls.filter((c) => c.method === 'POST');
+    expect(posts).toEqual([
+      {
+        url: WORK + '/company/inbox/seen',
+        method: 'POST',
+        auth: 'Bearer tok-1',
+        cache: 'no-store',
+        body: { at: ago(0, 1) },
+      },
+    ]);
+    // 다시 그려도 같은 값은 다시 보내지 않는다
+    window.SeganInbox.render();
+    window.SeganPartnerProjects.state.data.items = [];
+    window.SeganInbox.render();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+    expect(Object.keys(localStorage).filter((k) => k.startsWith('segan.inbox.seen'))).toEqual([]);
+  });
+
+  test('처음 보는 계정(seen_at null) — 「새」 없이 그리고 본 때를 보낸다. 이미 다 본 계정은 보내지 않는다', async () => {
+    let { calls } = await load({ inbox: () => ok({ ...DATA(), seen_at: null }) });
+    expect(box().querySelector('.ib-new')).toBeNull();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls.filter((c) => c.method === 'POST').map((c) => c.body)).toEqual([
+      { at: ago(0, 1) },
+    ]);
+    ({ calls } = await load({ inbox: () => ok({ ...DATA(), seen_at: ago(0, 1) }) }));
+    expect(box().querySelector('.ib-new')).toBeNull();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  test('한 기기 두 계정 — 기기가 기억할 때도 「새」 기준이 섞이지 않는다 (열쇠에 사람 id)', async () => {
+    await load({ session: { access_token: 't', user: { id: 'user-a' } } });
+    expect(localStorage.getItem('segan.inbox.seen.' + CO + '.user-a')).toBe(ago(0, 1));
+    expect(localStorage.getItem('segan.inbox.seen.' + CO + '.user-b')).toBeNull();
+  });
+
+  test('소식 — 줄 끝에 누가: 구성원 이름 · 이름 모르면 「구성원」 · 「고객」 (모르면 붙이지 않는다)', async () => {
+    const data = DATA();
+    data.news[0].who = { kind: 'customer', name: null };
+    data.news[1].who = { kind: 'member', name: '박실장' };
+    data.news[2].who = { kind: 'member', name: null };
+    await load({ inbox: () => ok(data) });
+    expect(news()).toEqual([
+      '오늘 09:00 고객이 견적을 승인했습니다 · 예시 주방 · 고객',
+      '어제 07:00 새 상담이 배정됐습니다 · 박실장',
+      '11.17 설치가 끝났습니다 · <b>예시</b> 붙박이장 · 구성원',
+    ]);
+    const I = window.SeganInbox;
+    expect([I.whoText({ kind: 'admin' }), I.whoText({ kind: 'system' }), I.whoText(null)]).toEqual([
+      '본사',
+      '',
+      '',
+    ]);
+  });
+
+  test('보류한 프로젝트 — 다시 볼 날이 됐을 때만 할 일 표에. 단추는 프로젝트 목록의 그 줄 칸을 연다 (openStatus)', async () => {
+    const items = [
+      project(
+        1,
+        '보류 · 날이 됨',
+        next('hold_due', '보류 — 다시 볼 날입니다', 'sheet', { since: ago(2) }),
+        { status: 'on_hold' }
+      ),
+      project(2, '보류 · 아직', null, { status: 'on_hold' }),
+      project(3, '그만둠', next('hold_due', '보류 — 다시 볼 날입니다', 'sheet'), {
+        status: 'cancelled',
+      }),
+    ];
+    expect(window.SeganInbox ? true : true).toBe(true);
+    const { runNext } = await load({
+      items,
+      inbox: () => ok({ role: 'owner', todo: [], news: [] }),
+    });
+    const openStatus = jest.fn();
+    window.SeganPartnerProjects.openStatus = openStatus;
+    window.SeganPartnerProjects.nextOf = (p) => ({
+      act:
+        '<button type="button" class="mk-btn mk-btn--solid" data-act="status" data-for="' +
+        p.id +
+        '">' +
+        p.next.label +
+        '</button>',
+    });
+    window.SeganInbox.state.html = null;
+    window.SeganInbox.render();
+    expect(rows()).toEqual([
+      ['보류 — 다시 볼 날입니다', '보류 · 날이 됨', '2일째', '보류 — 다시 볼 날입니다'],
+    ]);
+    box().querySelector('[data-act="status"]').click();
+    expect(openStatus).toHaveBeenCalledWith(P(1));
+    expect(runNext).not.toHaveBeenCalled();
   });
 });
 

@@ -127,7 +127,7 @@
     ['order', '수주'],
     ['installed', '시공 완료'],
   ];
-  var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // active 는 적지 않는다
+  var PROJECT_STATUS = { on_hold: '보류', closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // active 는 적지 않는다
   var PAY_STAGE = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' }; // erp.html · 워커 payments.js
 
   // 프로젝트 관리 하위 메뉴 단계 (고객 · 업체 같은 이름) — 프로젝트 단계(워커 projects.js PROJECT_STAGES)와 최신 수주 상태로 나눈다.

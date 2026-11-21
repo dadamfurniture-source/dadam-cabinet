@@ -150,6 +150,8 @@ async function load(options = {}) {
       return reply(await ((init.method || 'GET') === 'POST' ? opts.create(body) : opts.list()));
     if (url.startsWith(WORK + '/company/projects/') && url.endsWith('/assignee'))
       return reply(await opts.assign(body, url));
+    if (url.startsWith(WORK + '/company/projects/') && url.endsWith('/status') && opts.status)
+      return reply(await opts.status(body, url));
     if (url.startsWith(WORK + '/company/projects/') && opts.one) return reply(await opts.one(url));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
@@ -231,9 +233,9 @@ describe('자리 · 이름', () => {
     await load();
     const P = window.SeganPartnerProjects;
     expect(read('segan/me.js')).toContain(
-      "var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' };"
+      "var PROJECT_STATUS = { on_hold: '보류', closed: '끝남', cancelled: '취소', handed_over: '넘김' };"
     );
-    expect(P.PROJECT_STATUS).toEqual({ closed: '끝남', cancelled: '취소', handed_over: '넘김' });
+    expect(P.PROJECT_STATUS).toEqual({ on_hold: '보류', closed: '끝남', cancelled: '취소', handed_over: '넘김' });
     const worker = read('workers/workflow-api/src/company-projects.js');
     expect(worker).toContain(`PROJECT_TITLE_MAX = ${P.TITLE_MAX};`);
     expect(worker).toContain(`CUSTOMER_NAME_MAX = ${P.NAME_MAX};`);
@@ -535,6 +537,186 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect(await PP.readProject('../x')).toEqual({ ok: false, status: 0, data: null });
     expect(await PP.readProject(null)).toEqual({ ok: false, status: 0, data: null });
     expect(calls.fetch.length).toBe(before);
+  });
+
+  // ── 보류 · 그만둠 (2026-11-21 대표님 뒤 공정 1차 — 「계약금을 받으면 보류 및 그만둠 기능은 작동하지 않아야함」) ──
+  const held = (extra) => ({ hold_ready: true, ...extra });
+  const act = (id, sel) => rowOf(id).querySelector(sel);
+  const statusBtn = (id) => act(id, '[data-act="status"]:not([data-next])');
+
+  test('「보류 · 그만둠」 단추 — 서버가 쓸 수 있다고 할 때만(hold_ready), 대표 · 실장 · 담당자에게, 계약금을 받은 줄에는 없다', async () => {
+    const items = [
+      item(P1, '설계 전', { step: 'consult', next: next('design_start', '설계 시작', 'planner?project=' + P1) }),
+      item(P3, '계약금 받음', { step: 'make', next: next('deliver', '배송으로 넘기기', 'order:' + ORD), deposit_paid: true }),
+      item(P4, '보류한 것', { status: 'on_hold', step: 'quote', next: null, hold_until: '2026-12-05', status_note: '이사 날짜 미정', deposit_paid: true }),
+      item(P5, '그만둔 것', { status: 'cancelled', step: 'done', next: null, status_note: '고객 포기' }),
+    ];
+    // 서버가 아직 못 쓴다고 하면(DB 0078 전 · 옛 서버) 단추가 없다
+    await load({ list: () => ok(projects({ items })) });
+    await flush();
+    await openScreen('partner-projects');
+    expect(box().querySelector('[data-act="status"]')).toBeNull();
+    // 쓸 수 있다
+    await load({ list: () => ok(projects(held({ items }))) });
+    await flush();
+    await openScreen('partner-projects');
+    expect(statusBtn(P1).textContent).toBe('보류 · 그만둠');
+    expect(statusBtn(P1).getAttribute('aria-expanded')).toBe('false');
+    expect(statusBtn(P3)).toBeNull(); // 계약금을 받았다
+    expect(statusBtn(P5).textContent).toBe('되살리기'); // 대표 · 실장
+    // 보류한 줄은 아래 묶음에 접혀 있다 — 펼치면 다시 볼 날 · 메모 · 단계 띠 · 「다시 진행 · 그만둠」(계약금을 받았어도)
+    expect(rowOf(P4)).toBeNull();
+    const fold = box().querySelector('[data-act="held"]');
+    expect([fold.textContent, fold.getAttribute('aria-expanded')]).toEqual(['보류 1', 'false']);
+    fold.click();
+    expect(box().querySelector('[data-act="held"]').getAttribute('aria-expanded')).toBe('true');
+    expect(rowOf(P4).querySelector('.pj-hold').textContent).toBe('다시 볼 날 2026.12.05 · 「이사 날짜 미정」');
+    expect(rowOf(P4).querySelector('.me-pr-status').textContent).toBe('보류');
+    expect(rowOf(P4).querySelector('.pj-strip .is-now').textContent).toBe('견적');
+    expect(statusBtn(P4).textContent).toBe('다시 진행 · 그만둠');
+    box().querySelector('[data-act="held"]').click();
+    expect(rowOf(P4)).toBeNull();
+    // 그만둔 줄 — 메모가 보인다
+    expect(rowOf(P5).querySelector('.pj-hold').textContent).toBe('「고객 포기」');
+    // 직원 — 내가 담당인 줄에만
+    const staff = partnerMe();
+    staff.body.data.company.role = 'staff';
+    const mine = items.map((p) => ({ ...p }));
+    mine[0].assignee = { user_id: 'user-1', name: '나', role: 'staff' };
+    await load({ partner: staff, list: () => ok(projects(held({ can_manage: false, assignee_ready: true, items: mine }))) });
+    await flush();
+    await openScreen('partner-projects');
+    expect(statusBtn(P1)).not.toBeNull();
+    expect(statusBtn(P5)).toBeNull(); // 되살리기는 대표 · 실장만
+  });
+
+  test('보류하기 — 단추로 펼치면 서버가 준 할 수 있는 일대로, 다시 볼 날 · 메모를 적어 보내고 목록을 다시 읽는다 (같은 단추로 접는다)', async () => {
+    let items = [item(P1, '설계 전', { step: 'consult', next: next('design_start', '설계 시작', 'planner?project=' + P1) })];
+    const sent = [];
+    const calls = await load({
+      list: () => ok(projects(held({ items }))),
+      one: () => ok({ project: items[0], actions: { hold: true, cancel: true, resume: false, blocked: null } }),
+      status: (body) => {
+        sent.push(body);
+        items = [{ ...items[0], status: 'on_hold', next: null, hold_until: body.hold_until, status_note: body.note }];
+        return ok({ project_id: P1, status: 'on_hold', hold_until: body.hold_until, status_note: body.note, status_at: 'x' });
+      },
+    });
+    await flush();
+    const onChange = jest.fn();
+    window.SeganPartnerProjects.onChange = onChange;
+    await openScreen('partner-projects');
+    statusBtn(P1).click();
+    // 읽는 동안
+    expect(rowOf(P1).querySelector('.pj-status').textContent).toBe('불러오는 중…');
+    expect(statusBtn(P1).getAttribute('aria-expanded')).toBe('true');
+    await flush();
+    const panel = () => rowOf(P1).querySelector('.pj-status');
+    expect([...panel().querySelectorAll('[data-act="status-form"]')].map((b) => [b.textContent, b.getAttribute('data-kind')])).toEqual([
+      ['보류', 'hold'],
+      ['그만둠', 'cancel'],
+    ]);
+    expect(panel().querySelector('form')).toBeNull();
+    // 「닫기」 단추는 두지 않는다 — 같은 단추로 접는다
+    expect(panel().textContent).not.toContain('닫기');
+    panel().querySelector('[data-kind="hold"]').click();
+    const form = panel().querySelector('form[data-form="status"]');
+    expect(form.getAttribute('data-kind')).toBe('hold');
+    expect(form.querySelector('[name="hold_until"]').getAttribute('type')).toBe('date');
+    form.querySelector('[name="hold_until"]').value = '2026-12-05';
+    form.querySelector('[name="note"]').value = '  이사 날짜 미정 ';
+    const before = projectCalls(calls).length;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(sent).toEqual([{ expect_status: 'active', status: 'on_hold', hold_until: '2026-12-05', note: '이사 날짜 미정' }]);
+    const patch = calls.fetch.find((c) => c.method === 'PATCH');
+    expect([patch.url, patch.auth]).toEqual([WORK + '/company/projects/' + P1 + '/status', 'Bearer tok-1']);
+    expect(projectCalls(calls).length).toBe(before + 1); // 목록을 다시 읽었다
+    expect(box().querySelector('.me-pt-msg').textContent).toBe('보류했습니다.');
+    expect(onChange).toHaveBeenCalled();
+    // 보류한 줄은 묶음으로 갔고, 묶음이 펼쳐져 있다
+    expect(box().querySelector('[data-act="held"]').getAttribute('aria-expanded')).toBe('true');
+    expect(rowOf(P1).querySelector('.me-pr-status').textContent).toBe('보류');
+    expect(rowOf(P1).querySelector('.pj-status')).toBeNull();
+  });
+
+  test('계약금을 받은 프로젝트 — 서버가 못 한다고 하면 단추 없이 까닭만. 서버가 거절하면 그 글을 그 자리에, 적던 값은 남는다', async () => {
+    const items = [item(P1, '접수', { step: 'contract', next: next('deposit', '계약금 입금 적기', 'order:' + ORD) })];
+    let actions = { hold: false, cancel: false, resume: false, blocked: 'deposit' };
+    const calls = await load({
+      list: () => ok(projects(held({ items }))),
+      one: () => ok({ project: items[0], actions }),
+      status: () => fail(409, 'deposit_paid', '계약금을 받은 프로젝트는 보류하거나 그만둘 수 없습니다'),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    statusBtn(P1).click();
+    await flush();
+    const panel = () => rowOf(P1).querySelector('.pj-status');
+    expect(panel().querySelector('[data-act="status-form"]')).toBeNull();
+    expect(panel().querySelector('[data-pj="blocked"]').textContent).toBe('계약금을 받은 프로젝트는 보류 · 그만둠을 할 수 없습니다.');
+    // 접는다
+    statusBtn(P1).click();
+    expect(rowOf(P1).querySelector('.pj-status')).toBeNull();
+    // 살아 있는 계약(계약금 전) — 보류는 되고 그만둠은 까닭만
+    actions = { hold: true, cancel: false, resume: false, blocked: 'order' };
+    statusBtn(P1).click();
+    await flush();
+    expect([...panel().querySelectorAll('[data-act="status-form"]')].map((b) => b.textContent)).toEqual(['보류']);
+    expect(panel().querySelector('[data-pj="blocked"]').textContent).toBe('그만두려면 계약(수주)을 먼저 취소해 주세요.');
+    // 그 사이 계약금이 들어와 서버가 거절했다
+    panel().querySelector('[data-kind="hold"]').click();
+    panel().querySelector('[name="note"]').value = '적던 메모';
+    panel().querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(panel().querySelector('.mk-error').textContent).toBe('계약금을 받은 프로젝트는 보류하거나 그만둘 수 없습니다');
+    expect(panel().querySelector('[name="note"]').value).toBe('적던 메모');
+    expect(calls.fetch.filter((c) => c.method === 'PATCH')).toHaveLength(1);
+    // 못 읽으면 알린다
+    statusBtn(P1).click();
+    await load({ list: () => ok(projects(held({ items }))), one: () => fail(500, 'x', 'x') });
+    await flush();
+    await openScreen('partner-projects');
+    statusBtn(P1).click();
+    await flush();
+    expect(panel().querySelector('.mk-error').textContent).toBe('불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
+  });
+
+  test('보류를 다시 볼 날 — 줄에 「보류 — 다시 볼 날입니다」 단추(그 줄의 칸을 연다), 다시 진행은 바로 보낸다. 줄에 창 단추는 없다', async () => {
+    let items = [
+      item(P4, '보류한 것', {
+        status: 'on_hold',
+        step: 'quote',
+        hold_until: '2026-11-01',
+        next: next('hold_due', '보류 — 다시 볼 날입니다', 'sheet', { since: '2026-11-01' }),
+      }),
+    ];
+    const sent = [];
+    await load({
+      list: () => ok(projects(held({ items }))),
+      one: () => ok({ project: items[0], actions: { hold: false, cancel: true, resume: true, blocked: null } }),
+      status: (body) => {
+        sent.push(body);
+        items = [{ ...items[0], status: 'active', hold_until: null, next: next('customer', '고객 답 기다림', 'p-quote', { wait: true }) }];
+        return ok({ project_id: P4, status: 'active', hold_until: null, status_note: null, status_at: 'x' });
+      },
+    });
+    await flush();
+    await openScreen('partner-projects');
+    // 다른 칸(새로 생긴 일 표)에서 연다 — 묶음을 펼치고 그 줄의 칸을 연다
+    expect(await window.SeganPartnerProjects.openStatus(P4)).toBe(true);
+    await flush();
+    const due = act(P4, '[data-act="status"][data-next="hold_due"]');
+    expect(due.textContent).toBe('보류 — 다시 볼 날입니다');
+    expect(rowOf(P4).querySelector('[data-act="sheet"]')).toBeNull();
+    const panel = rowOf(P4).querySelector('.pj-status');
+    expect([...panel.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['다시 진행', '그만둠']);
+    panel.querySelector('[data-act="status-resume"]').click();
+    await flush();
+    expect(sent).toEqual([{ expect_status: 'on_hold', status: 'active' }]);
+    expect(box().querySelector('.me-pt-msg').textContent).toBe('다시 진행합니다.');
+    expect(box().querySelector('[data-act="held"]')).toBeNull(); // 보류가 없다
+    expect(rowOf(P4).querySelector('.me-pr-status')).toBeNull();
   });
 
   test('작업 분배 — 진행 중 프로젝트 모두 (끝난 것 빼고), 머리글 「작업 분배」, 새 고객 단추 없음 · 옛 주소 #partner-projects 는 모두', async () => {
