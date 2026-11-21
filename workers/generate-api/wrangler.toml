@@ -56,6 +56,10 @@ COLLECTION_AUTO_POST = "off"
 #   운영 GenerateJob CPU 가 빠듯하면 POSITION_ZOOM_MAX_EDGE = "2048" 로 띠를 줄인다 — 재생으로 다시 볼 것. 끄려면 "off".
 # 경보를 내는 경로는 POSITION_ALARM_ROUTES (기본 "text_pct,planner"), 나머지 경로는 측정만.
 POSITION_QC = "on"
+# 기본안 벽 채움 검사 (2026-11-21, 기록 전용 — src/fill-check.js · docs/02-design/features/fill-check.md):
+#   AI 연출컷 품목 모두에서 가구 양 끝 · 위아래가 벽 · 천장 · 바닥에 닿았는지 Flash 1회로 재 images[base].fill 에 남긴다.
+#   다시 그리지 않고 상태 · 크레딧은 그대로. 끄려면 "off". 모델은 FILL_MODEL (기본 gemini-3.8-flash).
+FILL_QC = "on"
 OPENAI_IMAGE_MODEL = "gpt-image-2.5-sunburst"
 OPENAI_IMAGE_QUALITY = "high"
 

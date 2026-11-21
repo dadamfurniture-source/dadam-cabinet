@@ -3636,3 +3636,68 @@ export function plannerPositionFrame(spec, category, wall = {}) {
     depthRatio,
   };
 }
+
+// ─── 2026-11-21: 기본안 벽 채움 검사 (기록 전용) — src/fill-check.js 가 쓴다 ───
+// 대표님 「위치 검사를 모든 품목에」 → 답: AI 연출컷만 · 품목 10개 모두 · 가구 양 끝과 위아래가 벽 · 천장 · 바닥에 닿았는지만 · 기록만.
+// 위의 주방 위치 질의(해시로 묶임)는 건드리지 않는다. 설계: docs/02-design/features/fill-check.md
+
+/** 검사하는 네 변 */
+export const FILL_SIDES = ['left', 'right', 'top', 'bottom'];
+
+/**
+ * 품목마다 「닿아야 한다」고 판정하는 변 — 새 규칙이 아니라 위 CATEGORIES[].spec 문장이 이미 말한 것만.
+ *   붙박이장: full wall width · No gap to the ceiling or the side walls / 수납장: Floor-to-ceiling … covering the wall
+ *   냉장고장: covering the full wall width, built up to the ceiling · recess from the floor up / 서재: floor-to-ceiling … covering the wall
+ *   싱크대 · 아일랜드: Upper cabinets flush to the ceiling / 침실: bridge cabinets … up to the ceiling / 사무실: a desk spanning the wall
+ *   화장대 · 신발장: 자리를 말하지 않는다 → 재기만 하고 판정하지 않는다
+ */
+export const FILL_WANT = Object.freeze({
+  sink: ['top'],
+  island: ['top'],
+  wardrobe: ['left', 'right', 'top', 'bottom'],
+  storage: ['left', 'right', 'top', 'bottom'],
+  fridge: ['left', 'right', 'top', 'bottom'],
+  vanity: [],
+  shoe: [],
+  office: ['left', 'right'],
+  study: ['left', 'right', 'top', 'bottom'],
+  bedroom: ['top'],
+});
+
+/** 채움 검사 질의 — [방 사진, 기본안] 두 장을 보고 기본안의 가구 끝 · 벽 끝 · 천장선 · 바닥선과 네 변 판정을 답한다 */
+export function buildFillPrompt(category) {
+  const key = resolveCategory(category);
+  return `TASK: the first image is a room photo before editing. The second image is the same room after a new built-in ${CATEGORIES[key].label} (${key}) was added. Look at the SECOND image and describe where the new built-in furniture ends.
+Coordinates are 0-1000 on the second image: x from left to right, y from top to bottom.
+- furniture_box: [ymin, xmin, ymax, xmax], a tight box around the whole new built-in furniture: all its cabinets, wall cabinets, tall units, countertop and panels. Leave out loose items, free-standing appliances, beds, chairs and decorations. null if there is no new built-in furniture.
+- wall_left_x / wall_right_x: x of the left / right end of the back wall (the wall the furniture stands against): the vertical corner where it meets a side wall, or the edge where it stops. Measure it at the height of the middle of the furniture. When the furniture hides the corner, find it in the first image. null if it is out of frame.
+- ceiling_y / floor_y: y of the line where the back wall meets the ceiling / the floor, at the horizontal middle of the furniture. When the furniture hides the line, find it in the first image. null if it is out of frame.
+Then judge each side of the furniture in the second image:
+- left: "touch" when its left end reaches the left side wall or the end of the back wall with no strip of wall visible between them; "gap" when a strip of wall or open space is visible between them; "unsure" when the end or the wall is out of frame or hidden.
+- right: the same for the right end.
+- top: "touch" when the top of its tallest part meets the ceiling (a filler or crown moulding flush to the ceiling counts as touch); "gap" when wall is visible between that top and the ceiling; "unsure" when the ceiling is out of frame.
+- bottom: "touch" when it stands on the floor along its whole length (a recessed plinth counts as touch); "gap" when part or all of it is wall-mounted or floating with floor visible beneath; "unsure" when the floor is out of frame.
+note: one short sentence. Answer JSON only.`;
+}
+
+const FILL_STATE = { type: 'STRING', enum: ['touch', 'gap', 'unsure'] };
+const fillInt = () => ({ type: 'INTEGER', nullable: true });
+const FILL_PROPS = {
+  furniture_box: { type: 'ARRAY', items: { type: 'INTEGER' }, nullable: true, description: '[ymin, xmin, ymax, xmax] 0-1000' },
+  wall_left_x: fillInt(),
+  wall_right_x: fillInt(),
+  ceiling_y: fillInt(),
+  floor_y: fillInt(),
+  left: FILL_STATE,
+  right: FILL_STATE,
+  top: FILL_STATE,
+  bottom: FILL_STATE,
+  note: { type: 'STRING' },
+};
+/** 응답 스키마 (Gemini OpenAPI 부분집합 — 위치 검사 스키마와 같은 꼴) */
+export const FILL_SCHEMA = {
+  type: 'OBJECT',
+  properties: FILL_PROPS,
+  required: Object.keys(FILL_PROPS),
+  propertyOrdering: Object.keys(FILL_PROPS),
+};
