@@ -1,5 +1,6 @@
 name = "dadam-workflow-api"
-main = "src/worker.js"
+# 들머리 src/index.js — HTTP · cron 은 src/worker.js 그대로, 이름 있는 진입점 NtsGateway (account-api 가 서비스 바인딩으로 부른다)
+main = "src/index.js"
 compatibility_date = "2025-01-01"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
@@ -43,7 +44,8 @@ PRICING_CACHE_TTL_SEC = "300"
 #   wrangler secret put VAPID_PRIVATE_KEY        (앱 알림 — JWK JSON: kty · crv · x · y · d)
 #   wrangler secret put VAPID_PUBLIC_KEY         (앱 알림 — base64url 비압축 P-256 점, 개인 키와 짝)
 #   wrangler secret put VAPID_SUBJECT            (앱 알림 — https 주소)
-#   wrangler secret put NTS_SERVICE_KEY          (국세청 사업자 상태조회 — 공공데이터포털 인증키. 없으면 조회를 건너뛴다)
+#   wrangler secret put NTS_SERVICE_KEY          (국세청 사업자 상태조회 · 진위확인 — 공공데이터포털 인증키. 없으면 조회를 건너뛴다.
+#                                                 사업자등록증 확인(account-api)도 이 키를 쓴다 — src/nts-gateway.js)
 # ─────────────────────────────────────────────────────────────
 
 # 요청 한도 — Workers Rate Limiting (src/ledger/documents.js). 대시보드 설정 없이 배포로 생긴다 (wrangler 4.36+).
