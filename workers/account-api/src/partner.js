@@ -383,11 +383,85 @@ async function usableInvite(env, token) {
   return inv;
 }
 
+// ── 내 영업 공간 ───────────────────────────────────────
+
+/**
+ * 사람 등급만 Manager 인 사람의 「내 영업 공간」 (2026-11-21 대표님 「Manager 는 가구설계 영업 사원」).
+ * 플래너 설계 · 고객 · 견적 · 확인서 · 제작 의뢰는 업체 단위로 쌓인다. 그래서 회원 관리에서 Manager 로만 올린 사람도
+ * 앱을 열면 그 사람이 대표인 Manager 업체 하나를 만든다. 결제 없이 만든다 (관리자 「팩토리로 만들기」와 같다).
+ * 만들지 않는 때: 구성원인 곳이 있다(정지 · 본사 포함) · 사람 등급이 manager 가 아니다 · 진행 중인 신청이 있다.
+ * profiles 는 읽기만 한다 — 등급은 트리거(company_tier_sync)가 맞춘다.
+ */
+const SALES_SPACE_PLAN = 'manager';
+const SALES_SPACE_SUFFIX = '영업 공간';
+
+/** 업체 이름 — 「이름 영업 공간」, 이름이 없으면 「내 영업 공간」 */
+export function salesSpaceName(name) {
+  const n = typeof name === 'string' ? name.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+  return n ? `${n} ${SALES_SPACE_SUFFIX}` : `내 ${SALES_SPACE_SUFFIX}`;
+}
+
+function region(v, max) {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s && s.length <= max ? s : null;
+}
+
+/** 만들었으면(또는 같은 때 다른 요청이 만들었으면) 그 구성원 줄, 아니면 null */
+async function ensureSalesSpace(env, userId) {
+  const rows = await db(
+    env,
+    'GET',
+    `profiles?id=eq.${userId}&select=id,name,tier,sido,gugun&limit=1`
+  );
+  const p = rows[0];
+  if (!p || p.tier !== SALES_SPACE_PLAN) return null;
+  if (await hasOpenApplication(env, userId)) return null;
+
+  const [company] = await db(env, 'POST', `companies?select=${COMPANY_COLS}`, {
+    kind: 'partner',
+    name: salesSpaceName(p.name),
+    plan: SALES_SPACE_PLAN,
+    status: 'active',
+    sido: region(p.sido, 20),
+    gugun: region(p.gugun, 40),
+    created_by: userId,
+  });
+  if (!company) throw new Error('company: no row');
+  try {
+    await db(
+      env,
+      'POST',
+      'company_members',
+      { company_id: company.id, user_id: userId, role: 'owner', status: 'active' },
+      { prefer: 'return=minimal' }
+    );
+  } catch (e) {
+    try {
+      await db(env, 'DELETE', `companies?id=eq.${company.id}`, undefined, {
+        prefer: 'return=minimal',
+      });
+    } catch (e2) {
+      console.error('[partner] sales space: rollback failed', e2 && e2.status ? e2.status : '?');
+    }
+    // 같은 때 다른 요청이 먼저 만들었다 — 그것을 쓴다
+    if (e instanceof DbError && e.code === '23505') return activeMembership(env, userId);
+    throw e;
+  }
+  await addEvent(env, {
+    company_id: company.id,
+    actor_user_id: userId,
+    actor_kind: 'system',
+    type: 'company_created',
+    payload: { by: 'sales_space' },
+  });
+  return { id: null, role: 'owner', company };
+}
+
 // ── 회원 ───────────────────────────────────────────────
 
-/** GET /partner/me */
+/** GET /partner/me — 사람 등급만 Manager 이면 「내 영업 공간」을 먼저 만든다 (ensureSalesSpace) */
 async function getMe(env, { user }) {
-  const [m, apps] = await Promise.all([
+  let [m, apps] = await Promise.all([
     activeMembership(env, user.id),
     db(
       env,
@@ -395,6 +469,7 @@ async function getMe(env, { user }) {
       `partner_applications?user_id=eq.${user.id}&select=${APP_FIELDS.join(',')}&order=created_at.desc&limit=1`
     ),
   ]);
+  if (!m) m = await ensureSalesSpace(env, user.id);
   const data = {
     company: null,
     application: apps[0] ? appView(apps[0]) : null,

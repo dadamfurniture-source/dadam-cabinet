@@ -395,7 +395,7 @@ describe('메뉴 — B안 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () =
     expect(groups()).toEqual(['업무', '']);
     expect(menus()).toEqual([
       ['프로젝트 관리', PJ],
-      ['내 계정', basic('내 팩토리다담 협력 주방')],
+      ['내 계정', basic('내 영업 공간다담 협력 주방')],
     ]);
     expect(row('설계').getAttribute('href')).toBe('#p-design'); // 플래너는 설계 화면 위 단추
     for (const label of ['새 설계', '설계 모음', 'BOM']) expect(row(label)).toBeUndefined();

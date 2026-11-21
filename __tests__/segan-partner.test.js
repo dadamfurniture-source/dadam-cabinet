@@ -921,7 +921,7 @@ describe('e. 업체 있음', () => {
     expect(row.textContent).toBe('실장 · 활동 중');
 
     await load({ partner: ok(meData({ company: company({ plan: 'manager', role: 'manager' }) })) });
-    expect(facts()).toEqual({ '팩토리 이름': '다담 협력 주방', '내 역할': '실장' });
+    expect(facts()).toEqual({ '영업 공간 이름': '다담 협력 주방', '내 역할': '실장' });
   });
 
   test('다른 통장(내 통장 · 다른 업체)이면 크레딧 줄을 적지 않는다', async () => {
