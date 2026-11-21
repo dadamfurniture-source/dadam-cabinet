@@ -80,12 +80,20 @@ function makeDb({ drafts = true } = {}) {
     ],
     admin_roles: [{ user_id: ADMIN, role: 'admin' }],
     planner_drafts: drafts ? [] : null,
+    // 설계가 이어지는 프로젝트 (2026-11-21 「프로젝트 한 길」) — 내 업체(P1) 것 · 다른 업체(P3) 것
+    projects: [
+      { id: PRJ_MINE, company_id: P1, status: 'active' },
+      { id: PRJ_THEIRS, company_id: P3, status: 'active' },
+    ],
     planner_draft_photos: drafts ? [] : null,
     planner_my_modules: drafts ? [] : null,
     objects: new Map(),
     patches: [],
   };
 }
+
+const PRJ_MINE = 'aaaaaaaa-aaaa-4aaa-8aaa-0000000000a1';
+const PRJ_THEIRS = 'aaaaaaaa-aaaa-4aaa-8aaa-0000000000a2';
 
 const KEYS = { planner_drafts: ['company_id', 'id'], planner_my_modules: ['user_id', 'id'], planner_draft_photos: ['company_id', 'draft_id', 'file'] };
 
@@ -274,6 +282,56 @@ test('저장 · 목록 · 열기 — 새 설계는 rev 하나, rev · archivedAt
     await rejects(getDraft(ENV, { user: u(ADMIN), params: { id: 'd-test-0001' }, query: {} }), 404);
     assert.deepEqual(await getDraft(ENV, { user: u(ADMIN), params: { id: 'd-test-0001' }, query: { ifExists: '1' } }), { project: null });
   });
+});
+
+test('이어진 프로젝트 — 내 업체 프로젝트면 설계 · 요약 · 목록에 남고, 남의 것 · 없는 것 · 틀린 값은 조용히 뺀다 (저장은 된다)', async () => {
+  assert.equal(summaryOf(project({ projectId: PRJ_MINE })).projectId, PRJ_MINE);
+  assert.equal(summaryOf(project({ projectId: 'not-a-uuid' })).projectId, null);
+  assert.equal(summaryOf(project()).projectId, null);
+  const db = makeDb();
+  await withDb(db, async () => {
+    const save = (id, projectId) =>
+      saveDraft(ENV, { user: u(STAFF), body: { project: { ...project({ id }), projectId } } });
+    const row = (id) => db.planner_drafts.find((d) => d.id === id);
+    assert.equal((await save('d-test-0001', PRJ_MINE)).rev, 1);
+    assert.deepEqual([row('d-test-0001').model.projectId, row('d-test-0001').summary.projectId], [PRJ_MINE, PRJ_MINE]);
+    // 다른 업체의 프로젝트 · 없는 프로젝트 · 모양이 틀린 값 — 저장은 되고 번호만 빠진다
+    for (const [id, bad] of [
+      ['d-test-0002', PRJ_THEIRS],
+      ['d-test-0003', 'aaaaaaaa-aaaa-4aaa-8aaa-0000000000ff'],
+      ['d-test-0004', '../x'],
+      ['d-test-0005', 7],
+    ]) {
+      assert.equal((await save(id, bad)).rev, 1, id);
+      assert.equal('projectId' in row(id).model, false, id);
+      assert.equal(row(id).summary.projectId, null, id);
+    }
+    const list = await listDrafts(ENV, { user: u(STAFF) });
+    assert.deepEqual(
+      list.items.map((x) => [x.id, x.projectId]).sort(),
+      [
+        ['d-test-0001', PRJ_MINE],
+        ['d-test-0002', null],
+        ['d-test-0003', null],
+        ['d-test-0004', null],
+        ['d-test-0005', null],
+      ]
+    );
+  });
+  // 프로젝트를 확인하지 못했으면(표를 못 읽음) 그대로 둔다 — 저장을 막지 않는다
+  const down = makeDb();
+  down.projects = null;
+  const realWarn = console.warn;
+  console.warn = () => {};
+  try {
+    await withDb(down, async () => {
+      const r = await saveDraft(ENV, { user: u(STAFF), body: { project: { ...project(), projectId: PRJ_MINE } } });
+      assert.equal(r.rev, 1);
+      assert.equal(down.planner_drafts[0].model.projectId, PRJ_MINE);
+    });
+  } finally {
+    console.warn = realWarn;
+  }
 });
 
 test('고치기 — 만든 사람 · 대표만, 내용이 바뀌면 rev + 1, 같으면 그대로, check 면 rev 가 같을 때만', async () => {

@@ -203,6 +203,32 @@ function summaryLinesOf(project) {
   return lines.map((l) => ({ k: l.k, ids: l.ids }));
 }
 
+/** 프로젝트 번호 (projects.id) */
+const PROJECT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 설계가 이어진 프로젝트 (model.projectId) — 플래너가 프로젝트에서 열렸을 때 싣는다 (2026-11-21 대표님 「프로젝트 한 길」).
+ * 내 업체의 프로젝트가 아니면 조용히 뺀다 — 저장을 막지 않는다 (다른 업체에서 베껴 온 설계 · 지운 프로젝트 · 틀린 값).
+ * 확인을 못 했으면(DB 오류) 그대로 둔다 — 남의 번호가 남아도 그 업체의 프로젝트 목록에는 짝이 없다.
+ */
+async function keepOwnProject(env, companyId, model) {
+  if (model.projectId === undefined) return;
+  if (typeof model.projectId !== 'string' || !PROJECT_ID_RE.test(model.projectId)) {
+    delete model.projectId;
+    return;
+  }
+  try {
+    const mine = await selectOne(env, 'projects', {
+      id: `eq.${model.projectId}`,
+      company_id: `eq.${companyId}`,
+      select: 'id',
+    });
+    if (!mine) delete model.projectId;
+  } catch (e) {
+    console.warn('[planner] 프로젝트 확인 실패:', e && e.statusCode ? e.statusCode : 'error');
+  }
+}
+
 /** 목록 칸 — 플래너 design-archive list() 와 같은 셈 (판정 집계는 PC 설계 모음 몫이라 뺀다) */
 export function summaryOf(project) {
   const walls = Array.isArray(project.walls) ? project.walls : [];
@@ -216,6 +242,8 @@ export function summaryOf(project) {
     origin: project.origin && typeof project.origin === 'object' ? project.origin : null,
     orderNo: typeof project.orderNo === 'string' ? project.orderNo.slice(0, 40) : '',
     completed: project.completedConfirmed === true,
+    // 이어진 프로젝트 — 업체 프로젝트 목록이 이것으로 「설계」 단계를 안다 (company-pipeline.js). saveDraftIn 이 내 업체 것인지 확인한 값
+    projectId: typeof project.projectId === 'string' && PROJECT_ID_RE.test(project.projectId) ? project.projectId : null,
     createdAt: typeof project.createdAt === 'string' ? project.createdAt.slice(0, 40) : null,
     updatedAt: typeof project.updatedAt === 'string' ? project.updatedAt.slice(0, 40) : null,
     libIds: libIdsOf(project).slice(0, 300),
@@ -296,6 +324,7 @@ export async function listDrafts(env, { user }) {
         modules: Number(s.modules) || 0,
         orderNo: s.orderNo || '',
         completed: s.completed === true,
+        projectId: typeof s.projectId === 'string' ? s.projectId : null,
         rev: r.rev,
         mine: r.created_by === user.id,
       };
@@ -337,6 +366,7 @@ export async function saveDraftIn(env, { company, canManage, userId, body }, opt
   if (isProbeId(model.id) && opts.internal !== true) throw new ValidationError('쓸 수 없는 설계 id 입니다', { field: 'id' });
   const check = body && body.check === true;
   return guard(async () => {
+    await keepOwnProject(env, company.id, model);
     const stored = await draftOf(env, company.id, model.id);
     const fields = { name: nameOf(model), item: itemOf(model), summary: summaryOf(model) };
     if (!stored) {
