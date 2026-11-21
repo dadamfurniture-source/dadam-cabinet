@@ -95,6 +95,7 @@ const W = loadEsm('workers/account-api/src/worker.js', ['__default'], {
   // 사업자등록증 길(biz-cert.js)은 account-biz-cert 시험이 본다 — 여기서는 그 길이 없는 것으로 둔다
   matchCertRoute: () => null,
   runCertRoute: null,
+  isPlatformReviewer: async () => false,
   ...Wd,
 }).__default;
 

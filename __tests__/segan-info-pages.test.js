@@ -102,6 +102,22 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+describe('구독 (plans.html) — 사업자등록증 첫 달 무료 안내 (2026-11-21 대표님 계획 승인)', () => {
+  test('첫 글 아래 한 줄 — 누가 · 얼마 동안 · 그 전에 해지하면 결제 없음 · 번호마다 한 번', () => {
+    const html = read('segan/plans.html').replace(/\s+/g, ' ');
+    const m = /<p class="in-note pl-trial" id="plTrial">(.*?)<\/p>/.exec(html);
+    expect(m).not.toBeNull();
+    const text = m[1].trim();
+    expect(text).toBe(
+      '팩토리를 처음 시작할 때 사업자등록증을 등록하면 첫 달은 무료입니다. 카드를 등록해도 30일 동안 결제되지 않고, 그 전에 해지하면 결제되지 않습니다. 사업자등록번호마다 한 번, 계속사업자만 받을 수 있습니다.'
+    );
+    // 30일 = 결제 서버의 무료 기간 (payments-api src/trial.js TRIAL_DAYS)
+    expect(read('workers/payments-api/src/trial.js')).toMatch(/export const TRIAL_DAYS = 30;/);
+    // 첫 글(.in-lead)과 금액 안내 줄(#plState) 사이
+    expect(html).toMatch(/class="in-lead".*id="plTrial".*id="plState"/);
+  });
+});
+
 describe('구독 (plans.html) — 등급 넷', () => {
   test('Standard 무료 · Manager · Expert · Agent 차례, 도구는 아래 등급에 더해 (누적)', async () => {
     await load('plans.html');

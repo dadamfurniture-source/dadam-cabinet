@@ -2027,6 +2027,89 @@ button.sm-num[aria-pressed='true'] {
 }
 
 /* 시공사례 고르기 (segan/hq-collection.js) — 연출컷 칸 */
+/* 사업자등록증 확인 (segan/hq-biz-cert.js) — 카드: 사진 + 적힌 내용 · 자동 확인 결과 · 승인/반려. 폰은 위아래, PC 는 좌우 */
+.me-bc-list {
+  display: grid;
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-bc-card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.me-bc-photo {
+  align-self: start;
+  background: var(--v5-photo);
+}
+
+.me-bc-body .me-facts dt {
+  white-space: nowrap;
+}
+
+.me-bc-photo img {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.me-bc-body {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+}
+
+.me-bc-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+  font-size: 13.5px;
+}
+
+.me-bc-checks li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-bc-checks li span:first-child {
+  color: var(--v5-ink-55);
+}
+
+/* 결과는 글로 읽힌다 — 나쁜 것만 굵게 (색에 기대지 않는다) */
+.me-bc-checks li[data-check='bad'] span:last-child {
+  font-weight: 500;
+}
+
+.me-bc-checks li[data-check='unknown'] span:last-child {
+  color: var(--v5-ink-55);
+}
+
+.me-bc-ask textarea {
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-25);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  resize: vertical;
+}
+
 .me-hc-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -2493,6 +2576,35 @@ button.sm-num[aria-pressed='true'] {
 .me-pt-box .me-facts,
 .me-pt-box .me-steps {
   margin-top: 0;
+}
+
+/* 사업자등록증 칸 — 시작 화면 맨 위 (segan/partner.js certHtml). 사진 고르기는 label 단추 */
+.me-pt-cert {
+  margin-bottom: 16px;
+}
+
+.me-pt-cert[data-cert='verified'] {
+  border-color: var(--v5-ink);
+}
+
+.me-pt-pick {
+  position: relative;
+  cursor: pointer;
+}
+
+/* 파일 고르기 칸은 보이지 않게 — 단추(label)가 대신 눌린다. 읽어 주기 · 키보드는 그대로 닿는다 */
+.me-pt-pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.me-pt-pick:focus-within {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: 2px;
 }
 
 .me-pt-title {
@@ -7059,6 +7171,13 @@ body.sg-locked .sg-tabbar {
 @media (min-width: 1024px) {
   .sg-app {
     padding-bottom: 0;
+  }
+
+  /* 사업자등록증 확인(segan/hq-biz-cert.js) — PC 는 사진 왼쪽 · 내용 오른쪽 */
+  .me-bc-card {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 24px;
+    padding: 20px;
   }
 
   /* 시공사례 · 좋아요 — PC 는 4칸 */

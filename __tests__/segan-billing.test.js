@@ -471,6 +471,23 @@ describe('구독 해지 — 한 번 더 묻는다', () => {
     expect(SITE).toContain("body: JSON.stringify({ reason: 'user_request' })");
   });
 
+  test('첫 달 무료 이용 중 — 결제는 진행되지 않고 무료 기간 끝까지 쓴다고 묻는다', async () => {
+    const calls = await load({
+      sub: { success: true, data: { ...SUB, status: 'trialing' }, company: COMPANY },
+      cancel: json(200, {
+        success: true,
+        data: { cancel_at: SUB.current_period_end, trial: true },
+      }),
+    });
+    $('blCancelBtn').click();
+    expect($('blAskText').textContent).toBe(
+      '구독을 해지할까요? 결제는 진행되지 않고, 무료 기간이 끝날 때까지는 그대로 이용하실 수 있습니다.'
+    );
+    $('blAskYes').click();
+    await flush();
+    expect(posts(calls, '/cancel')).toHaveLength(1);
+  });
+
   test('결제 실패 중 — 더 이상 결제를 시도하지 않는다', async () => {
     await load({
       sub: { success: true, data: { ...SUB, status: 'past_due' } },
@@ -516,6 +533,33 @@ describe('업체 구독', () => {
       ['등급 변경', 'plans.html'],
       ['구독 해지', 'blCancelBtn'],
     ]);
+  });
+
+  test('대표 · 첫 달 무료 이용 중 — 상태 · 무료 기간 · 첫 결제일, 날짜 · 금액 · 「그 전에 해지하면 결제 없음」 안내, 카드 바꾸기 · 해지', async () => {
+    const trial = { ...SUB, status: 'trialing' };
+    const won = (n) => Number(n || 0).toLocaleString('ko-KR') + '원';
+    await load({ sub: { success: true, data: trial, company: { ...COMPANY, next_plan: null } } });
+    const r = Object.fromEntries(rows());
+    expect(r['구독 상태']).toBe('첫 달 무료 이용 중');
+    expect(r['월 결제액']).toBe(won(trial.amount_krw));
+    expect(r['무료 기간']).toBe(
+      day(trial.current_period_start) + ' ~ ' + day(trial.current_period_end)
+    );
+    expect(r['첫 결제일']).toBe(day(trial.next_charge_at));
+    expect(r['이번 기간']).toBeUndefined();
+    expect(r['다음 결제일']).toBeUndefined();
+    expect(status()).toBe(
+      '첫 달 무료 이용 중입니다. ' +
+        day(trial.next_charge_at) +
+        '에 첫 결제 ' +
+        won(trial.amount_krw) +
+        '이 진행됩니다. 그 전에 해지하면 결제되지 않습니다.'
+    );
+    expect(actions()).toEqual([
+      ['카드 바꾸기', 'blCardBtn'],
+      ['구독 해지', 'blCancelBtn'],
+    ]);
+    expect(window.SeganBilling.STATUS_KO.trialing).toBe('첫 달 무료 이용 중');
   });
 
   test.each(['staff', 'manager'])(
