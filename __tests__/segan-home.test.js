@@ -171,8 +171,9 @@ describe('홈 화면 (segan/index.html)', () => {
         .replace(/\.jpg$/, '');
       expect(stem).toMatch(/^(luxe|mix)-\d\d$/);
       const [place, ...color] = a.querySelector('span').textContent.split(' · ');
+      // 색상 뒤에는 색 값(hex — 시공사례 색상 영역의 색 칸)이 이어진다
       expect(stat).toContain(
-        `{ image_url: '../app/portfolio/${stem}.jpg', place: '${place}', color: '${color.join(' · ')}' }`
+        `{ image_url: '../app/portfolio/${stem}.jpg', place: '${place}', color: '${color.join(' · ')}', hex: [`
       );
       expect(fs.existsSync(path.join(ROOT, 'app/portfolio/display', `${stem}.avif`))).toBe(true);
     }
