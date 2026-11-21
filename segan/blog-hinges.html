@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 매거진 글 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다 -->
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>경첩, 덮음 방식 · 열림 각도 · 댐핑 읽기 · 매거진 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026112114" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112114" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112114" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112114" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shell.css?v=2026112114" />
+    <link rel="stylesheet" href="info.css?v=2026112114" />
+    <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
+    <link rel="stylesheet" href="magazine.css?v=2026112114" />
+    <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
+         열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
+    <script src="../js/config.js?v=2026112114"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
+    <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
+    <script src="motion.js?v=2026112114"></script>
+    <script src="shell.js?v=2026112114" defer blocking="render"></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026112114" defer></script>
+    <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
+    <script src="blog.js?v=2026112114" defer blocking="render"></script>
+  </head>
+  <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
+  <body class="sg-app" data-tab="blog">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main ma" id="main">
+      <a class="ma-back" href="blog.html">‹ 매거진</a>
+
+      <article class="ma-article" data-slug="hinges" data-category="하드웨어">
+        <header class="ma-head">
+          <!-- 책장의 그 책 — 목록에서 누르면 표지가 커지며 여기로 이어진다 (blog.js · magazine.css) -->
+          <div class="ma-cover">
+            <span class="bk-cover bk-cover--hinges" aria-hidden="true">
+              <picture class="bk-art">
+                <source srcset="magazine/cover-hinges.webp" type="image/webp" />
+                <img
+                  src="magazine/cover-hinges.jpg"
+                  alt=""
+                  width="480"
+                  height="640"
+                  decoding="async"
+                  draggable="false"
+                />
+              </picture>
+              <span class="bk-head">
+                <span class="bk-no">06</span>
+                <span class="bk-tag">MAGAZINE · 하드웨어</span>
+              </span>
+              <span class="bk-mast">HINGE</span>
+            </span>
+          </div>
+          <p class="ma-cat">하드웨어</p>
+          <p class="ma-series">철물 시리즈 02</p>
+          <h1 class="sg-h1 ma-title">경첩, 덮음 방식 · 열림 각도 · 댐핑 읽기</h1>
+          <p class="ma-dek">싱크대 · 붙박이장 문에 쓰는 숨은 경첩이 어떻게 생겼고 무엇으로 나뉘는지, 문마다 몇 개를 다는지, 견적서에서 무엇을 확인할지 정리합니다.</p>
+          <p class="ma-meta">읽는 시간 약 7분</p>
+        </header>
+
+
+        <nav class="ma-toc" aria-labelledby="maTocTitle">
+          <p class="ma-toc-h" id="maTocTitle">차례</p>
+          <ol>
+            <li><a href="#hg-1"><span>1</span>경첩이란</a></li>
+            <li><a href="#hg-2"><span>2</span>문이 몸통을 덮는 방식</a></li>
+            <li><a href="#hg-3"><span>3</span>열림 각도와 문에 맞춘 경첩</a></li>
+            <li><a href="#hg-4"><span>4</span>댐핑(소프트클로즈)</a></li>
+            <li><a href="#hg-5"><span>5</span>달기와 맞추기</a></li>
+            <li><a href="#hg-6"><span>6</span>국내에서 볼 수 있는 브랜드</a></li>
+            <li><a href="#hg-7"><span>7</span>견적서에서 경첩 확인하기</a></li>
+          </ol>
+        </nav>
+
+        <section id="hg-1">
+          <h2><span class="ma-n">1</span>경첩이란</h2>
+          <p>싱크대와 붙박이장 문에 쓰는 경첩은 대부분 <b>컵 경첩</b>입니다. 문을 닫으면 밖에서 보이지 않아 숨은 경첩이라고도 부릅니다. 문 안쪽에 둥글게 판 홈에 컵이 들어가고, 컵에서 나온 팔이 몸통 옆판에 붙은 받침판에 끼워집니다. 요즘 제품은 닫힘 속도를 줄여 주는 댐퍼가 경첩 안에 들어 있고, 공구 없이 끼우고 빼며, 문 위치를 세 방향으로 맞출 수 있습니다.</p>
+          <figure class="ma-fig">
+          <picture><source srcset="magazine/art/hinges-1.webp" type="image/webp" /><img src="magazine/art/hinges-1.jpg" alt="열린 상부장 문 안쪽 위 모서리에 은색 컵 경첩 하나가 달린 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
+          <figcaption>문 안쪽의 컵 경첩. 둥근 홈에 들어간 컵에서 팔이 뻗어, 몸통 옆판의 받침판에 끼워집니다.</figcaption>
+        </figure>
+
+          <h3><span class="ma-n">1.1</span>세 부분</h3>
+          <figure class="ma-fig">
+          <picture><source srcset="magazine/art/hinges-2.webp" type="image/webp" /><img src="magazine/art/hinges-2.jpg" alt="은색 컵 경첩 하나와 십자형 받침판이 나란히 놓인 제품 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
+          <figcaption>컵 경첩(오른쪽)과 받침판(왼쪽). 받침판을 먼저 옆판에 붙이고, 문에 단 경첩의 팔을 그 위에 끼웁니다.</figcaption>
+        </figure>
+          <dl class="ma-defs">
+            <dt>컵</dt>
+            <dd>문 안쪽에 판 둥근 홈에 들어가는 부분입니다. 제조사 자료의 한 예로 컵 지름은 35mm, 깊이는 12.8mm입니다. 「보스」 또는 「보스 컵」이라고도 부릅니다.</dd>
+            <dt>팔(힌지 암)</dt>
+            <dd>컵과 받침판을 잇습니다. 팔 모양은 곧은 팔 · 한 번 꺾인 팔 · 두 번 꺾인 팔 셋으로 나뉩니다. 꺾임에 따라 문이 몸통을 덮는 폭이 달라집니다.</dd>
+            <dt>받침판(마운팅 플레이트)</dt>
+            <dd>몸통 옆판에 나사로 붙이고 팔을 끼우는 판입니다. 일자형과 십자형이 있고, 문 높이는 받침판에서 맞춥니다.</dd>
+          </dl>
+          <p>컵을 문에 고정하는 방법도 공구 없이 꽂는 방식 · 나사로 고정하는 방식 · 때려 박는 방식 등 여럿입니다.</p>
+        </section>
+
+        <section id="hg-2">
+          <h2><span class="ma-n">2</span>문이 몸통을 덮는 방식</h2>
+          <p>문이 몸통 옆판을 얼마나 덮느냐에 따라 팔의 꺾임이 다른 경첩을 씁니다. 같은 계열의 경첩이라도 덮음 방식마다 품번이 따로 있습니다.</p>
+          <div class="ma-table" role="region" aria-label="덮음 방식과 경첩 팔" tabindex="0">
+            <table>
+              <caption>덮음 방식과 경첩 팔</caption>
+              <thead><tr><th scope="col">덮음 방식</th><th scope="col">문 위치</th><th scope="col">팔 모양</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">전체 덮음</th><td>문이 옆판 앞면을 다 덮습니다.</td><td>곧은 팔</td></tr>
+                <tr><th scope="row">반 덮음</th><td>가운데 칸막이 하나를 양쪽 문 두 장이 반씩 나눠 덮습니다.</td><td>한 번 꺾인 팔</td></tr>
+                <tr><th scope="row">인셋</th><td>문이 몸통 안으로 들어가 앞면이 몸통과 같은 면이 됩니다.</td><td>두 번 꺾인 팔</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>실제로 문이 옆판을 덮는 폭은 팔 꺾임, 받침판 높이, 컵 거리(문 끝에서 컵 구멍 가장자리까지) 세 값이 함께 정합니다. 제조사 카탈로그의 한 예로 꺾임 3, 받침판 높이 2, 컵 거리 4mm일 때 문이 옆판을 14mm 덮습니다. 경첩만 바꾸고 받침판을 그대로 두면 덮는 폭이 달라질 수 있는 까닭입니다.</p>
+        </section>
+
+        <section id="hg-3">
+          <h2><span class="ma-n">3</span>열림 각도와 문에 맞춘 경첩</h2>
+          <p>경첩은 문이 얼마나 열리는지와 어떤 문에 다는지에 따라서도 나뉩니다. 아래는 제조사 카탈로그의 경첩 개요표를 바탕으로 정리한 것입니다. 회사마다 각도 구성은 조금씩 다릅니다.</p>
+          <div class="ma-table" role="region" aria-label="열림 각도와 쓰임" tabindex="0">
+            <table>
+              <caption>열림 각도와 쓰임</caption>
+              <thead><tr><th scope="col">열림 각도</th><th scope="col">쓰임</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">110° · 107° · 100°</th><td>표준</td></tr>
+                <tr><th scope="row">155° · 125°</th><td>문이 옆판 밖으로 튀어나오지 않음(0-protrusion)</td></tr>
+                <tr><th scope="row">170°</th><td>넓게 여는 곳</td></tr>
+                <tr><th scope="row">95°</th><td>프로파일 문 · 두꺼운 문 · 좁은 알루미늄 프레임 문</td></tr>
+                <tr><th scope="row">95° · 83°</th><td>블라인드 코너</td></tr>
+                <tr><th scope="row">110° · 94°</th><td>얇은 문 · 유리문, 프레임 문용 작은 경첩</td></tr>
+                <tr><th scope="row">60°</th><td>코너장 접이문</td></tr>
+                <tr><th scope="row">95° · 110° (+20° · +30° · +45°)</th><td>사선으로 짠 몸통에 맞춘 각도 경첩</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3><span class="ma-n">3.1</span>넓은 각 경첩과 안쪽 서랍</h3>
+          <figure class="ma-fig">
+          <picture><source srcset="magazine/art/hinges-5.webp" type="image/webp" /><img src="magazine/art/hinges-5.jpg" alt="크게 열린 하부장 문 옆으로 안쪽 서랍이 그릇을 담은 채 빠져나온 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
+          <figcaption>넓게 열리는 경첩. 문이 옆판 밖으로 튀어나오지 않아 안쪽 서랍이 문에 걸리지 않고 빠져나옵니다.</figcaption>
+        </figure>
+          <p>장 안에 서랍을 넣는 경우, 표준 경첩으로는 열린 문이 칸 안쪽으로 조금 들어와 서랍이 걸릴 수 있습니다. 155° 안팎으로 넓게 열리는 경첩은 문이 옆판 밖으로 나오지 않아 안쪽 서랍이 문에 걸리지 않습니다. 넓은 각 경첩은 여러 회사가 155° · 165° · 170° 등으로 냅니다.</p>
+
+          <h3><span class="ma-n">3.2</span>문 두께 · 재질에 맞춘 경첩</h3>
+          <figure class="ma-fig">
+          <picture><source srcset="magazine/art/hinges-7.webp" type="image/webp" /><img src="magazine/art/hinges-7.jpg" alt="투명 유리 장식장 문에 작은 은색 경첩이 달린 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
+          <figcaption>유리문 경첩. 유리에는 컵 홈을 팔 수 없어, 유리에 붙이는 판으로 경첩을 답니다.</figcaption>
+        </figure>
+          <p>보통 두께의 문은 표준 경첩을 쓰지만, 얇은 문 · 두꺼운 문 · 유리문은 전용 경첩이 따로 있습니다.</p>
+          <div class="ma-table" role="region" aria-label="문 두께 · 재질별 경첩" tabindex="0">
+            <table>
+              <caption>문 두께 · 재질별 경첩</caption>
+              <thead><tr><th scope="col">문</th><th scope="col">쓰는 경첩</th><th scope="col">제조사 자료의 예</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">표준 두께</th><td>표준 경첩</td><td>15~24mm 문</td></tr>
+                <tr><th scope="row">얇은 문</th><td>얇은 문 전용 경첩</td><td>8mm 문용도 있음</td></tr>
+                <tr><th scope="row">두꺼운 · 프로파일 문</th><td>두꺼운 문 · 프로파일 문 경첩</td><td>20~40mm 문용까지</td></tr>
+                <tr><th scope="row">유리 · 거울</th><td>유리에 붙이는 판으로 다는 유리문 경첩</td><td>컵 홈을 파지 않음</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="hg-4">
+          <h2><span class="ma-n">4</span>댐핑(소프트클로즈)</h2>
+          <p>댐핑 경첩은 문이 닫히기 직전 구간에서 속도를 줄여, 세게 밀어도 문이 부딪히지 않고 천천히 닫히게 합니다.</p>
+
+          <h3><span class="ma-n">4.1</span>내장형과 덧붙이는 형</h3>
+          <p>요즘 경첩은 댐퍼가 경첩 안에 들어 있는 <b>내장형</b>이 많습니다. 댐퍼 자리는 제품마다 달라 컵 안에 든 것도, 팔 안에 든 것도 있습니다. 댐퍼가 없는 경첩에 따로 붙이는 <b>덧붙이는 형</b>도 있습니다.</p>
+          <p>두 방식을 한 문에 섞어 다는 것은 조심해야 합니다. 제조사 자료는 댐퍼 내장 경첩과 일반 스프링 경첩을 섞어 쓸 때 300mm 이하의 작고 가벼운 문에서만 시험해 보라고 하고, 넓은 문에는 권하지 않습니다.</p>
+
+          <h3><span class="ma-n">4.2</span>세기와 작동 구간</h3>
+          <dl class="ma-defs">
+            <dt>세기 조절</dt>
+            <dd>레버로 약 · 중 · 강 3단을 공구 없이 바꾸는 제품, 작은 스위치로 감속을 조절하는 제품, 작고 가벼운 문을 위해 댐핑을 끌 수 있는 제품이 있습니다.</dd>
+            <dt>잡아 주기 시작하는 각도</dt>
+            <dd>제품에 따라 문이 30~35° 남았을 때부터 잡아 줍니다.</dd>
+          </dl>
+        </section>
+
+        <section id="hg-5">
+          <h2><span class="ma-n">5</span>달기와 맞추기</h2>
+
+          <h3><span class="ma-n">5.1</span>클립으로 달고 떼기</h3>
+          <p>받침판은 미리 옆판에 붙여 두고, 경첩을 단 문을 밀어 팔을 받침판에 「딸깍」 끼웁니다. 뗄 때도 공구가 필요 없습니다.</p>
+
+          <h3><span class="ma-n">5.2</span>세 방향 조절</h3>
+          <figure class="ma-fig">
+          <picture><source srcset="magazine/art/hinges-3.webp" type="image/webp" /><img src="magazine/art/hinges-3.jpg" alt="드라이버로 열린 문 안쪽 컵 경첩의 조절 나사를 돌리는 손 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
+          <figcaption>드라이버로 경첩 나사를 돌려 문 위치를 맞춥니다. 옆과 깊이는 팔에서, 높이는 받침판에서 맞춥니다.</figcaption>
+        </figure>
+          <p>문을 단 뒤 문 사이 틈과 높이가 맞지 않으면 경첩 나사로 맞춥니다. 세 조절은 서로 따로 움직입니다.</p>
+          <div class="ma-table" role="region" aria-label="경첩 조절 범위(제조사 자료의 예)" tabindex="0">
+            <table>
+              <caption>경첩 조절 범위(제조사 자료의 예)</caption>
+              <thead><tr><th scope="col">방향</th><th scope="col">조절 범위</th><th scope="col">어디서</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">옆(좌우)</th><td>±2mm</td><td>팔의 나사</td></tr>
+                <tr><th scope="row">깊이(앞뒤)</th><td>+3 / −2mm</td><td>팔의 나사</td></tr>
+                <tr><th scope="row">높이(위아래)</th><td>±2mm</td><td>받침판</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3><span class="ma-n">5.3</span>문 하나에 경첩 몇 개</h3>
+          <figure class="ma-fig">
+          <picture><source srcset="magazine/art/hinges-6.webp" type="image/webp" /><img src="magazine/art/hinges-6.jpg" alt="높은 붙박이장 문을 열어 문 안쪽에 경첩 네 개가 위아래로 달린 사진" width="1600" height="1063" loading="lazy" decoding="async" /></picture>
+          <figcaption>높은 붙박이장 문. 문 높이와 무게에 따라 경첩 수를 늘려, 위에서 아래로 고르게 나눠 답니다.</figcaption>
+        </figure>
+          <p>경첩 수는 문 높이와 무게(손잡이 무게까지)로 정하고, 문 재질과 고정 방식도 봅니다. 제조사 기준표는 폭 600mm까지의 문을 기준으로 합니다.</p>
+          <div class="ma-table" role="region" aria-label="경첩 수 예(제조사 자료)" tabindex="0">
+            <table>
+              <caption>경첩 수 예(제조사 자료)</caption>
+              <thead><tr><th scope="col">문 무게 · 크기</th><th scope="col">경첩 수</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">4~6kg</th><td>2개</td></tr>
+                <tr><th scope="row">6~12kg</th><td>3개</td></tr>
+                <tr><th scope="row">2,000 × 600mm, 13kg</th><td>4개</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>높고 좁은 문은 6kg이어도 3개가 더 안정적일 수 있고, 폭이 650mm까지 넓으면 하나를 더 답니다. 애매하면 시험 설치로 정합니다.</p>
+        </section>
+
+        <section id="hg-6">
+          <h2><span class="ma-n">6</span>국내에서 볼 수 있는 브랜드</h2>
+          <p>제품 계열은 각 회사 공식 누리집 · 카탈로그 표기(2026년 11월 확인)입니다. 국내 회사 경첩도 널리 쓰이지만, 이 글에서는 공식 자료로 확인한 해외 세 회사만 정리했습니다.</p>
+          <div class="ma-table" role="region" aria-label="경첩 브랜드와 제품 계열" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>경첩 브랜드와 제품 계열</caption>
+              <thead><tr><th scope="col">브랜드</th><th scope="col">나라</th><th scope="col">대표 계열</th><th scope="col">특징</th></tr></thead>
+              <tbody>
+                <tr><th scope="row"><span class="ma-logo"><img src="magazine/logos/hettich.svg" alt="Hettich 로고" loading="lazy" /></span><span class="ma-brand">Hettich(헤티히)</span></th><td>독일</td><td>Sensys, Intermat, Avosys</td><td>팔 안에 댐퍼, 165° 넓은 각 · 얇은 문 · 두꺼운 문 경첩</td></tr>
+                <tr><th scope="row"><span class="ma-logo"><img src="magazine/logos/grass.svg" alt="Grass 로고" loading="lazy" /></span><span class="ma-brand">Grass(그라스)</span></th><td>오스트리아</td><td>Tiomos, Nexis</td><td>댐핑 3단 조절, 자체 시험 10만 회</td></tr>
+                <tr><th scope="row"><span class="ma-logo"><img src="magazine/logos/salice.png" alt="Salice 로고" loading="lazy" /></span><span class="ma-brand">Salice(살리체)</span></th><td>이탈리아</td><td>Silentia+</td><td>컵 속 실리콘 오일 댐퍼 2개, 스위치로 조절, 눌러 끼우는 받침판</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>해외 브랜드는 국내 수입 · 유통처를 거쳐 들어옵니다. 경첩은 문마다 여러 개가 들어가므로, 나중에 같은 제품을 다시 구할 수 있는지와 A/S 창구를 미리 물어봅니다.</p>
+        </section>
+
+        <section id="hg-7">
+          <h2><span class="ma-n">7</span>견적서에서 경첩 확인하기</h2>
+          <p>견적서에 「경첩 포함」만 적혀 있으면 어떤 경첩이 몇 개 들어가는지 알 수 없습니다. 아래 일곱 가지가 적혀 있는지 한 번에 확인합니다.</p>
+          <div class="ma-table" role="region" aria-label="견적서 경첩 확인표" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>견적서 경첩 확인표</caption>
+              <thead><tr><th scope="col">항목</th><th scope="col">적혀 있어야 할 내용</th><th scope="col">왜 확인하나</th><th scope="col">자주 놓치는 것</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">브랜드 · 계열</th><td>브랜드와 계열 이름, 품번</td><td>같은 계열도 덮음 방식마다 품번이 다릅니다.</td><td>「경첩 포함」처럼 이름 없이 적힌 견적</td></tr>
+                <tr><th scope="row">열림 각도</th><td>표준(100~110°) · 넓은 각(155° 등)</td><td>안쪽 서랍이 있는 장은 넓은 각이 아니면 문에 걸릴 수 있습니다.</td><td>안쪽 서랍장에 표준 경첩</td></tr>
+                <tr><th scope="row">댐핑</th><td>댐퍼 내장 · 덧붙이는 형 · 없음</td><td>제조사 자료는 두 종류를 섞는 것을 작고 가벼운 문에서만 시험해 보라고 합니다.</td><td>댐핑 여부가 빠진 견적</td></tr>
+                <tr><th scope="row">받침판</th><td>경첩과 짝이 맞는 받침판</td><td>받침판 높이가 문이 덮는 폭을 바꿉니다.</td><td>경첩만 적고 받침판이 없음</td></tr>
+                <tr><th scope="row">문당 개수</th><td>문마다 경첩 수</td><td>키큰장 · 붙박이장 큰 문은 높이와 무게로 개수를 정합니다.</td><td>큰 문에도 두 개만 적힘</td></tr>
+                <tr><th scope="row">문 재질 · 두께</th><td>얇은 문 · 두꺼운 문 · 유리문 전용 경첩</td><td>얇은 문 · 두꺼운 문 · 유리문은 전용 경첩이 따로 있습니다.</td><td>유리문에 일반 경첩</td></tr>
+                <tr><th scope="row">부품 · A/S</th><td>국내 수입 · 유통처와 A/S 창구</td><td>나중에 같은 경첩을 다시 구해야 합니다.</td><td>고장 났을 때 연락할 곳을 모름</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="ma-final" aria-labelledby="maCheckTitle">
+          <h2 id="maCheckTitle">고객이 확인할 것</h2>
+          <ul class="ma-check">
+            <li>경첩 브랜드 · 계열이 견적서에 적혀 있는지</li>
+            <li>안쪽 서랍이 있는 장에 넓은 각 경첩이 들어가는지</li>
+            <li>댐핑 경첩인지, 한 문에 종류를 섞지 않았는지</li>
+            <li>키큰장 · 붙박이장 큰 문에 경첩이 몇 개 들어가는지</li>
+            <li>유리문 · 얇은 문은 전용 경첩인지</li>
+            <li>부품 · A/S를 받을 국내 창구</li>
+          </ul>
+        </section>
+      </article>
+
+      <nav class="ma-more" aria-labelledby="maMoreTitle">
+        <h2 class="in-h2" id="maMoreTitle">다른 글</h2>
+        <ul class="bl-posts">
+          <li>
+            <a class="bl-post" href="blog-materials.html">
+              <small class="bl-post-cat">자재</small>
+              <b class="bl-post-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-edge-finish.html">
+              <small class="bl-post-cat">설치</small>
+              <b class="bl-post-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
+              <small class="bl-post-time">읽는 시간 약 4분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-hardware.html">
+              <small class="bl-post-cat">하드웨어</small>
+              <b class="bl-post-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-kitchen-appliances.html">
+              <small class="bl-post-cat">주방기기</small>
+              <b class="bl-post-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-drawer-rails.html">
+              <small class="bl-post-cat">하드웨어</small>
+              <b class="bl-post-title">서랍레일, 볼레일 · 언더레일 · 박스 시스템 읽기</b>
+              <small class="bl-post-time">읽는 시간 약 6분</small>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

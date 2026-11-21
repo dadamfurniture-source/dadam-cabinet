@@ -30,6 +30,8 @@
   --bk-ink-kitchen-appliances: #f6efe4;
   --bk-paper-drawer-rails: #1d1e20;
   --bk-ink-drawer-rails: #f1ece3;
+  --bk-paper-hinges: #0a211c;
+  --bk-ink-hinges: #f1ece3;
 
   --bk-cell: clamp(150px, 44vw, 208px); /* 칸 폭 — 폰에서 두 권 + 다음 책 조금 */
   --bk-h: calc(var(--bk-cell) * 1.25); /* 칸 높이 — 칸 사진(480 × 600)의 비율 그대로 */
@@ -235,6 +237,12 @@
 .bk-cover--drawer-rails {
   --bk-paper: var(--bk-paper-drawer-rails);
   --bk-ink: var(--bk-ink-drawer-rails);
+  --bk-scrim-rgb: var(--bk-shade-rgb);
+}
+
+.bk-cover--hinges {
+  --bk-paper: var(--bk-paper-hinges);
+  --bk-ink: var(--bk-ink-hinges);
   --bk-scrim-rgb: var(--bk-shade-rgb);
 }
 
