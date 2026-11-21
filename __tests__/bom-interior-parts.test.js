@@ -182,9 +182,9 @@ describe('자재 — 싱크 줄', () => {
     expect(pick(rows('v'), '선반')).toEqual([[870, UD - C.SAKURI_SHELF_D_MINUS, 2]]);
   });
 
-  test('레일 — 속서랍 1단: 문주 언더레일 400 (여유 30 기준) 1 SET', () => {
+  test('레일 — 속서랍 1단: 문주 댐핑 언더레일 400 (여유 30 기준) 1 SET', () => {
     const rails = hardware.filter((h) => h.category === '레일' && /속서랍/.test(h.note));
-    expect(rails.map((h) => [h.item, h.spec, h.qty])).toEqual([['문주 언더레일', '400mm', 1]]);
+    expect(rails.map((h) => [h.item, h.spec, h.qty])).toEqual([['문주 댐핑 언더레일', '400mm', 1]]);
     expect(rails[0].note).toMatch(/속서랍/);
     expect(key('a')).toBeTruthy();
   });

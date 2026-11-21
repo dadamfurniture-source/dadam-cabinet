@@ -67,7 +67,7 @@ describe('키큰장 맨 아래 단 서랍 — 싱크 서랍장 규칙 그대로 
 
   test('철물: 레일 = 박스 수, 경첩 없음 (서랍장 전면은 마이다)', () => {
     const mine = r.hardware.filter((h) => h.moduleKey === '0-planner-tall-0-0');
-    expect(mine.map((h) => `${h.category} ${h.item} ${h.spec} ×${h.qty}`)).toEqual(['레일 댐핑 언더레일 500mm ×2']);
+    expect(mine.map((h) => `${h.category} ${h.item} ${h.spec} ×${h.qty}`)).toEqual(['레일 문주 댐핑 언더레일 500mm ×2']);
   });
 
   test('조립 명세: 단의 행이 모두 놓이고 박스 2 · 레일 4 자리 — 검사 오류 없음', () => {

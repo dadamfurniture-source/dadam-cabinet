@@ -75,6 +75,10 @@
       ball:  Object.freeze({ below: 10, above: 10, name: '댐핑 볼레일',   thickness: 14, fbMinus: 0,  sideMinus: 0 }),
     }),
     RAIL_DEFAULT: 'under',
+    // 2026-11-21 사장님 「문주 댐핑 언더레일 처럼, 회사이름) 제품기능이름」 · 「기본을 문주로 다 맞추고」:
+    //   철물 행 품명 = 회사 + 종류 이름 (RAIL_CLEARANCE.name 은 종류 이름 — 박스 비고에 쓴다). 수량 단위 SET = 좌우 한 쌍.
+    //   플래너 서랍장에서 팩토리 철물 카탈로그의 레일을 고르면 그 회사 · 이름 (mod.drawer.railItem — railHardwareOf).
+    RAIL_MAKER: '문주',
     FRONT_DEFAULT_H: 200,         // 도어 + 하부 서랍 하부장의 서랍 전면 (플래너 drawerHeight 기본값과 같다)
     // 2026-11-05 사장님 (위 서랍 + 아래 도어 하부장 — 1단 · 한 몸통 · 경첩 여닫이 · 사이 목찬넬): 위 서랍 전면 기본값 180 (layoutDrawerTop)
     TOP_DRAWER_FRONT_H: 180,
@@ -101,6 +105,9 @@
     CHANNEL_TOP_NOTCH_H: 70,      // 18 + 52
     CHANNEL_MID_FACE_H: 72,       // 중간 전면판 = 20 + 30 + 22
     CHANNEL_MID_NOTCH_H: 90,      // 18 + 72
+    // 2026-11-21 사장님 「목찬넬은 40+52+여유로 100으로 재단 … 60이하는 엣지바르기가 너무 어려워. 100으로 엣지를 바른 후 재단」
+    //   · 질문 창 「공장에서 켬」 · 중간 목찬넬 「120」(40 + 72): 재단은 이 폭의 막대, 엣지를 바른 뒤 공장에서 켠다.
+    CHANNEL_BAR_W: Object.freeze({ top: 100, mid: 120 }),
   });
 
   const BOX_ORDER = ['large', 'medium', 'small'];
@@ -111,6 +118,22 @@
   }
   function railKeyOf(rail) {
     return DRAWER_RULES.RAIL_CLEARANCE[rail] ? rail : DRAWER_RULES.RAIL_DEFAULT;
+  }
+  /**
+   * 2026-11-21: 레일 철물 행의 품명 · 회사.
+   *   railItem {brand, name, type} — 플래너 서랍장에서 고른 팩토리 철물 카탈로그 레일. type 이 이 종류(key)와 같을 때만 쓴다.
+   *   없으면 기본 회사(RAIL_MAKER) + 종류 이름 — 「문주 댐핑 언더레일」.
+   * @returns {{item:string, manufacturer:string}}
+   */
+  function railHardwareOf(key, railItem) {
+    const k = railKeyOf(key);
+    const ri = railItem && typeof railItem === 'object' ? railItem : null;
+    if (ri && ri.type === k && String(ri.name || '').trim()) {
+      const brand = String(ri.brand || '').trim();
+      const name = String(ri.name).trim();
+      return { item: !brand || name.startsWith(brand) ? name : `${brand} ${name}`, manufacturer: brand };
+    }
+    return { item: `${DRAWER_RULES.RAIL_MAKER} ${DRAWER_RULES.RAIL_CLEARANCE[k].name}`, manufacturer: DRAWER_RULES.RAIL_MAKER };
   }
 
   /**
@@ -562,5 +585,5 @@
   }
 
   return { DRAWER_RULES, layoutDrawerModule, layoutDrawerTop, splitNotchNotes, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
-    assignChannels, pickBox, autoGradeFor, gradesFromRatio, ratioOf, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims, boxGroupsOf };
+    assignChannels, pickBox, autoGradeFor, gradesFromRatio, ratioOf, railOf, railKeyOf, railHardwareOf, notchNote, railLengthFor, drawerBoxDims, boxGroupsOf };
 });

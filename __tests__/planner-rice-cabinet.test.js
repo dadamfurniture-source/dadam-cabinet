@@ -214,7 +214,7 @@ describe('BOM — 밥솥장', () => {
     expect(rows.slice(3).map((r) => [r.part, Number(r.w), Number(r.h), Number(r.qty)])).toEqual([
       ['밥솥장 선반', 414 - 42 + 30, 490, 1], ['밥솥장 보강목', 80, 490, 2], ['밥솥장 마이다', 414 - 5, 95, 1], ['밥솥장 위 목대', 30, 450, 2]]);
     const mine = hardware.filter((h) => h.module === '밥솥장');
-    expect(mine.map((h) => `${h.category} ${h.item} ${h.spec} ×${h.qty}`)).toEqual(['레일 문주 언더레일 500mm ×1']);
+    expect(mine.map((h) => `${h.category} ${h.item} ${h.spec} ×${h.qty}`)).toEqual(['레일 문주 댐핑 언더레일 500mm ×1']);
   });
 
   test('여닫이면 도어 (W−4)×(H−4) 한 장과 그 높이로 센 경첩, 카테고리 추출기는 두 벌 내지 않는다', () => {

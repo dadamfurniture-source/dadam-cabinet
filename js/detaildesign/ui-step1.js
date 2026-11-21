@@ -1169,7 +1169,13 @@
        */
       function _drawerRulesOf(s) {
         const d = (s && s.drawer) || {};
-        const railRaw = d.rail || (s && s.drawerRail);
+        // 2026-11-21 사장님 「서랍장 모듈을 선택하면 레일 회사, 종류를 선택」: 팩토리 철물 카탈로그에서 고른 레일 {brand, name, type}
+        //   — 종류(type)가 레일 종류다. 이름 · 회사는 철물 행 품명으로만 쓴다 (bom-drawer-rules railHardwareOf).
+        const ri = d.railItem && typeof d.railItem === 'object' && (d.railItem.type === 'under' || d.railItem.type === 'ball')
+          && String(d.railItem.name || '').trim()
+          ? { brand: String(d.railItem.brand || '').trim().slice(0, 40), name: String(d.railItem.name).trim().slice(0, 120), type: d.railItem.type }
+          : null;
+        const railRaw = (ri && ri.type) || d.rail || (s && s.drawerRail);
         // 2026-10-19: 'auto' = 비율 2 서랍 (존 높이로 대·중·소, bom-drawer-rules.js autoGradeFor)
         const GRADES = ['small', 'medium', 'large', 'auto'];
         // 2026-09-16: 전면 등급 — 서랍마다 소·중·대, 도어는 따로. 모르는 값은 버리고 규칙 파일 기본값에 맡긴다.
@@ -1183,6 +1189,7 @@
         };
         if (grades.length) out.grades = grades;
         if (GRADES.includes(d.doorGrade)) out.doorGrade = d.doorGrade;
+        if (ri) out.railItem = ri;   // 있을 때만 (없는 모듈의 payload 는 예전과 같다)
         // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장 표시 — 있을 때만 싣는다 (없는 모듈의 payload 는 예전과 같다)
         if (d.topDrawer === true) out.topDrawer = true;
         // 2026-11-05 사장님 (위 서랍 + 아래 도어 — 한 몸통 · 경첩 여닫이): 서랍이 위, 도어가 아래 — 있을 때만 싣는다

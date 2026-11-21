@@ -301,7 +301,7 @@ describe('서랍 규칙 블록 — 레일·사쿠리·서랍 자재 두께가 BO
     const fb = rows.find((r) => r.part === '서랍전후판');
     expect(fb.h).toBe(side.h - 18);                  // 사쿠리 −18
     const rail = new HardwareExtractor().extract({ items: [item] }).hardware.find((h) => h.category === '레일');
-    expect(rail.item).toBe('댐핑 볼레일');
+    expect(rail.item).toBe('문주 댐핑 볼레일');
     expect(rail.qty).toBe(2);
   });
 });

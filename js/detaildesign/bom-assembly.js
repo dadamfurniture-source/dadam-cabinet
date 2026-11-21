@@ -1792,9 +1792,9 @@
         const all = m.drawerBoxes || [];
         const len = parseFloat(row.spec);
         if (!all.length) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'rail-box-unknown' }); return; }   // 박스를 못 놓은 몸통 — 박스 자리가 없다
-        // 2026-10-26 (가스대): 레일 종류마다 한 행 — 그 종류(품명)의 박스만. 어느 박스와도 이름이 안 맞으면(옛 품명 · 밥솥장 선반) 박스 전부 — 예전과 같다
-        const nameOf = (r) => (DR.RAIL_CLEARANCE[r] || DR.RAIL_CLEARANCE[DR.RAIL_DEFAULT]).name;
-        const named = all.filter((b) => nameOf(b.rail) === row.item);
+        // 2026-10-26 (가스대): 레일 종류마다 한 행 — 그 종류의 박스만. 행에 종류(railType)가 없거나 어느 박스와도 안 맞으면(속서랍 · 밥솥장 선반 · 붙박이장) 박스 전부 — 예전과 같다
+        //   2026-11-21: 품명이 회사 + 종류(「문주 댐핑 언더레일」 · 고른 카탈로그 레일)라 품명이 아니라 행의 railType 으로 맞춘다
+        const named = row.railType ? all.filter((b) => (DR.RAIL_CLEARANCE[b.rail] ? b.rail : DR.RAIL_DEFAULT) === row.railType) : [];
         const boxes = named.length ? named : all;
         if (boxes.length !== row.qty || !boxes.every((b) => b.railLength === len)) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'hardware-count-mismatch' }); return; }
         boxes.forEach((b) => {
