@@ -7,6 +7,8 @@
  *     쌓는 방식   「몸통 위에 바로」 — 아래 하부장은 밴드 2 대신 천판 (키큰장 단 · 하부 밥솥장 짜임), 그 칸 위 상판 없음
  *     위 수납장   상부장 짜임의 따로 짠 상자 (pos upper — 높이 · 깊이는 간편 플래너 · 모듈 라이브러리가 준다)
  *     도어 아래 끝 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」 — 구조 s.stackBox, 내림은 BOM 이 품목 손잡이로 (5 · 0)
+ *   2026-11-21 사장님 「하부장 위 수납장은 상판위에 올라가는 모듈로 만들어야해」 — 수납장 밑 = 상판 윗면이라 도어 내림 0 (손잡이와 관계없이).
+ *     아래 하부장 cabinetOnTop(천판 · 상판 끊김)은 간편 플래너가 더 보내지 않는다 — 여기 시험은 그 전에 보낸 도면을 읽는 길이다.
  *   「하부장 … 전자제품 … 콘센트 … BOM」 → 「콘센트 자재 + 뒤판 타공」 · 「모듈마다 1개 (2구)」 · 타공 「50*80」 · 높이는 모듈 칸에서
  *   유리 도어 → 「알루미늄 프레임 + 유리」 — 사서 단다 (도어 판 행 대신 같은 치수의 구매품 행, 경첩은 엔진 규칙 그대로)
  */
@@ -184,20 +186,20 @@ describe('BOM — 하부장 위 수납장', () => {
     expect(one.map((r) => r.note.slice(0, 7))).toEqual(['하부 라인 한']);
   });
 
-  test('위 수납장 — 상부장 짜임 (천판 · 지판 · 뒷판), 도어 = 몸통 + 5 (목찬넬) · 몸통 그대로 (목찬넬 아님)', () => {
+  test('위 수납장 — 상부장 짜임 (천판 · 지판 · 뒷판), 도어 = 몸통 그대로 (목찬넬이어도 — 2026-11-21 상판 위)', () => {
     const a = line();
     expect(
       parts(a.rowsOf('s1').filter((r) => ['측판', '천판', '지판', '뒷판'].includes(r.part)))
     ).toEqual(['뒷판', '지판', '천판', '측판×2']);
-    expect(a.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382 + 5);
+    expect(a.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382);
     const b = line({ handle: '푸쉬' });
     expect(b.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382);
   });
 
-  test('수납장 · 화장대 품목도 도어 = 몸통 + 5 (목찬넬) · 몸통 그대로 — 단순 상자 규칙도 같은 내림 (2026-11-03 「모든 품목」)', () => {
+  test('수납장 · 화장대 품목도 도어 = 몸통 그대로 — 단순 상자 규칙도 같은 내림 (2026-11-03 「모든 품목」 · 2026-11-21 상판 위)', () => {
     for (const category of ['storage', 'vanity']) {
       const a = line({ category });
-      expect(a.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382 + 5);
+      expect(a.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382);
       const b = line({ category, handle: '푸쉬' });
       expect(b.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382);
       // 경첩 도어 높이도 같은 내림 — 보링이 도어 안에
@@ -215,7 +217,7 @@ describe('BOM — 하부장 위 수납장', () => {
     expect(Math.max(...hinge.boring)).toBeLessThan(doorH);
   });
 
-  test('조립 명세 — 아래 하부장 천판 · 위 수납장 도어(내림 5 · 0)가 자리에 놓인다', () => {
+  test('조립 명세 — 아래 하부장 천판 · 위 수납장 도어(내림 0)가 자리에 놓인다', () => {
     for (const o of [{}, { handle: '푸쉬' }]) {
       const { spec, key } = line(o);
       // 선반 높이는 부르는 쪽(플래너 opts.shelfY)이 넘긴다 — 이 시험은 넘기지 않는다
@@ -228,8 +230,8 @@ describe('BOM — 하부장 위 수납장', () => {
       const s1 = spec.items[0].modules.find((m) => m.moduleKey === `0-${key('s1')}`);
       const door = s1.parts.find((p) => p.part === '도어');
       expect(door).toBeTruthy();
-      // 도어 윗변 = 몸통 상단 1382, 밑단 = 몸통 바닥 − 내림 (5 · 0)
-      expect([door.box.min[1] + 0, door.box.max[1]]).toEqual([0 - (o.handle ? 0 : 5), 1382]);
+      // 도어 윗변 = 몸통 상단 1382, 밑단 = 몸통 바닥 (내림 0 — 2026-11-21 상판 위)
+      expect([door.box.min[1] + 0, door.box.max[1]]).toEqual([0, 1382]);
       const l0 = spec.items[0].modules.find((m) => m.moduleKey === `0-${key('l0')}`);
       expect(l0.parts.some((p) => p.part === '천판')).toBe(true);
     }
