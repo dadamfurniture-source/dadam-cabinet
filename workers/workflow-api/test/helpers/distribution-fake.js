@@ -112,6 +112,11 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     designs: [],
     production_requests: [],
     production_recommendations: [],
+    // 프로젝트 한 길(company-pipeline.js)이 읽는 표 — 비어 있어도 있어야 한다
+    design_documents: [],
+    order_events: [],
+    order_payments: [],
+    as_requests: [],
     ...JSON.parse(JSON.stringify(tables)),
   };
   const calls = [];
@@ -121,7 +126,7 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     if (!select || select === '*') return { ...row };
     const out = {};
     for (const item of select.split(',')) {
-      const alias = item.match(/^(\w+):(\w+)->(\w+)$/);
+      const alias = item.match(/^(\w+):(\w+)->>?(\w+)$/); // col->key · col->>key
       if (alias) {
         const [, name, col, key] = alias;
         const v = row[col];
