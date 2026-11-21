@@ -16,10 +16,10 @@
     <title>AI 연출컷 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112111" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112111" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112111" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112111" />
+    <link rel="icon" href="icons/icon.svg?v=2026112112" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112112" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112112" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112112" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -29,25 +29,25 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112111" />
-    <link rel="stylesheet" href="make.css?v=2026112111" />
+    <link rel="stylesheet" href="shell.css?v=2026112112" />
+    <link rel="stylesheet" href="make.css?v=2026112112" />
     <!-- 로그인 · 크레딧 · 생성 — 기존 사이트와 같은 설정 · 라이브러리 -->
-    <script src="../js/config.js?v=2026112111"></script>
+    <script src="../js/config.js?v=2026112112"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026112111"></script>
+    <script src="../js/admin-access.js?v=2026112112"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026112111"></script>
+    <script src="../js/mypage-work.js?v=2026112112"></script>
     <!-- 결과 내려받기 직전 서명 URL 다시 확인 (내 연출컷 목록 · my-designs.html 과 같다) -->
-    <script src="../js/storage-urls.js?v=2026112111"></script>
+    <script src="../js/storage-urls.js?v=2026112112"></script>
     <!-- ③ 참고 사진의 테마 이름 · 버킷 (ai-design.html · admin/reference-images.html 과 같은 공용 파일) -->
-    <script src="../js/reference-images.js?v=2026112111"></script>
+    <script src="../js/reference-images.js?v=2026112112"></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112111"></script>
-    <script src="shell.js?v=2026112111" defer blocking="render"></script>
+    <script src="motion.js?v=2026112112"></script>
+    <script src="shell.js?v=2026112112" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112111" defer></script>
-    <script src="make.js?v=2026112111" defer></script>
+    <script src="guide.js?v=2026112112" defer></script>
+    <script src="make.js?v=2026112112" defer></script>
   </head>
   <body class="sg-app" data-tab="make">
     <div data-segan-shell="header"></div>
@@ -122,16 +122,38 @@
         <h1 class="mk-h1" id="mkKindTitle">배치할 품목을 골라주세요</h1>
         <div class="mk-kinds" id="mkKinds" role="group" aria-label="품목"></div>
 
+        <!-- 요청 · AI 상담 (2026-11-21 대표님 — 스타일 · 도어 색 · 치수 · 설비 칸 대신). 적은 글 → AI 상담(방 사진을 같이 봄)
+             → 「정리하기」 → 고객이 고친 참고 내용이 생성 본문 customer_request 로 간다 (generate-api /api/chat · /api/chat/brief) -->
         <section class="mk-adv" aria-labelledby="mkAdvTitle">
-          <h2 class="mk-h2" id="mkAdvTitle"><span>고급 설정</span><span class="mk-opt">선택</span></h2>
-          <div class="mk-field">
-            <span class="mk-label" id="mkStyleLabel">디자인 스타일</span>
-            <div class="mk-chips" id="mkStyles" role="group" aria-labelledby="mkStyleLabel"></div>
+          <h2 class="mk-h2" id="mkAdvTitle"><span>요청 · AI 상담</span><span class="mk-opt">선택</span></h2>
+          <label class="mk-input"
+            ><span>원하는 연출</span
+            ><textarea
+              id="mkPrompt"
+              maxlength="600"
+              rows="3"
+              placeholder="예: 월넛 도어에 화이트 상판, 따뜻한 간접 조명"
+            ></textarea
+          ></label>
+          <div class="mk-chat" id="mkChat">
+            <div class="mk-chat-log" id="mkChatLog" aria-live="polite" hidden></div>
+            <div class="mk-chat-row" id="mkChatRow" hidden>
+              <input type="text" id="mkChatInput" maxlength="500" aria-label="상담 답" placeholder="답을 적어 주세요" />
+              <button type="button" class="mk-btn" id="mkChatSend">보내기</button>
+            </div>
+            <div class="mk-acts">
+              <button type="button" class="mk-btn" id="mkChatStart">AI 상담</button>
+              <button type="button" class="mk-btn mk-btn--solid" id="mkBriefMake" hidden>정리하기</button>
+              <a class="mk-link" id="mkChatLogin" href="../login.html" hidden>로그인하면 AI 상담을 받을 수 있습니다</a>
+            </div>
+            <p class="mk-note" id="mkChatNote" hidden></p>
+            <p class="mk-error" id="mkChatError" role="alert" hidden></p>
           </div>
-          <div class="mk-field">
-            <span class="mk-label" id="mkDoorLabel">도어 색상</span>
-            <div class="mk-chips" id="mkDoors" role="group" aria-labelledby="mkDoorLabel"></div>
-          </div>
+          <label class="mk-input" id="mkBriefBox" hidden
+            ><span>연출컷 참고 내용 · 고칠 수 있습니다</span
+            ><textarea id="mkBrief" maxlength="600" rows="4"></textarea
+          ></label>
+          <p class="mk-note">적은 내용은 연출컷에 반영합니다. 도어 색 · 상판 · 분위기를 말로 적어 주세요.</p>
 
           <!-- 냉장고장일 때만 -->
           <div class="mk-fridge" id="mkFridge" hidden>
@@ -156,33 +178,6 @@
               </select></label
             >
           </div>
-
-          <details class="mk-more" id="mkMore">
-            <summary>치수 · 설비 <span class="mk-opt">아는 경우만</span></summary>
-            <div class="mk-more-body">
-              <label class="mk-input"
-                ><span>벽 폭 (mm)</span
-                ><input
-                  type="number"
-                  id="mkWallW"
-                  min="1000"
-                  max="6000"
-                  step="50"
-                  inputmode="numeric"
-                  placeholder="자동 인식"
-              /></label>
-              <div class="mk-plumbing" id="mkPlumbing" hidden>
-                <label class="mk-input"
-                  ><span>급수 위치 (mm, 벽 왼쪽 끝에서)</span
-                  ><input type="number" id="mkWater" min="0" step="10" inputmode="numeric" placeholder="자동 인식"
-                /></label>
-                <label class="mk-input"
-                  ><span>배기 위치 (mm, 벽 왼쪽 끝에서)</span
-                  ><input type="number" id="mkExhaust" min="0" step="10" inputmode="numeric" placeholder="자동 인식"
-                /></label>
-              </div>
-            </div>
-          </details>
         </section>
       </section>
 

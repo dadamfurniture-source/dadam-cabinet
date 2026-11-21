@@ -4,7 +4,9 @@
  * SEGAN 만들기 — 진행 단계 6칸 · ① 사진 · ② 품목 · 로그인 전 임시 보관 (segan/make.html + segan/make.js).
  * ③ 참고 사진은 segan-make-refs.test.js, 결과(4 생성 · 5 견적서)는 segan-make-result*.test.js.
  *
- *   - 품목 · 스타일 · 도어 색 · 냉장고 선택지가 ai-design.html 과 같다 (새 선택지를 만들지 않는다)
+ *   - 품목 · 스타일 · 도어 색 · 냉장고 선택지가 ai-design.html 과 같다 (새 선택지를 만들지 않는다).
+ *     스타일 · 도어 색 · 치수 칸은 2026-11-21 뺐다 — 목록은 상담 정리 · 옛 결과 이름에 쓴다
+ *   - ② 요청 · AI 상담: 적은 글 → /api/chat(app · 줄인 방 사진) → 「정리하기」 /api/chat/brief → 고칠 수 있는 참고 내용
  *   - 사진 찍기(카메라) · 앨범 → 미리보기(칸 안에 원본 전체 · 채워 보기) · 다시 선택, 다음 단계
  *   - 크레딧 안내 (credit_costs · 남은 횟수 = my_credit_wallet 잔액) 와 시공사례 안내 문장
  *   - 로그인 전 생성 → sessionStorage 에만 담고 login.html?redirect= 로. 돌아오면 같은 단계로 되살리고
@@ -377,34 +379,29 @@ describe('② 품목', () => {
     expect(visible($('mkRun'))).toBe(true);
   });
 
-  test('가구 10종 · 기본 싱크대 · 스타일 5 · 도어 색 7, 하나씩만 눌림', async () => {
+  test('가구 10종 · 기본 싱크대, 하나씩만 눌림 — 스타일 · 도어 색 · 치수 · 설비 칸은 없다', async () => {
     await toKind();
     expect($('mkKinds').querySelectorAll('button')).toHaveLength(10);
     expect(pressed('mkKinds')).toEqual(['싱크대']);
-    expect($('mkStyles').querySelectorAll('button')).toHaveLength(5);
-    expect($('mkDoors').querySelectorAll('button')).toHaveLength(7);
-    document.querySelector('[data-style="classic"]').click();
-    document.querySelector('[data-door="oak woodgrain"]').click();
-    expect(pressed('mkStyles')).toEqual(['클래식']);
-    expect(pressed('mkDoors')).toEqual(['오크']);
-    expect(draft().choices).toMatchObject({
-      kind: 'sink',
-      style: 'classic',
-      door: 'oak woodgrain',
-    });
+    document.querySelector('[data-kind="wardrobe"]').click();
+    expect(pressed('mkKinds')).toEqual(['붙박이장']);
+    ['mkStyles', 'mkDoors', 'mkMore', 'mkWallW', 'mkWater', 'mkExhaust', 'mkPlumbing'].forEach(
+      (id) => expect($(id)).toBeNull()
+    );
+    expect($('mkAdvTitle').textContent).toContain('요청 · AI 상담');
+    $('mkPrompt').value = '월넛 도어';
+    $('mkPrompt').dispatchEvent(new Event('input'));
+    expect(draft().choices).toMatchObject({ kind: 'wardrobe', prompt: '월넛 도어' });
+    expect(draft().choices).not.toHaveProperty('style');
   });
 
-  test('급수 · 배기는 싱크대 · 아일랜드만, 냉장고 칸은 냉장고장만', async () => {
+  test('냉장고 칸은 냉장고장만', async () => {
     await toKind();
-    expect($('mkPlumbing').hidden).toBe(false);
     expect($('mkFridge').hidden).toBe(true);
-    document.querySelector('[data-kind="wardrobe"]').click();
-    expect($('mkPlumbing').hidden).toBe(true);
-    document.querySelector('[data-kind="island"]').click();
-    expect($('mkPlumbing').hidden).toBe(false);
     document.querySelector('[data-kind="fridge"]').click();
-    expect($('mkPlumbing').hidden).toBe(true);
     expect($('mkFridge').hidden).toBe(false);
+    document.querySelector('[data-kind="island"]').click();
+    expect($('mkFridge').hidden).toBe(true);
   });
 
   test('냉장고 모델 — appliance_models 를 브랜드별로 채우고 고른 값을 담는다', async () => {
@@ -419,13 +416,6 @@ describe('② 품목', () => {
     $('mkFModel').value = 'M874GBB';
     $('mkFModel').dispatchEvent(new Event('change'));
     expect(draft().choices).toMatchObject({ kind: 'fridge', fBrand: 'lg', fModel: 'M874GBB' });
-  });
-
-  test('치수 — 숫자만 담는다', async () => {
-    await toKind();
-    $('mkWallW').value = '3200';
-    $('mkWallW').dispatchEvent(new Event('input'));
-    expect(draft().choices.wallW).toBe('3200');
   });
 
   test('뒤로 가기(popstate) — 사진 단계로', async () => {
@@ -549,7 +539,8 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     await choose('mkAlbumInput');
     $('mkNext').click();
     document.querySelector('[data-kind="fridge"]').click();
-    document.querySelector('[data-door="walnut woodgrain"]').click();
+    $('mkPrompt').value = '월넛 도어';
+    $('mkPrompt').dispatchEvent(new Event('input'));
     $('mkNext').click();
     $('mkRun').click();
     await flush();
@@ -563,7 +554,7 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
       v: 1,
       step: 'refs',
       photo: { base64: 'QUJD', name: 'kitchen.jpg' },
-      choices: { kind: 'fridge', door: 'walnut woodgrain' },
+      choices: { kind: 'fridge', prompt: '월넛 도어' },
       refs: [],
     });
     expect(calls.fetch).toEqual([]);
@@ -580,9 +571,8 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
         photo: PHOTO,
         choices: {
           kind: 'fridge',
-          style: 'classic',
-          door: 'oak woodgrain',
-          wallW: '3200',
+          prompt: '오크 도어',
+          brief: '오크 도어, 천장까지',
           fBrand: 'lg',
           fPos: 'right',
         },
@@ -594,11 +584,11 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     expect(window.location.hash).toBe('#refs');
     expect($('mkPhoto').getAttribute('src')).toBe('data:image/jpeg;base64,QUJD');
     expect(pressed('mkKinds')).toEqual(['냉장고장']);
-    expect(pressed('mkStyles')).toEqual(['클래식']);
-    expect(pressed('mkDoors')).toEqual(['오크']);
     expect(pressed('mkFBrands')).toEqual(['LG']);
     expect(pressed('mkFPos')).toEqual(['우측']);
-    expect($('mkWallW').value).toBe('3200');
+    expect($('mkPrompt').value).toBe('오크 도어');
+    expect($('mkBrief').value).toBe('오크 도어, 천장까지');
+    expect($('mkBriefBox').hidden).toBe(false);
     expect($('mkRun').disabled).toBe(false);
     expect($('mkCost').textContent).toBe('20 크레딧 차감 · 남은 50회');
     expect(start).not.toHaveBeenCalled();
@@ -633,17 +623,35 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
         v: 1,
         step: 'kind',
         photo: { ...PHOTO, mime: 'text/html' },
-        choices: { kind: 'evil', door: 'red', style: 'x', wallW: '12ab', fModel: '<script>' },
+        choices: {
+          kind: 'evil',
+          door: 'red',
+          style: 'x',
+          wallW: '12ab',
+          fModel: '<script>',
+          prompt: 7,
+          brief: '',
+          briefDoor: 'oak woodgrain',
+          chat: [
+            { role: 'system', text: 'x' },
+            { role: 'me', text: '  ' },
+            'nope',
+            { role: 'ai', text: '안녕' },
+          ],
+        },
       },
     });
     expect(visible($('mkPhotoTitle'))).toBe(true); // 사진이 없으니 1단계
-    expect(draft().choices).toMatchObject({
+    const c = draft().choices;
+    expect(c).toMatchObject({
       kind: 'sink',
-      door: 'white',
-      style: 'modern-minimal',
-      wallW: '',
       fModel: '',
+      prompt: '',
+      brief: '',
+      briefDoor: '', // 참고 내용 없이 고른 색은 버린다
+      chat: [], // 고객 말이 없는 기록은 버린다
     });
+    ['door', 'style', 'wallW'].forEach((k) => expect(c).not.toHaveProperty(k));
   });
 
   test('사진이 너무 커서 못 담으면 — 안내하고 고른 값만 담은 채 로그인으로', async () => {
@@ -698,5 +706,197 @@ describe('페이지 · 서비스 워커', () => {
       ]);
     }
     expect(css).toMatch(/\.mk-input input,\s*\.mk-input select\s*\{[^}]*min-height:\s*48px/);
+  });
+});
+
+describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → 「정리하기」 /api/chat/brief', () => {
+  const BASE = 'https://dadam-generate-api.dadamfurniture.workers.dev';
+  const SMALL = { base64: 'U01BTEw=', mimeType: 'image/jpeg' };
+
+  /** 로그인 · 사진이 있는 품목 단계 — 상담 서버는 가짜 fetch (replies 를 차례로 준다) */
+  async function chatLoad(replies, opts = {}) {
+    const r = await load({
+      session: SESSION,
+      balance: 1000,
+      draft: { v: 1, step: 'kind', photo: PHOTO, choices: opts.choices || { kind: 'sink' } },
+    });
+    await flush();
+    r.M.shrinkPhoto = jest.fn(async () => SMALL);
+    const sent = [];
+    window.fetch = jest.fn(async (url, init = {}) => {
+      if (!String(url).startsWith(BASE + '/api/chat')) throw new Error('unexpected ' + url);
+      sent.push({ url, body: JSON.parse(init.body), headers: init.headers });
+      const next = replies.shift();
+      if (next instanceof Error) throw next;
+      return { ok: next.ok !== false, status: next.status || 200, json: async () => next };
+    });
+    return { ...r, sent };
+  }
+  const log = () =>
+    [...$('mkChatLog').querySelectorAll('.mk-chat-msg')].map((p) => [
+      p.className.replace('mk-chat-msg mk-chat-msg--', ''),
+      p.textContent,
+    ]);
+
+  test('로그인 전 — 글 칸만, 상담 단추 대신 로그인 안내. 누르면 이 기기에 담고 로그인으로, 아무것도 보내지 않는다', async () => {
+    const { M, calls } = await load({ draft: { v: 1, step: 'kind', photo: PHOTO, choices: {} } });
+    await flush();
+    expect(visible($('mkPrompt'))).toBe(true);
+    expect($('mkChatStart').hidden).toBe(true);
+    expect(visible($('mkChatLogin'))).toBe(true);
+    $('mkPrompt').value = '화이트 도어';
+    $('mkPrompt').dispatchEvent(new Event('input'));
+    $('mkChatLogin').click();
+    expect(M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Fmake.html');
+    expect(draft()).toMatchObject({
+      step: 'kind',
+      choices: { prompt: '화이트 도어' },
+      photo: { base64: 'QUJD' },
+    });
+    expect(calls.fetch).toEqual([]);
+  });
+
+  test('적은 글이 첫 말 → AI 답 → 이어 묻기 → 정리하기 → 고칠 수 있는 참고 내용 · 고른 색', async () => {
+    const { M, sent } = await chatLoad([
+      { success: true, reply: '좋아요. 상판은 어떤 느낌이 좋을까요?' },
+      { success: true, reply: '알겠습니다. 「정리하기」를 눌러 주세요.' },
+      {
+        success: true,
+        brief: '월넛 도어, 화이트 상판',
+        door_color: 'walnut woodgrain',
+        design_style: 'classic',
+      },
+    ]);
+    expect(visible($('mkChatStart'))).toBe(true);
+    expect($('mkChatLogin').hidden).toBe(true);
+    expect($('mkBriefMake').hidden).toBe(true);
+    $('mkPrompt').value = '월넛 도어';
+    $('mkPrompt').dispatchEvent(new Event('input'));
+    $('mkChatStart').click();
+    await M.chatting;
+    expect(sent[0].url).toBe(BASE + '/api/chat');
+    expect(sent[0].headers.Authorization).toBe('Bearer tok-1');
+    expect(sent[0].body).toEqual({
+      category: 'sink',
+      app: true,
+      messages: [{ role: 'me', text: '월넛 도어' }],
+      room_image: SMALL.base64,
+      image_type: 'image/jpeg',
+    });
+    expect(M.shrinkPhoto).toHaveBeenCalledWith(
+      expect.objectContaining({ base64: 'QUJD' }),
+      M.CHAT_EDGE
+    );
+    expect(log()).toEqual([
+      ['me', '월넛 도어'],
+      ['ai', '좋아요. 상판은 어떤 느낌이 좋을까요?'],
+    ]);
+    expect($('mkChatStart').hidden).toBe(true);
+    expect(visible($('mkChatRow'))).toBe(true);
+    expect(visible($('mkBriefMake'))).toBe(true);
+
+    $('mkChatInput').value = '화이트 상판';
+    $('mkChatSend').click();
+    await M.chatting;
+    expect(sent[1].body.messages.map((m) => m.text)).toEqual([
+      '월넛 도어',
+      '좋아요. 상판은 어떤 느낌이 좋을까요?',
+      '화이트 상판',
+    ]);
+    expect(M.shrinkPhoto).toHaveBeenCalledTimes(1); // 같은 사진은 한 번만 줄인다
+    expect(draft().choices.chat).toHaveLength(4);
+
+    $('mkBriefMake').click();
+    await M.chatting;
+    expect(sent[2].url).toBe(BASE + '/api/chat/brief');
+    expect(sent[2].body.messages).toHaveLength(4);
+    expect(visible($('mkBriefBox'))).toBe(true);
+    expect($('mkBrief').value).toBe('월넛 도어, 화이트 상판');
+    expect($('mkBriefMake').textContent).toBe('다시 정리하기');
+    expect(draft().choices).toMatchObject({
+      brief: '월넛 도어, 화이트 상판',
+      briefDoor: 'walnut woodgrain',
+      briefStyle: 'classic',
+    });
+    expect(M.buildBody([])).toMatchObject({
+      customer_request: '월넛 도어, 화이트 상판',
+      door_color: 'walnut woodgrain',
+      design_style: 'classic',
+    });
+
+    // 고객이 고치면 정리가 고른 색 · 스타일은 버린다
+    $('mkBrief').value = '오크 도어, 화이트 상판';
+    $('mkBrief').dispatchEvent(new Event('input'));
+    const body = M.buildBody([]);
+    expect(body.customer_request).toBe('오크 도어, 화이트 상판');
+    expect(body.door_color).toBeUndefined();
+    expect(body.design_style).toBeUndefined();
+  });
+
+  test('글을 안 적고 상담 — 안내만, 보내지 않는다', async () => {
+    const { M, sent } = await chatLoad([]);
+    $('mkChatStart').click();
+    await M.chatting;
+    expect(sent).toEqual([]);
+    expect(visible($('mkChatError'))).toBe(true);
+    expect($('mkChatError').textContent).toBe('원하는 연출을 먼저 적어 주세요.');
+  });
+
+  test('답을 못 받으면 — 보낸 말을 입력 칸으로 되돌리고 안내, 정리를 못 하면 참고 내용은 그대로', async () => {
+    const { M } = await chatLoad([new Error('net'), { ok: false, status: 500, success: false }], {
+      choices: {
+        kind: 'sink',
+        prompt: '밝게',
+        chat: [
+          { role: 'me', text: '밝게' },
+          { role: 'ai', text: '도어 색은요?' },
+        ],
+      },
+    });
+    $('mkChatInput').value = '화이트';
+    $('mkChatSend').click();
+    await M.chatting;
+    expect(log()).toHaveLength(2);
+    expect($('mkChatInput').value).toBe('화이트');
+    expect($('mkChatError').textContent).toBe('답을 받지 못했습니다. 잠시 뒤 다시 보내 주세요.');
+    $('mkBriefMake').click();
+    await M.chatting;
+    expect($('mkChatError').textContent).toBe('정리하지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
+    expect($('mkBriefBox').hidden).toBe(true);
+    expect(draft().choices.brief).toBe('');
+  });
+
+  test('사진을 못 줄이면 글만 보낸다', async () => {
+    const { M, sent } = await chatLoad([{ success: true, reply: '네' }], {
+      choices: { kind: 'sink', prompt: '밝게' },
+    });
+    M.shrinkPhoto = jest.fn(async () => {
+      throw new Error('canvas');
+    });
+    $('mkChatStart').click();
+    await M.chatting;
+    expect(sent[0].body).not.toHaveProperty('room_image');
+    expect(log()).toHaveLength(2);
+  });
+
+  test('고객 말 12마디가 차면 — 입력 줄을 닫고 「정리하기」로 안내', async () => {
+    const chat = [];
+    for (let i = 0; i < 12; i++)
+      chat.push({ role: 'me', text: 'm' + i }, { role: 'ai', text: 'a' + i });
+    const { M } = await chatLoad([], { choices: { kind: 'sink', chat } });
+    expect(M.CHAT_TURNS).toBe(12);
+    expect($('mkChatRow').hidden).toBe(true);
+    expect(visible($('mkChatNote'))).toBe(true);
+    expect(visible($('mkBriefMake'))).toBe(true);
+  });
+
+  test('AI 답은 글자로만 그린다 (HTML 을 넣지 않는다)', async () => {
+    const { M } = await chatLoad([{ success: true, reply: '<img src=x onerror=alert(1)>' }], {
+      choices: { kind: 'sink', prompt: '<b>굵게</b>' },
+    });
+    $('mkChatStart').click();
+    await M.chatting;
+    expect($('mkChatLog').querySelector('img, b')).toBeNull();
+    expect(log()[1][1]).toBe('<img src=x onerror=alert(1)>');
   });
 });

@@ -152,7 +152,7 @@ afterEach(() => {
 });
 
 describe('생성 요청 — ai-design.html 과 같은 모양', () => {
-  test('싱크대: 본문 칸 · 값, 로그인 토큰 — 참고 사진을 안 고르면 reference_images 칸이 없다, 상세 요청은 보내지 않는다', async () => {
+  test('싱크대: 본문 칸 · 값, 로그인 토큰 — 참고 사진 · 요청 글이 없으면 그 칸이 없다, 옛 초안의 스타일 · 도어 색 · 치수는 보내지 않는다', async () => {
     const { calls } = await load({
       draft: {
         v: 1,
@@ -179,12 +179,51 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
       room_image: 'QUJD',
       image_type: 'image/jpeg',
       category: 'sink',
-      design_style: 'classic',
-      door_color: 'oak woodgrain',
-      wall_width_override: '3200',
       room_focal35: 26,
-      water_from_left_override: '800',
     });
+  });
+
+  test('요청 글 — 참고 내용이 있으면 그것 + 정리가 고른 색 · 스타일, 없으면 적은 글만 (customer_request)', async () => {
+    let r = await load({
+      draft: {
+        v: 1,
+        step: 'refs',
+        photo: PHOTO,
+        choices: {
+          kind: 'wardrobe',
+          prompt: '따뜻하게',
+          brief: '월넛 도어, 천장까지',
+          briefDoor: 'walnut woodgrain',
+          briefStyle: 'classic',
+        },
+      },
+    });
+    $('mkRun').click();
+    await tick();
+    expect(JSON.parse(posts(r.calls)[0].body)).toEqual({
+      room_image: 'QUJD',
+      image_type: 'image/jpeg',
+      category: 'wardrobe',
+      design_style: 'classic',
+      door_color: 'walnut woodgrain',
+      customer_request: '월넛 도어, 천장까지',
+      room_focal35: 26,
+    });
+
+    r = await load({
+      draft: {
+        v: 1,
+        step: 'refs',
+        photo: PHOTO,
+        choices: { kind: 'sink', prompt: '  화이트 무광 도어  ' },
+      },
+    });
+    $('mkRun').click();
+    await tick();
+    const body = JSON.parse(posts(r.calls)[0].body);
+    expect(body.customer_request).toBe('화이트 무광 도어');
+    expect(body).not.toHaveProperty('door_color');
+    expect(body).not.toHaveProperty('design_style');
   });
 
   test('참고 사진 — reference_images [{ base64, mimeType, role, note? }] · 고른 차례 · 시공사례 style · 테마 theme', async () => {
