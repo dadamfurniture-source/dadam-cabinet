@@ -10,6 +10,9 @@
  *     standard 로 내린다 — 결제로 받은 등급(tier_source='subscription')일 때만.
  *     내릴 때(마지막 실패 · 해지 만료 · 환불) tier_source 도 'manual' 로 돌린다.
  *   - 해지: 이번 기간 끝(current_period_end)까지 등급 유지, 그 뒤 standard (약관 제9조).
+ *   - 첫 달 무료(trialing — 사업자등록증 확인, src/trial.js): 결제 없이 시작한 구독. next_charge_at(시작 + 30일)에
+ *     다른 구독과 같은 길로 첫 결제를 한다 — 성공하면 active, 거절되면 같은 재시도(1일 · 3일) → 정지.
+ *     끝나기 7일 전 · 1일 전에 업체 대표에게 앱 알림을 한 번씩 넣는다 (notifyTrialEnding).
  *   - 환불: 결제 후 7일 이내 + 그 뒤 크레딧을 쓰지 않았으면 전액 (약관 제9조).
  *     조건을 벗어나면 관리자 예외 표식(override)이 있어야만 한다.
  *   - 새 달 크레딧: 새 지급 규칙을 만들지 않는다. 등급이 바뀔 때 트리거
@@ -37,6 +40,7 @@ import {
   notifyCompanyOwners,
   billingFailedMessage,
   companySuspendedMessage,
+  trialEndingMessage,
 } from './push-outbox.js';
 
 export const DAY_MS = 86_400_000;
@@ -44,6 +48,10 @@ export const PERIOD_DAYS = 30;
 /** 첫 실패로부터 며칠 뒤에 다시 거는가. 길이 = 재시도 횟수. */
 export const RETRY_AFTER_FIRST_FAILURE_DAYS = [1, 3];
 export const REFUND_WINDOW_DAYS = 7;
+/** 무료가 끝나기 며칠 전에 알리는가 — 큰 것부터. 알림 하나에 한 번씩 (dedupe_key 끝에 d7 · d1) */
+export const TRIAL_NOTICE_DAYS = [7, 1];
+/** 결제 대상인 구독 상태 — 무료 이용 중(trialing)은 next_charge_at 에 첫 결제를 한다 */
+const CHARGEABLE = 'in.(active,past_due,trialing)';
 
 /** 결제에 필요한 구독 칸 — 서버 안에서만 쓴다(billing_key 포함, 응답에 싣지 않는다). */
 export const SUB_COLUMNS_FOR_CHARGE = [
@@ -504,7 +512,7 @@ export async function renewSubscription(env, sub, nowMs, profile) {
     profile,
     // 읽은 상태 그대로일 때만 — 주문번호가 이 기간·회차에서 나왔다
     stateFilter: {
-      status: 'in.(active,past_due)',
+      status: CHARGEABLE,
       next_charge_at: `lte.${iso(nowMs)}`,
       current_period_end: `eq.${sub.current_period_end}`,
       failed_attempts: `eq.${sub.failed_attempts || 0}`,
@@ -617,8 +625,44 @@ async function profilesById(env, userIds) {
  * 하루 한 번 돈다. nowMs 는 cron 이 잡힌 시각(controller.scheduledTime)이다 —
  * 재시도 시각을 그 값에서 재기 때문에 다음 날 같은 cron 이 정확히 그 시각에 걸린다.
  */
+/**
+ * 무료가 곧 끝나는 구독의 대표에게 알림 — 끝나기 7일 전 · 1일 전에 한 번씩.
+ * 하루 한 번 도는 cron 이 부른다: 남은 날이 1일 이하면 「내일」, 7일 이하면 「7일 뒤」 알림을 넣는다.
+ * 같은 알림은 dedupe_key 가 막으므로 매일 다시 넣어도 한 번만 간다. 넣기가 실패해도 던지지 않는다.
+ * @returns {Promise<number>} 알림을 넣으려 한 구독 수
+ */
+export async function notifyTrialEnding(env, nowMs) {
+  const horizon = iso(nowMs + TRIAL_NOTICE_DAYS[0] * DAY_MS);
+  const rows =
+    (await selectMany(env, 'subscriptions', {
+      provider: 'eq.toss',
+      status: 'eq.trialing',
+      next_charge_at: `lte.${horizon}`,
+      select: 'id,company_id,next_charge_at',
+      order: 'next_charge_at.asc',
+    })) || [];
+  let sent = 0;
+  for (const sub of rows) {
+    const left = toMs(sub.next_charge_at) - nowMs;
+    // 이미 결제일이 된 것은 이번 실행이 결제한다 — 알리지 않는다
+    if (!sub.company_id || !(left > 0)) continue;
+    const days = TRIAL_NOTICE_DAYS.filter((d) => left <= d * DAY_MS).pop();
+    if (!days) continue;
+    await notifyCompanyOwners(env, {
+      companyId: sub.company_id,
+      kind: 'trial_ending',
+      refId: sub.id,
+      suffix: `d${days}`,
+      message: trialEndingMessage(days),
+    });
+    sent += 1;
+  }
+  return sent;
+}
+
 export async function runDailyLifecycle(env, nowMs = Date.now()) {
   const summary = {
+    trial_notices: 0,
     due: 0,
     charged: 0,
     retry_scheduled: 0,
@@ -629,11 +673,19 @@ export async function runDailyLifecycle(env, nowMs = Date.now()) {
   };
   const now = iso(nowMs);
 
-  // 1. 결제할 구독
+  // 0. 무료가 곧 끝나는 구독 — 알림만. 실패해도 결제 · 만료는 그대로 한다
+  try {
+    summary.trial_notices = await notifyTrialEnding(env, nowMs);
+  } catch (e) {
+    summary.errors += 1;
+    console.error('[payments] trial notice error:', e && e.message ? e.message : String(e));
+  }
+
+  // 1. 결제할 구독 (무료 이용 중인 구독의 첫 결제 포함)
   const due =
     (await selectMany(env, 'subscriptions', {
       provider: 'eq.toss',
-      status: 'in.(active,past_due)',
+      status: CHARGEABLE,
       next_charge_at: `lte.${now}`,
       select: SUB_COLUMNS_FOR_CHARGE,
       order: 'next_charge_at.asc',

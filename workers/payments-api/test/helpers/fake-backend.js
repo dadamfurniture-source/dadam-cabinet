@@ -91,6 +91,7 @@ const UNIQUE = {
   payment_events: ['provider', 'event_id'],
   notification_outbox: ['dedupe_key'],
   payment_transactions: ['provider', 'provider_ref'],
+  trial_grants: ['biz_no'], // 사업자번호당 무료 1회 (DB 0077)
 };
 
 export function createBackend({ nowMs = Date.now() } = {}) {

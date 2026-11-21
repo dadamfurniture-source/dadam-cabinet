@@ -5,6 +5,7 @@
  * (database/migrations/0016_app_notifications.sql). 보내기는 workflow-api 의 1분 cron 이 한다.
  *   billing_failed     정기 결제가 처음 실패해 재시도가 시작될 때
  *   company_suspended  결제가 끝내 안 돼 업체가 정지됐을 때 (그 실행에서는 결제 실패를 따로 보내지 않는다)
+ *   trial_ending       첫 달 무료가 곧 끝날 때 — 7일 전 · 1일 전 (DB 0077, dedupe_key 끝에 d7 · d1)
  * dedupe_key: kind:구독 id:대표 id[:덧붙임] — 같은 일은 한 번만 들어간다.
  * 글은 workers/workflow-api/src/push/messages.js 와 같다 (시험이 본다) — 금액 · 카드 · 업체 이름을 넣지 않는다.
  * 넣기가 실패해도 결제 처리는 그대로다 — 던지지 않고 종류 · 상태 코드만 로그에 남긴다.
@@ -33,9 +34,19 @@ export function companySuspendedMessage() {
   };
 }
 
+/** 무료가 곧 끝난다는 알림 글 — days 7 = 「7일 뒤」, 1 = 「내일」 (금액 · 결제일은 싣지 않는다 — 결제 관리 화면이 보여 준다) */
+export function trialEndingMessage(days) {
+  const when = days <= 1 ? '내일' : `${days}일 뒤`;
+  return {
+    title: '무료 이용 종료 예정',
+    body: `무료 이용이 ${when} 끝나고 첫 결제가 진행됩니다. 결제 관리에서 결제일과 금액을 확인해 주세요.`,
+    url: PUSH_URL,
+  };
+}
+
 /**
  * 업체 대표들에게 알림 한 줄씩. 던지지 않는다.
- * @param {{ companyId: string, kind: 'billing_failed'|'company_suspended', refId: string,
+ * @param {{ companyId: string, kind: 'billing_failed'|'company_suspended'|'trial_ending', refId: string,
  *           suffix?: string|null, message: {title:string, body:string, url:string} }} n
  * @returns {Promise<number>} 넣으려고 보낸 줄 수
  */
