@@ -247,7 +247,10 @@ test('목록 — 프로젝트마다 단계(고객 「내 프로젝트」와 같�
   const done = await call(fake, '/company/projects', OWNER_A);
   assert.equal(done.json.data.items.find((p) => p.id === PRJ_A1).stage, 'installed');
   // 수주는 내 업체 것만 묻는다
-  const q = fake.calls.filter((c) => c.method === 'GET' && c.table === 'orders').pop();
+  // 단계 계산의 수주 읽기 (다음 할 일 — company-pipeline.js — 은 취소 수주까지 따로 읽는다)
+  const q = fake.calls
+    .filter((c) => c.method === 'GET' && c.table === 'orders' && c.params.get('status'))
+    .pop();
   assert.equal(q.params.get('company_id'), `eq.${A}`);
   assert.equal(q.params.get('status'), 'neq.cancelled');
 });
@@ -570,4 +573,227 @@ test('추천 차례 (순수) — 담당 수 → 일정 수 → 이름', () => {
     ['u1', 1, 0],
     ['u2', 1, 2],
   ]);
+});
+
+// ── 지금 단계 · 다음 할 일 (pipeline.js 판정 · company-pipeline.js 가 값을 모은다 — 2026-11-21 「프로젝트 한 길」) ──
+
+/** 그 프로젝트 줄의 [step, next.key, next.go] + next · role */
+async function flowOf(fake, token, id) {
+  const r = await call(fake, '/company/projects', token);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const p = r.json.data.items.find((x) => x.id === id);
+  const n = p.next || null;
+  return { brief: [p.step, n && n.key, n && n.go], next: n, role: r.json.data.role };
+}
+const draftRow = (company_id, id, extra = {}) => ({
+  company_id,
+  id,
+  created_by: null,
+  updated_at: at(20),
+  discarded_at: null,
+  summary: {},
+  ...extra,
+});
+
+test('목록 — 지금 단계 step · 다음 할 일 next · 내 직책 role: 설계 전 → 플래너 초안 → 앱으로 보낸 설계', async () => {
+  const fake = fakeOf();
+  let f = await flowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.equal(f.role, 'owner');
+  assert.deepEqual(f.brief, ['consult', 'design_start', `planner?project=${PRJ_F1}`]);
+  assert.deepEqual(Object.keys(f.next).sort(), ['allowed', 'go', 'key', 'label', 'since', 'wait']);
+  assert.equal(f.next.label, '설계 시작');
+  // 플래너에 저장만 했다 — 요약의 projectId 로 잇는다 (가장 최근에 고친 초안, 버린 것 · 다른 업체 것은 빼고)
+  fake.db.planner_drafts.push(
+    draftRow(FACTORY, 'd-0', { created_by: FACTORY_OWNER, summary: { projectId: PRJ_F1 } }),
+    draftRow(FACTORY, 'd-1', { created_by: FACTORY_OWNER, updated_at: at(21), summary: { projectId: PRJ_F1 } }),
+    draftRow(FACTORY, 'd-gone', { updated_at: at(28), discarded_at: at(28), summary: { projectId: PRJ_F1 } }),
+    draftRow(A, 'd-other', { updated_at: at(29), summary: { projectId: PRJ_F1 } })
+  );
+  f = await flowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual(f.brief, ['design', 'design', 'planner?draft=d-1']);
+  // 앱으로 보냈다 — 설계가 프로젝트에 이어졌다 → 견적 내기 (그 설계의 원본 초안으로)
+  fake.db.designs.push({
+    id: rid(71),
+    company_id: FACTORY,
+    user_id: FACTORY_OWNER,
+    project_id: PRJ_F1,
+    source: 'planner-lite',
+    source_ref: 'd-0',
+  });
+  f = await flowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual(f.brief, ['design', 'quote', 'planner?draft=d-1']);
+  // 요약에 프로젝트가 없어도 보낸 설계의 원본(source_ref)으로 초안을 찾는다 — 이 기능 전에 보낸 설계
+  for (const d of fake.db.planner_drafts) d.summary = {};
+  f = await flowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual(f.brief, ['design', 'quote', 'planner?draft=d-0']);
+  // 끝난 프로젝트 — 끝, 할 일 없음
+  const closed = await flowOf(fake, OWNER_A, PRJ_A2);
+  assert.deepEqual(closed.brief, ['done', null, null]);
+});
+
+test('목록 — 견적: 가장 새 살아 있는 확인서로 (밀린 판 · 거둔 것 뺌) 답 기다림 → 승인이면 계약 만들기 → 그 수주가 취소됐으면 다시 못 만든다', async () => {
+  const fake = fakeOf();
+  const D_B = rid(27);
+  fake.db.designs.push({ id: D_B, company_id: B, user_id: OWNER_B, project_id: PRJ_B1 });
+  const doc = (id, extra) => ({
+    id,
+    design_id: D_B,
+    doc_type: 'customer_confirmation',
+    status: 'issued',
+    decision: null,
+    decided_at: null,
+    first_viewed_at: null,
+    view_count: 0,
+    expires_at: '2099-01-01T00:00:00Z',
+    superseded_by: null,
+    created_at: at(11),
+    ...extra,
+  });
+  fake.db.design_documents.push(
+    doc(rid(51), { status: 'superseded', superseded_by: rid(52), created_at: at(10) }),
+    doc(rid(52), { status: 'viewed', view_count: 2, first_viewed_at: at(12), created_at: at(11) }),
+    doc(rid(53), { status: 'revoked', created_at: at(13) })
+  );
+  let f = await flowOf(fake, OWNER_B, PRJ_B1);
+  assert.deepEqual(f.brief, ['quote', 'customer', 'p-quote']);
+  assert.deepEqual([f.next.wait, f.next.views, f.next.since], [true, 2, at(11)]);
+  // 고객 승인 — 그 문서로 계약(수주)을 만든다
+  Object.assign(fake.db.design_documents.find((d) => d.id === rid(52)), {
+    status: 'approved',
+    decision: 'approved',
+    decided_at: at(14),
+  });
+  f = await flowOf(fake, OWNER_B, PRJ_B1);
+  assert.deepEqual(f.brief, ['quote', 'order', 'p-quote']);
+  assert.deepEqual(f.next.act, { kind: 'order', document_id: rid(52) });
+  // 승인 뒤 새 판을 냈으면(밀림) 새 판이 기준이다
+  fake.db.design_documents.find((d) => d.id === rid(52)).superseded_by = rid(54);
+  fake.db.design_documents.push(doc(rid(54), { created_at: at(15) }));
+  f = await flowOf(fake, OWNER_B, PRJ_B1);
+  assert.deepEqual(f.brief, ['quote', 'customer', 'p-quote']);
+  fake.db.design_documents.pop();
+  fake.db.design_documents.find((d) => d.id === rid(52)).superseded_by = null;
+  // 그 문서의 수주가 취소됐다 — 문서 하나에 수주 하나
+  fake.db.orders.push({ id: rid(34), company_id: B, project_id: PRJ_B1, document_id: rid(52), status: 'cancelled' });
+  f = await flowOf(fake, OWNER_B, PRJ_B1);
+  assert.deepEqual(f.brief, ['quote', 'order_dead', 'p-contract']);
+  assert.equal(f.next.wait, true);
+});
+
+test('목록 — 계약 → 생산 → 설치 → 끝: 계약금(수금 기록의 계약금 줄) · 대표 승인 기다림 · 처리 중 A/S', async () => {
+  const fake = fakeOf();
+  const O = rid(31);
+  const go = `order:${O}`;
+  // 접수 — 계약금 줄이 없거나 아직이면 입금 적기 (대표 · 실장), 직원은 할 수 없다고만 알린다
+  let f = await flowOf(fake, OWNER_A, PRJ_A1);
+  assert.deepEqual(f.brief, ['contract', 'deposit', go]);
+  assert.equal(f.next.allowed, true);
+  let s = await flowOf(fake, STAFF_A, PRJ_A1);
+  assert.deepEqual([s.role, s.next.key, s.next.allowed], ['staff', 'deposit', false]);
+  fake.db.order_payments.push({ id: rid(81), order_id: O, stage: 'deposit', paid_on: null });
+  assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['contract', 'deposit', go]);
+  // 중도금 · 잔금 줄은 보지 않는다
+  fake.db.order_payments.push({ id: rid(82), order_id: O, stage: 'balance', paid_on: '2026-10-12' });
+  assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['contract', 'deposit', go]);
+  // 계약금 입금 — 팩토리는 생산 시작 (직원도)
+  fake.db.order_payments[0].paid_on = '2026-10-11';
+  s = await flowOf(fake, STAFF_A, PRJ_A1);
+  assert.deepEqual([...s.brief, s.next.allowed], ['contract', 'produce', go, true]);
+  // 계약금은 접수 상태 수주만 묻는다
+  const asked = fake.calls.filter((c) => c.method === 'GET' && c.table === 'order_payments').pop();
+  assert.equal(asked.params.get('order_id'), `in.(${O})`);
+  assert.equal(asked.params.get('stage'), 'eq.deposit');
+  assert.equal(asked.params.get('select'), 'order_id,paid_on', '금액은 읽지 않는다');
+  // 대표 승인이 걸려 있다 — 대표는 승인 · 반려, 그 밖은 기다림
+  fake.db.order_events.push({ id: rid(83), company_id: A, order_id: O, kind: 'revert', state: 'pending', created_at: at(16) });
+  assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['contract', 'approve', go]);
+  s = await flowOf(fake, MANAGER_A, PRJ_A1);
+  assert.deepEqual([s.next.key, s.next.wait], ['approval', true]);
+  fake.db.order_events[0].state = 'approved';
+  // 생산 중 → 배송 → 완료
+  const order = fake.db.orders.find((o) => o.id === O);
+  order.status = 'in_production';
+  assert.deepEqual((await flowOf(fake, STAFF_A, PRJ_A1)).brief, ['make', 'deliver', go]);
+  order.status = 'delivered';
+  assert.deepEqual((await flowOf(fake, STAFF_A, PRJ_A1)).brief, ['install', 'complete', go]);
+  order.status = 'completed';
+  assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['done', null, null]);
+  // 처리 중 A/S — 팩토리는 그 접수로 (끝난 접수 · 다른 업체 것은 세지 않는다)
+  fake.db.as_requests.push(
+    { id: rid(84), company_id: A, order_id: O, state: 'done' },
+    { id: rid(85), company_id: B, order_id: O, state: 'requested' }
+  );
+  assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['done', null, null]);
+  fake.db.as_requests.push({ id: rid(86), company_id: A, order_id: O, state: 'received' });
+  assert.deepEqual((await flowOf(fake, OWNER_A, PRJ_A1)).brief, ['done', 'as', 'p-as']);
+});
+
+test('목록 — 영업 사원(Manager 업체): 제작 의뢰 보내기 → 본사 추천 → 팩토리 고르기 · 팩토리가 받은 의뢰 프로젝트는 생산', async () => {
+  const fake = fakeOf();
+  const PRJ_M = rid(91);
+  const D_M = rid(92);
+  const O_M = rid(93);
+  fake.db.projects.push({ id: PRJ_M, company_id: M, customer_id: null, title: '신발장', status: 'active', created_at: at(9) });
+  fake.db.designs.push({ id: D_M, company_id: M, user_id: OWNER_M, project_id: PRJ_M });
+  fake.db.orders.push({ id: O_M, company_id: M, design_id: D_M, project_id: PRJ_M, status: 'confirmed' });
+  fake.db.order_payments.push({ id: rid(94), order_id: O_M, stage: 'deposit', paid_on: '2026-10-10' });
+  assert.deepEqual((await flowOf(fake, OWNER_M, PRJ_M)).brief, ['contract', 'request', 'p-make']);
+  const req = { id: rid(95), company_id: M, project_id: PRJ_M, status: 'submitted', status_at: at(11), created_at: at(11) };
+  fake.db.production_requests.push(req, {
+    id: rid(96),
+    company_id: M,
+    project_id: PRJ_M,
+    status: 'cancelled', // 거둔 의뢰는 보지 않는다
+    status_at: at(12),
+    created_at: at(12),
+  });
+  let f = await flowOf(fake, OWNER_M, PRJ_M);
+  assert.deepEqual([...f.brief, f.next.wait], ['make', 'hq', 'p-make', true]);
+  req.status = 'recommended';
+  assert.deepEqual((await flowOf(fake, OWNER_M, PRJ_M)).brief, ['make', 'choose', 'p-make']);
+  req.status = 'chosen';
+  f = await flowOf(fake, OWNER_M, PRJ_M);
+  assert.deepEqual([...f.brief, f.next.wait], ['make', 'factory', 'p-make', true]);
+  req.status = 'accepted';
+  assert.deepEqual((await flowOf(fake, OWNER_M, PRJ_M)).brief, ['make', 'produce', `order:${O_M}`]);
+
+  // 팩토리(B — Expert)가 그 의뢰를 받아 생긴 프로젝트 — 상담이 아니라 생산, 베껴 온 초안을 연다
+  Object.assign(req, { factory_company_id: B, factory_project_id: PRJ_B1, factory_draft_id: 'pr-1' });
+  fake.db.planner_drafts.push(draftRow(B, 'pr-1'));
+  f = await flowOf(fake, OWNER_B, PRJ_B1);
+  assert.deepEqual(f.brief, ['make', 'factory_design', 'planner?draft=pr-1']);
+  // 팩토리는 자기가 낸 의뢰를 묻지 않는다 (받은 것만), 영업 사원은 받은 것을 묻지 않는다
+  const asks = (token) =>
+    fake.calls
+      .filter((c) => c.method === 'GET' && c.table === 'production_requests')
+      .map((c) => [c.params.get('company_id'), c.params.get('factory_company_id')]);
+  fake.calls.length = 0;
+  await flowOf(fake, OWNER_B, PRJ_B1);
+  assert.deepEqual(asks(), [[null, `eq.${B}`]]);
+  fake.calls.length = 0;
+  await flowOf(fake, OWNER_M, PRJ_M);
+  assert.deepEqual(asks(), [[`eq.${M}`, null]]);
+});
+
+test('목록 — 다음 할 일 값을 못 모아도 목록은 그대로 준다 (step · next 없이 — 화면은 stage 로 그린다)', async () => {
+  const fake = fakeOf({
+    before: (method, table) =>
+      table === 'order_events'
+        ? new Response(JSON.stringify({ code: 'XX000', message: 'boom' }), { status: 500 })
+        : null,
+  });
+  const realError = console.error;
+  const logs = [];
+  console.error = (...a) => logs.push(a.join(' '));
+  try {
+    const r = await call(fake, '/company/projects', OWNER_A);
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const p = r.json.data.items.find((x) => x.id === PRJ_A1);
+    assert.equal(p.stage, 'order');
+    assert.equal('step' in p, false);
+    assert.equal('next' in p, false);
+    assert.ok(logs.some((l) => l.includes('pipeline failed')));
+  } finally {
+    console.error = realError;
+  }
 });

@@ -8,6 +8,9 @@
  *                                + 지금 구성원 members [{ user_id, name, role }] (담당자 고르기 — src/company-assignee.js, DB 0042)
  *                                + 프로젝트마다 단계 stage (projects.js projectStage — 고객 「내 프로젝트」와 같은 계산) ·
  *                                최신 수주 order { id, order_no, status } (취소 수주 뺌) — 마이페이지 프로젝트 관리가 단계로 거른다
+ *                                + 지금 단계 step · 다음 할 일 next { key, label, go, act?, wait, since, allowed }
+ *                                (pipeline.js — 2026-11-21 「프로젝트 한 길」. 값은 company-pipeline.js 가 모은다.
+ *                                못 모았으면 두 칸 없이 준다 — 화면은 stage 로 그린다) · 내 직책 role
  *   POST /company/projects       새 프로젝트 (대표 · 실장) { title, customer_id } | { title, customer: { name, phone } }
  *                                → { project_id, customer_id }. 새 고객은 이름 · 전화로 늘 새 행 (이름 · 전화가 같다고
  *                                기존 고객에 잇지 않는다 — projects.js 상담 확정과 같다)
@@ -41,6 +44,7 @@ import { idempotencyKeyOf } from './ledger/checks.js';
 import { membersOf } from './company-assignee.js';
 import { isMissingRelation } from './work-order-data.js';
 import { projectStage } from './projects.js';
+import { pipelineOf } from './company-pipeline.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -74,14 +78,14 @@ export function canHoldProjects(company) {
 }
 
 export async function projectCompanyOf(env, user, { manage = false } = {}) {
-  const { companyId, canAct } = await companyOf(env, user, { manage });
+  const { companyId, canAct, role } = await companyOf(env, user, { manage });
   const company = await selectOne(env, 'companies', {
     id: `eq.${companyId}`,
     select: 'id,kind,name,plan,status',
   });
   if (!canHoldProjects(company))
     throw new ForbiddenError('프로젝트를 쓸 수 있는 팩토리가 아닙니다', 'not_project_company');
-  return { company, canAct };
+  return { company, canAct, role: role || null };
 }
 
 /**
@@ -148,8 +152,8 @@ function textOf(value, field, max) {
 }
 
 /** GET /company/projects */
-export async function listCompanyProjects(env, { user }) {
-  const { company, canAct } = await projectCompanyOf(env, user);
+export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
+  const { company, canAct, role } = await projectCompanyOf(env, user);
   const query = (cols) =>
     selectMany(env, 'projects', {
       company_id: `eq.${company.id}`,
@@ -182,16 +186,31 @@ export async function listCompanyProjects(env, { user }) {
     ? (await selectMany(env, 'designs', {
         project_id: `in.(${ids.join(',')})`,
         company_id: `eq.${company.id}`,
-        select: 'id,project_id',
+        select: 'id,project_id,source,source_ref',
       })) || []
     : [];
   const customerOf = new Map(customers.map((c) => [c.id, c]));
   const designCount = new Map();
   for (const d of designs) designCount.set(d.project_id, (designCount.get(d.project_id) || 0) + 1);
   const stages = await stagesOf(env, company.id, ids, designs);
+  // 지금 단계 · 다음 할 일 — 덧붙이는 값이라, 못 모아도 목록은 그대로 준다 (화면은 stage 로 그린다)
+  let flow = new Map();
+  try {
+    flow = await pipelineOf(env, {
+      company,
+      viewer: { role, user_id: user.id },
+      projects,
+      designs,
+      stages,
+      nowMs,
+    });
+  } catch (e) {
+    console.error('company projects: pipeline failed —', e && e.message);
+  }
   return {
     company: { id: company.id, name: company.name, kind: company.kind, plan: company.plan || null },
     can_manage: canAct,
+    role,
     assignee_ready: assigneeReady,
     members,
     items: projects.map((p) => {
@@ -206,6 +225,7 @@ export async function listCompanyProjects(env, { user }) {
         design_count: designCount.get(p.id) || 0,
         stage: stages.get(p.id).stage,
         order: stages.get(p.id).order,
+        ...(flow.has(p.id) ? flow.get(p.id) : {}),
         // 나간 구성원이면 이름 없이 id 만 (removed — 바꾸는 것은 사람이 한다)
         assignee: p.assignee_id ? memberOf.get(p.assignee_id) || { user_id: p.assignee_id, name: null, role: null } : null,
       };
