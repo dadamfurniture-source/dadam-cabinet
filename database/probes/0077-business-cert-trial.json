@@ -1,0 +1,111 @@
+{
+  "title": "0077 사업자등록증 · 첫 달 무료 — 두 표는 서버만 읽고 쓴다, 한 사람에게 살아 있는 사업자등록증은 하나, 사업자번호당 무료 1회, 통과 줄에는 번호가 있다, 알림 종류 셋, 비공개 버킷",
+  "ids": ["company_x", "cert_a", "grant_a"],
+  "users": ["owner_user", "other_user"],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'manager', 'active')",
+    "INSERT INTO public.business_certificates (id, user_id, storage_path, mime, size_bytes, sha256, status, biz_no, company_name, representative_name, open_date) VALUES ({{cert_a}}, {{owner_user}}, 'probe/0077-a.jpg', 'image/jpeg', 1000, repeat('a', 64), 'verified', '1234567890', 'probe X', '홍길동', DATE '2020-01-02')",
+    "INSERT INTO public.trial_grants (id, biz_no, certificate_id, user_id, company_id, plan, ends_at) VALUES ({{grant_a}}, '1234567890', {{cert_a}}, {{owner_user}}, {{company_x}}, 'manager', now() + interval '30 days')"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "owner": { "role": "authenticated", "user": "owner_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "사업자등록증 읽기 — 서버만 (올린 본인도 브라우저로는 못 읽는다)",
+      "sql": "select count(*) from public.business_certificates where id = {{cert_a}}",
+      "expect": { "anon": "deny", "owner": "deny", "service_role": 1 }
+    },
+    {
+      "name": "무료 준 기록 읽기 — 서버만",
+      "sql": "select count(*) from public.trial_grants where id = {{grant_a}}",
+      "expect": { "anon": "deny", "owner": "deny", "service_role": 1 }
+    },
+    {
+      "name": "한 사람에게 살아 있는 줄은 하나 — 확인된 줄이 있는데 또 올리면 겹침",
+      "sql": "insert into public.business_certificates (user_id, storage_path, mime, size_bytes, sha256, status) values ({{owner_user}}, 'probe/0077-b.jpg', 'image/jpeg', 10, repeat('b', 64), 'uploaded')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "옛 것(superseded)은 같은 사람에게 여러 줄 있어도 된다",
+      "sql": "insert into public.business_certificates (user_id, storage_path, mime, size_bytes, sha256, status) values ({{owner_user}}, 'probe/0077-c.jpg', 'image/png', 10, repeat('c', 64), 'superseded')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "통과(verified) 줄에는 확인한 번호가 있어야 한다",
+      "sql": "insert into public.business_certificates (user_id, storage_path, mime, size_bytes, sha256, status) values ({{other_user}}, 'probe/0077-d.jpg', 'image/jpeg', 10, repeat('d', 64), 'verified')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "사업자번호당 무료 1회 — 같은 번호로 두 번째 줄은 겹침",
+      "sql": "insert into public.trial_grants (biz_no, plan, ends_at) values ('1234567890', 'expert', now() + interval '30 days')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "다른 번호는 받는다",
+      "sql": "insert into public.trial_grants (biz_no, plan, ends_at) values ('1098765432', 'agent', now() + interval '30 days')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "무료 준 기록 — 브라우저는 넣지 못한다",
+      "sql": "insert into public.trial_grants (biz_no, plan, ends_at) values ('1098765432', 'agent', now() + interval '30 days')",
+      "roles": ["anon", "owner"],
+      "expect": { "anon": "deny", "owner": "deny" }
+    },
+    {
+      "name": "되돌리기 — 서버는 무료 준 기록을 지울 수 있다 (구독 저장이 실패했을 때)",
+      "sql": "delete from public.trial_grants where id = {{grant_a}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "rows:1" }
+    },
+    {
+      "name": "사업자등록증 줄은 서버도 지우지 못한다",
+      "sql": "delete from public.business_certificates where id = {{cert_a}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "deny" }
+    },
+    {
+      "name": "업체 사업자번호는 숫자 10자리만",
+      "sql": "update public.companies set biz_no = '123-45-67890' where id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "업체 사업자번호 · 대표자 · 확인한 때를 적는다",
+      "sql": "update public.companies set biz_no = '1234567890', representative_name = '홍길동', biz_verified_at = now() where id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "rows:1" }
+    },
+    {
+      "name": "알림 — 검토 결과는 업체 없이 넣을 수 있다",
+      "sql": "insert into public.notification_outbox (user_id, kind, title, body, url) values ({{owner_user}}, 'biz_cert_decided', '사업자등록증 확인', '확인이 끝났습니다.', '/segan/me.html#partner')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "알림 — 무료 끝남 알림은 업체가 있어야 한다",
+      "sql": "insert into public.notification_outbox (user_id, kind, title, body, url) values ({{owner_user}}, 'trial_ending', '무료 이용', '곧 끝납니다.', '/segan/me.html#partner')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "알림 — 무료 끝남 · 검토할 것은 업체와 함께 넣는다",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{owner_user}}, {{company_x}}, 'trial_ending', '무료 이용', '곧 끝납니다.', '/segan/me.html#partner'), ({{owner_user}}, {{company_x}}, 'biz_cert_review', '사업자등록증', '검토할 것이 있습니다.', '/segan/me.html')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "버킷 business-certs — 비공개 · 5MB",
+      "sql": "select public::text || '/' || file_size_limit || '/' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'business-certs'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "false/5242880/image/jpeg,image/png" }
+    }
+  ]
+}
