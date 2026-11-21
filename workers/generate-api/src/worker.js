@@ -61,6 +61,7 @@ import { assertPlannerTier } from './tier-gate.js';
 import { copyApplianceImage } from './appliance-image.js';
 import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
 import { callClaudeJson } from './claude.js';
+import { requestBrief } from './chat-brief.js';
 import {
   generateShareToken,
   hashShareToken,
@@ -282,6 +283,9 @@ export default {
       if (url.pathname === '/api/chat' && request.method === 'POST') {
         return json(await chat(request, env), 200, headers);
       }
+      if (url.pathname === '/api/chat/brief' && request.method === 'POST') {
+        return json(await chatBrief(request, env), 200, headers);
+      }
 
       if (url.pathname === '/api/share' && request.method === 'GET') {
         return json(await getShared(request, env), 200, headers);
@@ -348,26 +352,50 @@ async function hqCollection(request, env, id, url) {
  * POST /api/chat — 연출컷 ③ 상세 요청의 다음 한 마디 (2026-10-08).
  * 로그인한 손님만 — 익명으로 모델 호출을 열어 두지 않는다. 크레딧은 쓰지 않는다 (짧은 텍스트 한 번).
  * 사용자마다 요청 한도 CHAT_LIMIT (wrangler.toml [[ratelimits]], 2026-10-26).
- * 본문: { category, messages:[{role:'me'|'ai', text}] } → { success, reply }
+ * 본문: { category, messages:[{role:'me'|'ai', text}], room_image?, image_type?, app? } → { success, reply }
+ * 2026-11-21 앱 연출컷 상담: 줄인 방 사진(room_image, base64)을 같이 보낼 수 있다 — 사진이 있을 때만 본문 한도가 커진다.
+ *   app:true 면 끝맺음 단추 이름이 「정리하기」. 둘 다 없으면 예전과 같은 프롬프트다 (ai-design.html).
  */
 const CHAT_MAX_BODY = 32 * 1024;
-async function chat(request, env) {
+const CHAT_PHOTO_MAX = 1024 * 1024; // 줄인 사진 base64 (화면은 긴 변 768 JPEG — 보통 100KB 안팎)
+
+/** 상담 본문 읽기 — 로그인 · 한도 · 크기 · 손님 글 검사까지. /api/chat 과 /api/chat/brief 가 같이 쓴다 */
+async function readChatRequest(request, env) {
   if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
   const user = await verifyJwt(request, env);
   await enforceRateLimit(env.CHAT_LIMIT, user.id);
-  // 글자 수 검사는 아래 그대로 — UTF-8 은 UTF-16 한 칸에 최대 3바이트라, 그 3배까지만 읽는다
-  const raw = await readBodyText(request, CHAT_MAX_BODY * 3);
-  if (raw.length > CHAT_MAX_BODY) throw new ValidationError('chat body too large');
+  // 글자 수 검사는 아래에서 — UTF-8 은 UTF-16 한 칸에 최대 3바이트라, 글 몫은 그 3배까지 읽는다
+  const raw = await readBodyText(request, CHAT_MAX_BODY * 3 + CHAT_PHOTO_MAX);
   let body;
   try {
     body = JSON.parse(raw);
   } catch {
     throw new ValidationError('chat body must be JSON');
   }
-  const messages = normalizeChat(body && body.messages);
+  if (!body || typeof body !== 'object') throw new ValidationError('chat body must be JSON');
+  const photo = body.room_image;
+  if (photo != null) {
+    if (typeof photo !== 'string' || !photo || photo.length > CHAT_PHOTO_MAX || !/^[A-Za-z0-9+/=]+$/.test(photo)) {
+      throw new ValidationError('room_image must be a small base64 image');
+    }
+    if (!IMAGE_TYPES.includes(body.image_type)) throw new ValidationError(`image_type must be one of ${IMAGE_TYPES.join(', ')}`);
+  }
+  if (raw.length - (photo ? photo.length : 0) > CHAT_MAX_BODY) throw new ValidationError('chat body too large');
+  const messages = normalizeChat(body.messages);
   if (!messages.length) throw new ValidationError('messages must include a customer message');
+  return {
+    category: body.category,
+    messages,
+    app: body.app === true,
+    images: photo ? [{ base64: photo, mimeType: body.image_type }] : [],
+  };
+}
+
+async function chat(request, env) {
+  const c = await readChatRequest(request, env);
   const r = await callGemini(env, {
-    prompt: buildChatPrompt({ category: body.category, messages }),
+    prompt: buildChatPrompt({ category: c.category, messages: c.messages, photo: c.images.length > 0, app: c.app }),
+    images: c.images,
     want: 'text',
     temperature: 0.6,
     retryDelaysMs: [3_000], // 손님이 채팅창에서 기다린다 — 과부하면 3초 뒤 한 번만
@@ -375,6 +403,16 @@ async function chat(request, env) {
   const reply = cleanChatReply(r.text);
   if (!reply) throw new Error('chat: empty reply');
   return { success: true, reply };
+}
+
+/**
+ * POST /api/chat/brief — 상담 정리 (앱 연출컷 「정리하기」, 2026-11-21 대표님).
+ * /api/chat 과 같은 본문 · 로그인 · 한도. 텍스트 모델 한 번(JSON). 크레딧은 쓰지 않는다.
+ * → { success, brief, door_color?, design_style? } — 색 · 스타일은 화면 목록 안의 값일 때만 실린다.
+ */
+async function chatBrief(request, env) {
+  const c = await readChatRequest(request, env);
+  return { success: true, ...(await requestBrief(env, c)) };
 }
 
 async function requireOwner(request, env, id) {

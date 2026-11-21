@@ -13,7 +13,10 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { GenerateJob } from '../src/job.js';
 import {
+  briefSchema,
+  buildBriefPrompt,
   buildChatPrompt,
+  parseBrief,
   buildInstallPrompt,
   cleanChatReply,
   cleanCustomerRequest,
@@ -183,6 +186,79 @@ test('/api/chat — 로그인 없으면 401, 손님 글이 없으면 400, 본문
   assert.equal((await post('/api/chat', null, { raw: '{"messages":[{"role":"me","text":"' + 'x'.repeat(40000) + '"}]}' })).status, 400);
   assert.equal((await post('/api/chat', null, { raw: 'not json' })).status, 400);
   assert.equal(calls.gemini.length, 0);
+});
+
+// ── 앱 연출컷 상담 (2026-11-21): 사진을 보고 상담 · 「정리하기」 ──
+test('대화 프롬프트 — 사진 · app 이 없으면 예전 글 그대로, 있으면 사진 줄 · 「정리하기」', () => {
+  const messages = [{ role: 'me', text: '오크 도어' }];
+  const old = buildChatPrompt({ category: 'sink', messages });
+  assert.equal(buildChatPrompt({ category: 'sink', messages, photo: false, app: false }), old);
+  assert.ok(old.includes('they can press 「연출컷 생성」.'));
+  assert.doesNotMatch(old, /room photo\. Look at/);
+  const app = buildChatPrompt({ category: 'sink', messages, photo: true, app: true });
+  assert.match(app, /The attached image is the customer's room photo/);
+  assert.match(app, /Never state measurements/);
+  assert.ok(app.includes('「정리하기」'));
+  assert.ok(!app.includes('「연출컷 생성」'));
+});
+
+test('정리 프롬프트 · 답 읽기 — 목록 안의 색 · 스타일만, brief 는 다듬어 600자', () => {
+  const p = buildBriefPrompt({ category: 'wardrobe', messages: [{ role: 'me', text: '월넛 도어' }], photo: true });
+  assert.match(p, /never mention handles or knobs/);
+  assert.match(p, /Do not add anything nobody said/);
+  assert.ok(p.includes('walnut woodgrain'));
+  assert.ok(p.includes('modern-minimal (modern minimal)'));
+  assert.ok(p.includes('Customer: 월넛 도어'));
+  const s = briefSchema();
+  assert.ok(s.properties.door_color.enum.includes('none'));
+  assert.deepEqual(s.required, ['brief', 'door_color', 'design_style']);
+
+  assert.deepEqual(parseBrief(JSON.stringify({ brief: '도어는 **월넛**\n"무광"', door_color: 'walnut woodgrain', design_style: 'classic' })), {
+    brief: "도어는 월넛 / '무광'",
+    door_color: 'walnut woodgrain',
+    design_style: 'classic',
+  });
+  assert.deepEqual(parseBrief(JSON.stringify({ brief: '화이트', door_color: 'pink', design_style: 'none' })), { brief: '화이트' });
+  assert.deepEqual(parseBrief(JSON.stringify({ brief: 'x', door_color: 'none', design_style: 'toString' })), { brief: 'x' });
+  assert.equal(parseBrief(JSON.stringify({ brief: '가'.repeat(900) })).brief.length, CUSTOMER_REQUEST_MAX);
+  assert.equal(parseBrief('not json'), null);
+  assert.equal(parseBrief(JSON.stringify({ brief: '  ' })), null);
+});
+
+test('/api/chat — 사진이 붙으면 사진도 모델로 간다 (글 한도는 그대로 32KB)', async () => {
+  installRoute();
+  const photo = 'A'.repeat(200_000);
+  const res = await post('/api/chat', { category: 'sink', app: true, room_image: photo, image_type: 'image/jpeg', messages: [{ role: 'me', text: '밝게' }] });
+  assert.equal(res.status, 200);
+  const parts = calls.gemini[0].contents[0].parts;
+  assert.ok(parts.some((x) => x.inlineData && x.inlineData.data === photo && x.inlineData.mimeType === 'image/jpeg'));
+  assert.ok(parts[parts.length - 1].text.includes('「정리하기」'));
+
+  installRoute();
+  assert.equal((await post('/api/chat', { room_image: photo, image_type: 'image/gif', messages: [{ role: 'me', text: 'x' }] })).status, 400);
+  assert.equal((await post('/api/chat', { room_image: 'not base64!', image_type: 'image/jpeg', messages: [{ role: 'me', text: 'x' }] })).status, 400);
+  assert.equal((await post('/api/chat', { room_image: 'A'.repeat(1024 * 1024 + 4), image_type: 'image/jpeg', messages: [{ role: 'me', text: 'x' }] })).status, 400);
+  assert.equal((await post('/api/chat', { room_image: photo, image_type: 'image/jpeg', messages: [{ role: 'me', text: 'x' }], pad: 'y'.repeat(40000) })).status, 400);
+  assert.equal(calls.gemini.length, 0);
+});
+
+test('/api/chat/brief — 로그인한 손님의 상담을 JSON 한 번으로 정리, 목록 밖 값은 뺀다', async () => {
+  installRoute({ chatReply: JSON.stringify({ brief: '월넛 도어, 화이트 상판', door_color: 'walnut woodgrain', design_style: 'none' }) });
+  const res = await post('/api/chat/brief', { category: 'sink', messages: [{ role: 'me', text: '월넛 도어' }, { role: 'ai', text: '상판은요?' }, { role: 'me', text: '화이트' }] });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { success: true, brief: '월넛 도어, 화이트 상판', door_color: 'walnut woodgrain' });
+  const g = calls.gemini[0];
+  assert.equal(g.generationConfig.responseMimeType, 'application/json');
+  assert.ok(g.generationConfig.responseSchema.properties.brief);
+  assert.ok(g.contents[0].parts[0].text.includes('Customer: 화이트'));
+
+  installRoute();
+  assert.equal((await post('/api/chat/brief', { messages: [{ role: 'me', text: 'x' }] }, { auth: false })).status, 401);
+  assert.equal((await post('/api/chat/brief', { messages: [{ role: 'ai', text: '안녕' }] })).status, 400);
+  assert.equal(calls.gemini.length, 0);
+
+  installRoute({ chatReply: 'not json' });
+  assert.equal((await post('/api/chat/brief', { messages: [{ role: 'me', text: 'x' }] })).status, 500);
 });
 
 test('접수: customer_request 는 다듬어 options 에 — 없으면 키도 없다, 재생성은 원본을 잇는다', async () => {

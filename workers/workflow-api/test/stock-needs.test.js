@@ -199,7 +199,7 @@ test('boardNeeds · hardwareNeeds — 요약에서 판재 장수, 철물은 같�
   ]);
   assert.deepEqual(boardNeeds(null), []);
   assert.deepEqual(hardwareNeeds(HW(10)), [
-    { key: 'H|경첩|H052W-5 105도 저압 경첩', label: '경첩 · H052W-5 105도 저압 경첩', kind: 'hardware', need: 12, unit: '개' },
+    { key: 'H|경첩|문주 H052W-5 105도 저압 경첩', label: '경첩 · 문주 H052W-5 105도 저압 경첩', kind: 'hardware', need: 12, unit: '개' },
     { key: 'H|레일|언더 450', label: '레일 · 언더 450', kind: 'hardware', need: 3, unit: '쌍' },
     { key: 'H|기타|실리콘', label: '기타 · 실리콘', kind: 'hardware', need: 1, unit: '개' },
   ]);
@@ -269,7 +269,7 @@ test('자재 상태 — 진행 중 수주만, 납기 빠른 차례로 재고를 
   assert.deepEqual(o1.lines.map((l) => [l.label, l.need, l.unit, l.state, l.item && l.item.name]), [
     ['PB 15T', 3, '장', 'ok', 'PB 15T'],
     ['MDF 18T', 1, '장', 'unlinked', null],
-    ['경첩 · H052W-5 105도 저압 경첩', 12, '개', 'ok', '경첩 105도'],
+    ['경첩 · 문주 H052W-5 105도 저압 경첩', 12, '개', 'ok', '경첩 105도'],
     ['레일 · 언더 450', 3, '쌍', 'unlinked', null],
     ['기타 · 실리콘', 1, '개', 'ignored', null],
   ]);
@@ -277,7 +277,7 @@ test('자재 상태 — 진행 중 수주만, 납기 빠른 차례로 재고를 
   // O2: 문서에 배치가 없어 스냅샷 것(2장) — PB 는 4 − 3 = 1 남아 모자람, 경첩은 14 − 12 = 2 + 입고 예정 10 으로 6개
   assert.deepEqual(d.orders[2].lines.slice(0, 3).map((l) => [l.label, l.need, l.state]), [
     ['PB 15T', 2, 'short'],
-    ['경첩 · H052W-5 105도 저압 경첩', 6, 'expected'],
+    ['경첩 · 문주 H052W-5 105도 저압 경첩', 6, 'expected'],
     ['레일 · 언더 450', 3, 'unlinked'],
   ]);
   assert.deepEqual(d.counts, { ok: 0, expected: 0, short: 1, unlinked: 1, nodoc: 1, issued: 0 });
@@ -291,7 +291,7 @@ test('자재 목록 — 자재마다 필요한 양 · 수주 수 · 짝. 지금 
   assert.deepEqual(m.map((x) => [x.kind, x.label, x.need, x.orders, x.ignored, x.item && x.item.name]), [
     ['board', 'MDF 18T', 1, 1, false, null],
     ['board', 'PB 15T', 5, 2, false, 'PB 15T'],
-    ['hardware', '경첩 · H052W-5 105도 저압 경첩', 18, 2, false, '경첩 105도'],
+    ['hardware', '경첩 · 문주 H052W-5 105도 저압 경첩', 18, 2, false, '경첩 105도'],
     ['hardware', '기타 · 실리콘', 2, 2, true, null],
     ['hardware', '레일 · 언더 450', 6, 2, false, null],
     ['hardware', '옷봉 · 옛 옷봉', 0, 0, false, '레일 450'],

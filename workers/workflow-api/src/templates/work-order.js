@@ -68,6 +68,7 @@ import { isCornerItem, isoSvg, runLengths } from './isometric.js';
 import { cutPackV2, doorPackV2 } from './work-order-layout2.js';
 import { assemblyCards } from './assembly-layout2.js';
 import { unitNameOf } from '../hardware-units.js';
+import { hardwareShownOf } from '../hardware-names.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -143,6 +144,8 @@ function buildContext(doc, snapshot, renderUrls) {
     renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})),
     swatches,
     swatchByCode: new Map(swatches.map((s) => [s.code, s])),
+    // 회사를 모르는 철물의 주문 거래처 — 발행 때 고정한 것 (documents.js docPayloadOf · 2026-11-21). 옛 문서는 없다
+    hardwareSuppliers: rp.hardware_suppliers && typeof rp.hardware_suppliers === 'object' ? rp.hardware_suppliers : null,
     cutPlan: plan,
     prevRev: rp.prev_rev, // undefined = v1 문서(비교 안 함), null = 첫 발행
     isV2: Number(rp.work_order_version) >= 2,
@@ -1346,7 +1349,7 @@ function hardwareSheet(ctx) {
       const body = rows
         .map((h) =>
           tr(
-            [esc(h.itemLabel || ''), esc(h.item || ''), esc(h.manufacturer || ''), esc(h.spec || ''), num(h.qty), esc(unitNameOf(h.unit)), esc(h.note || '')],
+            [esc(h.itemLabel || ''), esc(hardwareShownOf(h, ctx.hardwareSuppliers).item), esc(hardwareShownOf(h, ctx.hardwareSuppliers).maker || h.manufacturer || ''), esc(h.spec || ''), num(h.qty), esc(unitNameOf(h.unit)), esc(h.note || '')],
             ['', '', '', '', 'num', '', ''],
           ),
         )
