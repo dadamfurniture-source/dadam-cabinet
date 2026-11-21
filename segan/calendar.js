@@ -17,6 +17,9 @@
                GET   /company/designs            { items[{ id, name, project_id }] } — 「일정 더하기」의 설계 고르기
                POST  /designs/:id/schedules      { items: [{ type, scheduled_at, title? }] }   (대표 · 실장)
                PATCH /schedules/:id              { scheduled_at?, status? }                    (대표 · 실장)
+               PATCH /schedules/:id              { customer_confirmed: true | false }          (대표 · 실장 · 설치 일정에만 — 설치 날 고객 확인,
+                     2026-11-21 뒤 공정 2차 · DB 0079. 서버가 confirm_ready 로 답할 때만 단추가 있다. 날짜를 고치면 서버가 표시를 지운다)
+             프로젝트의 실측(source visit) — 설계 전에 잡는 실측 일정. 여기서 고치지 않는다 (프로젝트 줄의 「실측 일정」에서) — 「열기」는 실측 화면
    화면      월 · 주 · 목록 보기, ‹ 오늘 › 로 옮기기, 종류(영업 · 설계 · 생산 · 설치 · A/S) 켜고 끄기.
              월 · 주는 날을 누르면 아래 「그날 일정」 칸에 줄이 나온다. 목록은 그 달의 일정 있는 날만 차례로.
              줄마다 시각 · 종류 · 이름 · 프로젝트 · 설계 · 지역 · 수주 번호 · (받을 날은 금액) · 담당 · 상태,
@@ -105,6 +108,12 @@
     titleLong: '이름은 ' + TITLE_MAX + '자까지 적을 수 있습니다.',
     added: '일정을 넣었습니다.',
     edited: '일정을 고쳤습니다.',
+    // 설치 날 고객 확인 (2026-11-21 뒤 공정 2차)
+    confirmedOn: '고객 확인',
+    confirmOn: '고객 확인 표시',
+    confirmOff: '확인 지우기',
+    confirmDone: '고객 확인을 표시했습니다.',
+    confirmUndone: '고객 확인 표시를 지웠습니다.',
     noProject: '프로젝트 없는 설계',
     noName: '이름 없는 설계',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
@@ -303,6 +312,8 @@
     if (!d || typeof d !== 'object' || Array.isArray(d) || !Array.isArray(d.items)) return null;
     return {
       manage: d.can_manage === true,
+      // 설치 날 고객 확인 — 서버가 confirm_ready true 로 답할 때만 (DB 0079 전 · 옛 서버면 표시도 단추도 없다)
+      confirm: d.confirm_ready === true,
       today: isDay(d.today) ? d.today : '',
       truncated: d.truncated === true,
       items: d.items.filter(function (x) {
@@ -361,6 +372,7 @@
   function openOf(x) {
     if (!x || typeof x !== 'object') return '';
     if (x.source === 'work') return '';
+    if (x.source === 'visit') return 'p-measure'; // 프로젝트의 실측 — 실측 단계 프로젝트
     if (x.source === 'payment') return 'p-contract';
     if (x.kind === 'sales') return 'p-consult';
     if (x.kind === 'design') return 'p-design';
@@ -379,7 +391,7 @@
 
   /** 상태 글 — 일정 표 · A/S 접수 · 설계 마감 · 프로젝트의 작업 (상담 상태 · 받을 날은 적지 않는다) */
   function statusOf(x) {
-    if (x.source === 'schedule') return SCHEDULE_STATUS[x.status] || '';
+    if (x.source === 'schedule' || x.source === 'visit') return SCHEDULE_STATUS[x.status] || '';
     if (x.source === 'work') return WORK_STATE[x.status] || '';
     if (x.source === 'as') return AS_STATE[x.status] || '';
     if (x.source === 'design_due') return DESIGN_DUE_STATE[x.status] || '';
@@ -498,8 +510,25 @@
     return !!PP && typeof PP.openWork === 'function';
   }
 
+  /** 설치 날 고객 확인을 쓰는 줄인가 — 설치 일정(취소 아님)이고 서버가 그 칸을 줄 때 */
+  function confirmable(x) {
+    return !!(C.data && C.data.confirm) && !!x && x.source === 'schedule' && x.type === 'installation' && x.status !== 'cancelled';
+  }
+
+  /** 고객이 확인한 날 글 — 「고객 확인 11.28」 (확인 전이면 빈 글자) */
+  function confirmedText(x) {
+    var t = confirmable(x) && typeof x.customer_confirmed_at === 'string' ? Date.parse(x.customer_confirmed_at) : NaN;
+    if (isNaN(t)) return '';
+    var d = new Date(t + 9 * 3600000);
+    var two = function (n) {
+      return (n < 10 ? '0' : '') + n;
+    };
+    return TEXT.confirmedOn + ' ' + two(d.getUTCMonth() + 1) + '.' + two(d.getUTCDate());
+  }
+
   function itemHtml(x) {
     var manage = !!(C.data && C.data.manage);
+    var confirmed = confirmedText(x);
     var workFor = canOpenWork() ? workProjectOf(x) : '';
     var status = statusOf(x);
     var time = timeText(x);
@@ -521,6 +550,7 @@
       esc([KIND_LABEL[x.kind], detail].filter(Boolean).join(' · ')) +
       '</small></div>' +
       (status ? '<span class="me-badge">' + esc(status) + '</span>' : '') +
+      (confirmed ? '<span class="me-badge" data-cal="confirmed">' + esc(confirmed) + '</span>' : '') +
       '</div>' +
       '<div class="cal-item-acts">' +
       (canOpen(go)
@@ -541,6 +571,18 @@
           '" data-fk="edit:' +
           esc(x.id) +
           '">고치기</button>'
+        : '') +
+      // 설치 날 고객 확인 — 전화로 확인한 것을 표시한다 (같은 자리의 단추로 지운다)
+      (manage && confirmable(x) && !editing
+        ? '<button type="button" class="cal-link" data-act="confirm" data-id="' +
+          esc(x.id) +
+          '" data-on="' +
+          (confirmed ? '0' : '1') +
+          '" data-fk="confirm:' +
+          esc(x.id) +
+          '">' +
+          esc(confirmed ? TEXT.confirmOff : TEXT.confirmOn) +
+          '</button>'
         : '') +
       '</div>' +
       (editing ? editFormHtml(x) : '') +
@@ -1088,11 +1130,32 @@
     await afterWrite(v.date, edit ? TEXT.edited : TEXT.added);
   }
 
+  /** 설치 날 고객 확인을 표시하거나 지운다 — 끝나면 그 날을 다시 읽는다 */
+  async function setConfirm(id, on) {
+    var x = null;
+    var items = (C.data && C.data.items) || [];
+    for (var i = 0; i < items.length; i++) if (items[i].source === 'schedule' && items[i].id === id) x = items[i];
+    if (!x || !confirmable(x) || C.busy) return;
+    C.busy = true;
+    C.err = '';
+    C.msg = '';
+    var r = await call('PATCH', '/schedules/' + encodeURIComponent(id), { customer_confirmed: on });
+    if (!r.ok) {
+      C.busy = false;
+      C.msg = errText(r);
+      render();
+      return;
+    }
+    await afterWrite(x.day, on ? TEXT.confirmDone : TEXT.confirmUndone);
+  }
+
   function onClick(e) {
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el || el.disabled || C.busy) return;
     var act = el.getAttribute('data-act');
-    if (act === 'prev' || act === 'next') {
+    if (act === 'confirm') {
+      setConfirm(el.getAttribute('data-id') || '', el.getAttribute('data-on') === '1');
+    } else if (act === 'prev' || act === 'next') {
       C.cursor = moveCursor(C.view, C.cursor, act === 'prev' ? -1 : 1);
       C.sel = C.cursor;
       C.form = null;

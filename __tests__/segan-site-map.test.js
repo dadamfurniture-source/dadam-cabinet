@@ -1880,3 +1880,79 @@ describe('납품 줄 · 모집', () => {
     );
   });
 });
+
+describe('설치 날 고객 확인 (2026-11-21 뒤 공정 2차 — DB 0079)', () => {
+  const pickFirst = () => click('siteInstall', '.sm-row[data-key="' + INSTALL[0].key + '"] td');
+  const confirmBtn = () => $('siteInstall').querySelector('[data-act="confirm"]');
+
+  test('서버가 쓸 수 있다고 할 때만(confirm_ready) — 확인 전인 설치 줄에 「고객 확인 전」 꼬리표, 줄을 누르면 「고객 확인 표시」. 누르면 PATCH · 다시 읽기, 그 뒤 확인한 날과 「확인 지우기」', async () => {
+    // 쓰지 않는 서버(DB 0079 전 · 옛 서버) — 꼬리표도 단추도 칸도 없다
+    await load();
+    expect($('siteInstall').querySelector('[data-sm="confirm"]')).toBeNull();
+    await pickFirst();
+    expect(confirmBtn()).toBeNull();
+    expect('고객 확인' in detail('siteInstall')).toBe(false);
+
+    let at = null;
+    const sent = [];
+    const calls = await load({
+      install: () =>
+        ok(
+          sites('install', {
+            confirm_ready: true,
+            items: INSTALL.map((x, i) => (i === 0 ? { ...x, customer_confirmed_at: at } : x)),
+          })
+        ),
+      patch: (body, url) => {
+        sent.push([url.slice(WORK.length), body]);
+        at = body.customer_confirmed ? '2026-11-09T05:00:00Z' : null;
+        return ok({ id: S1 });
+      },
+    });
+    // 꼬리표 — 예정 · 확정인 「설치」 줄에만 (납품 줄 · 끝난 설치에는 없다)
+    expect(rows('siteInstall').map((r) => r.includes('고객 확인 전'))).toEqual([true, false, false]);
+    await pickFirst();
+    expect(detail('siteInstall')['고객 확인']).toBe('확인 전');
+    expect([text(confirmBtn()), confirmBtn().getAttribute('data-on')]).toEqual(['고객 확인 표시', '1']);
+    confirmBtn().click();
+    await flush();
+    expect(sent).toEqual([['/schedules/' + S1, { customer_confirmed: true }]]);
+    expect(siteCalls(calls, 'install')).toHaveLength(2); // 다시 읽었다
+    expect(detail('siteInstall')['고객 확인']).toBe('11.09 확인');
+    expect([text(confirmBtn()), confirmBtn().getAttribute('data-on')]).toEqual(['확인 지우기', '0']);
+    expect(rows('siteInstall')[0]).not.toContain('고객 확인 전');
+    expect(text($('siteInstall').querySelector('.me-pt-msg'))).toBe('고객 확인을 표시했습니다.');
+    confirmBtn().click();
+    await flush();
+    expect(sent[1]).toEqual(['/schedules/' + S1, { customer_confirmed: false }]);
+    expect(detail('siteInstall')['고객 확인']).toBe('확인 전');
+  });
+
+  test('직원(can_manage 거짓)은 표시만 보고 단추가 없다 · 납품 줄에는 칸이 없다 · 서버가 거절하면 그 글을 알린다', async () => {
+    await load({
+      install: () =>
+        ok(
+          sites('install', {
+            can_manage: false,
+            confirm_ready: true,
+            items: INSTALL.map((x, i) => (i === 0 ? { ...x, customer_confirmed_at: '2026-11-09T05:00:00Z' } : x)),
+          })
+        ),
+    });
+    await pickFirst();
+    expect(detail('siteInstall')['고객 확인']).toBe('11.09 확인');
+    expect(confirmBtn()).toBeNull();
+    await click('siteInstall', '.sm-row[data-key="' + INSTALL[1].key + '"] td'); // 납품 줄
+    expect('고객 확인' in detail('siteInstall')).toBe(false);
+
+    await load({
+      install: () => ok(sites('install', { confirm_ready: true })),
+      patch: () => fail(409, 'db_pending', 'DB 0079 적용 전입니다 — 고객 확인 표시는 적용 뒤에 쓸 수 있습니다'),
+    });
+    await pickFirst();
+    confirmBtn().click();
+    await flush();
+    expect(text($('siteInstall').querySelector('.me-pt-msg'))).toContain('DB 0079 적용 전입니다');
+    expect(confirmBtn().getAttribute('data-on')).toBe('1');
+  });
+});

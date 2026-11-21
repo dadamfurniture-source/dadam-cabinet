@@ -157,6 +157,14 @@
   var TEXT = {
     generic: '저장하지 못했습니다. 잠시 뒤 다시 해 주세요.',
     saved: '저장했습니다.',
+    // 설치 날 고객 확인 (전화로 확인한 것을 업체가 표시한다)
+    confirmLabel: '고객 확인',
+    confirmNone: '확인 전',
+    confirmTag: '고객 확인 전',
+    confirmOn: '고객 확인 표시',
+    confirmOff: '확인 지우기',
+    confirmDone: '고객 확인을 표시했습니다.',
+    confirmUndone: '고객 확인 표시를 지웠습니다.',
     savedStale: '저장했습니다. 목록을 다시 읽지 못했습니다.',
     reloadFailed: '목록을 다시 읽지 못했습니다.',
     retry: '다시 읽기',
@@ -397,6 +405,8 @@
       it.status = str(raw.status);
       it.assignee_name = str(raw.assignee_name);
       it.workers = workersOfRaw(raw.workers);
+      // 설치 날 고객 확인 — 표시한 때 (없으면 빈 글자. 2026-11-21 뒤 공정 2차 · DB 0079)
+      it.confirmed_at = str(raw.customer_confirmed_at);
       return it;
     }
     if (!str(raw.as_id) || !AS_STATE[raw.state]) return null;
@@ -416,6 +426,8 @@
     var r = d.range && typeof d.range === 'object' ? d.range : null;
     return {
       manage: d.can_manage === true,
+      // 설치 날 고객 확인 — 서버가 confirm_ready true 로 답할 때만 (DB 0079 전 · 옛 서버면 표시도 단추도 없다)
+      confirm: d.confirm_ready === true,
       today: isDay(d.today) ? d.today : kstToday(),
       ready: d.ready !== false,
       truncated: d.truncated === true,
@@ -1114,6 +1126,10 @@
         ? ' <span class="sm-wait-tag">' + esc(TEXT.waitTag) + '</span>'
         : '';
     };
+    // 설치 날 고객 확인 — 아직 확인 전인 설치 일정에 꼬리표 (끝났거나 취소한 일정에는 붙이지 않는다)
+    var confirmTag = function (it) {
+      return confirmNeeded(v, it) ? ' <span class="sm-wait-tag" data-sm="confirm">' + esc(TEXT.confirmTag) + '</span>' : '';
+    };
     var head = install
       ? ['번호', '날짜', '시각', '프로젝트', '지역', '설치팀', '상태']
       : ['번호', '접수일', '방문일', '프로젝트', '지역', '증상', '담당', '상태'];
@@ -1136,6 +1152,7 @@
             '</td><td>' +
             esc((it.label ? it.label + ' · ' : '') + (SCHEDULE_STATUS[it.status] || it.status)) +
             waitTag(it) +
+            confirmTag(it) +
             '</td>';
         } else {
           var visit = visitOf(it);
@@ -1294,6 +1311,9 @@
           ['담당', (visit && visit.assignee_name) || TEXT.unset],
           ['상태', it.label],
         ];
+    // 설치 날 고객 확인 — 설치 일정에만 (서버가 그 칸을 줄 때)
+    var confirmOn = confirmable(v, it);
+    if (confirmOn) pairs.push([TEXT.confirmLabel, confirmedDay(it) || TEXT.confirmNone]);
     var assigned = workersOn(v.kind, it);
     var sid = workScheduleOf(v.kind, it);
     if (assigned.length) pairs.push([TEXT.wkTitle, workersText(assigned)]);
@@ -1324,6 +1344,13 @@
         (canEdit
           ? '<button type="button" class="mk-btn mk-btn--solid" data-act="edit" data-fk="edit">' +
             (install ? '고치기' : visit ? '방문일 고치기' : '방문일 잡기') +
+            '</button>'
+          : '') +
+        (confirmOn && v.data.manage
+          ? '<button type="button" class="mk-btn" data-act="confirm" data-on="' +
+            (it.confirmed_at ? '0' : '1') +
+            '" data-fk="confirm">' +
+            esc(it.confirmed_at ? TEXT.confirmOff : TEXT.confirmOn) +
             '</button>'
           : '') +
         wkBtn +
@@ -1970,11 +1997,60 @@
     }
     return true;
   }
+  // ── 설치 날 고객 확인 (2026-11-21 뒤 공정 2차) ──────────────────────────────
+  /** 그 줄에 고객 확인을 쓰나 — 설치 화면의 설치 일정이고 서버가 그 칸을 줄 때 */
+  function confirmable(v, it) {
+    return v.kind === 'install' && !!v.data && v.data.confirm === true && !!it && it.type === 'installation';
+  }
+  /** 아직 확인 전이라 챙길 줄인가 — 예정 · 확정인 설치 일정 */
+  function confirmNeeded(v, it) {
+    return confirmable(v, it) && !it.confirmed_at && (it.status === 'scheduled' || it.status === 'confirmed');
+  }
+  /** 확인을 표시한 날 — 「11.28 확인」 (한국 날짜, 확인 전이면 빈 글자) */
+  function confirmedDay(it) {
+    var t = Date.parse(it && it.confirmed_at);
+    if (isNaN(t)) return '';
+    var d = new Date(t + 9 * 3600000);
+    var two = function (n) {
+      return (n < 10 ? '0' : '') + n;
+    };
+    return two(d.getUTCMonth() + 1) + '.' + two(d.getUTCDate()) + ' 확인';
+  }
+  /** 고른 설치 일정의 고객 확인을 표시하거나 지운다 (대표 · 실장 — 서버가 다시 막는다). 끝나면 표 · 업무 달력을 다시 읽는다 */
+  async function setConfirm(v, on) {
+    var item = (v.data.items || []).filter(function (x) {
+      return x.key === v.sel;
+    })[0];
+    if (!item || !item.schedule_id || !confirmable(v, item) || v.busy) return;
+    v.busy = true;
+    v.err = '';
+    v.msg = '';
+    var r = await call('PATCH', '/schedules/' + encodeURIComponent(item.schedule_id), {
+      customer_confirmed: on,
+    });
+    v.busy = false;
+    if (!r.ok) {
+      v.msg = errText(r);
+      render(v);
+      return;
+    }
+    v.msg = on ? TEXT.confirmDone : TEXT.confirmUndone;
+    if (!(await reloadView(v))) {
+      v.msg = TEXT.savedStale;
+      render(v);
+    }
+    calendarReload();
+  }
+
   function onClick(v, e) {
     var el = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el || el.disabled || v.busy || !v.data) return;
     var act = el.getAttribute('data-act');
     if (onWorkersClick(v, act, el)) return;
+    if (act === 'confirm') {
+      setConfirm(v, el.getAttribute('data-on') === '1');
+      return;
+    }
     if (act === 'pick') {
       // 열어 둔 입력 칸 안을 누른 것은 줄 고르기가 아니다
       pick(v, el.getAttribute('data-key'));
