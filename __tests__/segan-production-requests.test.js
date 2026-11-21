@@ -370,6 +370,7 @@ describe('자리 · 이름 — 워커와 같은 값', () => {
     );
     expect(keys).toEqual([
       'pj-consult',
+      'pj-measure', // 실측 — 상담 다음 · 설계 앞 (2026-11-21 뒤 공정 2차, 서버가 실측 단계를 쓸 때만 보인다)
       'pj-design',
       'pj-planner',
       'pj-deal',

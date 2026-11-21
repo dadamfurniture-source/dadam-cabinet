@@ -9,6 +9,8 @@
  *   만들기  can_manage 일 때 「새 고객 · 프로젝트」 → POST /company/projects
  *           { title, customer: { name, phone } } | { title, customer_id }, 보내기 전 서버와 같은 검사
  *   담당자  assignee_ready 일 때 줄마다 「담당 이름 (역할)」 · 대표 · 실장은 「담당자」 → PUT /company/projects/:id/assignee
+ *   실측    visit_ready 일 때(DB 0079) 단계 띠 여덟 칸 · 「실측 일정 잡기」 → 실측 칸 → PUT · PATCH /company/projects/:id/visit
+ *           (2026-11-21 대표님 「실측 일정을 잡아야 하고 설계 전에 이루어져야 함」 — 차례는 서버의 다음 할 일이 정한다)
  */
 const fs = require('fs');
 const path = require('path');
@@ -152,6 +154,8 @@ async function load(options = {}) {
       return reply(await opts.assign(body, url));
     if (url.startsWith(WORK + '/company/projects/') && url.endsWith('/status') && opts.status)
       return reply(await opts.status(body, url));
+    if (url.startsWith(WORK + '/company/projects/') && url.endsWith('/visit') && opts.visit)
+      return reply(await opts.visit(body, url, init.method));
     if (url.startsWith(WORK + '/company/projects/') && opts.one) return reply(await opts.one(url));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
@@ -717,6 +721,247 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect(box().querySelector('.me-pt-msg').textContent).toBe('다시 진행합니다.');
     expect(box().querySelector('[data-act="held"]')).toBeNull(); // 보류가 없다
     expect(rowOf(P4).querySelector('.me-pr-status')).toBeNull();
+  });
+
+  // ── 실측 (2026-11-21 대표님 뒤 공정 2차 — 서버 visit_ready · PUT/PATCH /company/projects/:id/visit, DB 0079) ──
+  const MEMBERS = [
+    { user_id: M1, name: '박실장', role: 'manager' },
+    { user_id: M2, name: '최직원', role: 'staff' },
+  ];
+  const visitOf = (extra) => ({
+    id: 'v1',
+    status: 'scheduled',
+    scheduled_at: '2026-11-25T05:00:00.000Z', // 한국 11.25 (수) 14:00
+    assignee_id: null,
+    assignee_name: null,
+    note: null,
+    done_at: null,
+    ...extra,
+  });
+  const visitBtn = (id) => rowOf(id).querySelector('[data-act="visit"]');
+  const visitForm = (id) => rowOf(id).querySelector('form[data-form="visit"]');
+
+  test('실측 단계 — 서버가 쓸 수 있다고 할 때만(visit_ready) 띠가 여덟 칸. 실측 일정 잡기 → 실측 예정(날짜) → 실측 완료 처리 → 설계 시작', async () => {
+    // 옛 서버 · DB 0079 전 — 일곱 칸, 실측 단추 없음
+    await load({
+      list: flowed([item(P1, '설계 전', { step: 'consult', next: next('design_start', '설계 시작', 'planner?project=' + P1) })]),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    expect(stripOf(P1)).toEqual(['●상담', '○설계', '○견적', '○계약', '○생산', '○설치', '○A/S']);
+    expect(visitBtn(P1)).toBeNull();
+
+    const items = [
+      item(P1, '실측 전', { step: 'consult', next: next('measure_plan', '실측 일정 잡기', 'visit'), visit: null }),
+      item(P3, '실측 예정', {
+        step: 'measure',
+        next: next('measure_wait', '실측 예정', 'visit', { wait: true, allowed: false, at: '2026-11-25T05:00:00.000Z' }),
+        visit: visitOf({ assignee_id: M1, assignee_name: '박실장', note: '현관 1층' }),
+      }),
+      item(P4, '실측 날', {
+        step: 'measure',
+        next: next('measure_done', '실측 완료 처리', 'visit', { act: { kind: 'visit_done' }, at: '2026-11-20T01:00:00.000Z' }),
+        visit: visitOf({ id: 'v2', scheduled_at: '2026-11-20T01:00:00.000Z', assignee_name: '외부 기사' }),
+      }),
+      item(P5, '실측 끝', {
+        step: 'measure',
+        next: next('design_start', '설계 시작', 'planner?project=' + P5),
+        visit: visitOf({ id: 'v3', status: 'done', scheduled_at: '2026-11-18T01:00:00.000Z', done_at: '2026-11-19T02:00:00.000Z' }),
+      }),
+    ];
+    await load({ list: () => ok(projects({ visit_ready: true, members: MEMBERS, items })) });
+    await flush();
+    await openScreen('partner-projects');
+    expect(stripOf(P1)).toEqual(['●상담', '○실측', '○설계', '○견적', '○계약', '○생산', '○설치', '○A/S']);
+    expect(stripOf(P3).slice(0, 3)).toEqual(['✓상담', '●실측', '○설계']);
+    // 실측 전 — 다음 할 일 단추가 곧 실측 칸을 여는 단추다 (「실측 일정」 단추를 따로 두지 않는다)
+    expect(
+      [...rowOf(P1).querySelectorAll('[data-act="visit"]')].map((b) => [b.textContent, b.getAttribute('data-next'), b.getAttribute('aria-expanded')])
+    ).toEqual([['실측 일정 잡기', 'measure_plan', 'false']]);
+    expect(rowOf(P1).querySelector('[data-pj="visit"]')).toBeNull();
+    // 실측 예정 — 기다림 글에 날짜(한국 시각), 줄에 실측 한 줄, 「실측 일정」 단추
+    expect(rowOf(P3).querySelector('.pj-wait').textContent).toBe('실측 11.25 (수) 14:00 예정');
+    expect(rowOf(P3).querySelector('[data-pj="visit"]').textContent).toBe('실측 11.25 (수) 14:00 · 박실장 · 「현관 1층」');
+    expect(visitBtn(P3).textContent).toBe('실측 일정');
+    // 실측 날 — 「실측 완료 처리」는 그 자리에서 누른다
+    const fin = rowOf(P4).querySelector('[data-act="next-visit-done"]');
+    expect([fin.textContent, fin.getAttribute('data-for')]).toEqual(['실측 완료 처리', P4]);
+    expect(rowOf(P4).querySelector('[data-pj="visit"]').textContent).toBe('실측 11.20 (금) 10:00 · 외부 기사');
+    // 실측 끝 — 그제야 설계 시작, 줄에는 끝낸 날
+    expect(rowOf(P5).querySelector('a[data-next="design_start"]').textContent).toBe('설계 시작');
+    expect(rowOf(P5).querySelector('[data-pj="visit"]').textContent).toBe('실측 끝 11.19');
+    // 실측 화면(#p-measure) — 실측 단계 줄만
+    await openScreen('p-measure');
+    expect(titles()).toEqual(['실측 예정', '실측 날', '실측 끝']);
+    expect($('partnerProjectsTitle').textContent).toBe('실측 단계 프로젝트');
+  });
+
+  test('실측 일정 잡기 — 단추로 펼친 칸에 날짜 · 시각 · 갈 사람 · 메모, 한국 시각으로 보내고 목록을 다시 읽는다. 잡힌 뒤에는 고치기 · 완료 처리 · 취소 (같은 단추로 접는다)', async () => {
+    let items = [
+      item(P1, '실측 전', {
+        step: 'consult',
+        next: next('measure_plan', '실측 일정 잡기', 'visit'),
+        visit: null,
+        assignee: { user_id: M1, name: '박실장', role: 'manager' },
+      }),
+    ];
+    const sent = [];
+    const calls = await load({
+      list: () => ok(projects({ visit_ready: true, assignee_ready: true, members: MEMBERS, items })),
+      visit: (body, url, method) => {
+        sent.push([method, body]);
+        if (method === 'PUT')
+          items = [
+            {
+              ...items[0],
+              step: 'measure',
+              next: next('measure_wait', '실측 예정', 'visit', { wait: true, allowed: false, at: '2026-11-25T05:00:00.000Z' }),
+              visit: visitOf({ assignee_id: body.assignee_id, assignee_name: '최직원', note: body.note }),
+            },
+          ];
+        else
+          items = [
+            {
+              ...items[0],
+              next: next('design_start', '설계 시작', 'planner?project=' + P1),
+              visit: { ...items[0].visit, status: 'done', done_at: '2026-11-25T06:00:00.000Z' },
+            },
+          ];
+        return ok({ project_id: P1, visit: items[0].visit });
+      },
+    });
+    await flush();
+    const onChange = jest.fn();
+    window.SeganPartnerProjects.onChange = onChange;
+    await openScreen('partner-projects');
+    visitBtn(P1).click();
+    expect(visitBtn(P1).getAttribute('aria-expanded')).toBe('true');
+    expect([...visitForm(P1).querySelectorAll('input, select')].map((el) => [el.name, el.type])).toEqual([
+      ['day', 'date'],
+      ['time', 'time'],
+      ['assignee_id', 'select-one'],
+      ['assignee_name', 'text'],
+      ['note', 'text'],
+    ]);
+    // 갈 사람 — 그 프로젝트의 담당자가 골라져 있다. 「닫기」 단추는 없고, 완료 처리 · 취소는 잡힌 실측이 있을 때만
+    expect(visitForm(P1).querySelector('select').value).toBe(M1);
+    expect([...visitForm(P1).querySelectorAll('option')].map((o) => o.textContent)).toEqual(['정하지 않음', '박실장 (실장)', '최직원 (직원)']);
+    expect(rowOf(P1).querySelector('.pj-visit').textContent).not.toContain('닫기');
+    expect(visitForm(P1).querySelector('[data-act="visit-done"]')).toBeNull();
+    expect(visitForm(P1).querySelector('[type="submit"]').textContent).toBe('실측 일정 잡기');
+    // 날짜 없이 내면 그 자리에 알리고 보내지 않는다 — 적던 값은 남는다
+    visitForm(P1).querySelector('[name="note"]').value = ' 현관 1층 ';
+    visitForm(P1).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(rowOf(P1).querySelector('.pj-visit .mk-error').textContent).toBe('실측 날짜와 시각을 적어 주세요.');
+    expect(sent).toEqual([]);
+    expect(visitForm(P1).querySelector('[name="note"]').value).toBe('현관 1층');
+    // 구성원을 고르면 이름 글은 보내지 않는다
+    visitForm(P1).querySelector('[name="day"]').value = '2026-11-25';
+    visitForm(P1).querySelector('[name="time"]').value = '14:00';
+    visitForm(P1).querySelector('select').value = M2;
+    visitForm(P1).querySelector('[name="assignee_name"]').value = '쓰지 않는 글';
+    const before = projectCalls(calls).length;
+    visitForm(P1).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(sent).toEqual([['PUT', { scheduled_at: '2026-11-25T14:00:00+09:00', assignee_id: M2, assignee_name: null, note: '현관 1층' }]]);
+    const put = calls.fetch.find((c) => c.method === 'PUT' && c.url.endsWith('/visit'));
+    expect([put.url, put.auth]).toEqual([WORK + '/company/projects/' + P1 + '/visit', 'Bearer tok-1']);
+    expect(projectCalls(calls).length).toBe(before + 1); // 목록을 다시 읽었다
+    expect(box().querySelector('.me-pt-msg').textContent).toBe('실측 일정을 잡았습니다.');
+    expect(onChange).toHaveBeenCalled();
+    expect(rowOf(P1).querySelector('.pj-visit')).toBeNull(); // 칸은 접혔다
+    expect(rowOf(P1).querySelector('.pj-wait').textContent).toBe('실측 11.25 (수) 14:00 예정');
+
+    // 잡힌 뒤 — 「실측 일정」 단추로 다시 펼치면 그 값으로 열리고 완료 처리 · 취소 단추가 있다
+    expect(visitBtn(P1).textContent).toBe('실측 일정');
+    visitBtn(P1).click();
+    expect([
+      visitForm(P1).querySelector('[name="day"]').value,
+      visitForm(P1).querySelector('[name="time"]').value,
+      visitForm(P1).querySelector('select').value,
+      visitForm(P1).querySelector('[name="note"]').value,
+      visitForm(P1).querySelector('[type="submit"]').textContent,
+    ]).toEqual(['2026-11-25', '14:00', M2, '현관 1층', '일정 고치기']);
+    expect([...visitForm(P1).querySelectorAll('button[data-act]')].map((b) => b.textContent)).toEqual(['실측 완료 처리', '실측 취소']);
+    visitBtn(P1).click(); // 같은 단추로 접는다
+    expect(rowOf(P1).querySelector('.pj-visit')).toBeNull();
+    visitBtn(P1).click();
+    visitForm(P1).querySelector('[data-act="visit-done"]').click();
+    await flush();
+    expect(sent[1]).toEqual(['PATCH', { status: 'done' }]);
+    expect(box().querySelector('.me-pt-msg').textContent).toBe('실측을 끝냈습니다. 이제 설계를 시작할 수 있습니다.');
+    expect(rowOf(P1).querySelector('a[data-next="design_start"]').textContent).toBe('설계 시작');
+  });
+
+  test('실측 — 줄의 「실측 완료 처리」는 바로 보낸다 · 서버가 거절하면 그 글을 알린다 · 대표 · 실장 · 담당자가 아니면 단추 없이 글만', async () => {
+    const items = [
+      item(P1, '실측 날', {
+        step: 'measure',
+        next: next('measure_done', '실측 완료 처리', 'visit', { act: { kind: 'visit_done' }, at: '2026-11-20T01:00:00.000Z' }),
+        visit: visitOf({ scheduled_at: '2026-11-20T01:00:00.000Z' }),
+      }),
+      item(P3, '실측 전', { step: 'consult', next: next('measure_plan', '실측 일정 잡기', 'visit'), visit: null }),
+    ];
+    const sent = [];
+    await load({
+      list: () => ok(projects({ visit_ready: true, members: MEMBERS, items })),
+      visit: (body, url, method) => {
+        sent.push([method, url.slice(WORK.length), body]);
+        return fail(409, 'stale', '그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
+      },
+    });
+    await flush();
+    await openScreen('partner-projects');
+    rowOf(P1).querySelector('[data-act="next-visit-done"]').click();
+    await flush();
+    expect(sent).toEqual([['PATCH', '/company/projects/' + P1 + '/visit', { status: 'done' }]]);
+    expect(box().querySelector('.me-pt-msg').textContent).toBe('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
+    // 펼친 칸에서 거절되면 그 칸에 — 적던 값은 남는다
+    visitBtn(P3).click();
+    visitForm(P3).querySelector('[name="day"]').value = '2026-12-01';
+    visitForm(P3).querySelector('[name="time"]').value = '09:30';
+    visitForm(P3).querySelector('[name="assignee_name"]').value = '외부 기사';
+    visitForm(P3).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(sent[1]).toEqual([
+      'PUT',
+      '/company/projects/' + P3 + '/visit',
+      { scheduled_at: '2026-12-01T09:30:00+09:00', assignee_id: null, assignee_name: '외부 기사', note: null },
+    ]);
+    expect(rowOf(P3).querySelector('.pj-visit .mk-error').textContent).toBe('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
+    expect(visitForm(P3).querySelector('[name="assignee_name"]').value).toBe('외부 기사');
+
+    // 직원 — 내가 담당자인 줄에만 실측 칸이 있다. 서버가 못 한다고 한 줄(allowed false)은 글만
+    const staffItems = [
+      item(P1, '남의 것', { step: 'consult', next: next('measure_plan', '실측 일정 잡기', 'visit', { allowed: false }), visit: null }),
+      item(P3, '내 담당 · 잡힘', {
+        step: 'measure',
+        next: next('measure_wait', '실측 예정', 'visit', { wait: true, allowed: false, at: '2026-11-25T05:00:00.000Z' }),
+        visit: visitOf(),
+        assignee: { user_id: 'user-1', name: '나', role: 'staff' },
+      }),
+      item(P4, '남의 것 · 잡힘', {
+        step: 'measure',
+        next: next('measure_wait', '실측 예정', 'visit', { wait: true, allowed: false, at: '2026-11-25T05:00:00.000Z' }),
+        visit: visitOf({ id: 'v2' }),
+      }),
+    ];
+    await load({
+      partner: partnerMe({ role: 'staff' }),
+      list: () => ok(projects({ can_manage: false, visit_ready: true, assignee_ready: true, members: MEMBERS, items: staffItems })),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    expect(rowOf(P1).querySelector('.pj-wait').textContent).toBe('실측 일정 잡기 — 대표 · 실장 · 담당자가 합니다');
+    expect(visitBtn(P1)).toBeNull();
+    expect(visitBtn(P3).textContent).toBe('실측 일정');
+    expect(visitBtn(P4)).toBeNull();
+    const PP = window.SeganPartnerProjects;
+    expect([PP.canVisit(staffItems[0]), PP.canVisit(staffItems[1]), PP.canVisit(staffItems[2])]).toEqual([false, true, false]);
+    // 한국 시각 — 날짜 경계
+    expect(PP.kstParts('2026-11-21T15:30:00Z')).toEqual({ day: '2026-11-22', time: '00:30', text: '11.22 (일) 00:30' });
+    expect([PP.kstParts('x'), PP.kstParts(null)]).toEqual([null, null]);
   });
 
   test('작업 분배 — 진행 중 프로젝트 모두 (끝난 것 빼고), 머리글 「작업 분배」, 새 고객 단추 없음 · 옛 주소 #partner-projects 는 모두', async () => {

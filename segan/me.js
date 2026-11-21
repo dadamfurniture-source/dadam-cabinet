@@ -574,6 +574,8 @@
     'today-calendar': { title: '업무 달력', section: 'meDash', inner: 'meCalendar' },
     // 프로젝트 관리 — 고객은 내 것, 업체 구성원은 업체 것 (pick)
     'p-consult': { title: '상담', pick: stageScreen('consult') },
+    // 실측 — 상담 다음 · 설계 앞 (2026-11-21 대표님 「실측 일정을 잡아야 하고 설계 전에 이루어져야 함」, DB 0079)
+    'p-measure': { title: '실측', pick: stageScreen('measure') },
     'p-design': { title: '설계', pick: stageScreen('design') },
     'p-quote': { title: '견적', pick: stageScreen('quote') },
     'p-contract': { title: '계약', pick: stageScreen('contract') },
@@ -785,6 +787,7 @@
   // 2026-11-21 대표님 「설계 먼저」 — 줄을 일 차례대로: 상담 · 설계 · 견적 · 계약 · 생산 · 설치 · A/S (옛 「영업」 줄을 둘로 나눴다)
   var SUBS = {
     'pj-consult': ['p-consult'],
+    'pj-measure': ['p-measure'],
     'pj-design': ['p-design'],
     'pj-deal': ['p-quote', 'p-contract', 'p-collect', 'p-customers'],
     'pj-make': ['p-make', 'p-plan', 'p-outsource', 'p-config'],
@@ -796,6 +799,7 @@
   //   상담 = 상담 단계 프로젝트 + 답을 기다리는 배정 상담, A/S = 처리 중 접수
   var ROW_COUNT = {
     'pj-consult': { stages: ['consult'], waiting: true },
+    'pj-measure': { stages: ['measure'] },
     'pj-design': { stages: ['design'] },
     'pj-deal': { stages: ['quote', 'contract'] },
     'pj-make': { stages: ['make'] },
@@ -1625,6 +1629,12 @@
         return !v.platform && (v.member ? available('p-consult') : true);
       case 'pj-deal': // 견적 · 계약 (· 수금 · 고객) — 업체는 그 화면 가운데 하나라도 열렸을 때, 고객은 내 프로젝트를 읽었을 때
         return v.member ? !v.platform && SUBS['pj-deal'].some(available) : staged;
+      case 'pj-measure': {
+        // 실측 — 업체 프로젝트를 읽었고 서버가 실측 단계를 쓸 때만 (DB 0079 전에는 줄이 없다)
+        var PPm = window.SeganPartnerProjects;
+        var dm = PPm && PPm.state ? PPm.state.data : null;
+        return staged && v.member && !!dm && dm.visit === true;
+      }
       case 'pj-design':
       case 'pj-make':
       case 'pj-install':

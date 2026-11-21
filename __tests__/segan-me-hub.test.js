@@ -736,6 +736,44 @@ describe('대시보드 — #dash-이름 (하위 줄마다 칸, 아래에 그 메
     expect(lit()).toEqual(['견적 · 계약']);
   });
 
+  test('프로젝트 관리 — 「실측」 줄은 서버가 실측 단계를 쓸 때만(visit_ready · DB 0079): 상담 다음 · 설계 앞, 실측 단계 프로젝트 수', async () => {
+    const items = [
+      projectOf(1, { step: 'consult' }),
+      projectOf(2, { step: 'measure' }),
+      projectOf(3, { step: 'measure' }),
+      projectOf(4, { stage: 'design', step: 'design' }),
+      projectOf(5, { step: 'measure', status: 'on_hold' }), // 보류는 세지 않는다
+    ];
+    // 아직 쓰지 않는 서버 — 줄이 없다 (지금 그대로 여섯 줄)
+    await load({
+      url: '/segan/me.html#dash-project',
+      partner: member(),
+      companyProjects: ok({ company: { id: CO }, can_manage: false, items: items.slice(0, 1) }),
+    });
+    expect(counts().map((c) => c[0])).toEqual(['상담', '설계', '견적 · 계약', '생산', '설치', 'A/S']);
+    await load({
+      url: '/segan/me.html#dash-project',
+      partner: member(),
+      companyProjects: ok({ company: { id: CO }, can_manage: false, visit_ready: true, items }),
+    });
+    expect(counts()).toEqual([
+      ['상담', '1'],
+      ['실측', '2'],
+      ['설계', '1'],
+      ['견적 · 계약', '0'],
+      ['생산', '0'],
+      ['설치', '0'],
+      ['A/S', '0'],
+    ]);
+    expect(row('실측').getAttribute('href')).toBe('#p-measure');
+    row('실측').click();
+    expect(screen()).toBe('p-measure');
+    expect($('meTitle').textContent).toBe('실측');
+    expect(partnerParts()).toEqual(['partnerProjects']);
+    expect($('partnerProjects').querySelectorAll('[data-project]')).toHaveLength(2); // 실측 단계 · 진행 중만 (보류는 아래 묶음)
+    expect(lit()).toEqual(['실측']);
+  });
+
   test('프로젝트 관리 — 끝난 프로젝트는 세지 않고, 서버가 정한 지금 단계(step)가 있으면 그것으로 센다', async () => {
     await load({
       url: '/segan/me.html#dash-project',
