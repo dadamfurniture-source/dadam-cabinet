@@ -1,0 +1,253 @@
+{
+  "title": "0079 프로젝트 방문(실측) 일정 · 설치 날 고객 확인 — 방문은 서버만(예정은 프로젝트에 하나 · 끝/취소는 예정에서만 · 같은 업체 프로젝트만), 고객 확인 표시는 구성원이 읽기만",
+  "ids": [
+    "company_x",
+    "company_y",
+    "customer_x",
+    "customer_y",
+    "project_x",
+    "project_y",
+    "project_z",
+    "visit_done",
+    "visit_open",
+    "visit_cancelled",
+    "design_x",
+    "sched_x"
+  ],
+  "users": [
+    "x_owner_user",
+    "y_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{customer_x}}, {{company_x}}, 'probe'), ({{customer_y}}, {{company_y}}, 'probe')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_x}}, {{company_x}}, {{customer_x}}, 'probe X'), ({{project_y}}, {{company_y}}, {{customer_y}}, 'probe Y'), ({{project_z}}, {{company_x}}, {{customer_x}}, 'probe Z')",
+    "INSERT INTO public.project_visits (id, company_id, project_id, scheduled_at, created_by) VALUES ({{visit_done}}, {{company_x}}, {{project_x}}, timestamptz '2026-11-20 14:00+09', {{x_owner_user}})",
+    "UPDATE public.project_visits SET status = 'done', done_by = {{x_owner_user}} WHERE id = {{visit_done}}",
+    "INSERT INTO public.project_visits (id, company_id, project_id, scheduled_at, assignee_id, note, created_by) VALUES ({{visit_open}}, {{company_x}}, {{project_x}}, timestamptz '2026-12-01 14:00+09', {{x_owner_user}}, 'probe', {{x_owner_user}})",
+    "INSERT INTO public.project_visits (id, company_id, project_id, scheduled_at) VALUES ({{visit_cancelled}}, {{company_y}}, {{project_y}}, timestamptz '2026-12-02 10:00+09')",
+    "UPDATE public.project_visits SET status = 'cancelled' WHERE id = {{visit_cancelled}}",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_x}}, {{design_x}}, gen_random_uuid(), 'installation', '설치', timestamptz '2026-12-03 09:00+09')",
+    "UPDATE public.design_schedules SET customer_confirmed_at = now(), customer_confirmed_by = {{x_owner_user}} WHERE id = {{sched_x}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "y_owner": {
+      "role": "authenticated",
+      "user": "y_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "방문 읽기 — 서버만 (구성원 · 익명 deny)",
+      "sql": "select count(*) from public.project_visits where project_id = {{project_x}}",
+      "expect": {
+        "x_owner": "deny",
+        "y_owner": "deny",
+        "anon": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "끝낸 방문 — 끝낸 때와 사람이 찍혔다 (준비 단계에서 끝냈다)",
+      "sql": "select count(*) from public.project_visits where id = {{visit_done}} and status = 'done' and done_at is not null and done_by = {{x_owner_user}} and cancelled_at is null",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "취소한 방문 — 취소한 때가 찍혔다 (준비 단계에서 취소했다)",
+      "sql": "select count(*) from public.project_visits where id = {{visit_cancelled}} and status = 'cancelled' and cancelled_at is not null and done_at is null",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "방문 잡기 — 서버가 한 줄 넣는다 (갈 사람 글 · 메모)",
+      "sql": "insert into public.project_visits (company_id, project_id, scheduled_at, assignee_name, note) values ({{company_x}}, {{project_z}}, timestamptz '2026-12-05 10:00+09', '박기사', '현관 비밀번호 확인')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "예정인 방문은 프로젝트에 하나",
+      "sql": "insert into public.project_visits (company_id, project_id, scheduled_at) values ({{company_x}}, {{project_x}}, timestamptz '2026-12-06 10:00+09')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "새 방문은 예정으로만",
+      "sql": "insert into public.project_visits (company_id, project_id, status, scheduled_at) values ({{company_x}}, {{project_z}}, 'done', timestamptz '2026-12-05 10:00+09')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "종류는 실측 하나",
+      "sql": "insert into public.project_visits (company_id, project_id, kind, scheduled_at) values ({{company_x}}, {{project_z}}, 'party', timestamptz '2026-12-05 10:00+09')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "메모는 200자까지",
+      "sql": "insert into public.project_visits (company_id, project_id, scheduled_at, note) values ({{company_x}}, {{project_z}}, timestamptz '2026-12-05 10:00+09', repeat('가', 201))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "같은 업체 프로젝트에만 (남의 업체 id 로는 거절)",
+      "sql": "insert into public.project_visits (company_id, project_id, scheduled_at) values ({{company_y}}, {{project_z}}, timestamptz '2026-12-05 10:00+09')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "구성원은 방문을 직접 넣지 못한다",
+      "sql": "insert into public.project_visits (company_id, project_id, scheduled_at) values ({{company_x}}, {{project_z}}, timestamptz '2026-12-05 10:00+09')",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "실측 끝내기 — 예정인 방문을 끝으로",
+      "sql": "update public.project_visits set status = 'done', done_by = {{x_owner_user}} where id = {{visit_open}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "예정인 방문의 날짜는 바꿀 수 있다",
+      "sql": "update public.project_visits set scheduled_at = timestamptz '2026-12-02 15:00+09' where id = {{visit_open}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "끝난 방문의 날짜는 바꾸지 못한다",
+      "sql": "update public.project_visits set scheduled_at = timestamptz '2026-12-02 15:00+09' where id = {{visit_done}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "취소한 방문은 되살리지 못한다",
+      "sql": "update public.project_visits set status = 'scheduled' where id = {{visit_cancelled}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "어느 프로젝트의 방문인지는 바꾸지 못한다",
+      "sql": "update public.project_visits set project_id = {{project_z}} where id = {{visit_open}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "방문 지우기는 서버도 못 한다 (취소로 남긴다)",
+      "sql": "delete from public.project_visits where id = {{visit_open}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "설치 날 고객 확인 — 표시가 적혔다 (그 업체 구성원만 읽는다 · 남의 업체 0 · 익명 deny)",
+      "sql": "select count(*) from public.design_schedules where id = {{sched_x}} and customer_confirmed_at is not null and customer_confirmed_by = {{x_owner_user}}",
+      "expect": {
+        "x_owner": "1",
+        "y_owner": "0",
+        "anon": "deny",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "구성원은 확인 표시를 직접 고치지 못한다 (쓰는 정책이 없다)",
+      "sql": "update public.design_schedules set customer_confirmed_at = null, customer_confirmed_by = null where id = {{sched_x}}",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "rows:0"
+      }
+    },
+    {
+      "name": "표시한 사람만 있고 때가 없으면 거절",
+      "sql": "update public.design_schedules set customer_confirmed_at = null where id = {{sched_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "확인 표시 지우기 — 서버가 둘 다 비운다",
+      "sql": "update public.design_schedules set customer_confirmed_at = null, customer_confirmed_by = null where id = {{sched_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    }
+  ]
+}
