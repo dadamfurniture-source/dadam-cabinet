@@ -54,7 +54,7 @@ function pushTo(map, key, value) {
  * 프로젝트마다 { step, next } — Map(project id → …).
  * @param {object} env
  * @param {{ company: { id, kind, plan }, viewer: { role, user_id }, nowMs?: number,
- *           projects: Array<{ id, status, created_at }>,
+ *           projects: Array<{ id, status, created_at, hold_until? }>,
  *           designs: Array<{ id, project_id, source?, source_ref? }>,   이 프로젝트들에 이어진 설계
  *           stages: Map<string, { stage: string }> }} args               company-projects.js stagesOf
  */
@@ -221,6 +221,7 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
     const facts = {
       id: p.id,
       status: p.status,
+      hold_until: p.hold_until || null,
       created_at: p.created_at,
       stage: (stages.get(p.id) || {}).stage || 'consult',
       factory,

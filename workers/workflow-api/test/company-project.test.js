@@ -382,6 +382,7 @@ test('팩토리 — 설계 · 견적 · 수주 · A/S: 이 프로젝트의 것�
   assert.deepEqual(Object.keys(d), [
     'role',
     'can_manage',
+    'actions',
     'project',
     'designs',
     'quotes',
@@ -489,6 +490,55 @@ test('일어난 일 — 오래된 것부터: 프로젝트 → 설계 → 견적 
     again.history.some((h) => h.kind === 'quote_approved'),
     false
   );
+});
+
+test('actions — 보류 · 그만둠을 할 수 있나: 계약금을 받은 프로젝트는 없다, 수주 없는 프로젝트는 대표 · 담당자에게 있다', async () => {
+  const fake = fakeOf();
+  // P1 — 완료된 수주에 계약금이 들어와 있다
+  assert.deepEqual((await dataOf(fake, P1, OWNER_A)).actions, {
+    hold: false,
+    cancel: false,
+    resume: false,
+    blocked: 'deposit',
+  });
+  // P2 — 수주 없음. 대표는 둘 다, 담당자가 아닌 직원은 없다
+  assert.deepEqual((await dataOf(fake, P2, OWNER_A)).actions, {
+    hold: true,
+    cancel: true,
+    resume: false,
+    blocked: null,
+  });
+  assert.deepEqual((await dataOf(fake, P2, STAFF_A)).actions, {
+    hold: false,
+    cancel: false,
+    resume: false,
+    blocked: 'role',
+  });
+  // 담당자가 되면 직원도
+  fake.db.projects.find((p) => p.id === P2).assignee_id = STAFF_A;
+  assert.equal((await dataOf(fake, P2, STAFF_A)).actions.hold, true);
+  // 보류 중 — 다시 진행 · (수주 없으면) 그만둠. 줄에 다시 볼 날 · 메모가 실리고 단계는 멈춘 자리 그대로
+  Object.assign(
+    fake.db.projects.find((p) => p.id === P2),
+    { status: 'on_hold', hold_until: '2099-01-01', status_note: '이사 미정', status_at: at(21) }
+  );
+  const held = await dataOf(fake, P2, OWNER_A);
+  assert.deepEqual(held.actions, { hold: false, cancel: true, resume: true, blocked: null });
+  assert.deepEqual(
+    [
+      held.project.status,
+      held.project.step,
+      held.project.next,
+      held.project.hold_until,
+      held.project.status_note,
+      held.project.status_at,
+    ],
+    ['on_hold', 'consult', null, '2099-01-01', '이사 미정', at(21)]
+  );
+  // 다시 볼 날이 지났다 — 다음 할 일이 그것 하나
+  fake.db.projects.find((p) => p.id === P2).hold_until = '2026-01-01';
+  const due = (await dataOf(fake, P2, OWNER_A)).project.next;
+  assert.deepEqual([due.key, due.go, due.label], ['hold_due', 'sheet', '보류 — 다시 볼 날입니다']);
 });
 
 test('제작 의뢰 — 영업 사원 업체는 내가 낸 의뢰(거둔 것 뺌), 팩토리는 받은 의뢰가 일어난 일에', async () => {

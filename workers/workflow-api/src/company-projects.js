@@ -12,6 +12,7 @@
  *                                (pipeline.js — 2026-11-21 「프로젝트 한 길」. 값은 company-pipeline.js 가 모은다.
  *                                못 모았으면 두 칸 없이 준다 — 화면은 stage 로 그린다) · 내 직책 role
  *   GET  /company/projects/:id   프로젝트 하나 — 같은 줄 + 설계 · 견적 · 수주 · 의뢰 · A/S · 일어난 일 (src/company-project.js)
+ *   PATCH /company/projects/:id/status  보류 · 그만둠 · 다시 진행 (src/company-project-status.js, DB 0078)
  *   POST /company/projects       새 프로젝트 (대표 · 실장) { title, customer_id } | { title, customer: { name, phone } }
  *                                → { project_id, customer_id }. 새 고객은 이름 · 전화로 늘 새 행 (이름 · 전화가 같다고
  *                                기존 고객에 잇지 않는다 — projects.js 상담 확정과 같다)
@@ -50,6 +51,10 @@ import { pipelineOf } from './company-pipeline.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** 프로젝트 줄이 읽는 칸 — 보류 칸(DB 0078)이 있을 때 · 없을 때 */
+export const PROJECT_COLUMNS = 'id,customer_id,title,status,created_at,closed_at,assignee_id';
+export const PROJECT_COLUMNS_HOLD = `${PROJECT_COLUMNS},hold_until,status_note,status_at`;
 
 /** 목록 한 번에 */
 export const COMPANY_PROJECTS_LIMIT = 200;
@@ -170,6 +175,10 @@ export function projectRow(p, { customer, designCount, stage, flow, memberOf }) 
     stage: stage.stage,
     order: stage.order,
     ...(flow || {}),
+    // 보류 · 그만둠 — 다시 볼 날 · 메모 · 바꾼 때 (DB 0078. 진행 중인 줄에는 싣지 않는다)
+    ...(p.status === 'on_hold' || p.status === 'cancelled'
+      ? { hold_until: p.hold_until || null, status_note: p.status_note || null, status_at: p.status_at || null }
+      : {}),
     // 나간 구성원이면 이름 없이 id 만 (removed — 바꾸는 것은 사람이 한다)
     assignee: p.assignee_id ? memberOf.get(p.assignee_id) || { user_id: p.assignee_id, name: null, role: null } : null,
   };
@@ -185,15 +194,20 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
       order: 'created_at.desc',
       limit: String(COMPANY_PROJECTS_LIMIT),
     });
-  // 담당자 칸(DB 0042) — 적용 전이면 담당자 없이 (assignee_ready false)
+  // 보류 칸(DB 0078) · 담당자 칸(DB 0042) — 적용 전이면 그 칸 없이 (담당자가 없으면 assignee_ready false)
   let assigneeReady = true;
   let projects;
   try {
-    projects = (await query('id,customer_id,title,status,created_at,closed_at,assignee_id')) || [];
+    projects = (await query(PROJECT_COLUMNS_HOLD)) || [];
   } catch (e) {
     if (!isMissingRelation(e)) throw e;
-    assigneeReady = false;
-    projects = (await query('id,customer_id,title,status,created_at,closed_at')) || [];
+    try {
+      projects = (await query(PROJECT_COLUMNS)) || [];
+    } catch (e2) {
+      if (!isMissingRelation(e2)) throw e2;
+      assigneeReady = false;
+      projects = (await query('id,customer_id,title,status,created_at,closed_at')) || [];
+    }
   }
   const members = await membersOf(env, company.id);
   const memberOf = new Map(members.map((m) => [m.user_id, m]));

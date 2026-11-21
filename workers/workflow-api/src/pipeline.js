@@ -16,6 +16,7 @@
  *
  * facts (모르는 값은 null · false · 0 으로 둔다)
  *   id · status(projects.status) · created_at · stage(projectStage)
+ *   hold_until  보류(status on_hold)를 다시 볼 날 'YYYY-MM-DD' | null
  *   factory     다담 공장 · Expert · Agent 업체 (아니면 Manager 등급 = 가구설계 영업 사원 — 생산은 제작 의뢰로 넘긴다)
  *   born        팩토리가 받은 제작 의뢰로 생긴 프로젝트 (production_requests.factory_project_id)
  *   draft       이 프로젝트에 이어진 가장 새 플래너 초안 { id, created_by, updated_at } | null
@@ -67,12 +68,17 @@ export const NEXT_LABEL = Object.freeze({
   deliver: '배송으로 넘기기',
   complete: '설치 완료 처리',
   balance: '잔금 입금 적기',
+  hold_due: '보류 — 다시 볼 날입니다',
   as: 'A/S 접수 보기',
 });
 
 const MONEY_ROLES = ['owner', 'manager']; // 대표 · 실장 (supabase.js MONEY_ROLES 와 같다 — 등급 Manager 와 다른 말이다)
 /** 본사 차례인 제작 의뢰 상태 (production-requests/common.js HQ_TURN 과 같다) */
 const REQUEST_HQ_TURN = ['submitted', 'recommending', 'declined', 'expired'];
+
+/** 보류 — 살아 있는 프로젝트다. 단계는 멈춘 자리 그대로 두고(어디서 멈췄는지 보이게) 다음 할 일만 없앤다 */
+const HELD = 'on_hold';
+const KST_MS = 9 * 3600 * 1000;
 
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
 const str = (v) => (typeof v === 'string' && v ? v : null);
@@ -83,7 +89,7 @@ const str = (v) => (typeof v === 'string' && v ? v : null);
  */
 export function stepOf(facts) {
   const f = obj(facts) || {};
-  if (f.status && f.status !== 'active') return 'done';
+  if (f.status && f.status !== 'active' && f.status !== HELD) return 'done';
   const order = obj(f.order);
   if (order) {
     if (order.status === 'completed') return 'done';
@@ -108,7 +114,8 @@ function plannerGo(f) {
 
 /**
  * 다음 할 일 — { key, label, go, act?, wait, since, allowed, views? } | null(할 일 없음 — 끝난 프로젝트).
- *   go      어디로 — 화면 이름(p-quote · p-make · p-contract · p-as · p-design) · planner?project=<id> · planner?draft=<id> · order:<수주 id>.
+ *   go      어디로 — 화면 이름(p-quote · p-make · p-contract · p-as · p-design) · planner?project=<id> · planner?draft=<id> · order:<수주 id> ·
+ *           sheet(그 프로젝트의 창 — 보류를 다시 볼 날).
  *           주소는 화면이 만든다 (서버는 앱 주소를 모른다).
  *   act     그 자리에서 하는 일 — { kind: 'order', document_id } (계약 만들기 = POST /documents/:id/order)
  *   wait    남(고객 · 대표 · 본사 · 팩토리)을 기다리는 중 — 단추가 아니라 글로 적는다
@@ -119,7 +126,6 @@ export function nextStep(facts, viewer, nowMs = Date.now()) {
   const f = obj(facts) || {};
   const v = obj(viewer) || {};
   const manage = MONEY_ROLES.includes(v.role);
-  if (f.status && f.status !== 'active') return null;
 
   const make = (key, go, extra = {}) => ({
     key,
@@ -130,6 +136,14 @@ export function nextStep(facts, viewer, nowMs = Date.now()) {
     allowed: true,
     ...extra,
   });
+
+  // 보류 — 할 일은 없다. 다시 볼 날(한국 날짜)이 됐으면 그것만 알린다 (프로젝트 창에서 다시 진행 · 계속 보류)
+  if (f.status === HELD) {
+    const until = str(f.hold_until);
+    const today = new Date(nowMs + KST_MS).toISOString().slice(0, 10);
+    return until && until <= today ? make('hold_due', 'sheet', { since: until }) : null;
+  }
+  if (f.status && f.status !== 'active') return null;
 
   // 0) 대표 승인이 걸려 있으면 그것부터 — 걸려 있는 동안 수주 상태를 아무도 못 바꾼다
   const pending = obj(f.pending);
