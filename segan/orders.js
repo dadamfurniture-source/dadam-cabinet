@@ -1897,6 +1897,45 @@
     }
   }
 
+  /**
+   * 그 수주의 상세 시트를 연다 — 다른 칸이 부른다 (프로젝트 줄의 다음 할 일 · 견적 줄, 2026-11-21 「프로젝트 한 길」).
+   * 읽어 둔 목록에 없으면(방금 만든 수주) 한 번 다시 읽는다. 열었으면 true
+   */
+  async function open(id) {
+    var has = function () {
+      return (J.orders || []).some(function (x) {
+        return x.id === id;
+      });
+    };
+    if (!has()) {
+      if (!J.base || !(await refresh())) return false;
+      render();
+    }
+    if (!has()) return false;
+    openDetail(id);
+    return true;
+  }
+
+  /**
+   * 승인된 고객 확인서(견적서) → 수주 (POST /documents/:id/order — 구성원 누구나, 같은 문서로 두 번 불러도 같은 수주).
+   * @returns {Promise<{ ok: boolean, order?: { id, status }, reused?: boolean, dead?: boolean, error?: string }>}
+   *   dead = 그 문서의 수주가 이미 있고 취소됐다 (문서 하나에 수주 하나 — 다시 만들 수 없다)
+   */
+  async function createFromDocument(documentId) {
+    if (!J.base) return { ok: false, error: TEXT.generic };
+    var r = await call('POST', '/documents/' + encodeURIComponent(documentId) + '/order');
+    if (!r.ok) return { ok: false, error: errText(r) };
+    var d = r.body && r.body.data && typeof r.body.data === 'object' ? r.body.data : {};
+    if (typeof d.id !== 'string' || !d.id) return { ok: false, error: TEXT.generic };
+    if (await refresh()) render();
+    return {
+      ok: true,
+      order: { id: d.id, status: String(d.status || '') },
+      reused: d.reused === true,
+      dead: d.status === 'cancelled',
+    };
+  }
+
   window.SeganOrders = {
     STATUS: STATUS,
     PAY_STAGE: PAY_STAGE,
@@ -1916,5 +1955,7 @@
     whenKst: whenKst,
     todayKst: todayKst,
     load: load,
+    open: open,
+    createFromDocument: createFromDocument,
   };
 })();

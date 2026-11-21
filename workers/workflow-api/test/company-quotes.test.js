@@ -207,6 +207,7 @@ test('줄마다 — 번호 · 판 · 상태 · 금액 · 설계 · 프로젝트 
     design: { id: D_A_LINKED, name: '예시 싱크대 A' },
     project: { id: PRJ_A1, title: '싱크대' },
     customer_name: '김고객', // 프로젝트에 이은 설계 = 프로젝트의 고객 이름
+    order: null, // 승인됐지만 아직 수주가 없다 — 화면이 「계약 만들기」를 낸다
   });
   assert.equal(old.superseded, true);
   assert.equal(old.status, 'superseded');
@@ -248,6 +249,27 @@ test('설계가 없는 업체(Manager) — 빈 목록, 문서 표는 읽지 않�
   assert.deepEqual(r.json.data.items, []);
   assert.equal(r.json.data.company.plan, 'manager');
   assert.equal(fake.calls.some((c) => c.table === 'design_documents'), false);
+});
+
+test('줄마다 그 문서의 수주 — 승인된 견적이 있을 때만 업체 수주를 묻는다 (취소된 수주도 싣는다 · 다른 업체 수주는 아니다)', async () => {
+  const fake = fakeOf();
+  const O1 = 'a0000000-0000-4000-8000-0000000000e1';
+  fake.db.orders.push(
+    { id: O1, company_id: A, document_id: DOC_A2, status: 'cancelled', contract_amount: 2200000 },
+    { id: 'a0000000-0000-4000-8000-0000000000e2', company_id: B, document_id: DOC_A2, status: 'confirmed' }
+  );
+  const d = (await call(fake, OWNER_A)).json.data;
+  const approved = d.items.find((x) => x.id === DOC_A2);
+  assert.deepEqual(approved.order, { id: O1, status: 'cancelled' }); // 금액은 없다
+  for (const x of d.items.filter((i) => i.id !== DOC_A2)) assert.equal(x.order, null);
+  const asked = fake.calls.find((c) => c.method === 'GET' && c.table === 'orders');
+  assert.equal(asked.params.get('company_id'), `eq.${A}`);
+  assert.equal(asked.params.get('select'), 'id,document_id,status');
+  // 승인된 견적이 없는 업체는 수주를 묻지 않는다
+  const none = fakeOf();
+  for (const doc of none.db.design_documents) Object.assign(doc, { decision: null });
+  await call(none, OWNER_A);
+  assert.equal(none.calls.some((c) => c.table === 'orders'), false);
 });
 
 test('읽기만 한다 — 조회는 업체로 거르고, 쓰는 요청이 없다', async () => {

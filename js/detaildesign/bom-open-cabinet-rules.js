@@ -36,8 +36,10 @@
  *
  * ── 빌트인 오븐장 (2026-10-30 사장님) ───────────────────────────
  * "완전 빌트인 오븐은 제조사 규칙을 따라야하고, 오픈장을 15T로 만들어야함" — 같은 상자를 **PB 15T** (몸통과 같은 판)로 짓는다.
- * 2026-11-21 사장님 「빌트인 오븐장은 해당 제품 설치 가이드에 따라 제작 되어야함」 — 오픈장의 앞 +20 (FRONT_PLUS) · 측판 4면 엣지는 빌트인 오븐장에 쓰지 않는다
- *   (specOf frontPlus 0). 칸은 제조사 설치 공간(니치)을 따른다 — 아래.
+ * 2026-11-21 사장님 「빌트인 오븐장은 해당 제품 설치 가이드에 따라 제작 되어야함」 · 「빌트인은 15T로 짜는 거 아니가? … 측판 깊이 570 − 뒷판 …
+ *   오븐 칸만 뒤로 가게 별도로 모듈이 제작 되어야함」:
+ *   측판 = 몸통 D + 20 (오픈장과 같이 이웃 도어 자리를 채운다 — 570), 천지판 = 측판 − 17 (15T 뒷판 + 여유 2 — 553).
+ *   고른 오븐의 니치 깊이(nicheD)가 그보다 깊으면 **그 칸 상자만 뒤로** 늘린다 — 측판 = 니치 깊이 + 17 (앞선은 그대로, innerOf backPlus).
  * 빌트인 = 제조사 설치 공간(니치 W · H, 가전 DB niche_min_w/h_mm)이 적힌 오븐 (같은 날 「제조사 설치 공간(니치)이 있는 오븐」).
  *   측판   = D × H                2장
  *   천지판 = (W − 2×15) × (D − 17) 2장   (15T 뒷판 + 여유 2 — 위 18T 상자와 같은 짜임)
@@ -110,23 +112,28 @@
   /** 상자 판 — 빌트인 오븐장이면 PB 15T, 아니면 18T MDF */
   function specOf(o) {
     return isBuiltinOven(o)
-      ? { label: BI.LABEL, material: BI.MATERIAL, T: BI.T, backGap: BI.BACK_GAP, frontPlus: 0 }
+      ? { label: BI.LABEL, material: BI.MATERIAL, T: BI.T, backGap: BI.BACK_GAP, frontPlus: R.FRONT_PLUS }
       : { label: R.LABEL, material: R.MATERIAL, T: R.T, backGap: R.BACK_GAP, frontPlus: R.FRONT_PLUS };
   }
 
   /**
    * 내경 — 천지판·뒷판이 서는 자리. 플래너 3D·정면도가 이걸로 그린다.
    * 뒷판 높이 · 밑단(backH · backY): 18T 상자는 몸통 높이 전체, 빌트인 오븐장은 절반 (BUILTIN_OVEN.BACK_AT 쪽).
-   * @param o {W,H,D, builtinOven?}
+   * @param o {W,H,D, builtinOven?, nicheD?}
+   *   backPlus = 몸통 뒤끝보다 뒤로 나간 길이 — 빌트인 오븐장 니치가 깊을 때만 (2026-11-21), 그 밖은 0
    */
   function innerOf(o) {
     const W = dim(o && o.W), H = dim(o && o.H), bodyD = dim(o && o.D);
     const s = specOf(o);
-    // 상자 깊이 = 몸통 깊이 + 20 (2026-11-20, 빌트인 오븐장은 + 0). 몸통 깊이가 없으면 0 그대로
-    const D = bodyD ? bodyD + s.frontPlus : 0;
+    // 상자 깊이 = 몸통 깊이 + 20 (2026-11-20, 빌트인 오븐장도 2026-11-21 부터). 몸통 깊이가 없으면 0 그대로
+    //   빌트인 오븐장은 니치 깊이 + 뒷판 자리가 더 깊으면 그 깊이 — 앞선은 그대로, 뒤로 (2026-11-21 사장님 「오븐 칸만 뒤로」)
+    const base = bodyD ? bodyD + s.frontPlus : 0;
+    const niche = isBuiltinOven(o) ? dim(o && o.nicheD) : 0;
+    const D = base && niche ? Math.max(base, niche + s.backGap) : base;
     const backH = isBuiltinOven(o) ? Math.floor(H * BI.BACK_H_RATIO) : H;
     return {
       W, H, D, bodyD,
+      backPlus: Math.max(0, D - base),
       T: s.T,
       innerW: Math.max(0, W - 2 * s.T),          // 측판 사이
       innerH: Math.max(0, H - 2 * s.T),          // 천판·지판 사이

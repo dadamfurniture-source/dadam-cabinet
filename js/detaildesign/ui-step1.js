@@ -1460,9 +1460,11 @@
             // 2026-10-30 사장님: 빌트인 오븐장 — 같은 상자를 PB 15T 로 (bom-open-cabinet-rules BUILTIN_OVEN). 구조 표시를 그대로 싣는다.
             //   고른 가전(s.appliance)이 있으면 칸에 드는지 경고로 남긴다 (applianceWarningsOf — 빌트인은 니치, 그 밖은 외경 + 여유).
             const builtin = !!(OC.isBuiltinOven && OC.isBuiltinOven(s));
-            const box = builtin ? { W: w, H: h, D: d, builtinOven: true } : { W: w, H: h, D: d };
-            (OC.warningsOf(box) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
             const app = _applianceOf(s);
+            // 2026-11-21 사장님 「오븐 칸만 뒤로」 — 빌트인 오븐장은 고른 오븐의 니치 깊이를 싣는다 (상자가 그만큼 뒤로 깊어진다)
+            const nicheD = builtin && app && app.nicheD > 0 ? app.nicheD : 0;
+            const box = builtin ? Object.assign({ W: w, H: h, D: d, builtinOven: true }, nicheD ? { nicheD } : {}) : { W: w, H: h, D: d };
+            (OC.warningsOf(box) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
             if (app && OC.applianceWarningsOf) OC.applianceWarningsOf(box, app, app.name).forEach((t) => warnings.push(`${m.id}: ${t}`));
             out.push({
               id: `planner-${m.id}-open`,
@@ -1486,6 +1488,7 @@
               _x: Number(m.x) || 0,
             });
             if (builtin) out[out.length - 1].builtinOven = true;   // 표시가 없는 모듈의 payload 는 예전과 같다
+            if (nicheD) out[out.length - 1].nicheD = nicheD;
             // 2026-11-05 사장님 (상부장 밑 오픈 칸): 상부장 몸통 밑에 붙은 오픈 상자 — BOM 상몰딩 자리에 서지 않는다 (extractors bomMoldingUppersOf)
             if (pos === 'upper' && s && s.underUpper === true) out[out.length - 1].underUpper = true;
             if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부장)

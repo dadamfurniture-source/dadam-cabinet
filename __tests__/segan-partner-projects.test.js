@@ -341,7 +341,7 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
       expect(window.SeganMe.menuStage(a, b)).toBe(menuStage(a, b));
   });
 
-  test('설계 · 제작 · 설치 화면 — 그 단계 줄만, 머리글 「… 단계 프로젝트」, 새 고객 단추는 상담에서만, 견적 ~ 설치는 PC 안내', async () => {
+  test('설계 · 제작 · 설치 화면 — 그 단계 줄만, 머리글 「… 단계 프로젝트」, 새 고객 단추는 상담에서만 (PC 안내 글은 없다 — 다음 할 일이 줄마다 있다)', async () => {
     await load({ list: staged });
     await flush();
     await openScreen('p-design');
@@ -351,7 +351,7 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect(box().textContent).not.toContain('PC 화면');
     await openScreen('p-make');
     expect(titles()).toEqual(['신발장']);
-    expect(box().textContent).toContain('PC 화면(상세설계 · 수주)');
+    expect(box().textContent).not.toContain('PC 화면');
     await openScreen('p-install');
     expect(titles()).toEqual(['붙박이장']);
     await openScreen('p-quote');
@@ -363,6 +363,150 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     // 단계 보기에서는 줄에 단계를 다시 적지 않는다
     await openScreen('p-design');
     expect(rows()[0]).toBe('싱크대 | 김고객 · 2026.10.10 · 설계 0개 | 010-1111-2222 | 담당자 없음');
+  });
+
+  // ── 단계 띠 · 다음 할 일 (2026-11-21 대표님 「프로젝트 한 길」 — 서버가 준 step · next 를 그린다) ──
+  const P4 = '22222222-2222-4222-8222-222222222224';
+  const P5 = '22222222-2222-4222-8222-222222222225';
+  const DOC = '33333333-3333-4333-8333-333333333331';
+  const ORD = '44444444-4444-4444-8444-444444444441';
+  const item = (id, title, extra) => ({
+    id,
+    title,
+    status: 'active',
+    created_at: '2026-11-01T00:00:00Z',
+    customer: { id: C1, name: '김고객', phone: null },
+    design_count: 0,
+    stage: 'consult',
+    order: null,
+    ...extra,
+  });
+  const next = (key, label, go, extra = {}) => ({ key, label, go, wait: false, since: null, allowed: true, ...extra });
+  const flowed = (items) => () => ok(projects({ items }));
+  const rowOf = (id) => box().querySelector(`[data-project="${id}"]`);
+  const stripOf = (id) =>
+    [...rowOf(id).querySelectorAll('.pj-strip li')].map(
+      (li) => (li.classList.contains('is-now') ? '●' : li.classList.contains('is-done') ? '✓' : '○') + li.textContent
+    );
+
+  test('단계 띠 — 지난 단계 · 지금 단계 · 남은 단계 일곱 칸. 서버가 값을 안 주면(옛 서버) · 끝난 프로젝트는 띠가 없다', async () => {
+    await load({
+      list: flowed([
+        item(P1, '싱크대', { step: 'quote', next: null }),
+        item(P3, '신발장'), // step 없음
+        item(P4, '화장대', { step: 'make', status: 'closed' }),
+      ]),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    expect(stripOf(P1)).toEqual(['✓상담', '✓설계', '●견적', '○계약', '○생산', '○설치', '○A/S']);
+    expect(rowOf(P1).querySelector('.is-now').getAttribute('aria-current')).toBe('step');
+    expect(rowOf(P3).querySelector('.pj-strip')).toBeNull();
+    expect(rowOf(P4).querySelector('.pj-strip')).toBeNull();
+  });
+
+  test('단계로 거르기 — 서버의 지금 단계(step)가 먼저다: 받은 제작 의뢰는 제작, 완료는 어느 단계 화면에도 없다', async () => {
+    await load({
+      list: flowed([
+        item(P1, '의뢰 받은 주방', { stage: 'consult', step: 'make', next: null }),
+        item(P3, '끝난 신발장', { stage: 'order', order: { id: ORD, order_no: 'A-9', status: 'completed' }, step: 'done', next: null }),
+      ]),
+    });
+    await flush();
+    await openScreen('p-make');
+    expect(titles()).toEqual(['의뢰 받은 주방']);
+    await openScreen('p-install');
+    expect(titles()).toEqual([]);
+    await openScreen('p-consult');
+    expect(titles()).toEqual([]);
+    await openScreen('partner-projects');
+    expect(titles()).toEqual(['의뢰 받은 주방', '끝난 신발장']);
+    expect(rows()[1]).toContain('완료');
+  });
+
+  test('다음 할 일 — 플래너 링크(프로젝트 · 초안) · 화면 링크 · 기다림 글 · 못 하는 일 글', async () => {
+    const now = Date.now();
+    const ago = (days) => new Date(now - days * 86400000 - 3600000).toISOString();
+    await load({
+      list: flowed([
+        item(P1, '설계 전', { step: 'consult', next: next('design_start', '설계 시작', `planner?project=${P1}`, { since: ago(2) }) }),
+        item(P3, '초안 있음', { step: 'design', next: next('design', '설계 이어서', 'planner?draft=design-abc-1') }),
+        item(P4, '답 기다림', {
+          step: 'quote',
+          next: next('customer', '고객 답 기다림', 'p-quote', { wait: true, allowed: false, since: ago(4), views: 2 }),
+        }),
+        item(P5, '제작 의뢰', { step: 'contract', next: next('request', '제작 의뢰 보내기', 'p-make', { allowed: false }) }),
+        item(P2, '의뢰 보내기', { step: 'contract', next: next('request', '제작 의뢰 보내기', 'p-make') }),
+      ]),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    const a1 = rowOf(P1).querySelector('a[data-next="design_start"]');
+    expect([a1.textContent, a1.getAttribute('href'), a1.hasAttribute('data-desktop-tab')]).toEqual([
+      '설계 시작',
+      `planner/?project=${P1}`,
+      true,
+    ]);
+    expect(rowOf(P1).querySelector('.pj-since').textContent).toBe('2일째');
+    expect(rowOf(P3).querySelector('a[data-next="design"]').getAttribute('href')).toBe('planner/?draft=design-abc-1');
+    expect(rowOf(P3).querySelector('.pj-since')).toBeNull();
+    // 남을 기다리는 중 — 단추 없이 글로
+    expect(rowOf(P4).querySelector('.pj-wait').textContent).toBe('고객 답 기다림 · 4일째 · 2번 열어 봄');
+    expect(rowOf(P4).querySelector('[data-next="customer"]').tagName).toBe('P');
+    expect(rowOf(P4).querySelector('a.mk-btn--solid, button.mk-btn--solid')).toBeNull();
+    // 내 직책으로 못 하는 일 — 무엇이 남았는지만
+    expect(rowOf(P5).querySelector('.pj-wait').textContent).toBe('제작 의뢰 보내기 — 대표 · 실장이 합니다');
+    expect(rowOf(P5).querySelector('a.mk-btn--solid')).toBeNull();
+    // 앱 화면으로 가는 일
+    expect(rowOf(P2).querySelector('a[data-next="request"]').getAttribute('href')).toBe('#p-make');
+    // 이상한 주소는 링크로 만들지 않는다
+    expect(window.SeganPartnerProjects.state.data.items.length).toBe(5);
+  });
+
+  test('다음 할 일 — 수주 창 열기 · 계약 만들기 (만든 뒤 목록을 다시 읽고 알린다, 취소된 계약이면 그 글)', async () => {
+    const open = jest.fn(async () => true);
+    let made = { ok: true, order: { id: ORD, status: 'confirmed' }, reused: false, dead: false };
+    const createFromDocument = jest.fn(async () => made);
+    const calls = await load({
+      list: flowed([
+        item(P1, '계약금', { step: 'contract', next: next('deposit', '계약금 입금 적기', `order:${ORD}`) }),
+        item(P3, '승인됨', {
+          step: 'quote',
+          next: next('order', '계약 만들기', 'p-quote', { act: { kind: 'order', document_id: DOC } }),
+        }),
+      ]),
+    });
+    await flush();
+    window.SeganOrders = { open, createFromDocument };
+    const onChange = jest.fn();
+    window.SeganPartnerProjects.onChange = onChange;
+    await openScreen('partner-projects');
+    rowOf(P1).querySelector('[data-act="next-sheet"]').click();
+    await flush();
+    expect(open).toHaveBeenCalledWith(ORD);
+    const before = projectCalls(calls).length;
+    const btn = rowOf(P3).querySelector('[data-act="next-order"]');
+    expect(btn.textContent).toBe('계약 만들기');
+    btn.click();
+    await flush();
+    expect(createFromDocument).toHaveBeenCalledWith(DOC);
+    expect(projectCalls(calls).length).toBe(before + 1); // 목록을 다시 읽었다
+    expect(box().querySelector('.me-pt-msg').textContent).toBe('계약을 만들었습니다.');
+    expect(onChange).toHaveBeenCalled();
+    expect(open).toHaveBeenLastCalledWith(ORD);
+    // 그 견적의 계약이 취소돼 있었다 — 알리고 창은 열지 않는다
+    open.mockClear();
+    made = { ok: true, order: { id: ORD, status: 'cancelled' }, reused: true, dead: true };
+    rowOf(P3).querySelector('[data-act="next-order"]').click();
+    await flush();
+    expect(box().querySelector('.me-pt-msg').textContent).toContain('취소됐습니다');
+    expect(open).not.toHaveBeenCalled();
+    // 못 만들면 서버 글
+    made = { ok: false, error: '고객이 승인한 확인서만 수주로 전환할 수 있습니다' };
+    rowOf(P3).querySelector('[data-act="next-order"]').click();
+    await flush();
+    expect(box().querySelector('.me-pt-msg').textContent).toBe('고객이 승인한 확인서만 수주로 전환할 수 있습니다');
+    delete window.SeganOrders;
   });
 
   test('작업 분배 — 진행 중 프로젝트 모두 (끝난 것 빼고), 머리글 「작업 분배」, 새 고객 단추 없음 · 옛 주소 #partner-projects 는 모두', async () => {

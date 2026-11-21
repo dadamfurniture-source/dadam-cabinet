@@ -9,10 +9,10 @@
     <title>경첩, 덮음 방식 · 열림 각도 · 댐핑 읽기 · 매거진 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112114" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112114" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112114" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112114" />
+    <link rel="icon" href="icons/icon.svg?v=2026112116" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112116" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112116" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112116" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -22,21 +22,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112114" />
-    <link rel="stylesheet" href="info.css?v=2026112114" />
+    <link rel="stylesheet" href="shell.css?v=2026112116" />
+    <link rel="stylesheet" href="info.css?v=2026112116" />
     <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112114" />
+    <link rel="stylesheet" href="magazine.css?v=2026112116" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112114"></script>
+    <script src="../js/config.js?v=2026112116"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112114"></script>
-    <script src="shell.js?v=2026112114" defer blocking="render"></script>
+    <script src="motion.js?v=2026112116"></script>
+    <script src="shell.js?v=2026112116" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112114" defer></script>
+    <script src="guide.js?v=2026112116" defer></script>
     <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112114" defer blocking="render"></script>
+    <script src="blog.js?v=2026112116" defer blocking="render"></script>
   </head>
   <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
   <body class="sg-app" data-tab="blog">
@@ -240,12 +240,13 @@
 
         <section id="hg-6">
           <h2><span class="ma-n">6</span>국내에서 볼 수 있는 브랜드</h2>
-          <p>제품 계열은 각 회사 공식 누리집 · 카탈로그 표기(2026년 11월 확인)입니다. 국내 회사 경첩도 널리 쓰이지만, 이 글에서는 공식 자료로 확인한 해외 세 회사만 정리했습니다.</p>
+          <p>제품 계열은 각 회사 공식 누리집 · 카탈로그 표기(2026년 11월 확인)입니다. 국내 회사 경첩도 널리 쓰이지만, 이 글에서는 공식 자료로 확인한 네 회사만 정리했습니다.</p>
           <div class="ma-table" role="region" aria-label="경첩 브랜드와 제품 계열" tabindex="0">
             <table class="ma-cols-4">
               <caption>경첩 브랜드와 제품 계열</caption>
               <thead><tr><th scope="col">브랜드</th><th scope="col">나라</th><th scope="col">대표 계열</th><th scope="col">특징</th></tr></thead>
               <tbody>
+                <tr><th scope="row"><span class="ma-logo"><img src="magazine/logos/blum.svg" alt="Blum 로고" loading="lazy" /></span><span class="ma-brand">Blum(블룸)</span></th><td>오스트리아</td><td>CLIP top BLUMOTION, CRISTALLO</td><td>댐퍼 내장, 110° · 155° · 170° 등</td></tr>
                 <tr><th scope="row"><span class="ma-logo"><img src="magazine/logos/hettich.svg" alt="Hettich 로고" loading="lazy" /></span><span class="ma-brand">Hettich(헤티히)</span></th><td>독일</td><td>Sensys, Intermat, Avosys</td><td>팔 안에 댐퍼, 165° 넓은 각 · 얇은 문 · 두꺼운 문 경첩</td></tr>
                 <tr><th scope="row"><span class="ma-logo"><img src="magazine/logos/grass.svg" alt="Grass 로고" loading="lazy" /></span><span class="ma-brand">Grass(그라스)</span></th><td>오스트리아</td><td>Tiomos, Nexis</td><td>댐핑 3단 조절, 자체 시험 10만 회</td></tr>
                 <tr><th scope="row"><span class="ma-logo"><img src="magazine/logos/salice.png" alt="Salice 로고" loading="lazy" /></span><span class="ma-brand">Salice(살리체)</span></th><td>이탈리아</td><td>Silentia+</td><td>컵 속 실리콘 오일 댐퍼 2개, 스위치로 조절, 눌러 끼우는 받침판</td></tr>
