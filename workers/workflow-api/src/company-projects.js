@@ -47,6 +47,7 @@ import { membersOf } from './company-assignee.js';
 import { isMissingRelation } from './work-order-data.js';
 import { projectStage } from './projects.js';
 import { pipelineOf } from './company-pipeline.js';
+import { visitOf } from './company-project-visits.js';
 import { logProject } from './project-log.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -176,6 +177,8 @@ export function projectRow(p, { customer, designCount, stage, flow, memberOf }) 
     stage: stage.stage,
     order: stage.order,
     ...(flow || {}),
+    // 실측 일정 — 지금의 것 하나 (DB 0079. 갈 사람이 구성원이면 그 이름). 표가 없으면 칸 자체가 없다
+    ...(flow && flow.visit !== undefined ? { visit: visitOf(flow.visit, memberOf) } : {}),
     // 보류 · 그만둠 — 다시 볼 날 · 메모 · 바꾼 때 (DB 0078. 진행 중인 줄에는 싣지 않는다)
     ...(p.status === 'on_hold' || p.status === 'cancelled'
       ? { hold_until: p.hold_until || null, status_note: p.status_note || null, status_at: p.status_at || null }
@@ -236,6 +239,7 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
   const stages = await stagesOf(env, company.id, ids, designs);
   // 지금 단계 · 다음 할 일 — 덧붙이는 값이라, 못 모아도 목록은 그대로 준다 (화면은 stage 로 그린다)
   let flow = new Map();
+  const meta = {};
   try {
     flow = await pipelineOf(env, {
       company,
@@ -243,6 +247,7 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
       projects,
       designs,
       stages,
+      meta,
       nowMs,
     });
   } catch (e) {
@@ -255,6 +260,8 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
     assignee_ready: assigneeReady,
     // 보류 · 그만둠을 쓸 수 있나 (DB 0078 의 칸이 있다) — 화면이 그때만 단추를 낸다
     hold_ready: holdReady,
+    // 실측 단계를 쓸 수 있나 (DB 0079 의 표가 있다) — 화면이 그때만 「실측」 줄 · 칸을 낸다
+    visit_ready: meta.visit_ready === true,
     members,
     items: projects.map((p) =>
       projectRow(p, {

@@ -23,6 +23,7 @@
  *   둘째 묶음(2026-11-21): design_started · request_created · request_chosen · request_cancelled · request_recommended ·
  *   request_accepted · request_declined · request_expired · request_received · schedule_added · schedule_changed ·
  *   as_requested · as_cancelled · as_received · as_done · report_added
+ *   실측(2026-11-21 뒤 공정 2차): schedule_added · schedule_changed (payload.type measurement, 대상 visit) · measure_done
  */
 
 import { insertOne, selectOne } from './supabase.js';

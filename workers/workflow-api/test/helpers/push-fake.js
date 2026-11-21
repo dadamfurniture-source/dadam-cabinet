@@ -207,6 +207,8 @@ export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushSt
       return jsonRes(r === undefined ? null : r);
     }
     const table = path;
+    // 실측 일정(DB 0079) — 시험이 표를 넣지 않았으면 「없는 표」로 답한다 (적용 전과 같다)
+    if (!db[table] && table === 'project_visits') return jsonRes({ code: '42P01', message: 'relation "public.project_visits" does not exist' }, 404);
     if (!db[table]) throw new Error(`fake: table ${table}`);
     const params = url.searchParams;
     const minimal = prefer.includes('return=minimal');

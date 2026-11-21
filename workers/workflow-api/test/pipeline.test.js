@@ -5,6 +5,8 @@
  *   1) stepOf — 끝남 · 수주 상태 · 받은 제작 의뢰 · 견적 · 설계(초안 · 연출컷 포함) · 상담
  *   2) nextStep — 상태마다 다음 할 일 · 가는 곳 · 기다림 · 누가 할 수 있나
  *   3) 막지 않는다 — 직책이 안 맞으면 allowed false 일 뿐, 다음 할 일은 그대로 알려 준다
+ *   4) 실측 (2026-11-21 뒤 공정 2차) — 설계가 없는 프로젝트는 실측 일정 잡기 → 완료 처리 뒤에야 설계 시작.
+ *      이미 설계가 있는 프로젝트 · DB 0079 전은 지금처럼
  * 순수 함수라 DB 흉내가 없다. 시험 데이터는 모두 가짜다.
  */
 import { test } from 'node:test';
@@ -66,11 +68,15 @@ const brief = (f, v) => {
   return n ? [n.key, n.go, n.wait, n.allowed] : null;
 };
 
-test('이름 — 단계 일곱 · 다음 할 일 글이 모두 있다', () => {
-  assert.deepEqual(STEPS, ['consult', 'design', 'quote', 'contract', 'make', 'install', 'done']);
+test('이름 — 단계 여덟(실측은 상담 다음 · 설계 앞) · 다음 할 일 글이 모두 있다', () => {
+  assert.deepEqual(STEPS, ['consult', 'measure', 'design', 'quote', 'contract', 'make', 'install', 'done']);
   assert.deepEqual(
     STEPS.map((s) => STEP_LABEL[s]),
-    ['상담', '설계', '견적', '계약', '생산', '설치', '끝']
+    ['상담', '실측', '설계', '견적', '계약', '생산', '설치', '끝']
+  );
+  assert.deepEqual(
+    [NEXT_LABEL.measure_plan, NEXT_LABEL.measure_wait, NEXT_LABEL.measure_done],
+    ['실측 일정 잡기', '실측 예정', '실측 완료 처리']
   );
   for (const [k, v] of Object.entries(NEXT_LABEL)) assert.ok(typeof v === 'string' && v, k);
 });
@@ -280,4 +286,92 @@ test('끝난 · 취소 · 넘긴 프로젝트 — 다음 할 일 없음. 값이 
   assert.deepEqual(brief({ id: P }, {}), ['design_start', `planner?project=${P}`, false, true]);
   // 직책을 모르는 사람(다담 공장 구성원이 역할 없이 올 때) — 대표 · 실장 일은 allowed false
   assert.deepEqual(brief(base({ designs: 1 }), { role: null }), ['quote', 'p-design', false, false]);
+});
+
+test('실측 — 설계가 없는 프로젝트는 실측 일정 잡기 → 완료 처리 뒤에야 설계 시작. 이미 설계가 있거나 DB 0079 전이면 지금처럼', () => {
+  const owner = { role: 'owner', user_id: ME };
+  const staff = { role: 'staff', user_id: 'staff-1' };
+  // DB 0079 전 — 실측 단계가 없다 (visit_ready 가 아니다)
+  assert.equal(stepOf(base()), 'consult');
+  assert.equal(nextStep(base(), owner, NOW).key, 'design_start');
+  assert.equal(stepOf(base({ visit: { id: 'v', status: 'scheduled' } })), 'consult');
+
+  const ready = (extra = {}) => base({ visit_ready: true, visit: null, ...extra });
+  const visit = (extra = {}) => ({
+    id: 'v1',
+    status: 'scheduled',
+    scheduled_at: '2026-11-25T05:00:00Z',
+    done_at: null,
+    ...extra,
+  });
+
+  // 1) 실측 날이 아직 없다 — 「실측 일정 잡기」. 대표 · 실장 · 그 프로젝트의 담당자가 한다
+  assert.equal(stepOf(ready()), 'consult');
+  assert.deepEqual(nextStep(ready(), owner, NOW), {
+    key: 'measure_plan',
+    label: '실측 일정 잡기',
+    go: 'visit',
+    wait: false,
+    since: '2026-11-19T00:00:00Z',
+    allowed: true,
+  });
+  assert.equal(nextStep(ready(), { role: 'manager', user_id: 'm' }, NOW).allowed, true);
+  assert.equal(nextStep(ready(), staff, NOW).allowed, false);
+  assert.equal(nextStep(ready({ assignee_id: 'staff-1' }), staff, NOW).allowed, true);
+
+  // 2) 실측 날이 잡혔다 — 그날(한국 날짜) 전에는 기다림, 그날부터 「실측 완료 처리」. NOW = 11-21 12:00 (한국)
+  assert.equal(stepOf(ready({ visit: visit() })), 'measure');
+  assert.deepEqual(nextStep(ready({ visit: visit() }), owner, NOW), {
+    key: 'measure_wait',
+    label: '실측 예정',
+    go: 'visit',
+    wait: true,
+    since: null,
+    allowed: false,
+    at: '2026-11-25T05:00:00Z',
+  });
+  const today = visit({ scheduled_at: '2026-11-21T08:00:00Z' }); // 오늘 17:00 — 시각 전이어도 그날이면 뜬다
+  assert.deepEqual(nextStep(ready({ visit: today }), owner, NOW), {
+    key: 'measure_done',
+    label: '실측 완료 처리',
+    go: 'visit',
+    act: { kind: 'visit_done' },
+    wait: false,
+    since: '2026-11-21T08:00:00Z',
+    allowed: true,
+    at: '2026-11-21T08:00:00Z',
+  });
+  // 날짜 경계는 한국 날짜 — 11-21 15:30Z 는 한국 11-22 00:30 (내일)
+  assert.equal(
+    nextStep(ready({ visit: visit({ scheduled_at: '2026-11-21T15:30:00Z' }) }), owner, NOW).key,
+    'measure_wait'
+  );
+  // 지난 실측 — 담당자가 아닌 직원은 끝내지 못한다 (다음 할 일은 그대로 알려 준다)
+  const past = ready({ visit: visit({ scheduled_at: '2026-11-18T05:00:00Z' }) });
+  assert.deepEqual(
+    [nextStep(past, staff, NOW).key, nextStep(past, staff, NOW).allowed],
+    ['measure_done', false]
+  );
+
+  // 3) 끝냈다 — 이제 「설계 시작」 (누구나 — 지금과 같다)
+  const done = ready({ visit: visit({ status: 'done', done_at: '2026-11-20T06:00:00Z' }) });
+  assert.equal(stepOf(done), 'measure');
+  const n = nextStep(done, staff, NOW);
+  assert.deepEqual(
+    [n.key, n.go, n.since, n.allowed, n.wait],
+    ['design_start', 'planner?project=' + P, '2026-11-20T06:00:00Z', true, false]
+  );
+
+  // 이미 설계가 있는 프로젝트는 그대로 — 실측 단계로 되돌리지 않는다 (실측이 잡혀 있어도 설계가 먼저 맞는다)
+  assert.equal(stepOf(ready({ draft: draft() })), 'design');
+  assert.equal(nextStep(ready({ draft: draft() }), owner, NOW).key, 'design');
+  assert.equal(stepOf(ready({ designs: 1, stage: 'design', visit: visit() })), 'design');
+  assert.equal(nextStep(ready({ designs: 1, stage: 'design', visit: visit() }), owner, NOW).key, 'quote');
+  assert.equal(stepOf(ready({ stage: 'render' })), 'design');
+  // 받은 제작 의뢰로 생긴 프로젝트는 지금처럼 생산부터
+  assert.equal(stepOf(ready({ born: true })), 'make');
+  assert.equal(nextStep(ready({ born: true }), owner, NOW).key, 'factory_design');
+  // 보류 — 단계는 멈춘 자리(실측) 그대로, 다음 할 일은 없다
+  assert.equal(stepOf(ready({ status: 'on_hold', visit: today })), 'measure');
+  assert.equal(nextStep(ready({ status: 'on_hold', visit: today }), owner, NOW), null);
 });

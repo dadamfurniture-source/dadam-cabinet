@@ -50,6 +50,7 @@
  *   POST /company/inbox/seen — 소식을 본 때를 계정마다 적는다 (src/company-inbox.js, DB 0078)
  *   GET /company/projects/:id — 프로젝트 하나: 목록 줄 + 설계 · 견적 · 수주 · 의뢰 · A/S · 일어난 일, 읽기만 (src/company-project.js)
  *   PATCH /company/projects/:id/status — 보류 · 그만둠 · 다시 진행. 계약금을 받은 프로젝트는 보류 · 그만둠 불가 (src/company-project-status.js, DB 0078)
+ *   PUT · PATCH /company/projects/:id/visit — 실측 일정 잡기 · 고치기 / 완료 처리 · 취소. 대표 · 실장 · 담당자 (src/company-project-visits.js, DB 0079)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
  *   GET|PUT /company/shifts — 근무 일정(쉬는 날), 구성원이 보고 대표 · 실장이 적는다 (src/work-shifts.js, DB 0060)
@@ -293,6 +294,7 @@ import { listCompanyQuotes } from './company-quotes.js';
 import { getCompanyInbox, markInboxSeen } from './company-inbox.js';
 import { getCompanyProject } from './company-project.js';
 import { setProjectStatus } from './company-project-status.js';
+import { changeProjectVisit, setProjectVisit } from './company-project-visits.js';
 import { logAt } from './project-log.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
@@ -1788,6 +1790,8 @@ const router = createRouter([
   { method: 'GET',  path: '/company/projects/:id',                auth: 'jwt', handler: workRoute((env, a) => getCompanyProject(env, { user: a.user, projectId: a.params.id })) },
   // 프로젝트 상태 — 보류 · 그만둠 · 다시 진행 (src/company-project-status.js, DB 0078)
   { method: 'PATCH', path: '/company/projects/:id/status',        auth: 'jwt', handler: workRoute((env, a) => setProjectStatus(env, a)) },
+  { method: 'PUT',   path: '/company/projects/:id/visit',         auth: 'jwt', handler: workRoute((env, a) => setProjectVisit(env, a)) },
+  { method: 'PATCH', path: '/company/projects/:id/visit',         auth: 'jwt', handler: workRoute((env, a) => changeProjectVisit(env, a)) },
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
   { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
   // 프로젝트의 작업 배정 — 종류 줄(철거 · 재단 · 엣지 · 조립 · 납품 · 설치 · A/S)마다 작업자 (src/work/project-work.js, DB 0064 · 0065 · 0066)

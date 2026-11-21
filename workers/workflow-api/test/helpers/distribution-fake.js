@@ -176,6 +176,18 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
 
   /** 넣거나 고친 뒤의 행이 DB 규칙을 지키나 — 어기면 응답 */
   function check(table, row, self = null) {
+    // 실측 일정 (DB 0079) — 예정은 프로젝트 · 종류마다 하나, 끝났거나 취소한 방문은 바뀌지 않는다
+    if (table === 'project_visits') {
+      if (self && self.status !== 'scheduled' && (row.status !== self.status || row.scheduled_at !== self.scheduled_at))
+        return fail('22023', 400, 'project_visits_guard');
+      if (
+        row.status === 'scheduled' &&
+        db.project_visits.some(
+          (x) => x !== self && x.status === 'scheduled' && x.project_id === row.project_id && x.kind === row.kind
+        )
+      )
+        return fail('23505', 409, 'uq_project_visits_open');
+    }
     if (table === 'consult_assignments') {
       if (
         (row.state === 'assigned') !==
@@ -315,6 +327,12 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
   }
   /** 고친 뒤 DB 지킴이가 찍는 때 */
   function stamp(table, row, old) {
+    // 실측 일정 지킴이 흉내 — 끝 · 취소한 때를 찍는다
+    if (table === 'project_visits') {
+      if (row.status === 'done' && old.status !== 'done') row.done_at = nowIso();
+      if (row.status === 'cancelled' && old.status !== 'cancelled') row.cancelled_at = nowIso();
+      row.updated_at = nowIso();
+    }
     if (table === 'production_requests') {
       if (row.status !== old.status || row.round !== old.round) row.status_at = nowIso();
       row.updated_at = nowIso();
@@ -330,6 +348,20 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
 
   function defaults(table) {
     const base = { id: fakeId() };
+    if (table === 'project_visits')
+      return {
+        ...base,
+        kind: 'measure',
+        status: 'scheduled',
+        assignee_id: null,
+        assignee_name: null,
+        note: null,
+        done_at: null,
+        done_by: null,
+        cancelled_at: null,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      };
     if (table === 'consultations')
       return {
         ...base,
@@ -416,6 +448,9 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
       const r = before(method, table, params, body);
       if (r) return r;
     }
+    // 실측 일정(DB 0079) — 시험이 표를 넣지 않았으면 「없는 표」로 답한다 (적용 전과 같다)
+    if (!db[table] && table === 'project_visits')
+      return json({ code: '42P01', message: 'relation "public.project_visits" does not exist' }, 404);
     if (!db[table]) throw new Error(`fake: 모르는 표 ${table}`);
     const reply = (rows, status) =>
       prefer.includes('return=minimal') ? new Response(null, { status: 201 }) : json(rows, status);
