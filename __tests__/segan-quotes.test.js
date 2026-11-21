@@ -280,7 +280,7 @@ describe('자리 · 이름', () => {
     expect(Q.FILTERS.map((f) => f[0])).toEqual(['all', 'waiting', 'approved', 'rejected']);
   });
 
-  test('보기만 한다 — 서버에 쓰지 않고, 기기에 남기지 않고, 확인 창도 띄우지 않는다', () => {
+  test('보기만 한다 — 이 파일은 서버에 쓰지 않고(계약 만들기는 수주 칸 segan/orders.js 가 보낸다), 기기에 남기지 않고, 확인 창도 띄우지 않는다', () => {
     const code = read('segan/quotes.js')
       .split('\n')
       .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
@@ -418,6 +418,79 @@ describe('화면', () => {
     await press(chip('all'));
     expect(rows().length).toBe(4);
     expect(asked(calls).length).toBe(1);
+  });
+
+  test('승인된 견적 — 수주가 없으면 「계약 만들기」, 있으면 「계약 보기」, 취소됐으면 글만. 서버가 수주 칸을 안 주면(옛 서버) 단추가 없다', async () => {
+    const approved = (id, order) =>
+      qt(id, {
+        status: 'approved',
+        decision: 'approved',
+        decided_at: '2026-11-09T01:00:00Z',
+        ...(order === undefined ? {} : { order }),
+      });
+    const items = [
+      approved('q-1', null),
+      approved('q-2', { id: 'o-2', status: 'confirmed' }),
+      approved('q-3', { id: 'o-3', status: 'cancelled' }),
+      approved('q-4'), // 옛 서버 — order 칸이 없다
+      qt('q-5', { order: null }), // 답 기다림
+      qt('q-6', { status: 'approved', decision: 'approved', superseded: true, order: null }), // 새 판에 밀린 승인
+    ];
+    await load({ list: () => ok({ items }) });
+    const acts = (id) =>
+      [...q(`[data-qt-row="${id}"]`).querySelectorAll('.rd-acts > *')].map((el) => [
+        el.tagName,
+        text(el),
+      ]);
+    expect(acts('q-1')).toEqual([['BUTTON', '계약 만들기']]);
+    expect(acts('q-2')).toEqual([['BUTTON', '계약 보기']]);
+    expect(acts('q-3')).toEqual([['SPAN', '취소된 계약']]);
+    for (const id of ['q-4', 'q-5', 'q-6']) expect(acts(id)).toEqual([]);
+  });
+
+  test('계약 만들기 — 수주 칸이 보내고, 목록을 다시 읽고 알린 뒤 프로젝트 목록을 맞추고 그 수주 창을 연다. 못 만들면 그 글', async () => {
+    let n = 0;
+    const row = (order) =>
+      qt('q-1', {
+        status: 'approved',
+        decision: 'approved',
+        decided_at: '2026-11-09T01:00:00Z',
+        order,
+      });
+    const calls = await load({
+      list: () => {
+        n += 1;
+        return ok({ items: [row(n > 1 ? { id: 'o-1', status: 'confirmed' } : null)] });
+      },
+    });
+    let made = { ok: true, order: { id: 'o-1', status: 'confirmed' }, reused: false, dead: false };
+    const createFromDocument = jest.fn(async () => made);
+    const open = jest.fn(async () => true);
+    const reload = jest.fn(async () => true);
+    window.SeganOrders = { createFromDocument, open };
+    window.SeganPartnerProjects = Object.assign(window.SeganPartnerProjects || {}, { reload });
+    await press(q('[data-act="order"]'));
+    await flush();
+    expect(createFromDocument).toHaveBeenCalledWith('q-1');
+    expect(asked(calls).length).toBe(2); // 목록을 다시 읽었다
+    expect(text(q('[data-qt-row="q-1"] .me-pt-msg'))).toBe('계약을 만들었습니다.');
+    expect(text(q('[data-qt-row="q-1"] .rd-acts button'))).toBe('계약 보기');
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith('o-1');
+    // 「계약 보기」 — 그 수주 창
+    open.mockClear();
+    await press(q('[data-act="order-open"]'));
+    expect(open).toHaveBeenCalledWith('o-1');
+    // 못 만들면 서버 글을 그 줄에
+    n = 0;
+    await load({ list: () => ok({ items: [row(null)] }) });
+    made = { ok: false, error: '고객이 승인한 확인서만 수주로 전환할 수 있습니다' };
+    window.SeganOrders = { createFromDocument, open };
+    await press(q('[data-act="order"]'));
+    await flush();
+    expect(text(q('[data-qt-row="q-1"] .mk-error'))).toBe(
+      '고객이 승인한 확인서만 수주로 전환할 수 있습니다'
+    );
   });
 
   test('견적서가 없으면 — 안내 글만 (거르기 단추 없음)', async () => {

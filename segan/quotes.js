@@ -35,7 +35,12 @@
 
   var TEXT = {
     title: '견적서',
-    note: '고객에게 보낸 견적서(고객 확인서)입니다. 새 것부터 200건까지 나옵니다. 견적서를 내고 거두는 일은 PC 상세설계에서 합니다.',
+    note: '고객에게 보낸 견적서(고객 확인서)입니다. 새 것부터 200건까지 나옵니다. 견적서는 플래너 「앱으로 보내기」에서 냅니다.',
+    makeOrder: '계약 만들기',
+    openOrder: '계약 보기',
+    orderDead: '취소된 계약',
+    ordered: '계약을 만들었습니다.',
+    orderFail: '계약을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
     filter: '거르기',
     count: '건',
     empty: '보낸 견적서가 없습니다.',
@@ -147,6 +152,10 @@
       design: str(obj(r.design).name).trim(),
       project: str(obj(r.project).title).trim(),
       customer: str(r.customer_name).trim(),
+      // 그 문서의 수주 — 서버가 칸을 줄 때만 안다 (옛 서버면 null = 모름 → 단추를 내지 않는다)
+      order: Object.prototype.hasOwnProperty.call(r, 'order')
+        ? { id: str(obj(r.order).id), status: str(obj(r.order).status) }
+        : null,
     };
     row.state = stateOf(row);
     return row;
@@ -261,6 +270,40 @@
     return v ? '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>' : '';
   }
 
+  /**
+   * 승인된 견적의 계약 — 수주가 없으면 「계약 만들기」, 있으면 「계약 보기」, 취소됐으면 글만
+   * (2026-11-21 대표님 「프로젝트 한 길」 — 예전에는 PC 상세설계에서만 수주를 만들었다)
+   */
+  function orderActs(r) {
+    if (r.state !== 'approved' || r.superseded || !r.order) return '';
+    var o = r.order;
+    var inner = !o.id
+      ? '<button type="button" class="mk-btn mk-btn--solid" data-act="order" data-id="' +
+        esc(r.id) +
+        '">' +
+        esc(TEXT.makeOrder) +
+        '</button>'
+      : o.status === 'cancelled'
+        ? '<span class="pj-wait">' + esc(TEXT.orderDead) + '</span>'
+        : '<button type="button" class="mk-btn" data-act="order-open" data-id="' +
+          esc(o.id) +
+          '">' +
+          esc(TEXT.openOrder) +
+          '</button>';
+    return (
+      '<div class="rd-acts">' +
+      inner +
+      '</div>' +
+      (Q.note && Q.note.id === r.id
+        ? '<p class="' +
+          (Q.note.error ? 'mk-error' : 'me-pt-msg') +
+          '" role="status">' +
+          esc(Q.note.text) +
+          '</p>'
+        : '')
+    );
+  }
+
   function rowHtml(r) {
     var what = r.project || r.design || r.title || TEXT.noDesign;
     var done = r.state === 'approved' || r.state === 'rejected';
@@ -282,7 +325,9 @@
       fact(TEXT.seen, seenText(r)) +
       fact(TEXT.decided, done ? day(r.decidedAt) : '') +
       fact(TEXT.expires, r.state === 'waiting' ? day(r.expiresAt) : '') +
-      '</dl></li>'
+      '</dl>' +
+      orderActs(r) +
+      '</li>'
     );
   }
 
@@ -319,7 +364,35 @@
     Q.ready = false;
   }
 
+  /** 계약 만들기 — 수주 칸(segan/orders.js)이 보낸다. 끝나면 목록을 다시 읽고 프로젝트 목록 · 왼쪽 수를 맞춘 뒤 그 수주 창을 연다 */
+  async function makeOrder(id) {
+    var O = window.SeganOrders;
+    if (Q.busy || !O || typeof O.createFromDocument !== 'function') return;
+    Q.busy = true;
+    var r = await O.createFromDocument(id);
+    var items = await read();
+    Q.busy = false;
+    if (items) Q.items = items;
+    Q.note = r.ok
+      ? { id: id, text: r.dead ? TEXT.orderDead : TEXT.ordered, error: !!r.dead }
+      : { id: id, text: r.error || TEXT.orderFail, error: true };
+    render();
+    var PP = window.SeganPartnerProjects;
+    if (r.ok && PP && typeof PP.reload === 'function') PP.reload();
+    if (r.ok && !r.dead && r.order && typeof O.open === 'function') O.open(r.order.id);
+  }
+
   function onClick(e) {
+    var act =
+      e.target && e.target.closest
+        ? e.target.closest('[data-act="order"], [data-act="order-open"]')
+        : null;
+    if (act) {
+      var O = window.SeganOrders;
+      if (act.getAttribute('data-act') === 'order') makeOrder(act.getAttribute('data-id') || '');
+      else if (O && typeof O.open === 'function') O.open(act.getAttribute('data-id') || '');
+      return;
+    }
     var el = e.target && e.target.closest ? e.target.closest('[data-act="filter"]') : null;
     if (!el) return;
     var key = el.getAttribute('data-filter') || '';

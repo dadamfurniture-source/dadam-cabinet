@@ -226,6 +226,7 @@ async function load(options = {}) {
     photo: () => ok({ photo_path: 'reports/1.jpg' }),
     feedbackLink: () => ok({ url: 'https://dadam.example/f/abc' }),
     counterparties: () => ok({ items: [] }),
+    makeOrder: () => fail(404, 'not_found', '문서를 찾을 수 없습니다'), // POST /documents/:id/order
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -308,6 +309,7 @@ async function load(options = {}) {
       // 같은 주소의 PATCH — status 가 있으면 상태 바꾸기, 없으면 수주 정보 저장
       return reply(await (body && 'status' in body ? opts.move(body, id) : opts.info(body, id)));
     }
+    if (url.startsWith(WORK + '/documents/')) return reply(await opts.makeOrder(url, method));
     if (url === WORK + '/counterparties') return reply(await opts.counterparties());
     if (url.startsWith(WORK + '/company/schedules')) return reply(await opts.schedules(url));
     if (url === WORK + '/company/projects') return reply(ok(PROJECTS));
@@ -863,6 +865,46 @@ describe('상세 시트', () => {
       '승인 기다림',
     ]);
     expect(part('status').querySelector('button[type="submit"]').disabled).toBe(true);
+  });
+});
+
+describe('다른 칸이 부른다 (프로젝트 줄의 다음 할 일 · 견적 줄 — 2026-11-21 「프로젝트 한 길」)', () => {
+  test('open(id) — 그 수주 창을 연다. 읽어 둔 목록에 없으면 한 번 다시 읽고, 그래도 없으면 false', async () => {
+    const calls = await load();
+    expect(await window.SeganOrders.open(O1)).toBe(true);
+    await flush();
+    expect(sheetTitle()).toBe('DD-1 · 가람 고객');
+    const before = listReads(calls);
+    expect(await window.SeganOrders.open('33333333-3333-4333-8333-3333333333ff')).toBe(false);
+    expect(listReads(calls)).toBe(before + 1);
+  });
+
+  test('createFromDocument — POST /documents/:id/order (본인 토큰 · 몸 없음), 목록을 다시 읽는다. 취소된 수주면 dead, 못 만들면 서버 글', async () => {
+    let reply = ok({ id: O1, order_no: 'DD-1', status: 'confirmed', reused: false }, 201);
+    const calls = await load({ makeOrder: () => reply });
+    const before = listReads(calls);
+    expect(await window.SeganOrders.createFromDocument('doc-1')).toEqual({
+      ok: true,
+      order: { id: O1, status: 'confirmed' },
+      reused: false,
+      dead: false,
+    });
+    const post = calls.fetch.find((c) => c.url === WORK + '/documents/doc-1/order');
+    expect([post.method, post.auth, post.body]).toEqual(['POST', 'Bearer tok-1', undefined]);
+    expect(listReads(calls)).toBe(before + 1);
+    // 같은 문서의 수주가 이미 있고 취소됐다 — 다시 만들 수 없다
+    reply = ok({ id: O2, status: 'cancelled', reused: true });
+    expect(await window.SeganOrders.createFromDocument('doc-1')).toMatchObject({
+      ok: true,
+      reused: true,
+      dead: true,
+    });
+    // 못 만들면 서버 글
+    reply = fail(409, 'conflict', '고객이 승인한 확인서만 수주로 전환할 수 있습니다');
+    expect(await window.SeganOrders.createFromDocument('doc-1')).toEqual({
+      ok: false,
+      error: '고객이 승인한 확인서만 수주로 전환할 수 있습니다',
+    });
   });
 });
 

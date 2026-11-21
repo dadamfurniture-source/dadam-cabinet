@@ -50,8 +50,18 @@
     contract: '계약',
     make: '제작',
     install: '설치',
+    done: '완료', // 서버가 정한 지금 단계 (step — workflow-api pipeline.js): 수주가 완료된 프로젝트
   };
-  var PC_STAGES = ['quote', 'contract', 'make', 'install']; // 상세(견적서 · 수주 · 수금 · 완료 보고)가 PC 화면인 단계
+  // 단계 띠 — 일 차례대로 (2026-11-21 대표님 「프로젝트 한 길」 · 「설계 먼저」). 마지막 칸은 완료 뒤 = A/S
+  var STRIP = [
+    ['consult', '상담'],
+    ['design', '설계'],
+    ['quote', '견적'],
+    ['contract', '계약'],
+    ['make', '생산'],
+    ['install', '설치'],
+    ['done', 'A/S'],
+  ];
 
   var TEXT = {
     lead: '상담에서 받은 고객과 전화 · 방문 고객의 프로젝트입니다. 설계는 프로젝트에 이어 저장합니다.',
@@ -59,7 +69,12 @@
     stageEmpty: '이 단계의 프로젝트가 없습니다.',
     assignEmpty: '진행 중인 프로젝트가 없습니다.',
     assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
-    pcNote: '견적서 · 원가 · 완료 보고의 상세는 PC 화면(상세설계 · 수주)에서 봅니다.',
+    notMine: '대표 · 실장이 합니다',
+    today: '오늘',
+    days: '일째',
+    views: '번 열어 봄',
+    ordered: '계약을 만들었습니다.',
+    orderDead: '이 견적의 계약은 취소됐습니다 — 계약 화면에서 확인해 주세요.',
     titleEmpty: '프로젝트 이름을 적어 주세요.',
     titleLong: '프로젝트 이름은 ' + TITLE_MAX + '자까지 적을 수 있습니다.',
     nameEmpty: '고객 이름을 적어 주세요.',
@@ -105,6 +120,10 @@
   }
 
   /** 한국 시간 날짜 (ISO UTC 로 온 시각) */
+  function own(o, k) {
+    return Object.prototype.hasOwnProperty.call(o, k);
+  }
+
   function kstDay(iso) {
     var t = Date.parse(iso);
     if (isNaN(t)) return '';
@@ -131,6 +150,8 @@
   }
 
   function stageOf(p) {
+    // 서버가 정한 지금 단계(step)가 있으면 그것 — 플래너 초안 · 받은 제작 의뢰 · 완료까지 본다. 없으면(옛 서버) 지금처럼
+    if (p && typeof p.step === 'string' && own(STAGE_LABEL, p.step)) return p.step;
     return menuStage(
       p && p.stage,
       p && p.order && typeof p.order === 'object' ? p.order.status : ''
@@ -254,7 +275,9 @@
     // 작업 배정 — 인사를 쓰는 팩토리의 진행 중 프로젝트 (담당자 고르는 보기에서는 뺀다)
     var canWork = canWorkOn(p);
     var working = canWork && J.workFor === p.id;
+    var flow = flowOf(p);
     var acts =
+      flow.act +
       (canAssign && J.assignFor !== p.id
         ? '<button type="button" class="mk-btn" data-act="assign" data-for="' + esc(p.id) + '">담당자</button>'
         : '') +
@@ -286,11 +309,118 @@
       '</span>' +
       (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
       '</span>' +
+      flow.strip +
+      flow.note +
       (acts ? '<div class="rd-acts">' + acts + '</div>' : '') +
       (canAssign && J.assignFor === p.id ? assignHtml(p) : '') +
       (working ? '<div class="pjw" data-pj-work="' + esc(p.id) + '"></div>' : '') +
       '</li>'
     );
+  }
+
+  // ── 단계 띠 · 다음 할 일 (2026-11-21 대표님 「모든 공정이 자연스럽게 이어지도록」) ──
+  //   판정은 서버가 한다 (workflow-api pipeline.js — 줄의 step · next). 여기는 그 값을 그리기만 한다.
+  //   서버가 값을 주지 않으면(옛 서버 · 못 모음) 띠도 단추도 없이 지금처럼.
+
+  /** 플래너 주소 — planner?project=<번호> · planner?draft=<설계 id> 를 앱의 플래너 링크로 (없으면 설계 화면) */
+  function plannerUrl(go) {
+    var links = (window.SeganShell && window.SeganShell.ROLE_LINKS) || [];
+    var base = '';
+    for (var i = 0; i < links.length; i++) if (links[i].key === 'planner') base = links[i].href;
+    var q = String(go).slice('planner'.length);
+    if (!base || !/^\?(project|draft)=[A-Za-z0-9-]{4,81}$/.test(q)) return '';
+    return base + q;
+  }
+
+  /** 그 상태가 시작된 지 — 「오늘」 · 「3일째」 (모르면 빈 글자) */
+  function sinceText(iso) {
+    var t = Date.parse(iso);
+    if (isNaN(t)) return '';
+    var n = Math.floor((Date.now() - t) / 86400000);
+    return n < 1 ? TEXT.today : n + TEXT.days;
+  }
+
+  /** 줄 하나의 { strip 단계 띠, note 기다림 · 못 하는 일 글, act 다음 단추 } — 진행 중 프로젝트만, 담당자 고르는 보기는 뺀다 */
+  function flowOf(p) {
+    var none = { strip: '', note: '', act: '' };
+    if (J.view.assign || (p.status && p.status !== 'active')) return none;
+    if (typeof p.step !== 'string' || !own(STAGE_LABEL, p.step)) return none;
+    var at = -1;
+    STRIP.forEach(function (s, i) {
+      if (s[0] === p.step) at = i;
+    });
+    var strip =
+      '<ol class="pj-strip" aria-label="단계">' +
+      STRIP.map(function (s, i) {
+        return (
+          '<li' +
+          (i < at ? ' class="is-done"' : i === at ? ' class="is-now" aria-current="step"' : '') +
+          '>' +
+          esc(s[1]) +
+          '</li>'
+        );
+      }).join('') +
+      '</ol>';
+    var n = p.next && typeof p.next === 'object' ? p.next : null;
+    if (!n || typeof n.label !== 'string' || !n.label) return { strip: strip, note: '', act: '' };
+    var since = sinceText(n.since);
+    // 남을 기다리는 중 — 단추 없이 글로 (고객 답 기다림 · 4일째 · 2번 열어 봄)
+    if (n.wait === true) {
+      var bits = [n.label, since, n.views > 0 ? n.views + TEXT.views : ''].filter(Boolean);
+      return { strip: strip, note: '<p class="pj-wait" data-next="' + esc(n.key) + '">' + esc(bits.join(' · ')) + '</p>', act: '' };
+    }
+    // 내 직책으로는 못 하는 일 — 무엇이 남았는지만 알린다
+    if (n.allowed === false) {
+      return {
+        strip: strip,
+        note: '<p class="pj-wait" data-next="' + esc(n.key) + '">' + esc(n.label + ' — ' + TEXT.notMine) + '</p>',
+        act: '',
+      };
+    }
+    var go = typeof n.go === 'string' ? n.go : '';
+    var cls = 'mk-btn mk-btn--solid';
+    var tail = since && since !== TEXT.today ? '<small class="pj-since">' + esc(since) + '</small>' : '';
+    var act = '';
+    var doc = n.act && typeof n.act === 'object' && n.act.kind === 'order' ? String(n.act.document_id || '') : '';
+    if (doc && UUID_RE.test(doc)) {
+      act =
+        '<button type="button" class="' + cls + '" data-act="next-order" data-id="' + esc(doc) + '">' + esc(n.label) + '</button>';
+    } else if (go.indexOf('order:') === 0 && UUID_RE.test(go.slice(6))) {
+      act =
+        '<button type="button" class="' + cls + '" data-act="next-sheet" data-id="' + esc(go.slice(6)) + '">' + esc(n.label) + '</button>';
+    } else if (go.indexOf('planner') === 0) {
+      var href = plannerUrl(go);
+      act = href
+        ? '<a class="' + cls + '" href="' + esc(href) + '" data-desktop-tab data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>'
+        : '<a class="' + cls + '" href="#p-design" data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>';
+    } else if (/^p-[a-z]+$/.test(go)) {
+      act = '<a class="' + cls + '" href="#' + esc(go) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>';
+    }
+    return { strip: strip, note: '', act: act ? act + tail : '' };
+  }
+
+  /** 다음 할 일 — 수주 창 열기 (계약금 입금 적기 · 생산 시작 · 배송 · 완료 · 승인). 못 열면 계약 화면으로 */
+  async function nextSheet(id) {
+    var O = window.SeganOrders;
+    var ok = O && typeof O.open === 'function' ? await O.open(id) : false;
+    if (!ok) window.location.hash = '#p-contract';
+  }
+
+  /** 다음 할 일 — 승인된 견적으로 계약(수주) 만들기. 만든 뒤 목록 · 왼쪽 수를 맞추고 그 수주 창을 연다 */
+  async function nextOrder(documentId) {
+    var O = window.SeganOrders;
+    if (J.busy || !O || typeof O.createFromDocument !== 'function') return;
+    J.busy = true;
+    J.msg = '';
+    render();
+    var r = await O.createFromDocument(documentId);
+    var list = r.ok ? await fetchList() : null;
+    J.busy = false;
+    J.msg = !r.ok ? r.error || TEXT.generic : r.dead ? TEXT.orderDead : TEXT.ordered;
+    if (list) J.data = list;
+    render();
+    if (list) changed();
+    if (r.ok && !r.dead && r.order && typeof O.open === 'function') O.open(r.order.id);
   }
 
   /** 담당자 고르기 — 지금 구성원(역할 차례) · 비우기 */
@@ -413,13 +543,18 @@
       (items.length
         ? '<ul class="me-pt-list me-pr-list">' + items.map(rowHtml).join('') + '</ul>'
         : '<p class="me-empty">' + esc(empty) + '</p>') +
-      (PC_STAGES.indexOf(v.stage) >= 0 ? '<p class="mk-note">' + esc(TEXT.pcNote) + '</p>' : '') +
       (canCreate
         ? J.open
           ? formHtml(customersOf(items))
           : '<div class="rd-acts"><button type="button" class="mk-btn" data-act="open">새 고객 · 프로젝트</button></div>'
         : '');
     box.hidden = false;
+    // 플래너 링크 — PC 브라우저에서만 새 탭 (segan/shell.js applyLinkTarget)
+    var Shell = window.SeganShell || {};
+    if (Shell.applyLinkTarget)
+      box.querySelectorAll('a[data-desktop-tab]').forEach(function (a) {
+        Shell.applyLinkTarget(a);
+      });
     mountWork(box);
   }
 
@@ -674,6 +809,9 @@
   function onClick(e) {
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el || el.disabled || J.busy) return;
+    var nextAct = el.getAttribute('data-act');
+    if (nextAct === 'next-sheet') return nextSheet(el.getAttribute('data-id') || '');
+    if (nextAct === 'next-order') return nextOrder(el.getAttribute('data-id') || '');
     var act = el.getAttribute('data-act');
     if (act === 'open') {
       J.open = true;

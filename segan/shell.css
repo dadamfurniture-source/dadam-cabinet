@@ -5383,6 +5383,95 @@ button.sm-num[aria-pressed='true'] {
 }
 
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
+/* 프로젝트 줄 — 단계 띠 · 다음 할 일 (segan/partner-projects.js flowOf, 2026-11-21 「프로젝트 한 길」).
+   지난 단계는 채운 네모, 지금 단계는 진한 네모 + 굵은 글, 남은 단계는 빈 네모 — 색이 아니라 꼴로도 가른다 */
+.pj-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--v5-ink-45);
+}
+
+.pj-strip li {
+  position: relative;
+  padding-top: 15px;
+}
+
+.pj-strip li::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 0;
+  left: 0;
+  border-top: 1px solid var(--v5-line-25);
+}
+
+.pj-strip li:first-child::before {
+  left: 50%;
+}
+
+.pj-strip li:last-child::before {
+  right: 50%;
+}
+
+.pj-strip li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  margin-left: -5px;
+  border: 1px solid var(--v5-ink-45);
+  background: var(--v5-invert);
+}
+
+.pj-strip .is-done {
+  color: var(--v5-ink-60);
+}
+
+.pj-strip .is-done::after {
+  border-color: var(--v5-ink-45);
+  background: var(--v5-ink-45);
+}
+
+.pj-strip .is-now {
+  font-weight: 500;
+  color: var(--v5-ink);
+}
+
+.pj-strip .is-now::after {
+  border-color: var(--v5-ink);
+  background: var(--v5-ink);
+}
+
+/* 줄의 단추 줄 — 다음 할 일 · 담당자 · 작업 배정 (사이를 띄우고 띠 아래로) */
+.me-pr-list .me-pt-row > .rd-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pj-wait {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+}
+
+.pj-since {
+  align-self: center;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
 .me-pr-status {
   margin-left: auto;
   font-size: 13px;
