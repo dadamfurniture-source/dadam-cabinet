@@ -368,7 +368,15 @@ describe('자리 · 이름 — 워커와 같은 값', () => {
     const keys = [...doc.querySelectorAll('#meSubProject > li[data-me-item]')].map((li) =>
       li.getAttribute('data-me-item')
     );
-    expect(keys).toEqual(['pj-sales', 'pj-design', 'pj-planner', 'pj-make', 'pj-install', 'pj-as']);
+    expect(keys).toEqual([
+      'pj-consult',
+      'pj-design',
+      'pj-planner',
+      'pj-deal',
+      'pj-make',
+      'pj-install',
+      'pj-as',
+    ]);
     expect(doc.querySelector('[data-me-item="pj-make"] a').getAttribute('href')).toBe('#p-make');
     const parts = [...doc.getElementById('partner').children].map((el) => el.id);
     const partAt = (id) => parts.findIndex((x) => x === id);

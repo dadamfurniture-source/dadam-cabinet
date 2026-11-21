@@ -806,6 +806,56 @@ describe('받기 · 못 받음', () => {
     expect(item(C1).querySelectorAll('button')).toHaveLength(0);
   });
 
+  test('받기 — 프로젝트 목록을 감추지 않고 다시 읽고(reload), 목록이 바뀌었다고 알린다(onChange) · 실패면 다시 읽지 않는다', async () => {
+    const reload = jest.fn(async () => true);
+    window.SeganPartnerProjects = { reload };
+    await load({
+      list: [
+        ok({ items: [waiting()] }),
+        ok({ items: [waiting({ status: 'confirmed', assignment: { state: 'accepted' } })] }),
+      ],
+    });
+    const onChange = jest.fn();
+    window.SeganPartnerConsults.onChange = onChange;
+    expect(window.SeganPartnerConsults.waitingCount()).toBe(1); // 왼쪽 메뉴 「상담」 줄의 수에 더한다
+    await press(item(C1), '받기');
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalled();
+    expect(window.SeganPartnerConsults.waitingCount()).toBe(0);
+
+    reload.mockClear();
+    await load({ accept: () => fail(409, 'not_open', '이미 답한 상담입니다.') });
+    await press(item(C1), '받기');
+    expect(reload).not.toHaveBeenCalled();
+    delete window.SeganPartnerProjects;
+  });
+
+  test('받은 상담 — 받을 때 생긴 프로젝트로 가는 「프로젝트 열기」 링크 (단추 아님). 누르면 그 줄로, 지금 화면에 없으면 대시보드로', async () => {
+    const PID = 'bbbbbbbb-bbbb-4bbb-8bbb-000000000001';
+    const accepted = (extra) =>
+      waiting({ status: 'confirmed', assignment: { state: 'accepted' }, ...extra });
+    await load({ list: ok({ items: [accepted({ project_id: PID })] }) });
+    const a = item(C1).querySelector('.me-cs-next a');
+    expect(a.textContent).toBe('프로젝트 열기');
+    expect(item(C1).querySelectorAll('button')).toHaveLength(0);
+    const focusProject = jest.fn(() => true);
+    window.SeganPartnerProjects = { focusProject };
+    a.click();
+    expect(focusProject).toHaveBeenCalledWith(PID);
+    expect(window.location.hash).not.toBe('#dash-project');
+    // 상담 단계 목록에 그 줄이 없으면(이미 설계로 넘어감) 모든 단계가 보이는 대시보드로
+    focusProject.mockReturnValue(false);
+    a.click();
+    expect(window.location.hash).toBe('#dash-project');
+    window.history.replaceState(null, '', window.location.pathname);
+    delete window.SeganPartnerProjects;
+    // 프로젝트 번호가 없거나 기다리는 상담이면 링크가 없다
+    await load({ list: ok({ items: [accepted({ project_id: null })] }) });
+    expect(item(C1).querySelector('.me-cs-next')).toBeNull();
+    await load({ list: ok({ items: [waiting({ project_id: PID })] }) });
+    expect(item(C1).querySelector('.me-cs-next')).toBeNull();
+  });
+
   test('받기 실패(이미 답함 409) — 서버 글을 그 상담에 보이고 목록을 다시 읽는다', async () => {
     const calls = await load({
       accept: () => fail(409, 'not_open', '이미 답한 상담입니다.'),

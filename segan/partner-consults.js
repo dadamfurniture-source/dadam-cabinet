@@ -103,6 +103,7 @@
     leadStaff: '받기 · 못 받음은 대표 · 실장이 합니다.',
     empty: '아직 배정된 상담이 없습니다.',
     accepted: '받았습니다 · 고객 · 프로젝트를 만들었습니다.',
+    openProject: '프로젝트 열기',
     declined: '못 받음으로 돌려보냈습니다.',
     reasonEmpty: '못 받는 까닭을 적어 주세요.',
     reasonLong: '까닭은 ' + REASON_MAX + '자까지 적을 수 있습니다.',
@@ -480,6 +481,19 @@
     );
   }
 
+  /** 받은 상담 — 받을 때 생긴 프로젝트로 가는 링크 (2026-11-21 대표님 「상담을 받았는데 프로젝트를 바로 시작할 수 없다」) */
+  function projectLinkHtml(x, a) {
+    if (a.state !== 'accepted' || typeof x.project_id !== 'string' || !UUID_RE.test(x.project_id))
+      return '';
+    return (
+      '<p class="me-cs-next"><a href="#dash-project" data-act="project" data-id="' +
+      esc(x.project_id) +
+      '">' +
+      esc(TEXT.openProject) +
+      '</a></p>'
+    );
+  }
+
   function consultHtml(x, now) {
     var a = assignmentOf(x);
     var returned = isReturned(x);
@@ -508,6 +522,7 @@
       factsHtml(x, returned) +
       (P.note && P.note.id === x.id ? noteHtml(P.note) : '') +
       (waiting && P.act ? actsHtml(x) : '') +
+      projectLinkHtml(x, a) +
       '</li>'
     );
   }
@@ -957,6 +972,18 @@
     P.note = note || null;
     P.decline = '';
     renderList();
+    changed();
+  }
+
+  /** 목록이 바뀌었다 — 마이페이지가 왼쪽 메뉴 「상담」 줄의 수를 다시 센다 (me.js 가 onChange 에 건다) */
+  function changed() {
+    var fn = window.SeganPartnerConsults && window.SeganPartnerConsults.onChange;
+    if (typeof fn !== 'function') return;
+    try {
+      fn();
+    } catch {
+      // 메뉴를 못 맞춰도 목록은 그대로 둔다
+    }
   }
 
   async function accept(id) {
@@ -967,6 +994,20 @@
     await refreshList(
       r.ok ? { id: id, text: TEXT.accepted } : { id: id, text: errText(r), error: true }
     );
+    // 받으면 서버가 고객 · 프로젝트를 만든다 — 아래 프로젝트 목록을 감추지 않고 다시 읽는다 (예전에는 새로 고쳐야 보였다)
+    var PP = window.SeganPartnerProjects;
+    if (r.ok && PP && typeof PP.reload === 'function') await PP.reload();
+  }
+
+  /** 받은 상담의 프로젝트 줄로 — 지금 화면(상담 단계)에 없으면 모든 단계가 보이는 대시보드로 가서 찾는다 */
+  function openProject(id) {
+    var PP = window.SeganPartnerProjects;
+    if (!PP || typeof PP.focusProject !== 'function' || !UUID_RE.test(id)) return;
+    if (PP.focusProject(id)) return;
+    window.location.hash = '#dash-project';
+    window.setTimeout(function () {
+      PP.focusProject(id);
+    }, 60);
   }
 
   function declineBox(id) {
@@ -1041,6 +1082,10 @@
     if (!el || el.disabled || P.busy) return;
     var act = el.getAttribute('data-act');
     var id = el.getAttribute('data-id') || '';
+    if (act === 'project') {
+      e.preventDefault();
+      return openProject(id);
+    }
     if (act === 'accept') return accept(id);
     if (act === 'decline-open' || act === 'decline-cancel') {
       P.decline = act === 'decline-open' ? id : '';
@@ -1216,6 +1261,11 @@
     canAct: canAct,
     actOf: actOf,
     listOf: listOf,
+    // 답을 기다리는 배정 상담 수 — 마이페이지 왼쪽 메뉴 「상담」 줄의 수 (못 읽었으면 null)
+    waitingCount: function () {
+      return Array.isArray(P.items) ? P.items.filter(isWaiting).length : null;
+    },
+    onChange: null, // 목록이 바뀌면 부를 것 (me.js 가 건다)
     scoreOf: scoreOf,
     scoreText: scoreText,
     settingsOf: settingsOf,

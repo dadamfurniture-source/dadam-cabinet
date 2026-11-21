@@ -255,14 +255,15 @@ afterEach(() => {
 });
 
 describe('자리 · 이름', () => {
-  test('me.html — 대시보드 칸(#meDash) 안, 숫자 칸 다음이 업무 달력 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
+  test('me.html — 대시보드 칸(#meDash) 안, 업무 달력 다음이 숫자 칸 · 처음엔 감춘다 · me.js 앞에 읽는다 · 서비스 워커가 담는다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const el = doc.getElementById('meNumbers');
     expect(el).not.toBeNull();
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('meDash');
-    expect(el.previousElementSibling.id).toBe('meDashBody');
-    expect(el.nextElementSibling.id).toBe('meCalendar');
+    // 2026-11-21 대표님 — 달력이 숫자 칸 위로 (대시보드 칸 → 업무 달력 → 우리 팩토리 숫자 → 재고 칸)
+    expect(el.previousElementSibling.id).toBe('meCalendar');
+    expect(el.nextElementSibling.id).toBe('meStockNumbers');
     expect(el.getAttribute('role')).toBe('region');
     expect(el.getAttribute('aria-labelledby')).toBe('meNumbersTitle');
     const srcs = [...doc.querySelectorAll('script[src]')].map(
