@@ -80,6 +80,7 @@ import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, buildLensPrompt, massi
 import { plannerPlaceBlocks, plannerPlaceFaces, plannerPlaceRef } from './planner-place.js';
 import { loadFridgeModelPhoto } from './appliance-image.js';
 import { positionSkipped, startPositionCheck } from './position.js';
+import { fillSkipped, startFillCheck } from './fill-check.js';
 import { collectionPostPlan, postToCollection } from './collection-post.js';
 
 const MAX_ATTEMPTS = 2;
@@ -1003,6 +1004,9 @@ async function runPipeline(env, job, ck, save) {
   // 위치 검사 (2026-10-20, 기록 전용 — position.js): 싱크·쿡탑·후드·줄 끝이 지시한 자리인지 mm 로 잰다. 기다리지 않는다.
   //   대상 아님(주방 품목 밖)·게이트(POSITION_QC) 꺼짐이면 null. 절대 reject 하지 않고, 상태·단계·진행률·크레딧을 건드리지 않는다.
   let pos = null;
+  // 벽 채움 검사 (2026-11-21, 기록 전용 — fill-check.js): AI 연출컷 품목 모두, 가구 양 끝 · 위아래가 벽 · 천장 · 바닥에 닿았는지.
+  //   위치 검사와 같은 입력 · 같은 자리에서 기다리지 않고 시작한다. 게이트(FILL_QC) 꺼짐 · 플래너 모드면 null.
+  let fill = null;
   const positionInput = (qc, provider) => ({
     category, base, room, wall, options: opts, guide: ck.guide, mockVolume: !!ctx.mockVolume,
     place: placeImg ? ck.place : null, placeBlocks, qc, provider: provider || 'gemini', jobId: job.id, lens: ck.lens,
@@ -1050,7 +1054,10 @@ async function runPipeline(env, job, ck, save) {
     // 최종 기본안이 정해진 뒤(검사·재시도 다음) 시작한다 — 검사와 같은 Flash 할당량을 같은 순간에 나눠 쓰지 않는다
     // 다듬기는 방을 읽지 않아 지시한 자리(벽 분석 %)가 없다 — 위치 검사를 하지 않는다 (자리는 시안이 정했다)
     // 방 비우기도 자리가 없다 (가구를 그리지 않는다)
-    if (!ctx.polish && !ctx.clear) pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
+    if (!ctx.polish && !ctx.clear) {
+      pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
+      fill = startFillCheck(env, positionInput(qc, base.meta && base.meta.provider));
+    }
     const up = await uploadObject(
       env,
       `${prefix}/base.${extOf(base.mimeType)}`,
@@ -1059,6 +1066,7 @@ async function runPipeline(env, job, ck, save) {
     );
     ck.images.base = { label: `${labelOf(category)} · ${ctx.clear ? '빈 방' : '기본안'}`, path: up.path, url: up.url, qc, ...(base.meta || {}) };
     if (pos) pos.attachTo(ck.images.base); // 끝나는 순간 images[base].position — 이후 images 패치에 저절로 실린다
+    if (fill) fill.attachTo(ck.images.base); // 끝나는 순간 images[base].fill — 같다
     await save({ images: ck.images });
     await updateById(env, 'generations', job.id, {
       images: slotList(ck.images),
@@ -1070,6 +1078,10 @@ async function runPipeline(env, job, ck, save) {
     if (!ck.images.base.position && !ctx.polish && !ctx.clear) {
       const skipped = positionSkipped(env, positionInput(ck.images.base.qc, ck.images.base.provider), 'rerun');
       if (skipped) ck.images.base.position = skipped;
+    }
+    if (!ck.images.base.fill && !ctx.polish && !ctx.clear) {
+      const skippedFill = fillSkipped(env, positionInput(ck.images.base.qc, ck.images.base.provider), 'rerun');
+      if (skippedFill) ck.images.base.fill = skippedFill;
     }
   }
 
@@ -1370,6 +1382,7 @@ async function runPipeline(env, job, ck, save) {
   const failedSlots = Object.keys(variantErrors);
   // 플래너 모드 — 대조가 ok 가 아니면 done 과 같은 패치에 internal_only 를 싣는다 (done 인데 표시가 없는 틈을 두지 않는다)
   const internal = await internalOnlyPatch(env, job, ck);
+  const fillLate = !!fill && !fill.done; // 채움 검사(2026-11-21)도 위치 검사와 같이 — 아래 늦은 패치
   const posLate = !!pos && !pos.done; // 위치 검사가 아직이면 done 뒤에 images 만 한 번 더 (아래) — 이 줄과 패치 사이에 await 없음
   await updateById(env, 'generations', job.id, {
     status: 'done',
@@ -1402,14 +1415,16 @@ async function runPipeline(env, job, ck, save) {
     }
     await postToCollection(env, job, ck);
   }
-  if (posLate) {
+  if (posLate || fillLate) {
     // 2026-10-20: 위치 검사(기록 전용)가 done 보다 늦게 끝나는 경로(추천안 없음)만. 손님은 done 을 이미 받았다.
     //   잡 마감(10분) 20초 전까지만 기다리고, images 하나만 보낸다(status·step_label 없음). 실패는 삼킨다.
     //   기다리는 동안 재실행되면 done 을 다시 보내지 않게 체크포인트에 표시한다 (alarm() 이 attempt 검사보다 먼저 본다).
     try {
       await save({ doneAt: Date.now() });
       const cap = JOB_TIMEOUT_MS - (Date.now() - startedAt) - 20_000;
-      if ((await pos.wait(cap)) && ck.images.base && ck.images.base.position) {
+      // 2026-11-21: 채움 검사(fill-check.js)도 같은 마감으로 기다린다 — 둘 중 하나라도 끝나 기록이 붙었으면 images 한 번
+      const waited = await Promise.all([posLate && pos, fillLate && fill].filter(Boolean).map((p) => p.wait(cap)));
+      if (waited.some(Boolean) && ck.images.base && (ck.images.base.position || ck.images.base.fill)) {
         await updateById(env, 'generations', job.id, { images: slotList(ck.images) });
       }
     } catch (e) {
