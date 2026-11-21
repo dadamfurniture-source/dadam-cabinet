@@ -5,7 +5,11 @@
  *   normalizeBizNo · bizNoValid   workers/workflow-api/src/ledger/checks.js 와 같은 셈 (가중치 1,3,7,1,3,7,1,3,5)
  *   ntsRow · lookupNtsStatus      workers/workflow-api/src/ledger/review.js 의 ntsRow · lookupNts 와 같은 부르기
  *
- * 공공데이터포털 「국세청_사업자등록정보 진위확인 및 상태조회 서비스」 — 시크릿 NTS_SERVICE_KEY (wrangler secret put).
+ * 공공데이터포털 「국세청_사업자등록정보 진위확인 및 상태조회 서비스」.
+ *   키는 회계장부용으로 workflow-api 에 등록돼 있다 (2026-11-21 대표님: 「회계 기능쪽에 등록 해놨었는데? … 이용 할 수 없음?」).
+ *   Cloudflare 는 시크릿 값을 다시 내주지 않아 옮길 수 없으므로, 이 워커는 서비스 바인딩 WORKFLOW_NTS
+ *   (workflow-api 의 진입점 NtsGateway, workers/workflow-api/src/nts-gateway.js)로 그 키를 빌려 부른다.
+ *   이 워커에 시크릿 NTS_SERVICE_KEY 를 따로 넣으면 그것을 먼저 쓴다 (바로 부른다). 둘 다 없으면 묻지 않는다(null).
  *   상태조회  POST {NTS_STATUS_URL}?serviceKey=…    본문 { b_no: [번호] }
  *             응답 data[0].b_stt_cd — 01 계속사업자 · 02 휴업자 · 03 폐업자, 비어 있으면 등록되지 않은 번호
  *   진위확인  POST {NTS_VALIDATE_URL}?serviceKey=…  본문 { businesses: [{ b_no, start_dt(YYYYMMDD), p_nm, p_nm2, b_nm, corp_no, b_sector, b_type }] }
@@ -13,7 +17,7 @@
  *     ※ 진위확인은 이 저장소에서 처음 쓴다. 위 본문 · 응답 모양은 공공데이터포털 명세 기준이고 **실제 키로 확인하지 못했다**
  *       (2026-11-21). 실제 응답이 다르면 validateNts 는 null(확인 못 함)을 돌려주고 그 건은 본사 검토로 간다.
  *
- * 실패(시크릿 없음 · 연결 · 상태 코드 · 본문)는 null — 던지지 않는다. 키 · 주소 · 번호 · 이름은 로그에 남기지 않는다.
+ * 실패(키도 바인딩도 없음 · 연결 · 상태 코드 · 본문 · 다리 오류)는 null — 던지지 않는다. 키 · 주소 · 번호 · 이름은 로그에 남기지 않는다.
  */
 
 export const NTS_STATUS_URL = 'https://api.odcloud.kr/api/nts-businessman/v1/status';
@@ -53,9 +57,19 @@ export function ntsRow(bizNo, d) {
   return { biz_no: bizNo, status, tax_type: tax, closed_on: end };
 }
 
-/** 공공데이터포털 POST → 응답 본문(JSON) | null. what 은 로그에 남기는 짧은 이름 */
+/** 공공데이터포털 POST → 응답 본문(JSON) | null. what 은 'status' | 'validate' — 로그에 남기는 이름이자 다리(NtsGateway)의 kind */
 async function ntsPost(env, url, payload, what) {
-  if (!env.NTS_SERVICE_KEY) return null;
+  if (!env.NTS_SERVICE_KEY) {
+    // 이 워커에 키가 없으면 회계 서버에 등록된 키로 — 서비스 바인딩 WORKFLOW_NTS
+    if (!env.WORKFLOW_NTS) return null;
+    try {
+      const body = await env.WORKFLOW_NTS.post(what, payload);
+      return body && typeof body === 'object' ? body : null;
+    } catch {
+      console.error(`[cert] NTS ${what} failed: gateway`);
+      return null;
+    }
+  }
   let res;
   try {
     res = await fetch(`${url}?serviceKey=${encodeURIComponent(env.NTS_SERVICE_KEY)}`, {

@@ -1663,6 +1663,106 @@ describe('알림 글 · 준비 전 · 로그', () => {
       expect(all).not.toContain(secret);
   });
 
+  describe('국세청 키 — 회계 서버(workflow-api)에 등록된 것을 빌려 쓴다 (2026-11-21 대표님)', () => {
+    let realFetch;
+    let quiet;
+    beforeEach(() => {
+      realFetch = global.fetch;
+      quiet = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      global.fetch = realFetch;
+      quiet.mockRestore();
+    });
+    const OK_STATUS = {
+      status_code: 'OK',
+      data: [{ b_no: BIZ, b_stt_cd: '01', tax_type: '일반과세자' }],
+    };
+    const ASK = { bizNo: BIZ, openDate: '2020-03-02', representativeName: '김다담' };
+
+    test('이 워커에 키가 없으면 다리(WORKFLOW_NTS.post)로 상태조회 · 진위확인 — 본문은 바로 부를 때와 같다', async () => {
+      global.fetch = jest.fn(() => Promise.reject(new Error('바로 부르면 안 된다')));
+      const post = jest.fn(async (kind) =>
+        kind === 'status' ? OK_STATUS : { status_code: 'OK', data: [{ b_no: BIZ, valid: '01' }] }
+      );
+      const env = { WORKFLOW_NTS: { post } };
+      expect(await N.lookupNtsStatus(env, BIZ)).toEqual({
+        biz_no: BIZ,
+        status: 'active',
+        tax_type: '일반과세자',
+        closed_on: null,
+      });
+      expect(await N.validateNts(env, ASK)).toBe(true);
+      expect(post.mock.calls).toEqual([
+        ['status', { b_no: [BIZ] }],
+        [
+          'validate',
+          {
+            businesses: [
+              {
+                b_no: BIZ,
+                start_dt: '20200302',
+                p_nm: '김다담',
+                p_nm2: '',
+                b_nm: '',
+                corp_no: '',
+                b_sector: '',
+                b_type: '',
+              },
+            ],
+          },
+        ],
+      ]);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('다리가 null · 엉뚱한 값 · 오류 → 확인 못 함(null), 던지지 않는다', async () => {
+      global.fetch = jest.fn(() => Promise.reject(new Error('바로 부르면 안 된다')));
+      for (const post of [
+        async () => null,
+        async () => 'text',
+        async () => ({ status_code: 'ERROR' }),
+        async () => {
+          throw new Error('binding down');
+        },
+      ]) {
+        const env = { WORKFLOW_NTS: { post } };
+        expect(await N.lookupNtsStatus(env, BIZ)).toBeNull();
+        expect(await N.validateNts(env, ASK)).toBeNull();
+      }
+      expect(await N.lookupNtsStatus({}, BIZ)).toBeNull();
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('이 워커에 키를 따로 넣었으면 다리를 거치지 않고 바로 부른다', async () => {
+      const post = jest.fn();
+      global.fetch = jest.fn(async () => ({ ok: true, json: async () => OK_STATUS }));
+      const row = await N.lookupNtsStatus(
+        { NTS_SERVICE_KEY: 'own+key=', WORKFLOW_NTS: { post } },
+        BIZ
+      );
+      expect(row.status).toBe('active');
+      expect(post).not.toHaveBeenCalled();
+      expect(String(global.fetch.mock.calls[0][0])).toBe(
+        N.NTS_STATUS_URL + '?serviceKey=' + encodeURIComponent('own+key=')
+      );
+    });
+
+    test('설정 — account-api 가 workflow-api 의 진입점 NtsGateway 를 물고, 두 워커의 국세청 주소가 같다', () => {
+      const toml = read('workers/account-api/wrangler.toml');
+      expect(toml).toContain(
+        '[[services]]\nbinding = "WORKFLOW_NTS"\nservice = "dadam-workflow-api"\nentrypoint = "NtsGateway"'
+      );
+      expect(read('workers/workflow-api/wrangler.toml')).toContain('name = "dadam-workflow-api"');
+      expect(read('workers/workflow-api/src/index.js')).toContain(
+        'export class NtsGateway extends WorkerEntrypoint'
+      );
+      const gateway = read('workers/workflow-api/src/nts-gateway.js');
+      expect(gateway).toContain("status: '" + N.NTS_STATUS_URL + "'");
+      expect(gateway).toContain("validate: '" + N.NTS_VALIDATE_URL + "'");
+    });
+  });
+
   test('국세청 도우미 — 검증 숫자 · 번호 다듬기 · 상태 줄 (workflow-api ledger 와 같은 셈)', () => {
     const W_CHECKS = read('workers/workflow-api/src/ledger/checks.js');
     expect(W_CHECKS).toContain('const w = [1, 3, 7, 1, 3, 7, 1, 3, 5];');
