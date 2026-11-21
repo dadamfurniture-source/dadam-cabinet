@@ -10,6 +10,7 @@
      ② 프로젝트마다: 이미 읽은 프로젝트 목록(segan/partner-projects.js)의 다음 할 일(next) 가운데
         남을 기다리지 않고 · 내 직책으로 할 수 있는 것 — 오래 머문 것부터 PROJECT_MAX 줄.
         단추는 프로젝트 줄과 같은 것이다 (SeganPartnerProjects.nextOf · runNext) — 줄과 표가 어긋나지 않는다.
+        프로젝트 이름을 누르면 그 프로젝트의 창이 열린다 (segan/project-sheet.js).
         묶음이 이미 세는 일(팩토리 고르기 · 수주 요청 승인)은 줄마다 다시 적지 않는다.
    소식 — 서버 news: 지난 14일 동안 일어난 일, 새 것부터. 지난번에 본 뒤 생긴 것은 「새」
      (이 기기가 기억한다 — localStorage. 할 일은 상태라 어느 기기에서나 같다).
@@ -203,6 +204,9 @@
     });
     var items = PP && PP.state && PP.state.data ? PP.state.data.items : null;
     var mine = projectTodos(items, covered);
+    // 프로젝트 이름 — 누르면 프로젝트 한 건 창 (segan/project-sheet.js)
+    var Sheet = window.SeganProjectSheet;
+    var canSheet = !!(Sheet && typeof Sheet.canOpen === 'function' && Sheet.canOpen());
     var rows = packs.map(function (t) {
       var when =
         t.kind === 'due' && t.late ? TEXT.lateDue + t.late + TEXT.count : dueText(t.due, now);
@@ -237,7 +241,13 @@
           '"><th scope="row">' +
           esc(p.next.label) +
           '</th><td>' +
-          esc(p.title || TEXT.noTitle) +
+          (canSheet
+            ? '<button type="button" class="ib-link" data-act="project" data-id="' +
+              esc(p.id) +
+              '">' +
+              esc(p.title || TEXT.noTitle) +
+              '</button>'
+            : esc(p.title || TEXT.noTitle)) +
           '</td><td>' +
           esc(sinceText(p.next.since, now)) +
           '</td><td class="ib-act">' +
@@ -354,6 +364,9 @@
     var act = el.getAttribute('data-act');
     if (act === 'next-sheet' || act === 'next-order')
       PP.runNext(act, el.getAttribute('data-id') || '');
+    var Sheet = window.SeganProjectSheet;
+    if (act === 'project' && Sheet && typeof Sheet.open === 'function')
+      Sheet.open(el.getAttribute('data-id') || '');
   }
 
   // ── 읽기 ───────────────────────────────────────────────

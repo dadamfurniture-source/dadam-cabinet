@@ -70,6 +70,7 @@
     assignEmpty: '진행 중인 프로젝트가 없습니다.',
     assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
     notMine: '대표 · 실장이 합니다',
+    sheet: '진행 보기',
     today: '오늘',
     days: '일째',
     views: '번 열어 봄',
@@ -276,9 +277,15 @@
     var canWork = canWorkOn(p);
     var working = canWork && J.workFor === p.id;
     var flow = flowOf(p);
+    // 진행 보기 — 프로젝트 한 건 창 (segan/project-sheet.js). 담당자 고르는 보기에서는 뺀다
+    var Sheet = window.SeganProjectSheet;
+    var canSheet = !J.view.assign && Sheet && typeof Sheet.canOpen === 'function' && Sheet.canOpen();
     var acts =
       flow.act +
       (flow.tail || '') +
+      (canSheet
+        ? '<button type="button" class="mk-btn" data-act="sheet" data-for="' + esc(p.id) + '">' + esc(TEXT.sheet) + '</button>'
+        : '') +
       (canAssign && J.assignFor !== p.id
         ? '<button type="button" class="mk-btn" data-act="assign" data-for="' + esc(p.id) + '">담당자</button>'
         : '') +
@@ -670,6 +677,13 @@
     return typeof m === 'string' && m ? m : TEXT.generic;
   }
 
+  /** GET /company/projects/:id → { ok, status, data } — 프로젝트 한 건 창이 읽는다 (segan/project-sheet.js) */
+  async function readProject(id) {
+    if (!J.base || typeof id !== 'string' || !UUID_RE.test(id)) return { ok: false, status: 0, data: null };
+    var r = await call('GET', '/company/projects/' + id);
+    return { ok: r.ok, status: r.status, data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null };
+  }
+
   /** GET /company/projects → { company, manage, items } | null */
   async function fetchList() {
     var r = await call('GET', '/company/projects');
@@ -825,6 +839,11 @@
     var nextAct = el.getAttribute('data-act');
     if (nextAct === 'next-sheet') return nextSheet(el.getAttribute('data-id') || '');
     if (nextAct === 'next-order') return nextOrder(el.getAttribute('data-id') || '');
+    if (nextAct === 'sheet') {
+      var Sheet = window.SeganProjectSheet;
+      if (Sheet && typeof Sheet.open === 'function') Sheet.open(el.getAttribute('data-for') || '');
+      return;
+    }
     var act = el.getAttribute('data-act');
     if (act === 'open') {
       J.open = true;
@@ -966,6 +985,7 @@
     focusProject: focusProject,
     nextOf: nextOf,
     runNext: runNext,
+    readProject: readProject,
     onChange: null, // 목록이 바뀌면 부를 것 (me.js 가 건다)
   };
 })();

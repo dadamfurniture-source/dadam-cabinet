@@ -137,6 +137,8 @@ async function load(options = {}) {
   document.body.innerHTML =
     '<section id="meDash"><div class="ib" id="meInbox" hidden></div></section>';
   delete window.SeganInbox;
+  delete window.SeganProjectSheet;
+  if (opts.sheet) window.SeganProjectSheet = opts.sheet;
   window.DADAM_CONFIG = { workflowApi: { url: opts.work === undefined ? WORK + '/' : opts.work } };
   const calls = [];
   window.fetch = jest.fn(async (url, init = {}) => {
@@ -316,6 +318,26 @@ describe('화면', () => {
       .click();
     expect(runNext).toHaveBeenCalledWith('next-sheet', P(2));
     expect(calls.length).toBe(1); // 이 파일은 서버에 쓰지 않는다
+  });
+
+  test('프로젝트 이름 — 프로젝트 한 건 창이 있으면 누르는 단추, 누르면 그 창 (없으면 글자만)', async () => {
+    await load();
+    expect(box().querySelector('[data-act="project"]')).toBeNull();
+    const sheet = { canOpen: () => true, open: jest.fn() };
+    const { runNext } = await load({ sheet });
+    const name = box().querySelector(`[data-ib-project="${P(2)}"] [data-act="project"]`);
+    expect([name.tagName, name.getAttribute('type'), name.textContent]).toEqual([
+      'BUTTON',
+      'button',
+      '설계 전',
+    ]);
+    name.click();
+    expect(sheet.open).toHaveBeenCalledWith(P(2));
+    expect(runNext).not.toHaveBeenCalled();
+    // 표의 글은 그대로다
+    expect(rows()[4]).toEqual(['설계 시작', '설계 전', '3일째', '설계 시작']);
+    await load({ sheet: { canOpen: () => false, open: jest.fn() } });
+    expect(box().querySelector('[data-act="project"]')).toBeNull();
   });
 
   test('소식 — 새 것부터, 프로젝트 이름은 글자 그대로. 지난번에 본 뒤 생긴 것만 「새」 (이 기기가 기억한다)', async () => {
