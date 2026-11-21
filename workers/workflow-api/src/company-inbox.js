@@ -55,6 +55,9 @@ const NEWS_SKIP = Object.freeze([
   'document_revoked',
   'assignee_set',
   'assignee_cleared',
+  'design_started',
+  // 일정 날짜를 바꾼 것 — 달력에서 보면 된다 (잡음 · 취소는 소식에 낸다)
+  ...Object.keys(EVENT_LABEL).filter((k) => k.startsWith('schedule_moved_')),
 ]);
 
 /** 소식을 돌아보는 날수 · 줄 수 */
@@ -315,10 +318,10 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
   }
   for (const r of requests || []) {
     if (['recommended', 'accepted', 'declined', 'expired'].includes(r.status))
-      tell(`request_${r.status}`, r.status_at, 'p-make', r.project_id);
+      tell(`request_${r.status}`, r.status_at, 'p-make', r.project_id, r.id);
   }
-  for (const r of received || []) tell('request_received', r.status_at, 'p-make', r.factory_project_id);
-  for (const a of asRows || []) tell('as_requested', a.created_at, 'p-as', (orderOf.get(a.order_id) || {}).project_id);
+  for (const r of received || []) tell('request_received', r.status_at, 'p-make', r.factory_project_id, r.id);
+  for (const a of asRows || []) tell('as_requested', a.created_at, 'p-as', (orderOf.get(a.order_id) || {}).project_id, a.id);
   for (const e of decided || [])
     tell(`approval_${e.state}`, e.decided_at, 'p-contract', (orderOf.get(e.order_id) || {}).project_id, e.order_id);
   // 일지를 얹는다 — 같은 일에는 「누가」를 붙이고, 일지에만 있는 일(보류 · 생산 시작 · 돈 들어옴 …)은 줄을 더한다

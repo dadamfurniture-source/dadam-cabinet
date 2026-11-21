@@ -732,7 +732,8 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     });
     return { ...r, sent };
   }
-  const OPENER = '싱크대 연출을 함께 정해 볼게요. 먼저 도어 색은 화이트 · 우드 · 그레이 가운데 어느 쪽이 좋으세요?';
+  const OPENER =
+    '싱크대 구성에서 원하시는 게 있으면 편하게, 되도록 구체적으로 적어 주세요. 이야기 들으면서 하나씩 같이 정해 볼게요.';
   const log = () =>
     [...$('mkChatLog').querySelectorAll('.mk-chat-msg')].map((p) => [
       p.className.replace('mk-chat-msg mk-chat-msg--', ''),

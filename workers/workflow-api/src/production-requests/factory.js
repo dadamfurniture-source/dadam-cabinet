@@ -29,6 +29,7 @@ import {
   updateBy,
 } from '../supabase.js';
 import { companyOf } from '../distribution/company.js';
+import { logProject } from '../project-log.js';
 import {
   LIST_LIMIT,
   REASON_MAX,
@@ -330,6 +331,29 @@ export async function acceptFactoryRequest(env, { user, params, ctx, nowMs = Dat
         dedupeSuffix: 'accepted',
       })
     );
+    // 프로젝트 일지 — 영업 사원 업체 쪽에는 「팩토리가 받았다」(팩토리 사람은 그 업체 구성원이 아니라 이름을 싣지 않는다),
+    //   받은 팩토리 쪽에는 새 프로젝트와 누가 받았는지
+    await logProject(env, ctx, {
+      companyId: req.company_id,
+      projectId: req.project_id,
+      actor: { kind: 'system' },
+      type: 'request_accepted',
+      subject: { type: 'request', id: req.id },
+    });
+    await logProject(env, ctx, {
+      companyId,
+      projectId,
+      actor: { id: user.id },
+      type: 'project_created',
+      subject: { type: 'project', id: projectId },
+    });
+    await logProject(env, ctx, {
+      companyId,
+      projectId,
+      actor: { id: user.id },
+      type: 'request_received',
+      subject: { type: 'request', id: req.id },
+    });
     return {
       request_id: req.id,
       customer_id: customer.id,
@@ -396,6 +420,13 @@ export async function declineFactoryRequest(env, { user, params, body, ctx, nowM
       console.warn('[production] 못 받음 기록 실패:', e && e.statusCode ? e.statusCode : 'error')
     );
     await later(ctx, noticeReturned(env, req, rec, 'declined'));
+    await logProject(env, ctx, {
+      companyId: req.company_id,
+      projectId: req.project_id,
+      actor: { kind: 'system' },
+      type: 'request_declined',
+      subject: { type: 'request', id: req.id },
+    });
     return { request_id: req.id, status: 'declined' };
   });
 }
@@ -458,6 +489,13 @@ export async function runProductionOfferExpiry(
         { response: 'expired' }
       );
       await noticeReturned(env, req, rec, 'expired');
+      await logProject(env, null, {
+        companyId: req.company_id,
+        projectId: req.project_id,
+        actor: { kind: 'system' },
+        type: 'request_expired',
+        subject: { type: 'request', id: req.id },
+      });
       out.expired += 1;
     } catch (e) {
       out.failed += 1;

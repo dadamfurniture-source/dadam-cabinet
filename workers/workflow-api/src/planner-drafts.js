@@ -40,6 +40,7 @@ import {
 import { isAdmin } from './reports/admin.js';
 import { isMissingRelation } from './work-order-data.js';
 import { uploadObject } from './storage.js';
+import { logProject } from './project-log.js';
 
 /** 플래너를 쓸 수 있는 협력업체 plan */
 export const PLANNER_PLANS = Object.freeze(['expert', 'agent', 'manager']);
@@ -384,6 +385,16 @@ export async function saveDraftIn(env, { company, canManage, userId, body }, opt
       } catch (e) {
         if (e instanceof ConflictError) throw conflict('다른 곳에서 막 저장된 설계입니다 — 다시 열어 주세요', 'conflict', { rev: null });
         throw e;
+      }
+      // 프로젝트 일지 — 프로젝트에서 시작한 설계의 첫 저장 (사람이 한 저장만. 본사 점검의 저장은 적지 않는다)
+      if (userId && opts.internal !== true && fields.summary.projectId) {
+        await logProject(env, opts.ctx, {
+          companyId: company.id,
+          projectId: fields.summary.projectId,
+          actor: { id: userId },
+          type: 'design_started',
+          subject: { type: 'draft', id: model.id },
+        });
       }
       return { id: model.id, rev, count: await liveCount(env, company.id) };
     }

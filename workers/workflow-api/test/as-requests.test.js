@@ -82,6 +82,7 @@ function makeDb({ table = true, assignee = STAFF } = {}) {
     named: [{ id: PARTNER, name: '가나 팩토리', kind: 'partner' }, { id: HQ, name: '다담 공장', kind: 'hq' }],
     admin_roles: [{ user_id: ADMIN, role: 'admin' }],
     as_requests: table ? [] : null,
+    project_events: [],
     outbox: [],
     uploads: [],
     slack: [],
@@ -222,6 +223,12 @@ test('고객 — 사진 올리고 접수, 담당자에게만 앱 알림(주문�
     assert.equal(c.state, 'cancelled');
     assert.ok(c.cancelled_at);
     await assert.rejects(() => cancelMyAsRequest(ENV, { user: u(CUSTOMER), params: { id: r.id } }), (e) => e.statusCode === 409 && e.code === 'not_requested');
+    // 프로젝트 일지 (2026-11-21) — 고객이 접수 · 거둠. 거절된 두 번째 거두기는 적지 않고, 내용 · 사진은 싣지 않는다
+    assert.deepEqual(db.project_events.map((e) => [e.type, e.project_id, e.actor_kind, e.actor_user_id, e.subject_type, e.subject_id]), [
+      ['as_requested', PRJ, 'customer', CUSTOMER, 'as', r.id],
+      ['as_cancelled', PRJ, 'customer', CUSTOMER, 'as', r.id],
+    ]);
+    assert.ok(!JSON.stringify(db.project_events).includes('문이') && !JSON.stringify(db.project_events).includes(photo_path));
   });
 });
 
@@ -271,6 +278,12 @@ test('팩토리 — A/S함 · 받기 · 끝(A/S 완료 보고와 잇기), 담당
     assert.deepEqual([done.state, done.report_id], ['done', REP_AS]);
     assert.equal(db.as_requests[0].done_report_id, REP_AS);
     assert.ok(db.as_requests[0].done_at);
+    // 프로젝트 일지 — 누가 받았고 누가 끝냈나 (거절된 시도는 적지 않는다)
+    assert.deepEqual(db.project_events.map((e) => [e.type, e.project_id, e.actor_kind, e.actor_user_id, e.subject_type, e.subject_id]), [
+      ['as_requested', PRJ, 'customer', CUSTOMER, 'as', r.id],
+      ['as_received', PRJ, 'member', STAFF, 'as', r.id],
+      ['as_done', PRJ, 'member', OWNER, 'as', r.id],
+    ]);
   });
 });
 
