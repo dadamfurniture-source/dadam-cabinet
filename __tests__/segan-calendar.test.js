@@ -1243,3 +1243,126 @@ describe('프로젝트의 작업', () => {
     expect(workBtns().map(text)).toEqual(['작업자 보기']);
   });
 });
+
+describe('설치 날 고객 확인 · 프로젝트의 실측 (2026-11-21 뒤 공정 2차 — DB 0079)', () => {
+  const install = (confirmedAt) =>
+    item({
+      key: 'schedule:' + S1,
+      source: 'schedule',
+      id: S1,
+      kind: 'install',
+      type: 'installation',
+      label: '설치',
+      day: '2026-11-10',
+      at: '2026-11-10T01:00:00Z',
+      time: '10:00',
+      status: 'scheduled',
+      customer_confirmed_at: confirmedAt,
+    });
+  const delivery = item({
+    key: 'schedule:' + S2,
+    source: 'schedule',
+    id: S2,
+    kind: 'install',
+    type: 'delivery',
+    label: '납품',
+    day: '2026-11-10',
+    at: '2026-11-10T02:00:00Z',
+    time: '11:00',
+    status: 'scheduled',
+  });
+  const btns = () =>
+    [...box().querySelectorAll('[data-act="confirm"]')].map((b) => [
+      b.getAttribute('data-id'),
+      b.textContent,
+      b.getAttribute('data-on'),
+    ]);
+
+  test('설치 날 고객 확인 — 서버가 쓸 수 있다고 할 때만(confirm_ready) 설치 일정 줄에 「고객 확인 표시」. 누르면 PATCH · 다시 읽기, 확인한 줄에는 날짜와 「확인 지우기」', async () => {
+    // 쓰지 않는 서버(DB 0079 전 · 옛 서버) — 표시도 단추도 없다
+    await load({ sched: () => ok(sched({ items: [install('2026-11-09T05:00:00Z'), delivery] })) });
+    await flush();
+    expect(btns()).toEqual([]);
+    expect(box().querySelector('[data-cal="confirmed"]')).toBeNull();
+
+    let confirmedAt = null;
+    const sent = [];
+    const calls = await load({
+      sched: () => ok(sched({ confirm_ready: true, items: [install(confirmedAt), delivery] })),
+      patch: (body, url) => {
+        sent.push([url.slice(WORK.length), body]);
+        confirmedAt = body.customer_confirmed ? '2026-11-09T05:00:00Z' : null;
+        return ok({ id: S1 });
+      },
+    });
+    await flush();
+    expect(btns()).toEqual([[S1, '고객 확인 표시', '1']]); // 납품 줄에는 없다
+    expect(box().querySelector('[data-cal="confirmed"]')).toBeNull();
+    const before = schedCalls(calls).length;
+    await click('[data-act="confirm"]');
+    expect(sent).toEqual([['/schedules/' + S1, { customer_confirmed: true }]]);
+    expect(schedCalls(calls).length).toBeGreaterThan(before); // 다시 읽었다
+    expect(text(box().querySelector('[data-cal="confirmed"]'))).toBe('고객 확인 11.09');
+    expect(btns()).toEqual([[S1, '확인 지우기', '0']]);
+    await click('[data-act="confirm"]');
+    expect(sent[1]).toEqual(['/schedules/' + S1, { customer_confirmed: false }]);
+    expect(box().querySelector('[data-cal="confirmed"]')).toBeNull();
+    expect(btns()).toEqual([[S1, '고객 확인 표시', '1']]);
+  });
+
+  test('설치 날 고객 확인 — 직원(can_manage 거짓)은 표시만 보고 단추가 없다, 취소한 설치 일정에는 아무것도 없다, 서버가 거절하면 그 글을 알린다', async () => {
+    await load({
+      sched: () => ok(sched({ can_manage: false, confirm_ready: true, items: [install('2026-11-09T05:00:00Z')] })),
+    });
+    await flush();
+    expect(text(box().querySelector('[data-cal="confirmed"]'))).toBe('고객 확인 11.09');
+    expect(btns()).toEqual([]);
+
+    await load({
+      sched: () => ok(sched({ confirm_ready: true, items: [{ ...install(null), status: 'cancelled' }] })),
+    });
+    await flush();
+    expect(btns()).toEqual([]);
+
+    await load({
+      sched: () => ok(sched({ confirm_ready: true, items: [install(null)] })),
+      patch: () => fail(409, 'db_pending', 'DB 0079 적용 전입니다 — 고객 확인 표시는 적용 뒤에 쓸 수 있습니다'),
+    });
+    await flush();
+    await click('[data-act="confirm"]');
+    expect(box().textContent).toContain('DB 0079 적용 전입니다');
+    expect(btns()).toEqual([[S1, '고객 확인 표시', '1']]);
+  });
+
+  test('프로젝트의 실측 — 영업 색 「실측」 줄 · 상태 글 · 「열기」는 실측 화면. 일정 표의 줄이 아니라 여기서 고치지 않는다', async () => {
+    const visit = item({
+      key: 'visit:v1',
+      source: 'visit',
+      id: 'v1',
+      kind: 'sales',
+      type: 'measurement',
+      label: '실측',
+      day: '2026-11-10',
+      at: '2026-11-10T05:00:00Z',
+      time: '14:00',
+      status: 'scheduled',
+      assignee_name: '박실장',
+      project: { id: P1, title: '예시 주방' },
+    });
+    const C = lib();
+    expect([C.openOf(visit), C.statusOf(visit), C.statusOf({ ...visit, status: 'completed' })]).toEqual([
+      'p-measure',
+      '예정',
+      '끝남',
+    ]);
+    // 일정 표의 실측(설계에 붙은 것)은 지금처럼 상담 화면
+    expect(C.openOf({ ...visit, source: 'schedule' })).toBe('p-consult');
+    await load({ sched: () => ok(sched({ confirm_ready: true, items: [visit] })) });
+    await flush();
+    const li = box().querySelector('.cal-item[data-key="visit:v1"]');
+    expect(text(li.querySelector('b'))).toBe('14:00 실측');
+    expect(text(li.querySelector('.me-badge'))).toBe('예정');
+    expect(li.querySelector('[data-act="edit"]')).toBeNull();
+    expect(li.querySelector('[data-act="confirm"]')).toBeNull();
+  });
+});
