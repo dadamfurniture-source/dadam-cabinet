@@ -625,6 +625,50 @@
     J.msg = TEXT.created;
     if (list) J.data = list;
     render();
+    if (list) changed();
+  }
+
+  /** 목록이 바뀌었다 — 마이페이지가 왼쪽 메뉴 줄의 수를 다시 센다 (me.js 가 onChange 에 건다). 그리기에서는 부르지 않는다 (되풀이 방지) */
+  function changed() {
+    var fn = window.SeganPartnerProjects && window.SeganPartnerProjects.onChange;
+    if (typeof fn !== 'function') return;
+    try {
+      fn();
+    } catch {
+      // 메뉴를 못 맞춰도 목록은 그대로 둔다
+    }
+  }
+
+  /**
+   * 감추지 않고 다시 읽는다 — 다른 칸이 프로젝트를 만들었을 때 (상담 받기 — segan/partner-consults.js).
+   * load 와 달리 칸을 비우지 않아 메뉴 줄이 깜박이지 않는다. 못 읽었으면 지금 것을 둔다 (false)
+   */
+  async function reload() {
+    if (!J.data || !J.base || !J.session) return false;
+    var list = await fetchList();
+    if (!list) return false;
+    J.data = list;
+    try {
+      render();
+    } catch {
+      return false;
+    }
+    changed();
+    return true;
+  }
+
+  /** 그 프로젝트 줄로 옮기고 초점을 둔다 (받은 상담의 「프로젝트 열기」) — 지금 보기에 그 줄이 없으면 false */
+  function focusProject(id) {
+    var box = $('partnerProjects');
+    if (!box || box.hidden || box.classList.contains('me-off') || !id) return false;
+    var row = Array.prototype.filter.call(box.querySelectorAll('[data-project]'), function (el) {
+      return el.getAttribute('data-project') === id;
+    })[0];
+    if (!row) return false;
+    row.setAttribute('tabindex', '-1');
+    if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' });
+    if (typeof row.focus === 'function') row.focus({ preventScroll: true });
+    return true;
   }
 
   function onClick(e) {
@@ -767,5 +811,8 @@
     canAssign: canAssign,
     openWork: openWork,
     load: load,
+    reload: reload,
+    focusProject: focusProject,
+    onChange: null, // 목록이 바뀌면 부를 것 (me.js 가 건다)
   };
 })();

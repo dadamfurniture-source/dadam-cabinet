@@ -808,6 +808,20 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-45);
 }
 
+/* 프로젝트 관리 줄의 수 (me.js paintCounts, 2026-11-21) — 화살표 바로 앞 · 고정폭 숫자, 0 은 흐리게 */
+.me-subs .sg-row:has([data-me-count])::after {
+  margin-left: 0;
+}
+
+.me-subs [data-me-count] {
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink);
+}
+
+.me-subs [data-me-count][data-n='0'] {
+  color: var(--v5-ink-45);
+}
+
 /* 구역 단추 (#meParts) — 프로젝트 관리 하위 줄이 묶은 화면들 · 설계의 플래너 */
 .me-parts {
   display: flex;
@@ -5474,6 +5488,17 @@ button.sm-num[aria-pressed='true'] {
 }
 
 /* 돌려보낸 상담 — 흐리게 (연락처 없음) */
+/* 받은 상담 — 「프로젝트 열기」 (segan/partner-consults.js projectLinkHtml) */
+.me-cs-next {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+
+.me-cs-next a {
+  color: var(--v5-ink);
+  text-underline-offset: 3px;
+}
+
 .me-cs-item--off {
   border-color: var(--v5-line);
   background: var(--v5-well);

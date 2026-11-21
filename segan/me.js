@@ -13,8 +13,9 @@
        업무 (머리글은 업체 구성원 · 본사 구성원만)
          홈            관리자 — 오늘 현황 · 경영 대시보드 조각(이익 · 목표 · 손익 분석 · 현금 · 미수 · 매출 예측은 앱 화면
                         segan/hq-board.html#조각, 고객 흐름 · 공정 · 품질은 PC 화면 admin/management.html?part=)
-         프로젝트 관리  영업 · 설계 · 생산 · 설치 · A/S — 줄 하나가 화면 여럿을 묶는다 (SUBS, 화면 위 구역 단추 #meParts):
-                        영업 = 상담 #p-consult · 견적 · 계약 · 수금 · 고객(수금 · 고객은 업체만, 준비 중), 설계 = #p-design (+ 플래너 단추),
+         프로젝트 관리  상담 · 설계 · 견적 · 계약 · 생산 · 설치 · A/S — 일 차례대로 (2026-11-21 대표님 「설계 먼저」, 옛 「영업」 줄을 나눴다).
+                        줄 하나가 화면 여럿을 묶는다 (SUBS, 화면 위 구역 단추 #meParts). 줄 오른쪽에 그 단계의 수 (ROW_COUNT · paintCounts):
+                        상담 = #p-consult, 견적 · 계약 = 견적 #p-quote · 계약 · 수금 · 고객(수금 · 고객은 업체만), 설계 = #p-design (+ 플래너 단추),
                         생산 = #p-make · 생산 계획 #p-plan (다담 공장) · 외주 발주 #p-outsource · 생산 설정 #p-config, 설치 = #p-install, A/S = #p-as. 고객은 「상담 · 계약」 · 「제작」 이라 적는다 (data-customer).
                         고객: 상담 = 내 상담 내역, 견적 ~ 설치 = 내 프로젝트를 그 단계로 거름, A/S = 내 A/S 접수
                         업체: 상담 = 배정 상담 · 상담 단계 프로젝트 · 상담 설정 (팩토리 = 다담 공장 · Expert · Agent,
@@ -29,8 +30,8 @@
                         생산 설정 = 표준시간 · 인력 · 외주 업체 · 상판 · 납기 · 견적 원가 (#productionSettings —
                         segan/production-settings.js, 다담 공장 · 협력업체의 대표 · 실장)
                         단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다).
-                        대시보드(#dash-project) = 단계별 수 + 우리 팩토리 숫자(#meNumbers — 대표 · 실장, segan/company-summary.js)
-                        + 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js) + 프로젝트 목록.
+                        대시보드(#dash-project) = 업무 달력(#meCalendar — 업체 구성원만, segan/calendar.js)
+                        + 우리 팩토리 숫자(#meNumbers — 대표 · 실장, segan/company-summary.js) + 프로젝트 목록. 단계 칸은 없다 (수는 왼쪽 줄에).
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
        관리
          구매 · 재고   팩토리 — 기본 자재 · 철물 (#stock-board · #stock-hardware — segan/stock.js, 다담 공장 · Expert · Agent 구성원.
@@ -591,9 +592,9 @@
       parts: ['productionSettings'],
       label: 'productionSettingsTitle',
     },
-    // 영업 › 수금 (업체) — 수금 표 (segan/orders.js)
+    // 견적 · 계약 › 수금 (업체) — 수금 표 (segan/orders.js)
     'p-collect': { title: '수금', pick: collectScreen },
-    // 영업 › 고객 (업체) — 고객 목록 · 이름 · 전화 고치기 (segan/customers.js)
+    // 견적 · 계약 › 고객 (업체) — 고객 목록 · 이름 · 전화 고치기 (segan/customers.js)
     'p-customers': { title: '고객', pick: customersScreen },
     // 구매 · 재고 (Expert 이상 · 공장) — 기본 자재 · 철물은 segan/stock.js 가 읽었을 때 그 화면, 아니면 준비 중
     'stock-board': {
@@ -770,21 +771,25 @@
     'as-mine': 'p-as',
   };
   // 프로젝트 관리 하위 줄(data-me-item) → 묶은 화면 (차례 = 화면 위 구역 단추 차례, 첫 화면이 줄의 주소)
+  // 2026-11-21 대표님 「설계 먼저」 — 줄을 일 차례대로: 상담 · 설계 · 견적 · 계약 · 생산 · 설치 · A/S (옛 「영업」 줄을 둘로 나눴다)
   var SUBS = {
-    'pj-sales': ['p-consult', 'p-quote', 'p-contract', 'p-collect', 'p-customers'],
+    'pj-consult': ['p-consult'],
     'pj-design': ['p-design'],
+    'pj-deal': ['p-quote', 'p-contract', 'p-collect', 'p-customers'],
     'pj-make': ['p-make', 'p-plan', 'p-outsource', 'p-config'],
     'pj-install': ['p-install'],
     'pj-as': ['p-as'],
   };
   var MEMBER_PARTS = ['p-collect', 'p-customers']; // 업체 구성원만 (수금 = 수금 표 · 고객 = 고객 목록)
-  // 대시보드 칸 — 프로젝트 관리 하위 줄마다 셀 단계 · 작은 글 (A/S 는 처리 중 접수)
-  var DASH_COUNT = {
-    'pj-sales': { stages: ['consult', 'quote', 'contract'], note: '상담 · 견적 · 계약' },
-    'pj-design': { stages: ['design'], note: '설계 · 연출컷' },
-    'pj-make': { stages: ['make'], note: '제작 중' },
-    'pj-install': { stages: ['install'], note: '배송 · 설치' },
-    'pj-as': { as: true, note: '처리 중' },
+  // 왼쪽 메뉴 줄의 수 — 프로젝트 관리 하위 줄마다 셀 단계 (2026-11-21 대표님 「숫자를 왼쪽 패널에」 — 대시보드 단계 칸을 대신한다).
+  //   상담 = 상담 단계 프로젝트 + 답을 기다리는 배정 상담, A/S = 처리 중 접수
+  var ROW_COUNT = {
+    'pj-consult': { stages: ['consult'], waiting: true },
+    'pj-design': { stages: ['design'] },
+    'pj-deal': { stages: ['quote', 'contract'] },
+    'pj-make': { stages: ['make'] },
+    'pj-install': { stages: ['install'] },
+    'pj-as': { as: true },
   };
   var AS_OPEN = ['requested', 'received']; // 접수 · 받음 (segan/as-requests.js STATE_LABEL)
   var SECTIONS = [
@@ -1193,13 +1198,22 @@
     if (!Array.isArray(list)) return null;
     var n = {};
     list.forEach(function (p) {
-      var k = menuStage(
-        p && p.stage,
-        p && p.order && typeof p.order === 'object' ? p.order.status : ''
-      );
+      if (!p || (p.status && p.status !== 'active')) return; // 끝남 · 취소 · 넘김은 세지 않는다
+      // 서버가 정한 지금 단계(step — workflow-api pipeline.js)가 있으면 그것, 없으면 지금처럼 단계 + 수주 상태
+      var k =
+        typeof p.step === 'string' && p.step
+          ? p.step
+          : menuStage(p.stage, p.order && typeof p.order === 'object' ? p.order.status : '');
       n[k] = (n[k] || 0) + 1;
     });
     return n;
+  }
+
+  /** 답을 기다리는 배정 상담 수 — 팩토리만 (segan/partner-consults.js, 못 읽었으면 0) */
+  function waitingConsults(v) {
+    var C = window.SeganPartnerConsults;
+    var n = v.member && C && typeof C.waitingCount === 'function' ? C.waitingCount() : null;
+    return typeof n === 'number' ? n : 0;
   }
 
   /** 처리 중(접수 · 받음) A/S 수 — 업체는 A/S함, 고객은 내 접수 (읽지 못했으면 null) */
@@ -1212,29 +1226,44 @@
     }).length;
   }
 
-  /** 대시보드 칸의 수 — 프로젝트 관리 하위 줄만 (모르면 null) */
+  /** 왼쪽 메뉴 줄의 수 — 프로젝트 관리 하위 줄만 (모르면 null) */
   function countOf(key, v) {
-    var c = own(DASH_COUNT, key) ? DASH_COUNT[key] : null;
+    var c = own(ROW_COUNT, key) ? ROW_COUNT[key] : null;
     if (!c) return null;
     if (c.as) return asCount(v);
     var n = stageCounts(v);
     if (!n) return null;
-    return c.stages.reduce(function (sum, k) {
-      return sum + (n[k] || 0);
-    }, 0);
+    return (
+      c.stages.reduce(function (sum, k) {
+        return sum + (n[k] || 0);
+      }, 0) + (c.waiting ? waitingConsults(v) : 0)
+    );
   }
 
-  /** 대시보드 칸 하나 — 그 하위 줄과 같은 곳으로 (글 · 값은 줄에서, 수는 프로젝트 관리만) */
-  function tileHtml(li, v) {
+  /** 프로젝트 관리 하위 줄마다 수를 적는다 — 모르면 비운다 (값이 바뀌면 굴린다 — segan/motion.js) */
+  function paintCounts(v) {
+    var M = motion();
+    document.querySelectorAll('#meHub li[data-me-item] [data-me-count]').forEach(function (el) {
+      var li = el.closest ? el.closest('li[data-me-item]') : null;
+      var n = li ? countOf(li.getAttribute('data-me-item'), v) : null;
+      var text = n === null ? '' : String(n);
+      if (el.getAttribute('data-n') === text) return;
+      var from = el.getAttribute('data-n');
+      el.setAttribute('data-n', text);
+      if (M && typeof M.roll === 'function' && n !== null && from) M.roll(el, Number(from), n);
+      else el.textContent = text;
+    });
+  }
+
+  /** 대시보드 칸 하나 — 그 하위 줄과 같은 곳으로 (글 · 값은 줄에서) */
+  function tileHtml(li) {
     var a = li.querySelector('a.sg-row');
     if (!a) return '';
-    var key = li.getAttribute('data-me-item');
     var first = a.querySelector('span');
     var val = a.querySelector('.me-val');
     var soon = a.classList.contains('me-row-soon');
     var go = a.getAttribute('data-me-go');
-    var n = countOf(key, v);
-    var note = n !== null ? DASH_COUNT[key].note : soon ? '준비 중' : val ? val.textContent : '';
+    var note = soon ? '준비 중' : val ? val.textContent : '';
     return (
       '<a class="me-tile' +
       (soon ? ' me-tile-soon' : '') +
@@ -1246,7 +1275,6 @@
       '><span class="me-tile-k">' +
       esc((first || a).textContent) +
       '</span>' +
-      (n !== null ? '<span class="me-tile-n">' + esc(String(n)) + '</span>' : '') +
       (note ? '<span class="me-tile-d">' + esc(note) + '</span>' : '') +
       '</a>'
     );
@@ -1257,22 +1285,27 @@
     var body = $('meDashBody');
     if (!body) return;
     var m = menuEl(key);
-    var v = viewer();
     var rows = m ? [].slice.call(m.querySelectorAll('li[data-me-item]:not([hidden])')) : [];
     var title = $('meDashTitle');
     if (title) title.textContent = SCREENS['dash-' + key].title;
-    paint(
-      body,
-      rows.length
-        ? '<div class="me-tiles">' +
-            rows
-              .map(function (li) {
-                return tileHtml(li, v);
-              })
-              .join('') +
-            '</div>'
-        : '<p class="me-empty">' + esc(TEXT.dashEmpty) + '</p>'
-    );
+    // 프로젝트 관리 — 단계 칸은 왼쪽 메뉴 줄과 같은 화면이라 그리지 않는다 (수는 그 줄에 — paintCounts).
+    //   수가 없는 줄(본사 · 관리자의 「설계」 = 플래너)만 칸으로 남긴다
+    var tiles = rows.filter(function (li) {
+      return !own(ROW_COUNT, li.getAttribute('data-me-item'));
+    });
+    var html = tiles.length
+      ? '<div class="me-tiles">' +
+        tiles
+          .map(function (li) {
+            return tileHtml(li);
+          })
+          .join('') +
+        '</div>'
+      : rows.length
+        ? ''
+        : '<p class="me-empty">' + esc(TEXT.dashEmpty) + '</p>';
+    paint(body, html);
+    body.hidden = !html;
   }
 
   /** 지금 주소 · 폭에 맞는 화면을 보인다 ('' = 메뉴만, 폰 · 태블릿) */
@@ -1557,8 +1590,10 @@
     var staged = !v.platform && (v.member ? pr : shown('meProjectSection'));
     switch (key) {
       // 프로젝트 관리
-      case 'pj-sales':
+      case 'pj-consult':
         return !v.platform && (v.member ? available('p-consult') : true);
+      case 'pj-deal': // 견적 · 계약 (· 수금 · 고객) — 업체는 그 화면 가운데 하나라도 열렸을 때, 고객은 내 프로젝트를 읽었을 때
+        return v.member ? !v.platform && SUBS['pj-deal'].some(available) : staged;
       case 'pj-design':
       case 'pj-make':
       case 'pj-install':
@@ -1694,11 +1729,13 @@
         if (link) link.classList.toggle('me-row-soon', !shown(STOCK_PARTS[key]));
       }
     });
-    // 프로젝트 관리 — 고객에게는 「상담 · 계약」 · 「제작」 (data-customer), 업체 · 본사는 「영업」 · 「생산」
+    // 프로젝트 관리 — 고객에게는 「제작」 (data-customer), 업체 · 본사는 「생산」. 이름 칸(data-row-label)만 바꾼다 — 옆의 수는 그대로
     document.querySelectorAll('#meHub a[data-customer]').forEach(function (a) {
-      if (!a.hasAttribute('data-label')) a.setAttribute('data-label', a.textContent);
-      a.textContent = a.getAttribute(v.member || v.platform ? 'data-label' : 'data-customer');
+      var name = a.querySelector('[data-row-label]') || a;
+      if (!a.hasAttribute('data-label')) a.setAttribute('data-label', name.textContent);
+      name.textContent = a.getAttribute(v.member || v.platform ? 'data-label' : 'data-customer');
     });
+    paintCounts(v);
     // 내 계정 › 내 팩토리 — 업체 이름, 업체가 없으면 「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」
     var p = partnerOf();
     var label = $('mePartnerLabel');
@@ -1759,6 +1796,10 @@
 
   /** 모듈이 칸을 열고 닫으면(hidden) · 업체 내용을 다시 그리면 메뉴를 맞춘다 */
   function watch() {
+    // 목록이 바뀌면(프로젝트 만들기 · 상담 받기 · 못 받음) 왼쪽 줄의 수를 다시 센다 — 칸의 hidden 은 그대로라 아래 관찰로는 모른다
+    [window.SeganPartnerProjects, window.SeganPartnerConsults].forEach(function (mod) {
+      if (mod) mod.onChange = sync;
+    });
     if (typeof MutationObserver !== 'function') return;
     var mo = new MutationObserver(sync);
     SECTIONS.concat(PARTNER_PARTS).forEach(function (id) {

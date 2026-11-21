@@ -426,6 +426,61 @@ describe('새 고객 · 프로젝트', () => {
     expect(box().querySelector('.me-pt-msg').textContent).toBe('프로젝트를 만들었습니다.');
   });
 
+  test('만들면 목록이 바뀌었다고 알린다(onChange — 마이페이지가 왼쪽 줄의 수를 다시 센다), 그리기만으로는 알리지 않는다', async () => {
+    await load();
+    await flush();
+    const onChange = jest.fn();
+    window.SeganPartnerProjects.onChange = onChange;
+    window.SeganPartnerProjects.setView({ stage: 'consult' });
+    expect(onChange).not.toHaveBeenCalled();
+    window.SeganPartnerProjects.setView({ stage: '' });
+    box().querySelector('[data-act="open"]').click();
+    setValue('input[name="title"]', '거실장');
+    setValue('input[name="name"]', '박고객');
+    setValue('input[name="phone"]', '010-3333-4444');
+    await submit();
+    await flush();
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  test('reload — 칸을 감추지 않고 다시 읽는다 (상담 받기 뒤), 못 읽으면 지금 것을 둔다 · focusProject — 그 줄로 옮긴다', async () => {
+    let n = 0;
+    const calls = await load({
+      list: () => {
+        n += 1;
+        if (n === 3) return fail(500, 'x', 'x');
+        return ok(projects(n === 2 ? { items: projects().items.slice(1, 2) } : {}));
+      },
+    });
+    await flush();
+    const PP = window.SeganPartnerProjects;
+    const onChange = jest.fn();
+    PP.onChange = onChange;
+    const before = rows().length;
+    const hidden = [];
+    const mo = new MutationObserver((list) => list.forEach(() => hidden.push(box().hidden)));
+    mo.observe(box(), { attributes: true, attributeFilter: ['hidden'] });
+    expect(await PP.reload()).toBe(true);
+    await flush();
+    mo.disconnect();
+    expect(hidden.filter(Boolean)).toEqual([]); // 한 번도 감추지 않았다 (메뉴 줄이 깜박이지 않게)
+    expect(rows()).toHaveLength(1);
+    expect(rows().length).toBeLessThan(before);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(projectCalls(calls).map((c) => c.method)).toEqual(['GET', 'GET']);
+    // 그 줄로 옮긴다 — 지금 화면이 아니면(메뉴만 보이는 폰) false, 프로젝트 목록 화면이면 true, 없는 줄이면 false
+    expect(PP.focusProject(P1)).toBe(false);
+    window.location.hash = '#partner-projects';
+    await flush();
+    expect(PP.focusProject(P1)).toBe(true);
+    expect(document.activeElement).toBe(box().querySelector(`[data-project="${P1}"]`));
+    expect(PP.focusProject('aaaaaaaa-0000-4000-8000-000000000000')).toBe(false);
+    // 못 읽으면 지금 목록 그대로
+    expect(await PP.reload()).toBe(false);
+    expect(rows()).toHaveLength(1);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
   test('있는 고객 — 목록에 나온 고객을 한 번씩 고르게 하고 customer_id 로 보낸다', async () => {
     let created = null;
     await load({
