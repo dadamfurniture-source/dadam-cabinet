@@ -28,6 +28,7 @@ import worker from '../src/worker.js';
 import { runDailyLifecycle, clock, TRIAL_NOTICE_DAYS } from '../src/lifecycle.js';
 import { trialEndingMessage, PUSH_URL } from '../src/push-outbox.js';
 import { TRIAL_DAYS } from '../src/trial.js';
+import { buildMessage, isValidMessage } from '../../workflow-api/src/push/messages.js';
 
 const U1 = '11111111-1111-4111-8111-111111111111';
 const U2 = '55555555-5555-4555-8555-555555555555';
@@ -614,4 +615,12 @@ test('GET /subscription · /plans — 무료 이용 중 상태와 첫 결제일 
   assert.equal(body.data.billing_key, undefined);
   const plans = await (await call('/plans', null, 'GET')).json();
   assert.equal(plans.data.trial_days, 30);
+});
+
+test('알림 글은 workflow-api 의 정본(src/push/messages.js)과 같다 — 7일 전 · 1일 전', () => {
+  for (const days of TRIAL_NOTICE_DAYS) {
+    const mine = trialEndingMessage(days);
+    assert.deepEqual(mine, buildMessage('trial_ending', { daysLeft: days }), `${days}일 전`);
+    assert.equal(isValidMessage(mine), true);
+  }
 });
