@@ -784,6 +784,8 @@
        * 하부장 위 수납장 (2026-11-03 사장님 「밑에 2개의 하부장 위에 1개의 수납장을 올리려고」 → 질문 답 「몸통 위에 바로」):
        *   위에 수납장이 올라간 하부장(브리지 mod.cabinetOnTop)은 밴드 2 대신 천판 — 키큰장 단 · 하부 밥솥장과 같은 짜임 (addLowerCarcassRows topPanel),
        *   그 칸 위에는 상판이 없다 (상판 폭에서 뺀다). 위 수납장은 상부장 짜임의 따로 짠 상자 (pos upper — 모듈 라이브러리가 높이 · 깊이를 준다).
+       * 2026-11-21 사장님 「하부장 위 수납장은 상판위에 올라가는 모듈로 만들어야해」 — 간편 플래너는 cabinetOnTop 을 더 보내지 않는다
+       *   (아래 하부장은 밴드 · 상판 그대로, 수납장은 상판 위). cabinetOnTop 은 그 전에 보낸 도면을 읽을 때만 쓰인다.
        */
       const bomCabinetOnTop = (m) => !!m && m.cabinetOnTop === true;
       /**
@@ -822,8 +824,10 @@
       /**
        * 하부장 위 수납장 도어 아래 끝 — 2026-11-03 사장님 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」.
        *   목찬넬은 품목 손잡이(specs.handle)다 — 아래 하부장이 같은 품목이라 같은 손잡이.
+       * 2026-11-21 사장님 「하부장 위 수납장은 상판위에 올라가는 모듈」 — 수납장 밑이 상판 윗면이라 도어가 몸통 밑으로 내려갈 자리가 없다:
+       *   손잡이와 관계없이 몸통과 같게 (0). 칸 이름은 간편 플래너 manifest(stackBox.doorDropChannel · doorDropOther)가 읽어 두어 그대로 둔다.
        */
-      const BOM_STACK_BOX = Object.freeze({ DOOR_DROP_CHANNEL: 5, DOOR_DROP_OTHER: 0 });
+      const BOM_STACK_BOX = Object.freeze({ DOOR_DROP_CHANNEL: 0, DOOR_DROP_OTHER: 0 });
       /** 하부장 위 수납장 (상부 짜임 상자 — 브리지 mod.stackBox) */
       const bomStackBoxOf = (m) => !!m && m.stackBox === true;
       /**
