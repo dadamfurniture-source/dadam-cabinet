@@ -807,6 +807,11 @@ test('목록 — 영업 사원(Manager 업체): 제작 의뢰 보내기 → 본�
   assert.deepEqual(asks(), [[`eq.${M}`, null]]);
 });
 
+test('목록 — hold_ready: 보류 칸(DB 0078)이 있으면 true', async () => {
+  const r = await call(fakeOf(), '/company/projects', OWNER_A);
+  assert.equal(r.json.data.hold_ready, true);
+});
+
 test('목록 — 보류: 단계는 멈춘 자리 그대로 · 다음 할 일 없음 · 줄에 다시 볼 날과 메모 (진행 중인 줄에는 그 칸이 없다)', async () => {
   const fake = fakeOf();
   const list = async () => (await call(fake, '/company/projects', OWNER_A)).json.data.items;
