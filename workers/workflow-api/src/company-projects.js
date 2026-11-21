@@ -47,6 +47,7 @@ import { membersOf } from './company-assignee.js';
 import { isMissingRelation } from './work-order-data.js';
 import { projectStage } from './projects.js';
 import { pipelineOf } from './company-pipeline.js';
+import { logProject } from './project-log.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -371,7 +372,7 @@ export async function createCompanyProject(env, { user, body, idempotencyKey }) 
 }
 
 /** PUT /designs/:id/project */
-export async function linkDesignProject(env, { user, designId, body }) {
+export async function linkDesignProject(env, { user, designId, body, ctx = null }) {
   if (!isPlainObject(body) || !Object.prototype.hasOwnProperty.call(body, 'project_id'))
     throw new ValidationError('project_id 가 필요합니다 (풀려면 null)', { field: 'project_id' });
   const target = body.project_id;
@@ -437,5 +438,13 @@ export async function linkDesignProject(env, { user, designId, body }) {
       { project_id: target }
     );
   }
+  // 프로젝트 일지 — 이었으면 그 프로젝트에, 풀었으면 풀린 프로젝트에 한 줄
+  await logProject(env, ctx, {
+    companyId: design.company_id,
+    projectId: target || current,
+    actor: { id: user.id },
+    type: target ? 'design_linked' : 'design_unlinked',
+    subject: { type: 'design', id: design.id },
+  });
   return { design_id: design.id, project_id: target };
 }

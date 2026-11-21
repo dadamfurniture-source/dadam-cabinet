@@ -11,9 +11,18 @@
  *
  * actor  { id?: 계정 id, kind?: 'member' | 'customer' | 'worker' | 'admin' | 'system' }
  *        kind 를 안 주면 id 가 있을 때 member, 없으면 system.
+ *
+ * logProject  업체 · 프로젝트를 아는 곳에서.
+ * logAt       수주 · 설계 · 문서 id 만 아는 곳(worker.js 의 서버 길 끝)에서 — 프로젝트를 찾아 적는다.
+ *             프로젝트에 이어지지 않은 설계 · 수주의 일은 적지 않는다.
+ *
+ * 사건 이름(type) — 화면 글은 company-project.js HISTORY_LABEL 이 가진다:
+ *   project_created · consult_accepted · assignee_changed · status_changed · design_linked · design_unlinked · design_sent ·
+ *   quote_sent · quote_revoked · quote_viewed · quote_approved · quote_rejected · document_issued · document_revoked ·
+ *   order_created · order_status · order_requested · approval_approved · approval_rejected · payment_paid
  */
 
-import { insertOne } from './supabase.js';
+import { insertOne, selectOne } from './supabase.js';
 import { isMissingRelation } from './work-order-data.js';
 
 export const ACTOR_KINDS = Object.freeze(['member', 'customer', 'worker', 'admin', 'system']);
@@ -81,6 +90,55 @@ export function logProject(env, ctx, ev) {
   const row = eventRow(ev);
   if (!row) return Promise.resolve();
   const job = write(env, row);
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(job);
+    return Promise.resolve();
+  }
+  return job;
+}
+
+const one = (env, table, id, select) => selectOne(env, table, { id: `eq.${id}`, select });
+
+/** 어느 업체의 어느 프로젝트 일인가 — { companyId, projectId } | null (프로젝트에 이어지지 않았으면 null) */
+export async function locate(env, where) {
+  const w = where && typeof where === 'object' ? where : {};
+  if (isUuid(w.project)) {
+    const p = await one(env, 'projects', w.project, 'id,company_id');
+    return p ? { companyId: p.company_id, projectId: p.id } : null;
+  }
+  if (isUuid(w.order)) {
+    const o = await one(env, 'orders', w.order, 'id,company_id,project_id');
+    return o && o.project_id ? { companyId: o.company_id, projectId: o.project_id } : null;
+  }
+  let designId = isUuid(w.design) ? w.design : null;
+  if (!designId && isUuid(w.document)) {
+    const d = await one(env, 'design_documents', w.document, 'id,design_id');
+    designId = d && d.design_id ? d.design_id : null;
+  }
+  if (!designId) return null;
+  const design = await one(env, 'designs', designId, 'id,company_id,project_id');
+  return design && design.project_id && design.company_id
+    ? { companyId: design.company_id, projectId: design.project_id }
+    : null;
+}
+
+/**
+ * 프로젝트를 찾아 일지 한 줄. 찾기까지 통째로 응답 뒤에 돌린다 (ctx.waitUntil). 무엇이 실패해도 던지지 않는다.
+ * @param {{ project?: string, order?: string, design?: string, document?: string }} where
+ * @param {object} ev  logProject 의 ev 에서 companyId · projectId 를 뺀 것
+ */
+export function logAt(env, ctx, where, ev) {
+  const job = (async () => {
+    try {
+      const at = await locate(env, where);
+      if (!at) return;
+      const row = eventRow({ ...ev, companyId: at.companyId, projectId: at.projectId });
+      if (row) await write(env, row);
+    } catch (err) {
+      if (!isMissingRelation(err))
+        console.warn('project log: skipped —', ev && ev.type, err && err.message);
+    }
+  })();
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(job);
     return Promise.resolve();

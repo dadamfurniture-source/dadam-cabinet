@@ -572,4 +572,4 @@ export async function withFetch(fake, fn) {
 
 /** 쓰기 요청 (GET 빼고) */
 export const writesOf = (fake) =>
-  fake.calls.filter((c) => c.method !== 'GET' && c.method !== 'SIGN');
+  fake.calls.filter((c) => c.method !== 'GET' && c.method !== 'SIGN' && c.table !== 'project_events');

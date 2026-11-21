@@ -18,6 +18,7 @@
 import { ConflictError, NotFoundError, ValidationError, selectMany, selectOne, updateBy } from './supabase.js';
 import { companyOf } from './distribution/company.js';
 import { isMissingRelation } from './work-order-data.js';
+import { logProject } from './project-log.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -150,7 +151,7 @@ export async function assigneeCandidates(env, { user, projectId, nowMs = Date.no
 }
 
 /** PUT /company/projects/:id/assignee */
-export async function setProjectAssignee(env, { user, projectId, body }) {
+export async function setProjectAssignee(env, { user, projectId, body, ctx = null }) {
   if (!isPlainObject(body) || !has(body, 'assignee_id'))
     throw new ValidationError('assignee_id 가 필요합니다 (비우려면 null)', { field: 'assignee_id' });
   const target = body.assignee_id;
@@ -187,5 +188,14 @@ export async function setProjectAssignee(env, { user, projectId, body }) {
     throw e;
   }
   const row = Array.isArray(rows) ? rows[0] : rows;
+  // 프로젝트 일지 — 누가 담당자를 정했나 (누구로 정했는지는 프로젝트 줄이 보여 준다 — 일지에는 정했는지 · 비웠는지만)
+  await logProject(env, ctx, {
+    companyId,
+    projectId: project.id,
+    actor: { id: user.id },
+    type: 'assignee_changed',
+    subject: { type: 'project', id: project.id },
+    payload: { assigned: target !== null },
+  });
   return { project_id: project.id, assignee_id: target, assigned_at: (row && row.assigned_at) || null };
 }
