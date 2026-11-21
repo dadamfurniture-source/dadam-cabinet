@@ -52,6 +52,7 @@ import {
   deleteBy,
 } from './supabase.js';
 import { PLAN_NAMES, PLAN_LABELS, PAID_PLANS, APPROVAL_PLANS, priceFor } from './plans.js';
+import { TRIAL_DAYS, resolveTrial, isTrialTaken } from './trial.js';
 import {
   runDailyLifecycle,
   refundPayment,
@@ -162,6 +163,8 @@ async function handlePlans(request, env) {
     success: true,
     data: {
       client_key: env.TOSS_CLIENT_KEY || '',
+      // 사업자등록증을 확인받은 새 팩토리의 무료 기간 (src/trial.js) — 받을 수 있는가는 account-api GET /partner/cert
+      trial_days: TRIAL_DAYS,
       plans: PAID_PLANS.map((id) => ({
         id,
         name: PLAN_LABELS[id],
@@ -355,6 +358,12 @@ async function handleIssueBillingKey(request, env) {
   if (target.refuse) {
     return jsonResponse(request, env, target.refuse.body, target.refuse.status);
   }
+  // 사업자등록증 첫 달 무료 (src/trial.js) — 화면이 trial: true 를 실은 때만. 받을 수 없으면 카드를 등록하기 전에 멈춘다
+  //   (무료인 줄 알고 눌렀는데 결제되는 일이 없게). 싣지 않았으면 지금처럼 바로 결제한다.
+  const trial = body.trial === true ? await resolveTrial(env, user, target) : null;
+  if (trial && trial.refuse) {
+    return jsonResponse(request, env, trial.refuse.body, trial.refuse.status);
+  }
   // 새 업체의 id 는 여기서 정한다 — 저장 응답을 못 받아도 되돌릴 행을 찾을 수 있게.
   const companyId = target.company ? target.company.id : crypto.randomUUID();
 
@@ -365,18 +374,20 @@ async function handleIssueBillingKey(request, env) {
   });
   const billingKey = billing.billingKey;
 
-  // 2. 첫 과금
+  // 2. 첫 과금 — 무료로 시작하면 건너뛴다 (빌링키만 받아 두고, 30일째 cron 이 첫 결제를 한다)
   const orderId = genOrderId(user.id);
-  const charge = await chargeBillingKey(env, {
-    billingKey,
-    customerKey: body.customer_key,
-    amount,
-    orderId,
-    orderName: PLAN_NAMES[body.plan],
-    customerEmail: user.email,
-    customerName: user.name,
-    idempotencyKey: orderId,
-  });
+  const charge = trial
+    ? null
+    : await chargeBillingKey(env, {
+        billingKey,
+        customerKey: body.customer_key,
+        amount,
+        orderId,
+        orderName: PLAN_NAMES[body.plan],
+        customerEmail: user.email,
+        customerName: user.name,
+        idempotencyKey: orderId,
+      });
 
   // 3. 저장. 여기서 실패하면 방금 한 결제를 토스에서 취소하고 만든 행을 지운다 —
   //    카드는 긁혔는데 구독이 없는 상태를 남기지 않는다.
@@ -396,16 +407,28 @@ async function handleIssueBillingKey(request, env) {
     prevStatus: null,
     prevPlan: null, // 다른 등급으로 다시 시작했으면 { plan, next_plan } (되돌릴 값)
     newPlan: null,
+    bizPatched: false, // 기존 업체에 사업자 정보를 적었다 (무료 시작)
+    grantBizNo: null, // 무료 준 기록을 넣으려 했다 (그 번호)
     subscriptionAttempted: false,
   };
+  // 무료로 시작한 업체에 남기는 확인된 사업자 정보 (DB 0077)
+  const bizInfo = trial
+    ? {
+        biz_no: trial.cert.biz_no,
+        representative_name: trial.cert.representative_name || null,
+        biz_verified_at: start,
+      }
+    : null;
   let subId = null;
   try {
-    const hist = await insertOne(
-      env,
-      'payment_history',
-      historyRow({ userId: user.id, orderId, plan: body.plan, amount, charge })
-    );
-    done.historyId = hist?.id || null;
+    if (!trial) {
+      const hist = await insertOne(
+        env,
+        'payment_history',
+        historyRow({ userId: user.id, orderId, plan: body.plan, amount, charge })
+      );
+      done.historyId = hist?.id || null;
+    }
 
     if (target.create) {
       done.companyAttempted = true;
@@ -418,6 +441,7 @@ async function handleIssueBillingKey(request, env) {
         sido: target.create.sido,
         gugun: target.create.gugun,
         created_by: user.id,
+        ...(bizInfo || {}),
       });
       done.memberAttempted = true;
       await insertOne(env, 'company_members', {
@@ -456,6 +480,26 @@ async function handleIssueBillingKey(request, env) {
       if (!reopened || !reopened.length) throw new Error('company status changed');
     }
 
+    if (trial) {
+      // 관리자가 만들어 둔 업체(구독 없이 active)의 첫 시작이면 사업자 정보를 그 업체에 적는다
+      if (target.company) {
+        done.bizPatched = true;
+        await updateBy(env, 'companies', { id: `eq.${companyId}` }, bizInfo);
+      }
+      // 무료 준 기록 — 구독 행보다 먼저. 사업자번호당 1회는 DB(biz_no 유니크)가 지킨다:
+      // 같은 번호가 그 사이 받았으면 여기서 멈추고 되돌린다.
+      done.grantBizNo = trial.cert.biz_no;
+      await insertOne(env, 'trial_grants', {
+        biz_no: trial.cert.biz_no,
+        certificate_id: trial.cert.id,
+        user_id: user.id,
+        company_id: companyId,
+        plan: body.plan,
+        started_at: start,
+        ends_at: next,
+      });
+    }
+
     const subData = {
       company_id: companyId,
       user_id: user.id,
@@ -465,7 +509,8 @@ async function handleIssueBillingKey(request, env) {
       provider_subscription_id: billingKey,
       billing_key: billingKey,
       amount_krw: amount,
-      status: 'active',
+      // 무료로 시작하면 trialing — 30일 뒤(next_charge_at) cron 이 이 금액으로 첫 결제를 한다
+      status: trial ? 'trialing' : 'active',
       current_period_start: start,
       current_period_end: next,
       next_charge_at: next,
@@ -482,6 +527,31 @@ async function handleIssueBillingKey(request, env) {
     const inserted = await insertOne(env, 'subscriptions', subData);
     subId = inserted?.id || null;
   } catch (e) {
+    if (trial) {
+      // 결제한 것이 없다 — 써 둔 행만 되돌린다
+      console.error(
+        `[payments] trial start save failed: user=${user.id} cause=${e && e.message ? String(e.message).slice(0, 80) : '-'}`
+      );
+      const taken = isTrialTaken(e) && done.grantBizNo && !done.subscriptionAttempted;
+      await undoSavedRows(env, { user, billingKey, companyId, done, keepGrant: taken });
+      return jsonResponse(
+        request,
+        env,
+        taken
+          ? {
+              success: false,
+              code: 'trial_used',
+              message: '이 사업자등록번호는 이미 첫 달 무료를 받았습니다. 결제된 금액은 없습니다.',
+            }
+          : {
+              success: false,
+              code: 'SUBSCRIPTION_SAVE_FAILED',
+              message:
+                '구독 정보를 저장하지 못했습니다. 결제된 금액은 없습니다. 잠시 후 다시 시도해 주세요.',
+            },
+        taken ? 409 : 500
+      );
+    }
     const undone = await undoFirstPayment(env, {
       user,
       orderId,
@@ -506,6 +576,17 @@ async function handleIssueBillingKey(request, env) {
   }
 
   // 4. 따라붙는 일. 실패해도 결제를 되돌리지 않는다 — 구독은 이미 섰다.
+  if (trial) {
+    //    무료 준 기록에 구독을, 사업자등록증 줄에 업체를 잇는다 (본사 화면이 본다)
+    if (subId) {
+      await bestEffort('link trial grant', () =>
+        updateBy(env, 'trial_grants', { biz_no: `eq.${trial.cert.biz_no}` }, { subscription_id: subId })
+      );
+    }
+    await bestEffort('link certificate to company', () =>
+      updateBy(env, 'business_certificates', { id: `eq.${trial.cert.id}` }, { company_id: companyId })
+    );
+  }
   if (subId && done.historyId) {
     await bestEffort('link history to subscription', () =>
       updateById(env, 'payment_history', done.historyId, { subscription_id: subId })
@@ -527,7 +608,7 @@ async function handleIssueBillingKey(request, env) {
       type: 'subscribed',
       subject_type: 'company',
       subject_id: companyId,
-      payload: { plan: body.plan },
+      payload: trial ? { plan: body.plan, trial: true } : { plan: body.plan },
     })
   );
 
@@ -538,6 +619,23 @@ async function handleIssueBillingKey(request, env) {
         ...(target.planChange ? { plan: body.plan, next_plan: target.planChange.nextPlan } : {}),
       }
     : publicCompany({ id: companyId, name: target.create.name, plan: body.plan, status: 'active' });
+  if (trial) {
+    // 오늘 낸 돈은 없다. first_charge_amount_krw = next_charge_at 에 처음 결제될 금액
+    return jsonResponse(request, env, {
+      success: true,
+      message: `${body.plan} 플랜을 첫 달 무료로 시작했습니다.`,
+      data: {
+        plan: body.plan,
+        amount_krw: 0,
+        trial: true,
+        trial_days: TRIAL_DAYS,
+        first_charge_amount_krw: amount,
+        next_charge_at: next,
+        receipt_url: null,
+        company,
+      },
+    });
+  }
   return jsonResponse(request, env, {
     success: true,
     message: `${body.plan} 플랜 구독이 시작되었습니다.`,
@@ -585,7 +683,17 @@ async function undoFirstPayment(
   }
 
   // 결제는 취소됐다. 아래는 되돌릴 수 있는 만큼만 (실패해도 고객 카드에는 영향 없다).
-  // 응답을 못 받았어도 행이 써졌을 수 있다 — 시도한 것은 모두 지운다. 새 빌링키 · 이 업체 id 로 거른다.
+  await undoSavedRows(env, { user, billingKey, companyId, done });
+  return true;
+}
+
+/**
+ * 첫 결제 · 무료 시작에서 써 둔 행을 되돌린다 (결제 취소는 부르는 쪽이 먼저 한다 — 무료 시작은 취소할 결제가 없다).
+ * 응답을 못 받았어도 행이 써졌을 수 있다 — 시도한 것은 모두 지운다. 새 빌링키 · 이 업체 id 로 거른다.
+ * 지우는 순서는 FK 를 따른다: 구독 → 무료 준 기록 → 신청 되돌림 → 업체 되돌림 → 구성원 → 업체.
+ * keepGrant: 무료 준 기록이 「다른 업체가 먼저 받아서」 못 들어간 것이면 그 줄은 남의 것이라 지우지 않는다.
+ */
+async function undoSavedRows(env, { user, billingKey, companyId, done, keepGrant = false }) {
   const now = nowIso();
   if (done.subscriptionAttempted) {
     // 구독 행이 남으면 다음 달에 결제된다
@@ -594,6 +702,25 @@ async function undoFirstPayment(
         company_id: `eq.${companyId}`,
         billing_key: `eq.${billingKey}`,
       })
+    );
+  }
+  if (done.grantBizNo && !keepGrant) {
+    // 이 업체로 넣은 줄만 — 구독 저장이 실패했는데 번호가 「이미 받음」으로 남지 않게
+    await bestEffort('undo trial grant', () =>
+      deleteBy(env, 'trial_grants', {
+        biz_no: `eq.${done.grantBizNo}`,
+        company_id: `eq.${companyId}`,
+      })
+    );
+  }
+  if (done.bizPatched) {
+    await bestEffort('undo company biz info', () =>
+      updateBy(
+        env,
+        'companies',
+        { id: `eq.${companyId}` },
+        { biz_no: null, representative_name: null, biz_verified_at: null }
+      )
     );
   }
   if (done.applicationId) {
@@ -641,7 +768,6 @@ async function undoFirstPayment(
       })
     );
   }
-  return true;
 }
 
 async function bestEffort(label, fn) {
@@ -770,7 +896,8 @@ async function handleCardChange(request, env) {
   }
   const filter = await ownSubscriptionFilter(env, user);
   if (!filter) return notOwner(request, env);
-  const sub = await readOwnSubscription(env, filter, ['active', 'past_due']);
+  // 무료 이용 중(trialing)에도 카드를 바꿀 수 있다 — 30일째 첫 결제가 새 카드로 나간다
+  const sub = await readOwnSubscription(env, filter, ['active', 'past_due', 'trialing']);
   if (!sub) {
     return jsonResponse(
       request,
@@ -810,7 +937,7 @@ async function handleCardChange(request, env) {
     'subscriptions',
     {
       id: `eq.${sub.id}`,
-      status: 'in.(active,past_due)',
+      status: 'in.(active,past_due,trialing)',
       or: lockFreeFilter(),
     },
     {
@@ -862,7 +989,8 @@ async function handleCancel(request, env) {
   const filter = await ownSubscriptionFilter(env, user);
   if (!filter) return notOwner(request, env);
   // 결제 실패로 재시도 중(past_due)인 구독도 해지할 수 있다 — 해지하면 더는 결제하지 않는다.
-  const sub = await readOwnSubscription(env, filter, ['active', 'past_due'], '*');
+  // 무료 이용 중(trialing)에 해지하면 첫 결제 없이, 무료 기간 끝까지 쓰고 끝난다.
+  const sub = await readOwnSubscription(env, filter, ['active', 'past_due', 'trialing'], '*');
   if (!sub) {
     return jsonResponse(
       request,
@@ -877,7 +1005,7 @@ async function handleCancel(request, env) {
     'subscriptions',
     {
       id: `eq.${sub.id}`,
-      status: 'in.(active,past_due)',
+      status: 'in.(active,past_due,trialing)',
       or: lockFreeFilter(),
     },
     {
@@ -902,12 +1030,15 @@ async function handleCancel(request, env) {
   // 결제로 받은 등급(tier_source='subscription')일 때만. 업체 구독은 그때 업체를 closed 로.
   console.log(`Toss subscription cancelled: user=${user.id} reason=${body.reason || '-'}`);
   const pastDue = sub.status === 'past_due';
+  const wasTrial = sub.status === 'trialing';
   return jsonResponse(request, env, {
     success: true,
     message: pastDue
       ? '구독이 해지되었습니다. 더 이상 결제를 시도하지 않습니다.'
-      : '구독이 현재 기간 종료 후 취소됩니다.',
-    data: { cancel_at: sub.current_period_end, past_due: pastDue },
+      : wasTrial
+        ? '구독이 해지되었습니다. 결제 없이 무료 기간이 끝나면 종료됩니다.'
+        : '구독이 현재 기간 종료 후 취소됩니다.',
+    data: { cancel_at: sub.current_period_end, past_due: pastDue, trial: wasTrial },
   });
 }
 
