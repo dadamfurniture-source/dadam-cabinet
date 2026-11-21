@@ -30,7 +30,15 @@ const SRC = (f) => fs.readFileSync(path.join(HERE, '..', 'src', f), 'utf8');
 
 const IMG = { base64: 'AAAA', mimeType: 'image/jpeg' };
 const WALL = { wallW: 3000, wallH: 2400 };
-const input = (category, extra = {}) => ({ category, base: IMG, room: IMG, wall: WALL, options: {}, jobId: 'j1', ...extra });
+const input = (category, extra = {}) => ({
+  category,
+  base: IMG,
+  room: IMG,
+  wall: WALL,
+  options: {},
+  jobId: 'j1',
+  ...extra,
+});
 const answer = (o = {}) =>
   JSON.stringify({
     furniture_box: [100, 100, 900, 900],
@@ -62,7 +70,11 @@ const NO_OVERLOAD = () => 0;
 
 test('대상: 연출컷 품목 10개 모두 · 플래너 모드 · 모르는 품목 · 빈 입력은 null', () => {
   for (const k of Object.keys(CATEGORIES)) assert.equal(fillTarget(input(k)), k, k);
-  assert.equal(Object.keys(FILL_WANT).sort().join(), Object.keys(CATEGORIES).sort().join(), '품목 목록이 같다');
+  assert.equal(
+    Object.keys(FILL_WANT).sort().join(),
+    Object.keys(CATEGORIES).sort().join(),
+    '품목 목록이 같다'
+  );
   assert.equal(fillTarget(input('sink', { options: { mode: 'planner' } })), null);
   assert.equal(fillTarget(input('nope')), null);
   assert.equal(fillTarget(null), null);
@@ -72,7 +84,10 @@ test('게이트: FILL_QC 가 on 이 아니면 시작 · 건너뜀 기록 모두 
   assert.equal(startFillCheck({}, input('wardrobe')), null);
   assert.equal(startFillCheck({ FILL_QC: 'off' }, input('wardrobe')), null);
   assert.equal(fillSkipped({}, input('wardrobe'), 'rerun'), null);
-  assert.equal(startFillCheck({ FILL_QC: 'on' }, input('sink', { options: { mode: 'planner' } })), null);
+  assert.equal(
+    startFillCheck({ FILL_QC: 'on' }, input('sink', { options: { mode: 'planner' } })),
+    null
+  );
 });
 
 // ─────────────────────────── 2. 판정하는 변 ───────────────────────────
@@ -91,7 +106,14 @@ test('FILL_WANT: 지시문이 말한 변만 — 화장대 · 신발장은 판정
     bedroom: ['top'],
   });
   // 근거 문장이 지시문에 있다
-  const spec = (k) => CATEGORIES[k].spec({ wallW: 3000, wallH: 2400, waterPct: 48, exhaustPct: 70, doorColor: 'white' });
+  const spec = (k) =>
+    CATEGORIES[k].spec({
+      wallW: 3000,
+      wallH: 2400,
+      waterPct: 48,
+      exhaustPct: 70,
+      doorColor: 'white',
+    });
   assert.match(spec('wardrobe'), /full wall width[\s\S]*No gap to the ceiling or the side walls/);
   assert.match(spec('storage'), /Floor-to-ceiling[\s\S]*covering the wall/);
   assert.match(spec('fridge'), /covering the full wall width, built up to the ceiling/);
@@ -106,7 +128,8 @@ test('질의 · 스키마: 품목 이름이 들어가고 네 변 · 점 칸이 �
   assert.match(p, /신발장 \(shoe\)/);
   assert.match(p, /Answer JSON only\.$/);
   for (const k of FILL_SIDES) assert.ok(FILL_SCHEMA.required.includes(k), k);
-  for (const k of ['furniture_box', 'wall_left_x', 'wall_right_x', 'ceiling_y', 'floor_y']) assert.ok(FILL_SCHEMA.required.includes(k), k);
+  for (const k of ['furniture_box', 'wall_left_x', 'wall_right_x', 'ceiling_y', 'floor_y'])
+    assert.ok(FILL_SCHEMA.required.includes(k), k);
   assert.ok(!/handle/i.test(p), '판정 질의에 손잡이 이야기는 없다');
 });
 
@@ -114,7 +137,17 @@ test('질의 · 스키마: 품목 이름이 들어가고 네 변 · 점 칸이 �
 
 test('measureFill: 틈 비율 × 벽 폭 · 높이, 10 mm 단위, 0 보다 작으면 0', () => {
   const m = measureFill(
-    { furniture_box: [200, 150, 900, 860], wall_left_x: 100, wall_right_x: 900, ceiling_y: 100, floor_y: 900, left: 'gap', right: 'gap', top: 'gap', bottom: 'touch' },
+    {
+      furniture_box: [200, 150, 900, 860],
+      wall_left_x: 100,
+      wall_right_x: 900,
+      ceiling_y: 100,
+      floor_y: 900,
+      left: 'gap',
+      right: 'gap',
+      top: 'gap',
+      bottom: 'touch',
+    },
     WALL
   );
   assert.equal(m.box, true);
@@ -135,8 +168,15 @@ test('measureFill: 상자 없음 · 틀린 상자 → 네 변 unsure, 벽 점 �
   const m = measureFill({ ...JSON.parse(answer()), wall_left_x: 5000, wall_right_x: null }, WALL);
   assert.deepEqual(m.sides.left, { s: 'unsure' });
   assert.deepEqual(m.sides.right, { s: 'touch' }, '보이지 않는 벽 끝 — 모델 판정만, mm 없음');
-  assert.deepEqual(measureFill({ ...JSON.parse(answer()), top: 'maybe' }, WALL).sides.top, { s: 'unsure', mm: 0 });
-  assert.equal(measureFill(JSON.parse(answer()), {}).sides.left.mm, undefined, '벽 폭을 모르면 mm 없음');
+  assert.deepEqual(measureFill({ ...JSON.parse(answer()), top: 'maybe' }, WALL).sides.top, {
+    s: 'unsure',
+    mm: 0,
+  });
+  assert.equal(
+    measureFill(JSON.parse(answer()), {}).sides.left.mm,
+    undefined,
+    '벽 폭을 모르면 mm 없음'
+  );
 });
 
 test('fillOk: gap 하나 → false, 모두 touch → true, unsure 섞임 · want 없음 → null', () => {
@@ -159,7 +199,10 @@ test('parseFill: 코드 울타리 · 깨진 JSON · 배열', () => {
 
 test('runFillCheck: [방 사진, 기본안] 한 번 · 기록 형식', async () => {
   const call = fake([answer({ right: 'gap', wall_right_x: 950 })]);
-  const rec = await runFillCheck({ FILL_QC: 'on' }, input('wardrobe', { provider: 'openai' }), { callGemini: call, overloadAt: NO_OVERLOAD });
+  const rec = await runFillCheck({ FILL_QC: 'on' }, input('wardrobe', { provider: 'openai' }), {
+    callGemini: call,
+    overloadAt: NO_OVERLOAD,
+  });
   assert.equal(call.calls.length, 1);
   const a = call.calls[0];
   assert.equal(a.images.length, 2);
@@ -183,26 +226,43 @@ test('runFillCheck: 깨진 답 · 가구 없음 · 이미지 없음은 코드만
   const none = await runFillCheck(env, input('storage'), deps(answer({ furniture_box: null })));
   assert.equal(none.error, 'no_furniture');
   assert.equal(none.ok, null);
-  assert.equal((await runFillCheck(env, input('storage', { base: null }), deps(answer()))).error, 'no_image');
-  assert.equal((await runFillCheck(env, input('storage', { room: null }), deps(answer()))).error, 'no_room');
+  assert.equal(
+    (await runFillCheck(env, input('storage', { base: null }), deps(answer()))).error,
+    'no_image'
+  );
+  assert.equal(
+    (await runFillCheck(env, input('storage', { room: null }), deps(answer()))).error,
+    'no_room'
+  );
 });
 
 test('runFillCheck: 과부하 중이면 보내지 않는다 · 과부하는 5초 뒤 1회만 다시 · 4xx 는 다시 보내지 않는다', async () => {
   const env = { FILL_QC: 'on' };
-  const skip = await runFillCheck(env, input('fridge'), { callGemini: fake([answer()]), overloadAt: () => Date.now() - 1000 });
+  const skip = await runFillCheck(env, input('fridge'), {
+    callGemini: fake([answer()]),
+    overloadAt: () => Date.now() - 1000,
+  });
   assert.equal(skip.error, 'skipped_overload');
   assert.equal(skip.calls, 0);
 
   const busy = Object.assign(new Error('busy'), { status: 429, retryable: true });
   const slept = [];
   const again = fake([busy, answer()]);
-  const ok = await runFillCheck(env, input('fridge'), { callGemini: again, overloadAt: NO_OVERLOAD, sleep: async (ms) => slept.push(ms) });
+  const ok = await runFillCheck(env, input('fridge'), {
+    callGemini: again,
+    overloadAt: NO_OVERLOAD,
+    sleep: async (ms) => slept.push(ms),
+  });
   assert.equal(again.calls.length, 2);
   assert.deepEqual(slept, [5000]);
   assert.equal(ok.ok, true);
 
   const twice = fake([busy, busy]);
-  const r = await runFillCheck(env, input('fridge'), { callGemini: twice, overloadAt: NO_OVERLOAD, sleep: async () => {} });
+  const r = await runFillCheck(env, input('fridge'), {
+    callGemini: twice,
+    overloadAt: NO_OVERLOAD,
+    sleep: async () => {},
+  });
   assert.equal(twice.calls.length, 2);
   assert.equal(r.error, 'http_429');
 
@@ -215,7 +275,10 @@ test('runFillCheck: 과부하 중이면 보내지 않는다 · 과부하는 5초
 test('startFillCheck: 기다리지 않고 시작 · attachTo 칸에 fill · 시간 초과는 기록으로 · 던지지 않음', async () => {
   const env = { FILL_QC: 'on' };
   const slot = {};
-  const run = startFillCheck(env, input('study'), { callGemini: fake([answer()]), overloadAt: NO_OVERLOAD });
+  const run = startFillCheck(env, input('study'), {
+    callGemini: fake([answer()]),
+    overloadAt: NO_OVERLOAD,
+  });
   run.attachTo(slot);
   assert.equal(await run.wait(5000), true);
   assert.equal(slot.fill.ok, true);
@@ -230,14 +293,28 @@ test('startFillCheck: 기다리지 않고 시작 · attachTo 칸에 fill · 시�
   assert.equal(await hang.wait(2000), true);
   assert.ok(['timeout', 'budget'].includes(late.fill.error), late.fill.error);
 
-  const boom = startFillCheck(env, input('study'), { callGemini: () => { throw new Error('x'); }, overloadAt: NO_OVERLOAD });
+  const boom = startFillCheck(env, input('study'), {
+    callGemini: () => {
+      throw new Error('x');
+    },
+    overloadAt: NO_OVERLOAD,
+  });
   assert.equal(await boom.wait(2000), true);
   assert.equal(boom.result.error, 'net');
 });
 
 test('fillSkipped: 재실행은 다시 재지 않고 코드만', () => {
   const r = fillSkipped({ FILL_QC: 'on' }, input('bedroom'), 'rerun');
-  assert.deepEqual(r, { v: FILL_VERSION, ok: null, want: ['top'], sides: null, model: 'gemini-3.8-flash', calls: 0, ms: 0, error: 'rerun' });
+  assert.deepEqual(r, {
+    v: FILL_VERSION,
+    ok: null,
+    want: ['top'],
+    sides: null,
+    model: 'gemini-3.8-flash',
+    calls: 0,
+    ms: 0,
+    error: 'rerun',
+  });
 });
 
 // ─────────────────────────── 5. job.js 호출 자리 (정적) ───────────────────────────
@@ -252,8 +329,18 @@ test('job.js: 채움 검사는 위치 검사 옆에서 시작 · 추천안에는
   assert.ok(posAt > 0 && fillAt > posAt && uploadAt > fillAt);
   assert.equal(src.slice(variantsAt).indexOf('startFillCheck'), -1, '추천안에는 없다');
   assert.ok(src.indexOf('fill.attachTo(ck.images.base)') > uploadAt);
-  assert.ok(src.includes("fillSkipped(env, positionInput(ck.images.base.qc, ck.images.base.provider), 'rerun')"));
-  assert.ok(!src.includes('startFillCheck(env, positionInput(ck.images.base.qc'), '재실행은 다시 재지 않는다');
+  assert.ok(
+    src.includes(
+      "fillSkipped(env, positionInput(ck.images.base.qc, ck.images.base.provider), 'rerun')"
+    )
+  );
+  assert.ok(
+    !src.includes('startFillCheck(env, positionInput(ck.images.base.qc'),
+    '재실행은 다시 재지 않는다'
+  );
   assert.ok(src.includes('if (posLate || fillLate) {'));
-  assert.ok(src.indexOf('const fillLate = !!fill && !fill.done;') < src.indexOf('const posLate = !!pos && !pos.done;'));
+  assert.ok(
+    src.indexOf('const fillLate = !!fill && !fill.done;') <
+      src.indexOf('const posLate = !!pos && !pos.done;')
+  );
 });

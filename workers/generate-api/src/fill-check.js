@@ -22,7 +22,14 @@ export const FILL_MODEL_DEFAULT = 'gemini-3.8-flash';
  * 시간 (ms). 호출 30초 · 전체 45초 · 과부하(429 · 5xx) 재시도는 5초 뒤 1회, 남은 예산이 20초 이상일 때만.
  * overloadSkip: 같은 모델이 이 isolate 에서 최근 이만큼 안에 과부하를 받았으면 보내지 않는다 (손님 쪽 호출을 늘리지 않는다).
  */
-export const FILL_TIMING = { total: 45_000, call: 30_000, retryWait: 5_000, minLeft: 20_000, hardExtra: 5_000, overloadSkip: 120_000 };
+export const FILL_TIMING = {
+  total: 45_000,
+  call: 30_000,
+  retryWait: 5_000,
+  minLeft: 20_000,
+  hardExtra: 5_000,
+  overloadSkip: 120_000,
+};
 /** 좌표 범위 — 0~1000 에서 조금 넘는 것(가장자리)은 받는다 */
 const COORD_MIN = -50;
 const COORD_MAX = 1050;
@@ -36,13 +43,19 @@ export function fillTarget(input) {
   const opts = input.options || {};
   if (opts.mode === 'planner') return null;
   const key = input.category;
-  return typeof key === 'string' && Object.prototype.hasOwnProperty.call(FILL_WANT, key) ? key : null;
+  return typeof key === 'string' && Object.prototype.hasOwnProperty.call(FILL_WANT, key)
+    ? key
+    : null;
 }
 
 /** Flash 응답 글 → 객체. 코드 울타리를 벗긴다. 객체가 아니면 null. */
 export function parseFill(text) {
   if (typeof text !== 'string') return null;
-  const s = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  const s = text
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/, '')
+    .trim();
   try {
     const v = JSON.parse(s);
     return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
@@ -100,7 +113,13 @@ export function measureFill(parsed, wall = {}) {
     const len = horiz ? W : H;
     if (isNum(a) && isNum(b) && b - a >= MIN_SPAN && len > 0) {
       const gap =
-        side === 'left' ? box.xmin - a : side === 'right' ? b - box.xmax : side === 'top' ? box.ymin - a : b - box.ymax;
+        side === 'left'
+          ? box.xmin - a
+          : side === 'right'
+            ? b - box.xmax
+            : side === 'top'
+              ? box.ymin - a
+              : b - box.ymax;
       out.mm = Math.max(0, round10((gap / (b - a)) * len));
     }
     sides[side] = out;
@@ -120,7 +139,8 @@ function codeOf(e) {
   if (e && e.code) return e.code;
   const name = e && e.name;
   const msg = String((e && e.message) || '');
-  if (name === 'TimeoutError' || name === 'AbortError' || /timeout|aborted/i.test(msg)) return 'timeout';
+  if (name === 'TimeoutError' || name === 'AbortError' || /timeout|aborted/i.test(msg))
+    return 'timeout';
   const s = e && e.status;
   if (s === 429) return 'http_429';
   if (s >= 500) return 'http_5xx';
@@ -134,7 +154,10 @@ function timeoutRace(p, ms) {
   return Promise.race([
     p,
     new Promise((_, rej) => {
-      timer = setTimeout(() => rej(Object.assign(new Error('fill call timeout'), { name: 'TimeoutError' })), ms);
+      timer = setTimeout(
+        () => rej(Object.assign(new Error('fill call timeout'), { name: 'TimeoutError' })),
+        ms
+      );
     }),
   ]).finally(() => clearTimeout(timer));
 }
@@ -244,7 +267,11 @@ export async function runFillCheck(env, input, deps = {}) {
     const m = measureFill(parsed, input.wall || {});
     if (!m.box) st.error = 'no_furniture';
     const note = typeof parsed.note === 'string' ? parsed.note.trim().slice(0, NOTE_MAX) : '';
-    return record(st, { ok: m.box ? fillOk(st.want, m.sides) : null, sides: m.sides, ...(note ? { note } : {}) });
+    return record(st, {
+      ok: m.box ? fillOk(st.want, m.sides) : null,
+      sides: m.sides,
+      ...(note ? { note } : {}),
+    });
   } catch (err) {
     st.error = codeOf(err);
     return record(st);
@@ -272,8 +299,14 @@ export function startFillCheck(env, input, deps = {}) {
     timer = setTimeout(
       () =>
         res({
-          v: FILL_VERSION, ok: null, want: FILL_WANT[key].slice(), sides: null,
-          model: env.FILL_MODEL || FILL_MODEL_DEFAULT, calls: null, ms: Date.now() - t0, error: 'timeout',
+          v: FILL_VERSION,
+          ok: null,
+          want: FILL_WANT[key].slice(),
+          sides: null,
+          model: env.FILL_MODEL || FILL_MODEL_DEFAULT,
+          calls: null,
+          ms: Date.now() - t0,
+          error: 'timeout',
         }),
       T.total + T.hardExtra
     );
@@ -286,10 +319,15 @@ export function startFillCheck(env, input, deps = {}) {
       done = true;
       if (result) {
         const s = result.sides
-          ? FILL_SIDES.map((k) => `${SIDE_TAG[k]}:${STATE_TAG[result.sides[k].s] || '?'}${result.sides[k].mm != null ? result.sides[k].mm : ''}`).join(' ')
+          ? FILL_SIDES.map(
+              (k) =>
+                `${SIDE_TAG[k]}:${STATE_TAG[result.sides[k].s] || '?'}${result.sides[k].mm != null ? result.sides[k].mm : ''}`
+            ).join(' ')
           : '-';
         const tag = input && input.jobId ? `[Job ${input.jobId}] fill` : '[fill]';
-        console.log(`${tag} ${key} ok=${result.ok} ${s}${result.error ? ` error=${result.error}` : ''} calls=${result.calls} ${result.ms}ms`);
+        console.log(
+          `${tag} ${key} ok=${result.ok} ${s}${result.error ? ` error=${result.error}` : ''} calls=${result.calls} ${result.ms}ms`
+        );
       }
       return result;
     })
@@ -333,7 +371,13 @@ export function fillSkipped(env, input, code) {
   const key = fillTarget(input);
   if (!key) return null;
   return {
-    v: FILL_VERSION, ok: null, want: FILL_WANT[key].slice(), sides: null,
-    model: env.FILL_MODEL || FILL_MODEL_DEFAULT, calls: 0, ms: 0, error: code,
+    v: FILL_VERSION,
+    ok: null,
+    want: FILL_WANT[key].slice(),
+    sides: null,
+    model: env.FILL_MODEL || FILL_MODEL_DEFAULT,
+    calls: 0,
+    ms: 0,
+    error: code,
   };
 }
