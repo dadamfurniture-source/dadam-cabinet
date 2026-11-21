@@ -5,7 +5,10 @@
  *   GET /company/inbox   프로젝트를 가지는 업체(다담 공장 · active 협력업체 Manager · Expert · Agent)의 active 구성원
  *     { role,
  *       todo [{ kind, label, count, go, due?, late?, total? }],
- *       news [{ kind, at, label, go, project { id, title } | null }] }
+ *       news [{ kind, at, label, go, project { id, title } | null }],
+ *       seen_at? }   이 계정이 소식을 어디까지 봤나 (없으면 null). DB 0078 전이면 칸이 없다 — 화면이 기기 기억으로 돌아간다
+ *   POST /company/inbox/seen { at }   소식을 본 때를 적는다 — 내 계정 · 내 업체의 한 줄. 본 때는 앞으로만 간다 → { seen_at }
+ *     (2026-11-21 뒤 공정 1차 「계정마다 읽음」 — 폰에서 본 것이 PC 에서 다시 「새」로 뜨지 않게)
  *
  * todo — 프로젝트에 매이지 않은 할 일의 묶음이다 (수만 센다).
  *        프로젝트마다의 다음 할 일은 화면이 GET /company/projects 의 next 로 만든다 — 줄과 표가 같은 값을 써서 어긋나지 않는다.
@@ -22,10 +25,19 @@
  *
  * 싣지 않는 것: 고객 이름 · 전화 · 주소, 금액(받을 돈 합계 total 만 대표 · 실장에게).
  * go 는 화면 이름이다 (p-consult · p-quote · p-contract · p-collect · p-make · p-as) — 주소는 화면이 만든다.
- * 읽기만 한다. 표가 아직 없으면(DB 적용 전) 그 칸만 빈다.
+ * GET 은 읽기만 한다. 표가 아직 없으면(DB 적용 전) 그 칸만 빈다.
  */
 
-import { MONEY_ROLES, selectMany } from './supabase.js';
+import {
+  ConflictError,
+  MONEY_ROLES,
+  PG_UNIQUE_VIOLATION,
+  ValidationError,
+  insertOne,
+  selectMany,
+  selectOne,
+  updateBy,
+} from './supabase.js';
 import { projectCompanyOf } from './company-projects.js';
 import { isFactory } from './company-pipeline.js';
 import { briefKeysFor, loadBrief } from './brief.js';
@@ -76,6 +88,50 @@ async function orEmpty(promise) {
   }
 }
 
+/** 이 계정이 본 때 — 없으면 null, 표가 아직 없으면(DB 0078 전) undefined */
+async function seenOf(env, userId, companyId) {
+  try {
+    const row = await selectOne(env, 'inbox_seen', {
+      user_id: `eq.${userId}`,
+      company_id: `eq.${companyId}`,
+      select: 'seen_at',
+    });
+    return row && row.seen_at ? row.seen_at : null;
+  } catch (e) {
+    if (isMissingRelation(e)) return undefined;
+    throw e;
+  }
+}
+
+/** POST /company/inbox/seen { at } → { seen_at } */
+export async function markInboxSeen(env, { user, body, nowMs = Date.now() }) {
+  const raw = body && typeof body.at === 'string' ? Date.parse(body.at) : NaN;
+  if (!Number.isFinite(raw)) throw new ValidationError('at 이 올바르지 않습니다 (시각)', { field: 'at' });
+  const { company } = await projectCompanyOf(env, user);
+  // 앞날은 지금으로 당긴다 — 시계가 빠른 기기가 다음 소식을 가리지 않게
+  const at = new Date(Math.min(raw, nowMs)).toISOString();
+  const current = await seenOf(env, user.id, company.id);
+  if (current === undefined) {
+    const err = new ConflictError('DB 0078 적용 전입니다 — 읽음은 이 기기가 기억합니다');
+    err.code = 'db_pending';
+    throw err;
+  }
+  // 본 때는 앞으로만 간다 (DB 지킴이도 같은 것을 지킨다)
+  if (current && Date.parse(current) >= Date.parse(at)) return { seen_at: current };
+  const where = { user_id: `eq.${user.id}`, company_id: `eq.${company.id}` };
+  if (current === null) {
+    try {
+      await insertOne(env, 'inbox_seen', { user_id: user.id, company_id: company.id, seen_at: at });
+      return { seen_at: at };
+    } catch (e) {
+      // 다른 기기가 방금 먼저 넣었다 — 고치기로 넘어간다
+      if (!String((e && e.message) || '').includes(PG_UNIQUE_VIOLATION)) throw e;
+    }
+  }
+  await updateBy(env, 'inbox_seen', where, { seen_at: at });
+  return { seen_at: at };
+}
+
 /** GET /company/inbox */
 export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
   const { company, role } = await projectCompanyOf(env, user);
@@ -89,7 +145,8 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
     (k) => k === 'receivables' || k === 'requests' || (k === 'consults' && factory)
   );
 
-  const [brief, projects, designs, orders, assigned, requests, offers, received, asRows, decided] = await Promise.all([
+  const [seen, brief, projects, designs, orders, assigned, requests, offers, received, asRows, decided] = await Promise.all([
+    seenOf(env, user.id, company.id),
     keys.length ? loadBrief(env, company.id, { nowMs, keys }) : {},
     selectMany(env, 'projects', { company_id: co, select: 'id,title', order: 'created_at.desc', limit: ROW_LIMIT }),
     selectMany(env, 'designs', { company_id: co, select: 'id,project_id', order: 'updated_at.desc', limit: ROW_LIMIT }),
@@ -242,5 +299,5 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
     tell(`approval_${e.state}`, e.decided_at, 'p-contract', (orderOf.get(e.order_id) || {}).project_id);
   news.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
-  return { role, todo, news: news.slice(0, NEWS_LIMIT) };
+  return { role, todo, news: news.slice(0, NEWS_LIMIT), ...(seen === undefined ? {} : { seen_at: seen }) };
 }

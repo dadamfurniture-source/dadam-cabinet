@@ -47,6 +47,7 @@
  *     POST /company/work/applications/:id/approve|reject — 신청한 작업자 뽑기 · 반려 (src/work/recruit.js, 2026-11-14)
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
  *   GET /company/inbox — 받은 일: 할 일 묶음 · 지난 14일 소식, 읽기만 (src/company-inbox.js)
+ *   POST /company/inbox/seen — 소식을 본 때를 계정마다 적는다 (src/company-inbox.js, DB 0078)
  *   GET /company/projects/:id — 프로젝트 하나: 목록 줄 + 설계 · 견적 · 수주 · 의뢰 · A/S · 일어난 일, 읽기만 (src/company-project.js)
  *   PATCH /company/projects/:id/status — 보류 · 그만둠 · 다시 진행. 계약금을 받은 프로젝트는 보류 · 그만둠 불가 (src/company-project-status.js, DB 0078)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
@@ -289,7 +290,7 @@ import {
 } from './distribution/company.js';
 import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
 import { listCompanyQuotes } from './company-quotes.js';
-import { getCompanyInbox } from './company-inbox.js';
+import { getCompanyInbox, markInboxSeen } from './company-inbox.js';
 import { getCompanyProject } from './company-project.js';
 import { setProjectStatus } from './company-project-status.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
@@ -1668,6 +1669,8 @@ const router = createRouter([
   { method: 'GET',  path: '/company/quotes',                      auth: 'jwt', handler: workRoute((env, a) => listCompanyQuotes(env, a)) },
   // 받은 일 — 프로젝트 관리 대시보드 맨 위 「새로 생긴 일」 (src/company-inbox.js, 2026-11-21)
   { method: 'GET',  path: '/company/inbox',                       auth: 'jwt', handler: workRoute((env, a) => getCompanyInbox(env, a)) },
+  // 소식을 본 때 — 계정마다 (DB 0078 inbox_seen)
+  { method: 'POST', path: '/company/inbox/seen',                  auth: 'jwt', handler: workRoute((env, a) => markInboxSeen(env, a)) },
   // 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
   { method: 'GET',  path: '/company/customers',                   auth: 'jwt', handler: workRoute((env, a) => listCompanyCustomers(env, a)) },
   { method: 'PATCH', path: '/company/customers/:id',              auth: 'jwt', handler: workRoute((env, a) => updateCompanyCustomer(env, a)) },
