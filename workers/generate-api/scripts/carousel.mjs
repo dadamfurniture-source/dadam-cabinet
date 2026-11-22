@@ -3,13 +3,14 @@
  * 홍보용 캐러셀 만들기 (2026-11-20). 찍어 둔 색 조합 사진에 색 이름 · 「AI 연출 이미지」 · 주소를 찍고,
  * 마지막에 사이트로 부르는 장을 붙여 1080 × 1350 JPEG 묶음으로 낸다. 게시 글도 같이 쓴다.
  *
- *   node scripts/carousel.mjs --spec <spec.json> --out <폴더>
+ *   node scripts/carousel.mjs --spec <spec.json> --out <폴더> [--source threads]
  *
  * spec.json:
  *   {
  *     "title": "같은 주방, 다른 색",
  *     "subject": "kitchen",
  *     "campaign": "kitchen-tones_2026-11",
+ *     "source": "instagram",          // 게시 글 링크의 utm_source — 채널마다 (없으면 instagram, --source 가 먼저)
  *     "slides": [ { "file": "사진 경로", "tone": "그레이 · 월넛" }, … ]   // 경로는 spec 파일 기준
  *   }
  *
@@ -209,6 +210,7 @@ async function main() {
   const caption = buildCaption({
     title: spec.title,
     tones,
+    source: (typeof a.source === 'string' && a.source) || spec.source || undefined,
     campaign: spec.campaign,
     subject: spec.subject || 'kitchen',
     tags: spec.tags,

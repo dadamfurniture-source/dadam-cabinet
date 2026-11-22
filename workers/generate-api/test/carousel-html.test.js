@@ -10,6 +10,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   CAROUSEL_SIZE,
   slideHtml,
@@ -79,6 +80,25 @@ test('게시 글: 번호 · 고지 · 꼬리표 붙은 링크', () => {
     )
   );
   assert.match(c, /#주방인테리어/);
+});
+
+test('게시 글 링크의 utm_source — 채널마다 (캐러셀 스크립트가 spec.source · --source 를 넘긴다)', () => {
+  const c = buildCaption({
+    title: '같은 주방, 다른 색',
+    tones: TONES,
+    source: 'threads',
+    campaign: 'tones',
+  });
+  assert.ok(
+    c.includes(
+      'https://dadamfurniture.com/segan/?utm_source=threads&utm_medium=social&utm_campaign=tones'
+    )
+  );
+  const script = readFileSync(new URL('../scripts/carousel.mjs', import.meta.url), 'utf8');
+  assert.match(
+    script,
+    /source: (typeof a.source === 'string' && a.source) || spec.source || undefined,/
+  );
 });
 
 test('꺾쇠 · 따옴표는 HTML 이 되지 않는다', () => {
