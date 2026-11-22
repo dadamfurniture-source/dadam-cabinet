@@ -23,6 +23,9 @@
  *     documents [{ id, design_id, doc_type, doc_no, rev, status, created_at }]   보기는 GET /documents/:id/print
  *     reports   [{ id, kind, label, note, created_at, photo_urls[] }]
  *     photos    [{ url, kind, label, at, note }]   사진 주소는 한 시간짜리 서명 주소다
+ *     어느 단계에나 (DB 0083 · src/company-project-files.js):
+ *       uploads { ready, max, count }   ready = 사진을 올릴 수 있다 (표가 있다) · max = 한 단계에 올리는 수 · count = 지금 올려 둔 수
+ *       photos 맨 앞에 올린 사진 [{ id, url, kind: 'upload', label: '올린 사진', at, note, mine }] — mine = 내가 지울 수 있다
  *
  * 프로젝트 창(GET /company/projects/:id)에는 금액 · 사진을 싣지 않는다는 약속이 있어 이 길을 따로 냈다.
  * 읽기만 한다. 다른 업체의 프로젝트 · 없는 프로젝트는 404. 표가 아직 없으면(DB 적용 전) 그 칸만 빈다.
@@ -43,6 +46,7 @@ import { AS_BUCKET, AS_STATE_LABEL } from './as-requests.js';
 import { CHECK_PHOTO_BUCKET } from './work/checks.js';
 import { PHOTOS_BUCKET } from './planner-drafts.js';
 import { SCHEDULE_LABELS } from './slack.js';
+import { stageUploads } from './company-project-files.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DAY_MS = 86400000;
@@ -592,14 +596,24 @@ export async function getCompanyProjectStage(env, { user, params }) {
   const co = `eq.${company.id}`;
   const project = await selectOne(env, 'projects', { id: `eq.${projectId}`, company_id: co, select: 'id,status,created_at' });
   if (!project) throw new NotFoundError('프로젝트를 찾을 수 없습니다');
-  const body = await LOADERS[key]({
-    env,
-    company,
-    co,
-    project,
-    pid: `eq.${project.id}`,
-    money: MONEY_ROLES.includes(role),
-    factory: isFactory(company),
-  });
-  return { key, label: STEP_LABEL[key], ...body };
+  const [body, up] = await Promise.all([
+    LOADERS[key]({
+      env,
+      company,
+      co,
+      project,
+      pid: `eq.${project.id}`,
+      money: MONEY_ROLES.includes(role),
+      factory: isFactory(company),
+    }),
+    stageUploads(env, { company, role, user, projectId: project.id, stage: key }),
+  ]);
+  // 올린 사진이 맨 앞 — 그 단계가 원래 주던 사진(플래너 · 작업자 확인 · 완료 보고)은 그 뒤에
+  return {
+    key,
+    label: STEP_LABEL[key],
+    ...body,
+    uploads: { ready: up.ready, max: up.max, count: up.photos.length },
+    photos: [...up.photos, ...(Array.isArray(body.photos) ? body.photos : [])],
+  };
 }

@@ -269,8 +269,9 @@ const opened = () =>
 // 2026-11-21 대표님 「설계 먼저」 — 일 차례대로 여섯 줄 (옛 「영업」 = 「상담」 + 「견적 · 계약」)
 const PJ = ['상담', '설계', '견적 · 계약', '생산', '설치', 'A/S'];
 const PJ_CUSTOMER = ['상담', '설계', '견적 · 계약', '제작', '설치', 'A/S'];
-const BASIC = ['내 연출컷', '좋아요', '크레딧 · 구독없음', '내 활동', '설정'];
-const basic = (factory) => [...BASIC.slice(0, 3), factory, ...BASIC.slice(3)];
+// 11-23 「AI 상담 기록」(연출컷 상담 정리본, #consult-notes) 은 좋아요 다음
+const BASIC = ['내 연출컷', '좋아요', 'AI 상담 기록', '크레딧 · 구독없음', '내 활동', '설정'];
+const basic = (factory) => [...BASIC.slice(0, 4), factory, ...BASIC.slice(4)];
 const LEDGER = ['한눈에', '매출', '매입', '사진', '보고서', '설정'];
 const STOCK = ['기본 자재', '자투리 자재', '철물'];
 const HOME = [
