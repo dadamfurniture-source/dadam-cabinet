@@ -19,9 +19,11 @@
    — segan/collection-view.js (SeganPostView) (2026-11-21 대표님)
    (예전에 자동으로 올라간 연출컷 행은 DB 에 남아 있지만 본사가 고르기 전에는 안 보인다. 연출컷도 사진 위 표시 없이, 업체 칸 「AI 연출」)
    다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
+   사진 보기의 「공유」는 사진 한 장 주소 /segan/p/<id> (DB 게시물만 — 메신저 미리보기는 functions/segan/p/[id].js).
+   그 주소로 들어오면 여기 ?p=<id> 로 넘어와 그 사진 보기를 바로 연다 (목록에 없으면 한 건 읽는다 · ?p= 는 열 때 지운다).
    자재 칸은 여기서 뺐다 — 자재 글은 매거진으로 옮긴다 (/material 은 /segan/blog 로 넘긴다, _redirects).
    ============================================================ */
-/* global window, document, IntersectionObserver */
+/* global window, document, IntersectionObserver, URL, URLSearchParams */
 (function () {
   'use strict';
 
@@ -356,9 +358,9 @@
   }
 
   // ── 사진 보기 · 좋아요 ─────────────────────────────────
-  /** 사진 한 장에 쓰는 것 — 사진 보기 · 타일의 ♡ 가 같이 쓴다 */
-  function postOpts(i, tile) {
-    var p = S.posts[i];
+  /** 사진 한 장에 쓰는 것 — 사진 보기 · 타일의 ♡ 가 같이 쓴다 (post: 목록 밖 사진 — 공유 주소로 들어온 것) */
+  function postOpts(i, tile, post) {
+    var p = post || S.posts[i];
     return {
       sb: S.sb,
       userId: S.userId,
@@ -389,6 +391,62 @@
     var p = S.posts[i];
     if (!p || !PV()) return null;
     S.sheet = PV().open(p, postOpts(i, tile));
+    return S.sheet;
+  }
+
+  /** 공유 주소로 들어왔다 (?p=<id>) — 그 사진 보기를 연다. 목록에 없으면 같은 공개 조건으로 한 건 읽는다 */
+  function sharedId() {
+    try {
+      var id = new URLSearchParams(window.location.search).get('p') || '';
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        ? id.toLowerCase()
+        : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function dropShared() {
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.delete('p');
+      window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash);
+    } catch {
+      /* 주소는 그대로 둔다 */
+    }
+  }
+
+  async function openShared(id) {
+    // 주소에서 먼저 지운다 — 사진 보기는 방문 기록을 하나 쌓고 닫을 때 되돌아오므로, 되돌아온 주소에 ?p= 가 남지 않게
+    dropShared();
+    var i = S.posts.findIndex(function (p) {
+      return p.id === id;
+    });
+    var post = i >= 0 ? S.posts[i] : null;
+    if (!post && S.sb) {
+      try {
+        var res = await S.sb
+          .from('collection_posts')
+          .select(COLS)
+          .eq('id', id)
+          .or('source.eq.upload,hq_picked_at.not.is.null')
+          .limit(1);
+        var row = res && !res.error && res.data ? res.data[0] : null;
+        if (row && row.image_url) {
+          var both = await Promise.all([
+            row.company_id ? PV().companies(S.sb, [row.id]) : {},
+            PV().myLikes(S.sb, S.userId, [row.id]),
+          ]);
+          if (both[1][row.id]) S.liked[row.id] = true;
+          post = PV().fromRow(row, both[0][row.id]);
+        }
+      } catch {
+        post = null;
+      }
+    }
+    if (!post) return null; // 없거나 숨은 사진 — 목록만
+    var tile = i >= 0 ? $('clTiles').querySelector('[data-open="' + i + '"]') : null;
+    S.sheet = PV().open(post, postOpts(i, tile, post));
     return S.sheet;
   }
 
@@ -467,6 +525,8 @@
     S.shown = Math.min(PAGE, S.posts.length);
     render(0);
     updateState();
+    var shared = sharedId();
+    if (shared) await openShared(shared);
   }
 
   var api = {
@@ -476,6 +536,7 @@
     state: S,
     loadMore: loadMore,
     openPost: openPost,
+    openShared: openShared,
     likePost: likePost,
   };
   window.SeganCollection = api;
