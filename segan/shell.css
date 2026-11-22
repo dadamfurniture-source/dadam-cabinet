@@ -6486,6 +6486,41 @@ button.sm-num[aria-pressed='true'] {
   cursor: pointer;
 }
 
+.pv-share {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+/* 좋아요가 없는 줄에서도 오른쪽 — 좋아요 바로 뒤면 붙는다 */
+.pv-bar .pv-share {
+  margin-left: auto;
+}
+
+.pv-bar .pv-like + .pv-share {
+  margin-left: 0;
+}
+
+.pv-share:focus-visible {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
+.pv-note {
+  margin: -8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+}
+
 .pv-like[aria-pressed='true'] .pv-heart {
   fill: currentColor;
 }

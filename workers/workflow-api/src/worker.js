@@ -53,6 +53,7 @@
  *   PUT · PATCH /company/projects/:id/visit — 실측 일정 잡기 · 고치기 / 완료 처리 · 취소. 대표 · 실장 · 담당자 (src/company-project-visits.js, DB 0079)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
+ *   GET /company/dashboard — 프로젝트 관리 대시보드(단계마다 쌓인 수 · 걸린 날 · 받을 돈 · 앞 8주 일정), 대표 · 실장, 읽기만 (src/company-dashboard.js)
  *   GET|PUT /company/shifts — 근무 일정(쉬는 날), 구성원이 보고 대표 · 실장이 적는다 (src/work-shifts.js, DB 0060)
  *   GET /company/workers · POST /company/workers/invites(/:id/revoke) · PATCH /company/workers/:linkId — 팩토리의 작업자:
  *     연결된 작업자 · 초대 · 승인 · 정지 (src/work/company.js, DB 0064 — 2026-11-13 「작업자 한 길」). POST /work/invites/peek 는 초대 미리보기
@@ -298,6 +299,7 @@ import { changeProjectVisit, setProjectVisit } from './company-project-visits.js
 import { logAt } from './project-log.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
+import { getCompanyDashboard } from './company-dashboard.js';
 import { listShifts, putShift } from './work-shifts.js';
 import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
 import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
@@ -1813,6 +1815,8 @@ const router = createRouter([
   { method: 'PATCH', path: '/company/customers/:id',              auth: 'jwt', handler: workRoute((env, a) => updateCompanyCustomer(env, a)) },
   // 업체 숫자 — 견적 흐름 · 리드타임 (src/company-summary.js)
   { method: 'GET',  path: '/company/summary',                     auth: 'jwt', handler: workRoute((env, a) => getCompanySummary(env, a)) },
+  // 프로젝트 관리 대시보드 — 진행 중 프로젝트를 경영 숫자로 (src/company-dashboard.js)
+  { method: 'GET',  path: '/company/dashboard',                   auth: 'jwt', handler: workRoute((env, a) => getCompanyDashboard(env, a)) },
   // 근무 일정 — 쉬는 날만 (src/work-shifts.js, DB 0060)
   // 팩토리의 작업자 — 연결 · 초대 · 승인 (src/work/company.js, DB 0064)
   { method: 'GET',   path: '/company/workers',                     auth: 'jwt', handler: workRoute(listCompanyWorkers) },

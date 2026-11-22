@@ -228,6 +228,16 @@ describe('손대지 않는 요청 (respondWith 를 부르지 않는다 → 브�
     expect(handled).toBe(false);
   });
 
+  test('시공사례 사진 주소 /segan/p/<id> (Pages Function) 는 담지 않는다', async () => {
+    const sw = boot();
+    const { handled } = await sw.dispatch(
+      `${ORIGIN}/segan/p/00000000-0000-4000-8000-000000000001`,
+      {},
+      'navigate'
+    );
+    expect(handled).toBe(false);
+  });
+
   test('Authorization 헤더가 붙은 요청 · 정적 파일이 아닌 것 · sw.js 자신', async () => {
     const sw = boot();
     expect(

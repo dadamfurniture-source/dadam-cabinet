@@ -202,7 +202,13 @@ test('대화 프롬프트 — 사진 · app 이 없으면 예전 글 그대로, 
   assert.ok(!app.includes('「연출컷 생성」'));
   // 11-21 대표님 「AI 가 필요한 내용을 질문으로 이끈다」 — 차례 · 보기 · 손잡이 금지
   assert.match(app, /You lead the consultation/);
-  assert.match(app, /in this order: appliances they need, only if this furniture holds appliances; door colour or material/);
+  assert.match(app, /in this order: appliances or devices that will go in it \(any furniture can hold some, so always ask\); door colour or material; countertop and wall tile/);
+  // 11-23 대표님 「구성을 어떻게 해 주겠다 이런 말은 하지 마. 정보만 입력받는 역할」 · 「고객이 굳이 꺼내기 전까지는 묻지 마」
+  assert.match(app, /Your only job is to take down information/);
+  assert.ok(app.includes('「네, 정수기 확인했어요.」'));
+  assert.match(app, /Never ask about lighting or mood/);
+  assert.doesNotMatch(app, /; lighting; overall mood/);
+  assert.match(app, /never 렌더링/);
   // 11-21 대표님 「구체적으로 제시하지 말고, 마음에 드는 도어 색상이 있는지? — 모든 질문은 열린 질문」
   assert.match(app, /never offer choices, examples, or specific colours/);
   assert.ok(app.includes('「마음에 드는 도어 색상이 있으세요?」'));
@@ -236,6 +242,10 @@ test('정리 프롬프트 · 답 읽기 — 목록 안의 색 · 스타일만, b
   const p = buildBriefPrompt({ category: 'wardrobe', messages: [{ role: 'me', text: '월넛 도어' }], photo: true });
   assert.match(p, /never mention handles or knobs/);
   assert.match(p, /Do not add anything nobody said/);
+  // 11-23 — 정리도 정보만: 설치 방식 · 몰딩을 지어 넣지 않고, 사진을 보고 색을 권하지 않는다
+  assert.match(p, /do not decide how anything is built or installed/);
+  assert.match(p, /such as mouldings/);
+  assert.match(p, /do not suggest colours, materials or options from it/);
   assert.ok(p.includes('walnut woodgrain'));
   assert.ok(p.includes('modern-minimal (modern minimal)'));
   assert.ok(p.includes('Customer: 월넛 도어'));
