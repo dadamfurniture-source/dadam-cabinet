@@ -317,40 +317,50 @@
     return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
   }
 
-  /** consultations 한 줄 — consultation.html 이 쓰는 칸 + 앱 칸 */
+  /** 유입 경로 칸 — 값이 있는 칸만 (segan/source.js, DB 0080). source.js 가 없으면 {} — 예전 상담과 같은 모양.
+   *  NEW_COLUMNS 에는 넣지 않는다 — 연출컷 상담을 여닫는 칸 확인과 상관없다 */
+  function inflow() {
+    var src = window.SeganSource;
+    return src && typeof src.columns === 'function' ? src.columns() : {};
+  }
+
+  /** consultations 한 줄 — consultation.html 이 쓰는 칸 + 앱 칸 (+ 유입) */
   function buildRow() {
     var u = C.session.user || {};
     var now = new Date().toISOString();
     var demolition = picked('demolition');
     var third = $('csAgreeThird').checked;
     var photoLearn = $('csAgreePhoto').checked;
-    return {
-      user_id: u.id || null,
-      name: $('csName').value.trim(),
-      email: u.email || '',
-      phone: $('csPhone').value.trim(),
-      consultation_type: 'ai-design',
-      title: titleFor(C.gen),
-      description: $('csDesc').value.trim() || null,
-      preferred_time: $('csTime').value || null,
-      // 시공 완료 희망 날짜 — 다담 본사가 업체를 고를 때 업체의 「고객 확정 ~ 시공 완료 기간」과 견준다
-      wanted_done_date: DATE_RE.test($('csWantDate').value) ? $('csWantDate').value : null,
-      status: 'pending',
-      privacy_agreed_at: now,
-      generation_id: C.id,
-      quote: (C.gen && C.gen.quote) || null,
-      sido: $('csSido').value || null,
-      gugun: $('csGugun').value || null,
-      furniture_categories: pickedItems(),
-      door_finish: oneOf(DOOR_FINISHES, picked('doorFinish')),
-      demolition_needed: demolition === 'yes' ? true : demolition === 'no' ? false : null,
-      wanted_price_tier: oneOf(PRICE_TIERS, picked('priceTier')),
-      // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
-      third_party_agreed_at: third ? now : null,
-      consent_version: third ? CONSENT_VERSION : null,
-      // 시공 사진 학습 활용 동의 — 안 하면 비운다 (상담 · 시공은 똑같다)
-      photo_learn_agreed_at: photoLearn ? now : null,
-    };
+    return Object.assign(
+      {
+        user_id: u.id || null,
+        name: $('csName').value.trim(),
+        email: u.email || '',
+        phone: $('csPhone').value.trim(),
+        consultation_type: 'ai-design',
+        title: titleFor(C.gen),
+        description: $('csDesc').value.trim() || null,
+        preferred_time: $('csTime').value || null,
+        // 시공 완료 희망 날짜 — 다담 본사가 업체를 고를 때 업체의 「고객 확정 ~ 시공 완료 기간」과 견준다
+        wanted_done_date: DATE_RE.test($('csWantDate').value) ? $('csWantDate').value : null,
+        status: 'pending',
+        privacy_agreed_at: now,
+        generation_id: C.id,
+        quote: (C.gen && C.gen.quote) || null,
+        sido: $('csSido').value || null,
+        gugun: $('csGugun').value || null,
+        furniture_categories: pickedItems(),
+        door_finish: oneOf(DOOR_FINISHES, picked('doorFinish')),
+        demolition_needed: demolition === 'yes' ? true : demolition === 'no' ? false : null,
+        wanted_price_tier: oneOf(PRICE_TIERS, picked('priceTier')),
+        // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
+        third_party_agreed_at: third ? now : null,
+        consent_version: third ? CONSENT_VERSION : null,
+        // 시공 사진 학습 활용 동의 — 안 하면 비운다 (상담 · 시공은 똑같다)
+        photo_learn_agreed_at: photoLearn ? now : null,
+      },
+      inflow()
+    );
   }
 
   function check(row) {
@@ -437,37 +447,40 @@
     document.querySelectorAll('input[name="csgItem"]:checked').forEach(function (el) {
       items.push(el.value);
     });
-    return {
-      user_id: (u && u.id) || null,
-      name: $('csgName').value.trim(),
-      email: $('csgEmail').value.trim(),
-      phone: $('csgPhone').value.trim(),
-      consultation_type: pickedIn('csgType', CONSULT_TYPES),
-      title: $('csgTitle').value.trim(),
-      description: $('csgDesc').value.trim() || null,
-      preferred_date: $('csgPrefDate').value || null,
-      preferred_time: $('csgTime').value || null,
-      wanted_done_date: $('csgWantDate').value || null,
-      status: 'pending',
-      furniture_categories: items.length ? items : null,
-      space_type: $('csgSpace').value || null,
-      space_width_mm: intOrNull('csgWidth'),
-      space_height_mm: intOrNull('csgHeight'),
-      space_depth_mm: intOrNull('csgDepth'),
-      budget_range: $('csgBudget').value || null,
-      style_preference: $('csgStyle').value || null,
-      sido: $('csgSido').value,
-      gugun: $('csgGugun').value,
-      door_finish: pickedIn('csgDoor', DOOR_FINISHES),
-      demolition_needed: pickedIn('csgDemolition', ['yes', 'no']) === 'yes',
-      wanted_price_tier: pickedIn('csgPrice', PRICE_TIERS),
-      privacy_agreed_at: now,
-      // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
-      third_party_agreed_at: third ? now : null,
-      consent_version: third ? CONSENT_VERSION : null,
-      // 시공 사진 학습 활용 동의 — 연출컷 신청서와 같다. 안 하면 비운다 (상담 · 시공은 똑같다)
-      photo_learn_agreed_at: photoLearn ? now : null,
-    };
+    return Object.assign(
+      {
+        user_id: (u && u.id) || null,
+        name: $('csgName').value.trim(),
+        email: $('csgEmail').value.trim(),
+        phone: $('csgPhone').value.trim(),
+        consultation_type: pickedIn('csgType', CONSULT_TYPES),
+        title: $('csgTitle').value.trim(),
+        description: $('csgDesc').value.trim() || null,
+        preferred_date: $('csgPrefDate').value || null,
+        preferred_time: $('csgTime').value || null,
+        wanted_done_date: $('csgWantDate').value || null,
+        status: 'pending',
+        furniture_categories: items.length ? items : null,
+        space_type: $('csgSpace').value || null,
+        space_width_mm: intOrNull('csgWidth'),
+        space_height_mm: intOrNull('csgHeight'),
+        space_depth_mm: intOrNull('csgDepth'),
+        budget_range: $('csgBudget').value || null,
+        style_preference: $('csgStyle').value || null,
+        sido: $('csgSido').value,
+        gugun: $('csgGugun').value,
+        door_finish: pickedIn('csgDoor', DOOR_FINISHES),
+        demolition_needed: pickedIn('csgDemolition', ['yes', 'no']) === 'yes',
+        wanted_price_tier: pickedIn('csgPrice', PRICE_TIERS),
+        privacy_agreed_at: now,
+        // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
+        third_party_agreed_at: third ? now : null,
+        consent_version: third ? CONSENT_VERSION : null,
+        // 시공 사진 학습 활용 동의 — 연출컷 신청서와 같다. 안 하면 비운다 (상담 · 시공은 똑같다)
+        photo_learn_agreed_at: photoLearn ? now : null,
+      },
+      inflow()
+    );
   }
 
   /** 빠진 필수 항목 — consultation.html missingMessage 와 같은 차례 · 같은 글, 다 있으면 '' */
@@ -574,6 +587,8 @@
         C.session = null;
       }
     }
+    // 가입 유입 — 로그인했으면 내 회원 줄에 한 번 (segan/source.js, 기다리지 않는다)
+    if (C.session && window.SeganSource) window.SeganSource.claim(C.sb, C.session);
     // ?g= 가 없으면 일반 상담 — 로그인 없이도 받는다 (consultation.html 과 같다)
     if (!hasGen()) return startGeneral();
     if (!C.session) {

@@ -78,6 +78,9 @@ async function load(options = {}) {
               consult(C2, {
                 name: '이고객',
                 tried: [{ company_name: '다라 가구', state: 'declined' }],
+                inflow_source: 'instagram',
+                inflow_medium: 'social',
+                inflow_campaign: 'tones',
               }),
             ],
           })
@@ -254,6 +257,7 @@ describe('상담 열기', () => {
       ['예상 견적', '5,200,000원'],
       ['연출컷', '있음'],
       ['신청일', '2026.11.01'],
+      ['유입', 'instagram · social · tones'], // DB 0080 — 꼬리표, 없으면 들어온 사이트 · -
     ]);
     expect(item(C2).querySelector('a[href="tel:01011112222"]')).not.toBeNull();
     expect(item(C2).querySelector('[data-assign-now]').textContent).toBe('지금 배정 없음');

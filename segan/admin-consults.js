@@ -286,6 +286,13 @@
     return '<div><dt>' + esc(name) + '</dt><dd>' + html + '</dd></div>';
   }
 
+  /** 유입 — 꼬리표(출처 · 매체 · 캠페인) 또는 들어온 사이트, 없으면 - (DB 0080 · segan/source.js) */
+  function inflowText(c) {
+    var tags = [c.inflow_source, c.inflow_medium, c.inflow_campaign].filter(Boolean);
+    if (tags.length) return tags.join(' · ');
+    return c.inflow_referrer || '-';
+  }
+
   function detailHtml(c) {
     var items = itemNames(c.furniture_categories).filter(Boolean);
     var facts =
@@ -305,6 +312,7 @@
       fact('예상 견적', esc(won(c.quote_total))) +
       fact('연출컷', esc(c.has_generation ? '있음' : '없음')) +
       fact('신청일', esc(fmtDate(c.created_at))) +
+      fact('유입', esc(inflowText(c))) +
       '</dl>';
     var a = c.assignment;
     var now = a
