@@ -95,6 +95,17 @@
     // 실측 (2026-11-21 뒤 공정 2차 — 서버 PUT · PATCH /company/projects/:id/visit, DB 0079)
     visitMine: '대표 · 실장 · 담당자가 합니다',
     visitBtn: '실측 일정',
+    // 고객 초대 링크 (2026-11-23 뒤 공정 3차, DB 0082 — 워커 customer-invites.js)
+    inviteBtn: '고객 초대',
+    inviteLead:
+      '고객에게 보낼 링크를 만듭니다. 고객이 링크로 로그인하면 앱 「내 프로젝트」에서 진행 · 설치 날 · 결제 · A/S 를 봅니다. 링크는 지금 한 번만 보이고 14일 동안 씁니다. 다시 만들면 앞의 링크는 쓸 수 없습니다.',
+    inviteMake: '링크 만들기',
+    inviteRemake: '새 링크 만들기',
+    inviteCopy: '복사',
+    inviteCopied: '링크를 복사했습니다. 문자 · 메신저로 고객에게 보내 주세요.',
+    inviteCopyFail: '복사하지 못했습니다. 칸의 링크를 길게 눌러 복사해 주세요.',
+    inviteMade: '링크를 만들었습니다. 지금 복사해 고객에게 보내 주세요.',
+    customerApp: '고객 앱 연결',
     visitPlan: '실측 일정 잡기',
     visitEdit: '일정 고치기',
     visitDone: '실측 완료 처리',
@@ -268,6 +279,8 @@
       hold: d.hold_ready === true,
       // 실측 단계 — 서버가 visit_ready true 로 답할 때만 (DB 0079 전 · 옛 서버면 지금처럼 상담 다음이 설계)
       visit: d.visit_ready === true,
+      // 고객 초대 링크 — 서버가 invite_ready true 로 답할 때만 (DB 0082 전 · 옛 서버면 단추가 없다)
+      invite: d.invite_ready === true,
       members: (Array.isArray(d.members) ? d.members : []).filter(function (m) {
         return m && typeof m === 'object' && UUID_RE.test(String(m.user_id || ''));
       }),
@@ -375,6 +388,10 @@
       (sub ? '<small>' + sub + '</small>' : '') +
       (holdNote ? '<small class="pj-hold">' + esc(holdNote) + '</small>' : '') +
       (visitNote ? '<small class="pj-visit-line" data-pj="visit">' + esc(visitNote) + '</small>' : '') +
+      // 고객이 앱 계정과 이어졌다 (고객 초대 링크 · 앱 상담) — 초대 단추는 한 건 화면의 「관리」 칸에
+      (c && c.app === true && d.invite
+        ? '<small class="pj-visit-line pj-app" data-pj="app">' + esc(TEXT.customerApp) + '</small>'
+        : '') +
       '</span>' +
       (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
       '</span>' +
@@ -433,6 +450,9 @@
     var holding = canHold && J.statusFor === p.id;
     var canMeasure = canVisit(p);
     var measuring = canMeasure && J.visitFor === p.id;
+    // 고객 초대 — 앱 계정과 이어지지 않은 고객의 진행 중 프로젝트 (대표 · 실장 · 담당자)
+    var canInv = canInvite(p);
+    var inviting = canInv && J.inviteFor === p.id;
     var canAssign = d.assignee && d.manage;
     var canWork = canWorkOn(p);
     var working = canWork && J.workFor === p.id;
@@ -447,6 +467,17 @@
           measuring +
           '">' +
           esc(TEXT.visitBtn) +
+          '</button>'
+        : '') +
+      (canInv
+        ? '<button type="button" class="mk-btn' +
+          (inviting ? ' mk-btn--solid' : '') +
+          '" data-act="invite" data-for="' +
+          esc(p.id) +
+          '" aria-expanded="' +
+          inviting +
+          '">' +
+          esc(TEXT.inviteBtn) +
           '</button>'
         : '') +
       (canAssign
@@ -487,6 +518,7 @@
       (assigning ? assignHtml(p) : '') +
       (holding ? statusPanelHtml(p) : '') +
       (measuring ? visitPanelHtml(p) : '') +
+      (inviting ? invitePanelHtml(p) : '') +
       (working ? '<div class="pjw" data-pj-work="' + esc(p.id) + '"></div>' : '');
     if (!acts && !panels && !J.msg) return '';
     return (
@@ -871,6 +903,8 @@
     J.statusUi = null;
     J.visitFor = '';
     J.visitUi = null;
+    J.inviteFor = '';
+    J.inviteUi = null;
     J.err = '';
   }
   /** 한 건 화면에 알린다 — 여기서 한 일로 프로젝트가 바뀌었다 (그 화면이 띠 · 단계 칸을 다시 읽는다) */
@@ -1261,12 +1295,117 @@
     );
   }
 
+  // ── 고객 초대 링크 (2026-11-23 뒤 공정 3차) ─────────────────
+  /** 그 줄에 「고객 초대」가 있나 — 서버가 invite_ready, 진행 중, 고객이 있고 아직 앱과 이어지지 않았다, 대표 · 실장 · 담당자 */
+  function canInvite(p) {
+    var d = J.data || {};
+    if (!d.invite || !p) return false;
+    var c = p.customer && typeof p.customer === 'object' ? p.customer : null;
+    if (!c || c.app === true) return false;
+    if (p.status && p.status !== 'active') return false;
+    var mine = !!myId() && !!p.assignee && p.assignee.user_id === myId();
+    return d.manage || mine;
+  }
+
+  /** 펼친 고객 초대 칸 — 링크 만들기 → 만든 링크(이 칸에서 한 번만) · 복사 */
+  function invitePanelHtml() {
+    var u = J.inviteUi || {};
+    return (
+      '<div class="pj-status pj-invite" data-pj="invite"><p class="mk-note">' +
+      esc(TEXT.inviteLead) +
+      '</p>' +
+      (u.url
+        ? '<label class="mk-input"><span>링크</span><input type="text" readonly data-pj="invite-url" value="' +
+          esc(u.url) +
+          '" /></label>'
+        : '') +
+      (u.err ? '<p class="mk-error" role="alert">' + esc(u.err) + '</p>' : '') +
+      (u.msg ? '<p class="mk-note" data-pj="invite-msg">' + esc(u.msg) + '</p>' : '') +
+      '<div class="rd-acts">' +
+      (u.url
+        ? '<button type="button" class="mk-btn mk-btn--solid" data-act="invite-copy">' + esc(TEXT.inviteCopy) + '</button>'
+        : '') +
+      '<button type="button" class="mk-btn' +
+      (u.url ? '' : ' mk-btn--solid') +
+      '" data-act="invite-make"' +
+      (J.busy ? ' disabled' : '') +
+      '>' +
+      esc(u.url ? TEXT.inviteRemake : TEXT.inviteMake) +
+      '</button></div></div>'
+    );
+  }
+
+  /** 줄의 고객 초대 칸을 펼치거나 접는다 (같은 단추). 접으면 만든 링크도 화면에서 지운다 */
+  function toggleInvite(id) {
+    if (!id) return;
+    var open = J.inviteFor !== id;
+    J.inviteFor = open ? id : '';
+    J.inviteUi = open ? { url: '', err: '', msg: '' } : null;
+    J.open = false;
+    J.assignFor = '';
+    J.visitFor = '';
+    J.visitUi = null;
+    J.statusFor = '';
+    J.statusUi = null;
+    J.err = '';
+    J.msg = '';
+    render();
+  }
+
+  /** POST /company/projects/:id/customer-invite → 링크 (이 응답에서만 보인다) */
+  async function makeInvite() {
+    var id = J.inviteFor;
+    if (!id || !UUID_RE.test(id) || J.busy || !J.inviteUi) return;
+    J.busy = true;
+    J.inviteUi.err = '';
+    J.inviteUi.msg = '';
+    render();
+    var r = await call('POST', '/company/projects/' + id + '/customer-invite');
+    J.busy = false;
+    if (!J.inviteUi || J.inviteFor !== id) return;
+    var url = r.ok && r.body.data && typeof r.body.data.url === 'string' ? r.body.data.url : '';
+    if (url && /#customer-invite=[A-Za-z0-9_-]{20,100}$/.test(url)) {
+      J.inviteUi.url = url;
+      J.inviteUi.msg = TEXT.inviteMade;
+    } else {
+      J.inviteUi.err = r.ok ? TEXT.generic : errText(r);
+      // 그 사이 고객이 이어졌다 — 목록을 다시 읽어 단추를 뺀다
+      if (r.body && r.body.code === 'already_linked') {
+        var list = await fetchList();
+        if (list) J.data = list;
+      }
+    }
+    render();
+  }
+
+  async function copyInvite() {
+    var u = J.inviteUi;
+    if (!u || !u.url) return;
+    var ok = false;
+    try {
+      if (window.navigator && window.navigator.clipboard && window.navigator.clipboard.writeText) {
+        await window.navigator.clipboard.writeText(u.url);
+        ok = true;
+      }
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      var el = scopeEl() && scopeEl().querySelector('[data-pj="invite-url"]');
+      if (el && el.select) el.select();
+    }
+    u.msg = ok ? TEXT.inviteCopied : TEXT.inviteCopyFail;
+    render();
+  }
+
   /** 줄의 실측 칸을 펼치거나 접는다 (같은 단추) */
   function toggleVisit(id) {
     if (!id) return;
     var open = J.visitFor !== id;
     J.visitFor = open ? id : '';
     J.visitUi = open ? { err: '', values: null } : null;
+    J.inviteFor = '';
+    J.inviteUi = null;
     J.open = false;
     J.assignFor = '';
     J.statusFor = '';
@@ -1400,6 +1539,8 @@
     var ui = { loading: true, data: null, form: '', err: '', values: {} };
     J.statusFor = id;
     J.statusUi = ui;
+    J.inviteFor = '';
+    J.inviteUi = null;
     J.open = false;
     J.assignFor = '';
     J.visitFor = '';
@@ -1655,6 +1796,12 @@
       J.open = false;
       J.err = '';
       render();
+    } else if (act === 'invite') {
+      toggleInvite(el.getAttribute('data-for') || '');
+    } else if (act === 'invite-make') {
+      makeInvite();
+    } else if (act === 'invite-copy') {
+      copyInvite();
     } else if (act === 'visit') {
       toggleVisit(el.getAttribute('data-for') || '');
     } else if (act === 'visit-done') {

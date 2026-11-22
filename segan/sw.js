@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026112311';
+const ASSET_VERSION = '2026112312';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -66,6 +66,7 @@ const SHELL = [
   versioned(SCOPE + 'shell.js'),
   versioned(SCOPE + 'guide.js'), // SEGAN 비서 — 셸 화면마다 (위 막대 「비서」 · PC 아래 입력 줄)
   versioned(SCOPE + 'motion.js'), // 움직임 한 벌 (CLAUDE.md 「SEGAN 모션 규칙」)
+  versioned(SCOPE + 'source.js'), // 유입 경로 — 공개 화면마다 (상담 · 가입에 같이 남긴다)
   versioned(SCOPE + 'home.css'), // 홈
   versioned(SCOPE + 'forward.js'), // 홈 머리 — 옛 만들기 주소를 make.html 로
   versioned(SCOPE + 'info.css'),
@@ -137,6 +138,7 @@ const SHELL = [
   versioned(SCOPE + 'hq-board.css'),
   versioned(SCOPE + 'hq-board.js'),
   versioned(SCOPE + 'as-requests.js'),
+  versioned(SCOPE + 'customer-install.js'),
   versioned(SCOPE + 'production-requests.js'),
   versioned(SCOPE + 'factory-requests.js'),
   versioned(SCOPE + 'join.js'),
