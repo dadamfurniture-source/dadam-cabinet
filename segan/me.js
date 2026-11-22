@@ -259,6 +259,7 @@
       stepsHtml(p.stage) +
       (facts.length ? '<dl class="me-facts">' + facts.join('') + '</dl>' : '') +
       payBox +
+      (window.SeganInstall ? window.SeganInstall.slotHtml(p) : '') +
       (window.SeganAs ? window.SeganAs.slotHtml(p) : '') +
       '</li>'
     );
