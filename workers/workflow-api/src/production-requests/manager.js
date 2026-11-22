@@ -30,6 +30,7 @@ import { SIDO } from '../consult-notify.js';
 import { DRAFT_ID_RE } from '../planner-drafts.js';
 import { PLANNER_SOURCE } from '../planner-handoff.js';
 import { logProject } from '../project-log.js';
+import { depositPaidIn, depositRequiredError } from '../order-events.js';
 import {
   CANCELLABLE,
   LIST_LIMIT,
@@ -211,6 +212,31 @@ export async function createRequest(env, { user, body, ctx }) {
           });
       } else if (!project || project.status !== 'active') project = null;
     }
+    // 계약금을 받기 전에는 제작 의뢰를 내지 못한다 (대표님 2026-11-23) — 이 설계나 프로젝트의 취소 아닌 수주 가운데
+    // 계약금 줄에 받은 날이 적힌 것이 있어야 한다
+    const liveOrders = async (key, id) =>
+      id
+        ? (await selectMany(env, 'orders', {
+            [key]: `eq.${id}`,
+            company_id: `eq.${company.id}`,
+            status: 'neq.cancelled',
+            select: 'id',
+            limit: '50',
+          })) || []
+        : [];
+    const orderIds = [
+      ...new Set(
+        [...(await liveOrders('design_id', design && design.id)), ...(await liveOrders('project_id', project && project.id))].map(
+          (o) => o.id
+        )
+      ),
+    ];
+    if (!(await depositPaidIn(env, orderIds)))
+      throw depositRequiredError(
+        orderIds.length
+          ? '계약금 입금을 적어야 제작 의뢰를 낼 수 있습니다 — 수주 창 수금에서 계약금 받은 날을 적어 주세요'
+          : '계약금을 받은 수주가 있어야 제작 의뢰를 낼 수 있습니다 — 확인서 승인 뒤 계약을 만들고 계약금 받은 날을 적어 주세요'
+      );
     let row;
     try {
       row = await insertOne(env, 'production_requests', {

@@ -261,8 +261,8 @@ describe('자리 · 이름', () => {
     expect(el).not.toBeNull();
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('meDash');
-    // 2026-11-21 대표님 — 달력이 숫자 칸 위로 (대시보드 칸 → 업무 달력 → 우리 팩토리 숫자 → 재고 칸)
-    expect(el.previousElementSibling.id).toBe('meCalendar');
+    // 2026-11-23 달력은 TODAY WORK 맨 위로 — 대시보드 칸 → 우리 팩토리 숫자 → 재고 칸
+    expect(el.previousElementSibling.id).toBe('meDashBody');
     expect(el.nextElementSibling.id).toBe('meStockNumbers');
     expect(el.getAttribute('role')).toBe('region');
     expect(el.getAttribute('aria-labelledby')).toBe('meNumbersTitle');

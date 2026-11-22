@@ -4,7 +4,7 @@
    누가 보나  다담 공장 구성원 · Manager · Expert · Agent 협력업체 구성원 (segan/partner-projects.js canSee 와 같다).
              고객 · 업체 없는 회원에게는 묻지도 않고 칸이 없다. 서버가 403 이면 칸째 감춘다.
              segan/me.js 가 업체 칸을 읽은 뒤 SeganCalendar.load(sb, session, partnerMe) 를 부르고,
-             TODAY WORK 대시보드(#dash-today) · 업무 달력 화면(#today-calendar)에서만 이 칸을 보인다 (me-off, 2026-11-21 옮김).
+             TODAY WORK 대시보드(#dash-today) 맨 위에서만 이 칸을 보인다 (me-off, 2026-11-21 옮김 · 11-23 하위 줄 없앰).
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET   /company/schedules?from=YYYY-MM-DD&to=YYYY-MM-DD   (한국 날짜 · 그날 포함 · 길어야 100일)
                      → { company, can_manage, range, today, truncated,

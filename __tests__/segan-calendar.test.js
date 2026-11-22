@@ -328,9 +328,9 @@ describe('자리 · 이름', () => {
     expect(el).not.toBeNull();
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('meDash');
-    // 대시보드 칸 → 업무 달력 → 우리 팩토리 숫자(segan/company-summary.js) (2026-11-21 대표님 — 달력을 위로)
-    expect(el.previousElementSibling.id).toBe('meDashBody');
-    expect(el.nextElementSibling.id).toBe('meNumbers');
+    // 2026-11-23 대표님 「달력을 맨위에」 — 제목 바로 아래, 새로 생긴 일보다 위
+    expect(el.previousElementSibling.id).toBe('meDashTitle');
+    expect(el.nextElementSibling.id).toBe('meInbox');
     expect(el.getAttribute('aria-label')).toBe('업무 달력');
     const at = (name) => html.indexOf('src="' + name);
     expect(at('calendar.js')).toBeGreaterThan(at('partner-projects.js'));
@@ -566,7 +566,7 @@ describe('누가 보나', () => {
     expect(box().querySelector('.cal-title').textContent).toBe('2026년 11월');
   });
 
-  test('다른 화면에서는 감춘다 (me-off) — TODAY WORK 대시보드 · 업무 달력 화면에서만 보인다', async () => {
+  test('다른 화면에서는 감춘다 (me-off) — TODAY WORK 대시보드에서만 보인다', async () => {
     await load({ hash: '#p-install' });
     expect(box().hidden).toBe(false); // 읽기는 했다
     expect(box().classList.contains('me-off')).toBe(true);
@@ -577,27 +577,39 @@ describe('누가 보나', () => {
       return box().classList.contains('me-off');
     };
     expect(await goTo('#dash-today')).toBe(false);
-    expect(await goTo('#today-calendar')).toBe(false);
-    // 업무 달력 화면 — 대시보드 칸 제목은 큰 메뉴 이름, 칸 단추는 없다
+    // 대시보드 — 제목은 큰 메뉴 이름, 하위 줄이 없어 칸 단추도 「볼 수 있는 내용이 없습니다」도 없다
     expect($('meDashTitle').textContent).toBe('TODAY WORK');
     expect($('meDashBody').hidden).toBe(true);
-    expect($('main').getAttribute('data-me-screen')).toBe('today-calendar');
-    expect(await goTo('#today-inbox')).toBe(true); // 새로 생긴 일 화면 — 달력은 없다 (그 칸을 못 읽어 열지도 못한다)
+    expect($('main').getAttribute('data-me-screen')).toBe('dash-today');
+    expect(await goTo('#today-calendar')).toBe(true); // 2026-11-23 하위 줄 화면은 없앴다 — 모르는 # 는 메뉴
     expect(await goTo('#dash-project')).toBe(true); // 2026-11-21 — 프로젝트 관리 대시보드에서 옮겼다
   });
 
-  test('메뉴 — 업무 맨 위 「TODAY WORK」, 하위 줄 「업무 달력」 (달력을 읽었을 때만)', async () => {
+  test('메뉴 — 업무 맨 위 「TODAY WORK」, 하위 줄 · ▾ 없이 이름만 (달력을 읽었을 때만)', async () => {
     await load();
     const menu = document.querySelector('#meHub [data-menu="today"]');
     expect(menu.hidden).toBe(false);
     expect(menu.querySelector('.me-menu-name').textContent).toBe('TODAY WORK');
+    expect(menu.querySelector('.me-menu-name').getAttribute('data-me-dash')).toBe('today');
     expect(menu.closest('section').id).toBe('meGroupWork');
     expect(document.querySelector('#meGroupWork [data-menu]').getAttribute('data-menu')).toBe('today');
-    const rows = [...menu.querySelectorAll('li[data-me-item]:not([hidden]) a.sg-row')];
-    expect(rows.map((a) => a.textContent)).toEqual(['업무 달력']); // 새로 생긴 일 칸은 이 시험에서 읽지 않는다
-    expect(rows[0].getAttribute('href')).toBe('#today-calendar');
-    // 프로젝트 관리 하위 줄에는 없다
-    expect(document.querySelector('#meSubProject [data-me-item="today-calendar"]')).toBeNull();
+    // 2026-11-23 대표님 「하위 메뉴는 없애주고 TODAY WORK 메뉴 누르면 다 나오게」
+    expect(menu.querySelector('li[data-me-item]')).toBeNull();
+    expect(menu.querySelector('[data-menu-toggle]')).toBeNull();
+    // 프로젝트 관리 하위 줄에도 없다
+    expect(document.querySelector('#meSubProject [data-me-item^="today"]')).toBeNull();
+  });
+
+  test('메뉴 이름을 누르면 TODAY WORK 대시보드 — 달력이 맨 위', async () => {
+    await load({ hash: '#dash-project' });
+    document.querySelector('#meHub [data-me-dash="today"]').click();
+    await flush();
+    expect(window.location.hash).toBe('#dash-today');
+    expect(box().classList.contains('me-off')).toBe(false);
+    const first = [...$('meDash').children].find(
+      (el) => el.id !== 'meDashTitle' && !el.hidden && !el.classList.contains('me-off')
+    );
+    expect(first.id).toBe('meCalendar');
   });
 
   test('업무 달력이 보이지 않으면(서버 403) TODAY WORK 큰 메뉴째 없다', async () => {

@@ -90,6 +90,8 @@ test('원가 줄 — 같은 키는 한 번만 (두 번째 200 · 같은 줄), �
 
 test('수주 상태 — expect_status 가 지금과 다르면 409 stale (바꾸지 않음), 맞으면 바꾸고, 이미 바꿀 상태면 그대로 200', async () => {
   const f = fake();
+  // 계약금이 들어와야 접수 → 생산 중 (대표님 2026-11-23)
+  f.db.order_payments.push({ id: 'PAY-D', order_id: O1, stage: 'deposit', amount: 300000, due_on: '2026-11-01', paid_on: '2026-11-01' });
   const path = `/orders/${O1}`;
   const stale = await call(f, path, STAFF, { method: 'PATCH', body: { status: 'in_production', expect_status: 'delivered' } });
   assert.equal(stale.status, 409, JSON.stringify(stale.json));
