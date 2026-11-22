@@ -89,7 +89,7 @@ export const fakeId = () => {
  *   before   (method, table, params, body) → Response 면 그 요청을 그 응답으로 끝낸다 (경합 · 실패 흉내)
  *   objects  버킷 객체 { '<bucket>/<path>': { bytes: Uint8Array, type } } — 없는 객체는 Storage 처럼 400
  */
-export function createFake({ tables = {}, admins = [], nowMs = Date.now(), before = null, objects = {} } = {}) {
+export function createFake({ tables = {}, admins = [], nowMs = Date.now(), before = null, objects = {}, buckets = null } = {}) {
   let now = nowMs;
   const db = {
     companies: [],
@@ -351,6 +351,9 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     // A/S 접수 (0045) — 새 접수는 requested, 때 칸은 비어 있다 (지킴이가 상태가 바뀔 때 찍는다 — 여기서는 서버가 보낸 값 그대로)
     if (table === 'as_requests')
       return { ...base, state: 'requested', received_at: null, done_at: null, cancelled_at: null, created_at: nowIso() };
+    // 단계 사진 (0083) — 새 줄은 지우지 않은 것
+    if (table === 'project_files')
+      return { ...base, note: null, created_by: null, created_at: nowIso(), deleted_at: null, deleted_by: null };
     if (table === 'project_visits')
       return {
         ...base,
@@ -452,7 +455,7 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
       if (r) return r;
     }
     // 실측 일정(DB 0079) · 고객 초대(DB 0082) — 시험이 표를 넣지 않았으면 「없는 표」로 답한다 (적용 전과 같다)
-    if (!db[table] && (table === 'project_visits' || table === 'customer_invites'))
+    if (!db[table] && (table === 'project_visits' || table === 'customer_invites' || table === 'project_files'))
       return json({ code: '42P01', message: `relation "public.${table}" does not exist` }, 404);
     if (!db[table]) throw new Error(`fake: 모르는 표 ${table}`);
     const reply = (rows, status) =>
@@ -543,7 +546,25 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
         }))
       );
     }
+    // 버킷에서 지우기 — DELETE /storage/v1/object/<버킷> { prefixes }
+    const bucketOnly = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)$/);
+    if (bucketOnly && init.method === 'DELETE') {
+      const { prefixes } = JSON.parse(init.body);
+      calls.push({ method: 'REMOVE', table: `storage:${bucketOnly[1]}`, body: { prefixes } });
+      for (const p of prefixes) delete objects[`${bucketOnly[1]}/${p}`];
+      return json(prefixes.map((name) => ({ name })));
+    }
     const obj = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
+    // 버킷에 올리기 — POST /storage/v1/object/<버킷>/<경로>. 시험이 buckets 를 주면 거기 없는 버킷은 「없는 버킷」
+    if (obj && init.method === 'POST') {
+      const path = decodeURIComponent(obj[2]);
+      calls.push({ method: 'UPLOAD', table: `storage:${obj[1]}`, path });
+      if (buckets && !buckets.includes(obj[1]))
+        return json({ statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' }, 400);
+      const type = new Headers(init.headers || {}).get('Content-Type') || '';
+      objects[`${obj[1]}/${path}`] = { bytes: init.body, type };
+      return json({ Key: `${obj[1]}/${path}` });
+    }
     if (obj && (init.method || 'GET') === 'GET') {
       const key = `${obj[1]}/${decodeURIComponent(obj[2])}`;
       calls.push({ method: 'GET', table: `storage:${obj[1]}`, path: decodeURIComponent(obj[2]), auth });
@@ -558,6 +579,7 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
   return {
     db,
     calls,
+    objects,
     fetch: fetchImpl,
     /** DB now() 를 옮긴다 (기한 시험) */
     setNow(ms) {
@@ -611,3 +633,9 @@ export async function withFetch(fake, fn) {
 /** 쓰기 요청 (GET 빼고) */
 export const writesOf = (fake) =>
   fake.calls.filter((c) => c.method !== 'GET' && c.method !== 'SIGN' && c.table !== 'project_events');
+
+/** 가짜 버킷에 있는 파일 경로 (올리기 · 지우기 시험) */
+export const objectsOf = (fake, bucket) =>
+  Object.keys(fake.objects)
+    .filter((k) => k.startsWith(bucket + '/'))
+    .map((k) => k.slice(bucket.length + 1));

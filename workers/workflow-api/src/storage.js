@@ -58,3 +58,21 @@ export async function uploadObject(env, bucket, path, bytes, contentType, { upse
   });
   if (!res.ok) throw new DbError(`Storage upload ${res.status}: ${await res.text()}`, res.status);
 }
+
+/**
+ * 비공개 버킷의 파일을 지운다 (service role). 없는 경로는 그냥 넘어간다.
+ */
+export async function removeObjects(env, bucket, paths) {
+  const prefixes = [...new Set((paths || []).filter((p) => typeof p === 'string' && p))];
+  if (!prefixes.length) return;
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucket}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prefixes }),
+  });
+  if (!res.ok) throw new DbError(`Storage remove ${res.status}: ${await res.text()}`, res.status);
+}
