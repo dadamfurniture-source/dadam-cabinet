@@ -833,6 +833,8 @@
         html +=
           (flow.note || '') +
           (flow.act ? '<div class="rd-acts">' + flow.act + (flow.tail || '') + '</div>' : '');
+      // 「관리」 칸 — 실측 일정 · 담당자 · 작업 배정 · 보류/그만둠. 프로젝트 칸(segan/partner-projects.js)이 그리고 듣는다
+      html += '<div data-ps="manage"></div>';
       html += panelHtml(picked, obj(v.got)[picked.key], p, history, now);
       if (history.length)
         html +=
@@ -980,9 +982,37 @@
         Shell.applyLinkTarget(a);
       });
     if (stages.length) {
+      mountManage(O, body);
       loadStage(O, O.stage);
       paintShots(O);
     }
+  }
+
+  /** 「관리」 칸을 제자리에 — 같은 마디를 다시 끼워 적던 값이 남게 한다 */
+  function mountManage(O, body) {
+    var pp = PP();
+    var slot = body.querySelector('[data-ps="manage"]');
+    if (!slot || !pp || typeof pp.mountDetail !== 'function') return;
+    slot.appendChild(O.manage);
+    pp.mountDetail(O.manage, O.id, {
+      onChange: function () {
+        refresh(O);
+      },
+    });
+  }
+
+  /** 「관리」 칸에서 한 일로 프로젝트가 바뀌었다 — 띠 · 다음 할 일 · 단계 칸을 다시 읽는다 */
+  async function refresh(O) {
+    var pp = PP();
+    if (S.open !== O || !pp) return;
+    var r = await pp.readProject(O.id);
+    if (S.open !== O) return;
+    if (r && r.ok && r.data && typeof r.data === 'object' && obj(r.data.project).id === O.id) {
+      O.data = r.data;
+      O.got = {};
+      O.note = '';
+    }
+    paint();
   }
 
   /** 그 단계의 자료를 읽는다 — 한 번 읽은 단계는 다시 읽지 않는다 (못 읽은 단계는 칸을 다시 누르면 읽는다) */
@@ -1070,6 +1100,8 @@
   function onClick(e) {
     var O = S.open;
     if (!O || !e.target || !e.target.closest) return;
+    // 「관리」 칸 안의 누름은 프로젝트 칸이 듣는다 — 여기서 또 하지 않는다
+    if (O.manage && O.manage.contains(e.target)) return;
     var btn = e.target.closest('[data-act]');
     if (btn && !btn.disabled) {
       var act = btn.getAttribute('data-act');
@@ -1086,14 +1118,11 @@
       } else if (act === 'print') {
         openPrint(O, id);
       } else if (act === 'work' && pp && typeof pp.openWork === 'function') {
-        // 작업 배정 — 창을 닫고 프로젝트 줄에서 한다
-        var forId = btn.getAttribute('data-for') || '';
-        var shut = O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
-        var go = function () {
-          pp.openWork(forId);
-        };
-        if (shut && typeof shut.then === 'function') shut.then(go, go);
-        else go();
+        // 작업 배정 — 이 창의 「관리」 칸에서 펼친다
+        pp.openWork(btn.getAttribute('data-for') || '');
+      } else if (act === 'status' && pp && typeof pp.openStatus === 'function') {
+        // 보류를 다시 볼 날 — 「관리」 칸의 다시 진행 · 그만둠
+        pp.openStatus(btn.getAttribute('data-for') || '');
       } else if (act === 'order') {
         var Orders = window.SeganOrders;
         var opened = Orders && typeof Orders.open === 'function' ? Orders.open(id) : null;
@@ -1108,17 +1137,20 @@
       ) {
         pp.runNext(act, id);
       } else if ((act === 'visit' || act === 'next-visit-done') && pp) {
-        // 실측 — 창을 닫고 프로젝트 줄에서 한다 (실측 칸을 열거나, 그 자리에서 끝낸다)
+        // 실측 — 이 창의 「관리」 칸에서 한다 (실측 칸을 펼치거나, 그 자리에서 끝낸다). 관리 칸이 없으면(옛 프로젝트 칸) 닫고 줄에서
         var target = btn.getAttribute('data-for') || '';
         var after = function () {
           if (act === 'visit' && typeof pp.openVisit === 'function') pp.openVisit(target);
           else if (act === 'next-visit-done' && typeof pp.runNext === 'function')
             pp.runNext(act, target);
         };
-        var closing =
-          O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
-        if (closing && typeof closing.then === 'function') closing.then(after, after);
-        else after();
+        if (typeof pp.mountDetail === 'function') after();
+        else {
+          var closing =
+            O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
+          if (closing && typeof closing.then === 'function') closing.then(after, after);
+          else after();
+        }
       }
       return;
     }
@@ -1174,6 +1206,7 @@
       stage: '', // 펼친 단계
       got: {}, // 단계 → { loading | failed | data }
       shots: {}, // 상담 id → 연출컷 blob 주소 ('' = 못 받음)
+      manage: document.createElement('div'), // 「관리」 칸 자리 — 다시 그려도 같은 마디를 끼운다
     };
     S.open = O;
     O.handle = window.SeganShell.sheet.open({
@@ -1182,6 +1215,8 @@
       kind: 'sheet',
       onClose: function () {
         if (S.open === O) S.open = null;
+        var pp2 = PP();
+        if (pp2 && typeof pp2.unmountDetail === 'function') pp2.unmountDetail(O.manage);
       },
     });
     paint();

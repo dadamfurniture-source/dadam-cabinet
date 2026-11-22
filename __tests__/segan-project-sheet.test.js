@@ -1021,7 +1021,56 @@ describe('단계 띠 · 단계 칸', () => {
     }
   });
 
-  test('실측 일정 · 작업 배정 — 창을 닫고 프로젝트 줄에서 한다', async () => {
+  test('「관리」 칸 — 프로젝트 칸이 그리는 자리를 준다. 다시 그려도 같은 마디라 적던 값이 남고, 그 안의 누름은 창이 듣지 않는다', async () => {
+    const { pp, sheets } = loadStages();
+    const mounts = [];
+    pp.mountDetail = jest.fn((el, id, opts) => {
+      mounts.push({ el, id, opts });
+      if (!el.firstChild)
+        el.innerHTML =
+          '<input name="note" /><button type="button" data-act="visit" data-for="' +
+          id +
+          '">실측 일정</button>';
+    });
+    pp.unmountDetail = jest.fn();
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    const slot = () => node().querySelector('[data-ps="manage"]');
+    expect(slot().firstChild).toBe(mounts[0].el);
+    expect(mounts.every((m) => m.el === mounts[0].el && m.id === P1)).toBe(true);
+    // 다음 할 일 아래 · 단계 칸 위
+    expect(slot().compareDocumentPosition(panel()) & 4).toBe(4);
+    // 적던 값 — 단계 칸을 바꿔 다시 그려도 남는다
+    slot().querySelector('input').value = '적던 글';
+    await pick('measure');
+    expect(slot().querySelector('input').value).toBe('적던 글');
+    // 「관리」 칸 안의 단추는 프로젝트 칸이 듣는다 — 창이 또 실측 칸을 열지 않는다
+    slot().querySelector('[data-act="visit"]').click();
+    expect(pp.openVisit).not.toHaveBeenCalled();
+    // 단계 칸의 「실측 일정」 · 「작업 배정」은 창을 닫지 않고 「관리」 칸을 펼친다
+    panel().querySelector('[data-act="visit"]').click();
+    expect(pp.openVisit).toHaveBeenCalledWith(P1);
+    await pick('make');
+    panel().querySelector('[data-act="work"]').click();
+    expect(pp.openWork).toHaveBeenCalledWith(P1);
+    expect(sheets[0].closed).toEqual([]);
+
+    // 「관리」 칸에서 한 일로 프로젝트가 바뀌었다 — 프로젝트 · 단계 칸을 다시 읽는다
+    const before = pp.readProject.mock.calls.length;
+    const stageReads = pp.readStage.mock.calls.length;
+    mounts[0].opts.onChange();
+    await flush();
+    await flush();
+    expect(pp.readProject.mock.calls.length).toBe(before + 1);
+    expect(pp.readStage.mock.calls.length).toBe(stageReads + 1); // 읽어 둔 단계 칸을 버리고 지금 칸을 다시 읽었다
+    expect(slot().querySelector('input').value).toBe('적던 글');
+
+    // 닫으면 자리를 돌려준다
+    sheets[0].close('button');
+    expect(pp.unmountDetail).toHaveBeenCalledWith(mounts[0].el);
+  });
+
+  test('실측 일정 · 작업 배정 — 「관리」 칸을 못 쓰는 프로젝트 칸이면(옛 판) 창을 닫고 프로젝트 줄에서 한다', async () => {
     const { pp, sheets } = loadStages();
     await window.SeganProjectSheet.open(P1);
     await flush();

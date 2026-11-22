@@ -673,13 +673,13 @@
       needs: '#mePartner .me-pt-staff',
       view: 'staff',
     },
+    // 옛 주소 #assign (인사 › 작업 분배 — 2026-11-23 대표님 「뺌」: 담당자는 프로젝트 한 건 화면에서, 목록의 「담당자 없음」으로 고른다)
     assign: {
-      title: '작업 분배',
+      title: '프로젝트',
       section: 'partner',
       parts: ['partnerProjects'],
       label: 'partnerProjectsTitle',
       stage: '',
-      assign: true,
     },
     // 인사 › 근무 일정 — segan/work-shifts.js 가 읽었으면 그 화면(쉬는 날 주간 표), 아니면 준비 중
     schedule: {
@@ -913,6 +913,7 @@
     open: '', // 펼친 큰 메뉴 (data-menu)
     touched: false, // 사람이 큰 메뉴를 골랐다 (전에는 지금 화면이 든 · 처음 보이는 큰 메뉴를 펼친다)
     shown: null, // 지난번에 보인 화면 (# — '' = 메뉴, null = 아직 안 그림)
+    viewFor: '', // 프로젝트 목록의 보기를 맞춘 화면 (showStage — 화면을 옮겼을 때만 다시 맞춘다)
   };
 
   /** 움직임 — segan/motion.js 를 실은 화면만 (없으면 움직이지 않는다) */
@@ -990,22 +991,26 @@
         if (stage === 'as') return { title: title, section: 'meAsSection', empty: TEXT.noAsMine };
         return { title: title, section: 'meProjectSection', stage: stage };
       }
-      var parts = ['partnerProjects'];
-      if (stage === 'consult' && v.factory)
-        parts = ['partner-consults', 'partnerProjects', 'partnerConsultSettings'];
-      if (stage === 'make')
-        parts = [v.factory ? 'factory-requests' : 'production-requests', 'partnerProjects'];
-      // 계약 = 수주 표(누르면 상세 시트) · 계약 단계 프로젝트 (segan/orders.js)
-      if (stage === 'contract') parts = ['orders', 'partnerProjects'];
-      // 견적 = 보낸 견적서 목록 · 견적 단계 프로젝트 (segan/quotes.js)
-      if (stage === 'quote') parts = ['quotes', 'partnerProjects'];
-      // 설치 = 설치 현장 지도 + 표 · 설치 단계 프로젝트, A/S = A/S 현장 지도 + 표 · A/S함 (segan/site-map.js)
-      if (stage === 'install') parts = ['siteInstall', 'partnerProjects'];
+      // 2026-11-23 대표님 「단계 화면 아래 반복 목록을 뺌」 — 단계 화면은 그 단계의 도구만 보인다.
+      // 프로젝트 목록은 프로젝트 관리(#dash-project) 한 곳에 있고, 거기서 단계를 골라 본다 (segan/partner-projects.js 보기 고르기).
+      var tools = [];
+      // 상담 = 받은 상담 · 상담 설정 (segan/partner-consults.js)
+      if (stage === 'consult' && v.factory) tools = ['partner-consults', 'partnerConsultSettings'];
+      // 생산 = 받은 제작 의뢰함(팩토리) · 내가 낸 제작 의뢰(영업 사원 업체)
+      if (stage === 'make') tools = [v.factory ? 'factory-requests' : 'production-requests'];
+      // 계약 = 수주 표(누르면 상세 시트) (segan/orders.js)
+      if (stage === 'contract') tools = ['orders'];
+      // 견적 = 보낸 견적서 목록 (segan/quotes.js)
+      if (stage === 'quote') tools = ['quotes'];
+      // 설치 = 설치 현장 지도 + 표, A/S = A/S 현장 지도 + 표 · A/S함 (segan/site-map.js)
+      if (stage === 'install') tools = ['siteInstall'];
       if (stage === 'as')
         return v.factory
           ? { title: title, section: 'partner', parts: ['siteAs', 'as'], label: 'asTitle' }
           : { title: title, soon: TEXT.managerAs };
-      return { title: title, section: 'partner', parts: parts, stage: stage };
+      if (tools.some(shown)) return { title: title, section: 'partner', parts: tools };
+      // 도구가 없는 단계(실측 · 설계)와 도구를 못 읽은 때 — 그 단계로 고른 프로젝트 목록
+      return { title: title, section: 'partner', parts: ['partnerProjects'], stage: stage };
     };
   }
 
@@ -1132,12 +1137,16 @@
   }
 
   /** 프로젝트 칸을 그 화면의 단계로 — 고객은 이 파일이, 업체는 segan/partner-projects.js 가 거른다 */
-  function showStage(s) {
+  function showStage(s, name) {
     if (!s) return;
     if (s.section === 'meProjectSection') renderMyProjects(s.stage || '', s.stage ? s.title : '');
     var PP = window.SeganPartnerProjects;
-    if (s.parts && s.parts.indexOf('partnerProjects') >= 0 && PP && PP.setView)
-      PP.setView({ stage: s.stage || '', assign: !!s.assign });
+    if (!(s.parts && s.parts.indexOf('partnerProjects') >= 0 && PP && PP.setView)) return;
+    // 화면을 옮겼을 때만 보기를 맞춘다 — 같은 화면에서 목록 위의 보기 고르기 · 대시보드의 단계 줄로 고른 것은 그대로 둔다
+    var key = String(name || '') + '|' + (s.stage || '');
+    if (H.viewFor === key) return;
+    H.viewFor = key;
+    PP.setView({ stage: s.stage || '' });
   }
 
   /** 플래너 주소 — SeganShell.ROLE_LINKS planner (한 곳에서 정한다) */
@@ -1351,8 +1360,10 @@
       sec.setAttribute('aria-labelledby', s && s.label && $(s.label) ? s.label : 'mePartnerTitle');
       sec.setAttribute('data-me-view', (open && s.view) || '');
     }
-    if (open) showStage(s);
-    if (x) showStage(x);
+    if (open) showStage(s, name);
+    if (x) showStage(x, name);
+    // 프로젝트 목록이 없는 화면으로 갔다 — 돌아오면 다시 맞춘다
+    if (parts.indexOf('partnerProjects') < 0) H.viewFor = '';
     if (open && s.dash) renderDash(s.dash);
     var today = open && s.dash === 'today';
     off('meCalendar', !today); // 업무 달력 — TODAY WORK 대시보드 맨 위에서만 (segan/calendar.js)
@@ -1629,7 +1640,8 @@
       case 'pj-as':
         if (v.platform) return false;
         if (!v.member) return shown('meProjectSection') || shown('meAsSection');
-        return v.factory ? shown('as') : pr;
+        // 영업 사원 업체(Manager 등급)의 A/S 는 아직 「준비 중」 글뿐이라 줄을 내지 않는다 (2026-11-23 대표님)
+        return v.factory && shown('as');
       // 구매 · 재고 — 준비 중 (Expert 이상 · 공장)
       case 'stock-board':
       case 'stock-scrap':
@@ -1663,12 +1675,9 @@
       // 인사 — Agent 대표 · 실장 · 다담 공장
       case 'staff':
         return v.people && available(key);
+      // 작업 분배 줄은 뺐다 (2026-11-23 대표님) — 담당자는 프로젝트 한 건 화면에서
       case 'assign':
-        return (
-          v.people &&
-          pr &&
-          !!(window.SeganPartnerProjects && window.SeganPartnerProjects.canAssign())
-        );
+        return false;
       // 근무 일정 — 대표 · 실장 · 공장에게는 늘(못 읽으면 준비 중), 그 밖의 구성원에게는 읽혔을 때 (segan/work-shifts.js)
       case 'schedule':
         return v.people || shown('workShifts');

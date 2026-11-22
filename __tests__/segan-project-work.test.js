@@ -263,6 +263,8 @@ async function load(options = {}) {
     (0, eval)(read(f));
   await window.SeganShell.ready;
   await window.SeganMe.ready;
+  // 한 건 화면 — 열면 그 프로젝트의 「관리」 칸 자리를 준다 (업무 달력 · 새로 생긴 일에서 열 때)
+  window.SeganProjectSheet = { open: jest.fn((id) => (area(id), true)) };
   await flush();
   return calls;
 }
@@ -277,8 +279,22 @@ const press = async (el) => {
   await flush();
 };
 const projectRow = (id) => $('partnerProjects').querySelector(`li[data-project="${id}"]`);
-const workBtn = (id) => projectRow(id).querySelector('[data-act="work"], [data-act="work-close"]');
-const panel = () => $('partnerProjects').querySelector('.pjw');
+// 2026-11-23 — 「작업 배정」은 프로젝트 줄이 아니라 한 건 화면의 「관리」 칸에 있다 (segan/partner-projects.js mountDetail).
+// 그 화면이 주는 자리를 흉내 낸다 — 같은 프로젝트면 그 자리 그대로
+const area = (id) => {
+  let host = $('pjHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'pjHost';
+    document.body.appendChild(host);
+  }
+  const P = window.SeganPartnerProjects;
+  const d = P.state.detail;
+  if (!d || d.el !== host || d.id !== id) P.mountDetail(host, id);
+  return host;
+};
+const workBtn = (id) => area(id).querySelector('[data-act="work"], [data-act="work-close"]');
+const panel = () => document.querySelector('.pjw');
 const tableRows = () =>
   [...panel().querySelectorAll('.pjw-table tbody tr')].map((tr) =>
     [...tr.children].map(text).join(' | ')
@@ -388,7 +404,7 @@ describe('작업 배정 — 대표 · 실장', () => {
     expect(workCalls(calls)).toEqual([['GET', `/company/projects/${P1}/work`, undefined]]);
     expect(calls.fetch.find((c) => c.url.endsWith('/work')).auth).toBe('Bearer tok-1');
     expect(text(workBtn(P1))).toBe('작업 배정'); // 펼쳐도 글은 그대로, 색만 바뀐다 (닫기 단추 없음)
-    expect(panel().closest('li').getAttribute('data-project')).toBe(P1);
+    expect(panel().closest('[data-project]').getAttribute('data-project')).toBe(P1);
     expect(tableRows()).toEqual([
       '철거 | - | - | - | 고르기',
       '재단 | 시험기사 다 | 11/19 (목) 09:00 | 수락 대기 | 고르기',
@@ -402,8 +418,10 @@ describe('작업 배정 — 대표 · 실장', () => {
 
     // 다른 프로젝트를 열면 앞의 칸은 닫히고 새로 읽는다
     await press(workBtn(P2));
-    expect($('partnerProjects').querySelectorAll('.pjw').length).toBe(1);
-    expect(panel().closest('li').getAttribute('data-project')).toBe(P2);
+    expect(document.querySelectorAll('.pjw').length).toBe(1);
+    // 줄에는 그 단추도 칸도 없다
+    expect($('partnerProjects').querySelector('.pjw, [data-act="work"], [data-act="work-close"]')).toBeNull();
+    expect(panel().closest('[data-project]').getAttribute('data-project')).toBe(P2);
     expect(workCalls(calls).pop()).toEqual(['GET', `/company/projects/${P2}/work`, undefined]);
     await press(workBtn(P2));
     expect(panel()).toBeNull();
@@ -624,10 +642,8 @@ describe('누가 무엇을', () => {
 
     for (const partner of [partnerOf('expert'), partnerOf('manager')]) {
       await load({ partner });
-      expect(projectRow(P1).querySelector('[data-act="work"]')).toBeNull();
+      expect(workBtn(P1)).toBeNull();
     }
-    await load({ hash: '#assign' });
-    expect(projectRow(P1).querySelector('[data-act="work"]')).toBeNull();
     await load({ partner: HQ });
     expect(text(workBtn(P1))).toBe('작업 배정'); // 다담 공장
   });
@@ -673,10 +689,11 @@ describe('달력에서 열기', () => {
     expect(PP().openWork(P2)).toBe(true);
     await flush();
     expect(workCalls(calls)).toEqual([['GET', `/company/projects/${P2}/work`, undefined]]);
-    expect(panel().closest('li').getAttribute('data-project')).toBe(P2);
+    expect(panel().closest('[data-project]').getAttribute('data-project')).toBe(P2);
     expect(text(workBtn(P2))).toBe('작업 배정');
     expect(document.activeElement).toBe(workBtn(P2));
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+    expect(window.SeganProjectSheet.open).toHaveBeenCalledWith(P2); // 한 건 화면을 열고
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
     // 다시 불러도 같은 칸 — 서버에 또 묻지 않는다
     expect(PP().openWork(P2)).toBe(true);
     await flush();
@@ -684,24 +701,28 @@ describe('달력에서 열기', () => {
     // 다른 프로젝트로 옮기면 앞 칸은 닫힌다
     expect(PP().openWork(P1)).toBe(true);
     await flush();
-    expect(panel().closest('li').getAttribute('data-project')).toBe(P1);
+    expect(panel().closest('[data-project]').getAttribute('data-project')).toBe(P1);
     expect(text(workBtn(P2))).toBe('작업 배정');
   });
 
-  test('TODAY WORK 화면(목록이 없는 화면)에서 부르면 프로젝트 관리 화면으로 넘어가서 연다 (기록 하나)', async () => {
+  test('TODAY WORK 화면(목록이 없는 화면)에서 불러도 화면을 옮기지 않는다 — 그 자리에서 한 건 화면을 연다', async () => {
     await load({ hash: '#dash-today' });
     expect($('partnerProjects').classList.contains('me-off')).toBe(true);
     const before = window.history.length;
     expect(PP().openWork(P2)).toBe(true);
     await flush();
-    expect(window.location.hash).toBe('#dash-project');
-    expect(window.history.length).toBe(before + 1);
-    expect($('partnerProjects').classList.contains('me-off')).toBe(false);
-    expect(panel().closest('li').getAttribute('data-project')).toBe(P2);
-    // 못 여는 프로젝트면 넘어가지 않는다
+    expect(window.location.hash).toBe('#dash-today');
+    expect(window.history.length).toBe(before);
+    expect(window.SeganProjectSheet.open).toHaveBeenCalledWith(P2);
+    expect(panel().closest('[data-project]').getAttribute('data-project')).toBe(P2);
+    // 못 여는 프로젝트면 열지 않는다
     await load({ hash: '#dash-today' });
     expect(PP().openWork(P3)).toBe(false);
-    expect(window.location.hash).toBe('#dash-today');
+    expect(window.SeganProjectSheet.open).not.toHaveBeenCalled();
+    // 한 건 화면이 없는 화면에서는 열 곳이 없다
+    delete window.SeganProjectSheet;
+    expect(PP().openWork(P2)).toBe(false);
+    expect(PP().state.workFor).toBe('');
   });
 
   test('열 수 없으면 false — 끝난 프로젝트 · 모르는 id · 인사를 안 쓰는 등급', async () => {
