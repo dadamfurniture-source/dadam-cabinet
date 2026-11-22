@@ -177,6 +177,12 @@
       .stat-tab.cancelled .count {
         color: #93301f;
       }
+      /* 최근 30일 유입 — 상담이 어디서 왔나 (DB 0080 · 앱이 처음 들어온 곳을 담아 상담에 같이 남긴다) */
+      .inflow-stats {
+        margin: -8px 0 16px;
+        font-size: 0.85rem;
+        color: rgba(45, 42, 38, 0.62);
+      }
 
       /* Filters */
       .filters {
@@ -535,6 +541,8 @@
             <span class="label">취소</span>
           </div>
         </div>
+        <!-- 최근 30일 유입 — 꼬리표(출처 · 캠페인) 또는 들어온 사이트별 상담 수 (DB 0080) -->
+        <p class="inflow-stats" id="inflowStats" hidden></p>
 
         <!-- Filters -->
         <div class="filters">
@@ -776,6 +784,44 @@
           document.getElementById('cancelledCount').textContent = counts.cancelled;
         } catch (e) {
           console.log('통계 로드 실패:', e.message);
+        }
+        loadInflowStats();
+      }
+
+      /** 유입 이름 — 꼬리표가 있으면 출처 · 캠페인, 없으면 들어온 사이트, 둘 다 없으면 「직접 · 모름」 */
+      function inflowLabel(c) {
+        const tags = [c.inflow_source, c.inflow_campaign].filter(Boolean);
+        if (tags.length) return tags.join(' · ');
+        return c.inflow_referrer || '직접 · 모름';
+      }
+
+      /** 최근 30일 본사 상담을 유입별로 센다 — 많은 순 다섯 + 나머지. 글은 textContent 로만 넣는다 */
+      async function loadInflowStats() {
+        const el = document.getElementById('inflowStats');
+        if (!el) return;
+        try {
+          const platformId = await platformCompanyId();
+          const since = new Date(Date.now() - 30 * 86400000).toISOString();
+          const { data, error } = await supabaseClient
+            .from('consultations')
+            .select('inflow_source,inflow_medium,inflow_campaign,inflow_referrer')
+            .eq('company_id', platformId)
+            .gte('created_at', since);
+          if (error) throw error;
+          const counts = new Map();
+          (data || []).forEach((c) => {
+            const k = inflowLabel(c);
+            counts.set(k, (counts.get(k) || 0) + 1);
+          });
+          const list = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+          const top = list.slice(0, 5).map(([k, n]) => k + ' ' + n);
+          const rest = list.slice(5).reduce((sum, [, n]) => sum + n, 0);
+          if (rest) top.push('그 밖 ' + rest);
+          el.textContent = '최근 30일 유입 — ' + (top.length ? top.join(' / ') : '상담 없음');
+          el.hidden = false;
+        } catch (e) {
+          el.hidden = true;
+          console.log('유입 통계 로드 실패:', e.message);
         }
       }
 
