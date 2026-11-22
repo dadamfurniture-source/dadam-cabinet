@@ -844,6 +844,90 @@ describe('② 요청 · AI 상담 — /api/chat (app · 줄인 방 사진) → �
     expect(body.design_style).toBeUndefined();
   });
 
+  // 11-23 대표님 「상담내역은 마이페이지에 정리본 자동저장 · 상담내용 초기화 버튼 · 다시 시도하면 초기화」
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const BRIEF_OK = { success: true, brief: '정수기 · 월넛 도어', saved: true };
+
+  test('정리하기 — 상담 열쇠(uuid)를 같이 보내 마이페이지에 적고, 다시 정리해도 같은 열쇠 · 저장 안내', async () => {
+    const { M, sent } = await chatLoad([{ success: true, reply: '네, 확인했어요.' }, BRIEF_OK, BRIEF_OK]);
+    $('mkChatInput').value = '정수기 들어가요';
+    $('mkChatSend').click();
+    await M.chatting;
+    expect(sent[0].body.note_key).toBeUndefined(); // 대화 한 마디에는 열쇠가 없다
+    expect($('mkBriefSaved').hidden).toBe(true);
+    $('mkBriefMake').click();
+    await M.chatting;
+    const key = sent[1].body.note_key;
+    expect(key).toMatch(UUID);
+    expect(draft().choices.noteKey).toBe(key);
+    expect(visible($('mkBriefSaved'))).toBe(true);
+    expect($('mkBriefSaved').querySelector('a').getAttribute('href')).toBe('me.html#consult-notes');
+    $('mkBriefMake').click();
+    await M.chatting;
+    expect(sent[2].body.note_key).toBe(key);
+  });
+
+  test('저장하지 못했으면(saved 없음) 저장 안내를 띄우지 않는다', async () => {
+    const { M } = await chatLoad([{ success: true, reply: '네.' }, { success: true, brief: '화이트 도어' }]);
+    $('mkChatInput').value = '화이트';
+    $('mkChatSend').click();
+    await M.chatting;
+    $('mkBriefMake').click();
+    await M.chatting;
+    expect(visible($('mkBriefBox'))).toBe(true);
+    expect($('mkBriefSaved').hidden).toBe(true);
+  });
+
+  test('「상담 내용 초기화」 — 상담 · 참고 내용 · 열쇠를 비우고 첫 말로, 다음 정리는 새 열쇠', async () => {
+    const { M, sent } = await chatLoad([
+      { success: true, reply: '네, 확인했어요.' },
+      BRIEF_OK,
+      { success: true, reply: '네.' },
+      BRIEF_OK,
+    ]);
+    expect($('mkChatReset').hidden).toBe(true); // 말하기 전에는 없다
+    $('mkChatInput').value = '정수기';
+    $('mkChatSend').click();
+    await M.chatting;
+    expect(visible($('mkChatReset'))).toBe(true);
+    $('mkBriefMake').click();
+    await M.chatting;
+    const first = sent[1].body.note_key;
+    $('mkChatReset').click();
+    expect(log()).toEqual([['ai', OPENER]]);
+    expect($('mkBriefBox').hidden).toBe(true);
+    expect($('mkBriefSaved').hidden).toBe(true);
+    expect($('mkBriefMake').hidden).toBe(true);
+    expect($('mkChatReset').hidden).toBe(true);
+    expect($('mkBrief').value).toBe('');
+    expect(draft().choices).toMatchObject({ chat: [], brief: '', prompt: '', noteKey: '', briefDoor: '' });
+    expect(M.buildBody([]).customer_request).toBeUndefined();
+    $('mkChatInput').value = '식기세척기';
+    $('mkChatSend').click();
+    await M.chatting;
+    expect(sent[2].body.messages).toEqual([
+      { role: 'ai', text: OPENER },
+      { role: 'me', text: '식기세척기' },
+    ]);
+    $('mkBriefMake').click();
+    await M.chatting;
+    expect(sent[3].body.note_key).toMatch(UUID);
+    expect(sent[3].body.note_key).not.toBe(first);
+  });
+
+  test('사진 다시 선택 — 지난 상담 · 참고 내용을 비운다 (품목은 남는다)', async () => {
+    const { M } = await chatLoad([{ success: true, reply: '네.' }, BRIEF_OK], { choices: { kind: 'wardrobe' } });
+    $('mkChatInput').value = '드레스워시';
+    $('mkChatSend').click();
+    await M.chatting;
+    $('mkBriefMake').click();
+    await M.chatting;
+    expect(draft().choices.brief).toBe('정수기 · 월넛 도어');
+    $('mkClear').click();
+    expect(draft().choices).toMatchObject({ kind: 'wardrobe', chat: [], brief: '', noteKey: '' });
+    expect(draft().step).toBe('photo');
+  });
+
   test('정리 전 생성 — 적은 글과 고객 답을 잇는다 (같은 글은 한 번)', async () => {
     const { M } = await chatLoad([], {
       choices: {

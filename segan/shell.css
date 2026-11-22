@@ -634,6 +634,69 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-45);
 }
 
+/* ── 마이페이지 「AI 상담 기록」 (segan/consult-notes.js) — 가는 선으로 줄을 나눈다 ── */
+.cn-lead {
+  margin: 0 0 8px;
+}
+
+.cn-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cn-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--v5-line-18);
+}
+
+.cn-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.cn-head b {
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.cn-head small {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+  font-variant-numeric: tabular-nums;
+}
+
+.cn-brief {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.cn-acts,
+.cn-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cn-ask span {
+  flex: 1 1 100%;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+}
+
+.cn-yes {
+  border-color: var(--v5-ink);
+}
+
 /* ── 마이페이지 메뉴 · 하위 화면 (segan/me.js) ──
    폰 · 태블릿(~1099px): 메뉴(주소에 # 없음) → 하위 화면 하나 (main[data-me-screen] 이 그 이름)
    PC(1100px~): 왼쪽 메뉴 + 오른쪽 하위 화면 (시트가 옆 패널이 되는 폭과 같다) */

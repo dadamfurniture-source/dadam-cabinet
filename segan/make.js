@@ -12,6 +12,10 @@
      로그인하면 상담 단추 없이 AI 첫 질문(chatOpener, 화면 글 — 바로 뜬다)과 입력 칸이 보이고, 고객은 답만 한다(11-21 대표님).
      답마다 POST /api/chat (app:true · 긴 변 512 로 줄인 방 사진) 이 다음 질문을 준다. 「정리하기」 → POST /api/chat/brief
      → 「연출컷 참고 내용」 칸(고칠 수 있다). 로그인 전에는 「원하는 연출」 글 칸만 (로그인하면 그 글이 첫 답 칸에 들어간다).
+     정리본은 서버가 마이페이지 「AI 상담 기록」(me.html#consult-notes, DB 0081)에 적는다 — 상담마다 열쇠(noteKey, uuid)를
+     만들어 보내고, 같은 상담에서 다시 정리하면 같은 줄을 고친다(11-23 대표님 「정리본 자동저장」).
+     「상담 내용 초기화」 단추 · 다시 만들기(다른 사진으로 · 사진 다시 선택) · 생성 시작 때 상담 · 참고 내용을 비운다
+     (11-23 대표님 「다시 진행하니 이전 상담 내역이 그대로 남아 있다 — 다시 시도하면 초기화」).
      생성 본문 customer_request = 참고 내용 (없으면 적은 글 · 고객 답). 정리 때 AI 가 목록 안에서 고른 도어 색 · 스타일은
      door_color · design_style 로 싣고, 고객이 참고 내용을 고치면 버린다 (글이 FINISH 줄보다 앞선다 — 워커 프롬프트).
      상담은 로그인한 고객만 — 로그인 전에는 사진이 이 기기 밖으로 나가지 않는다.
@@ -354,6 +358,7 @@
     brief: '', // 연출컷 참고 내용 (정리 뒤 고객이 고친 글)
     briefDoor: '', // 정리가 고른 도어 색 (DOORS 값) — 고객이 참고 내용을 고치면 ''
     briefStyle: '', // 정리가 고른 스타일 (STYLES 값) — 같다
+    noteKey: '', // 상담 한 번의 열쇠 (uuid) — 정리본을 마이페이지에 적을 때 같은 상담이면 같은 줄 (DB 0081)
     fBrand: 'samsung',
     fPos: 'left',
     fModel: '',
@@ -528,6 +533,7 @@
     });
     if (o.brief && has(DOORS, c.briefDoor)) o.briefDoor = c.briefDoor;
     if (o.brief && has(STYLES, c.briefStyle)) o.briefStyle = c.briefStyle;
+    if (typeof c.noteKey === 'string' && UUID_RE.test(c.noteKey)) o.noteKey = c.noteKey;
     o.chat = cleanChat(c.chat);
     ['fModel', 'fKimchi'].forEach(function (k) {
       if (/^[A-Za-z0-9][A-Za-z0-9._()-]{0,39}$/.test(String(c[k] || ''))) o[k] = String(c[k]);
@@ -621,6 +627,18 @@
         /* 저장소가 막힌 기기 — 담지 못한다 */
       }
       return false;
+    }
+  }
+
+  /** 담아 둔 초안의 고른 값만 지금 값으로 (단계 · 사진 · 참고 사진은 그대로). 초안이 없으면 하지 않는다 */
+  function storeChoices() {
+    try {
+      var d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
+      if (!d || d.v !== 1) return;
+      d.choices = S.choices;
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    } catch {
+      /* noop */
     }
   }
 
@@ -1178,6 +1196,8 @@
     $('mkBriefMake').hidden = !(on && talked);
     $('mkBriefMake').disabled = busy;
     $('mkBriefMake').textContent = c.brief ? '다시 정리하기' : '정리하기';
+    $('mkChatReset').hidden = !(on && (talked || !!c.brief));
+    $('mkChatReset').disabled = busy;
     $('mkChatLogin').hidden = on;
     $('mkChatLogin').setAttribute('href', loginHref());
     var note = full ? '상담은 ' + CHAT_TURNS + '마디까지입니다. 「정리하기」를 눌러 주세요.' : '';
@@ -1186,6 +1206,53 @@
     $('mkChatError').textContent = S.chatError || '';
     $('mkChatError').hidden = !S.chatError;
     $('mkBriefBox').hidden = !c.brief && !S.briefOpen;
+    $('mkBriefSaved').hidden = !(on && c.brief && S.briefSaved);
+  }
+
+  /** 상담 · 참고 내용을 비운다 — 「상담 내용 초기화」 · 다시 만들기 · 생성 시작. 이미 적은 정리본(마이페이지)은 그대로 둔다 */
+  function clearConsult() {
+    var c = S.choices;
+    c.chat = [];
+    c.prompt = '';
+    c.brief = '';
+    c.briefDoor = '';
+    c.briefStyle = '';
+    c.noteKey = '';
+    S.briefOpen = false;
+    S.briefSaved = false;
+    S.chatError = '';
+    S.promptCarried = false;
+    ['mkChatInput', 'mkPrompt', 'mkBrief'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.value = '';
+    });
+  }
+
+  /** 상담 한 번의 열쇠 — 없으면 만든다 (uuid v4) */
+  function noteKey() {
+    var c = S.choices;
+    if (c.noteKey) return c.noteKey;
+    var k = '';
+    try {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') k = window.crypto.randomUUID();
+    } catch {
+      k = '';
+    }
+    if (!UUID_RE.test(k)) {
+      var b = new Uint8Array(16);
+      if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b);
+      else for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+      b[6] = (b[6] & 0x0f) | 0x40;
+      b[8] = (b[8] & 0x3f) | 0x80;
+      var h = Array.prototype.map
+        .call(b, function (x) {
+          return (x + 256).toString(16).slice(1);
+        })
+        .join('');
+      k = h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+    }
+    c.noteKey = k;
+    return k;
   }
 
   /** 상담에 같이 보내는 방 사진 — 긴 변 CHAT_EDGE JPEG. 한 번 만들어 같은 사진 동안 다시 쓴다. 못 만들면 null (글만 보낸다) */
@@ -1215,6 +1282,7 @@
   async function chatCall(path) {
     var c = S.choices;
     var body = { category: c.kind, app: true, messages: c.chat };
+    if (path === '/api/chat/brief') body.note_key = noteKey(); // 정리본을 마이페이지에 (같은 상담이면 같은 줄)
     var img = await chatPhoto();
     if (img) {
       body.room_image = img.base64;
@@ -1278,6 +1346,7 @@
       S.choices.briefDoor = has(DOORS, data.door_color) ? data.door_color : '';
       S.choices.briefStyle = has(STYLES, data.design_style) ? data.design_style : '';
       S.briefOpen = true;
+      S.briefSaved = data.saved === true;
       $('mkBrief').value = brief;
     } catch {
       S.chatError = BRIEF_FAIL;
@@ -1861,6 +1930,8 @@
     $('mkCameraInput').value = '';
     $('mkAlbumInput').value = '';
     dropDraftPhoto();
+    clearConsult(); // 다른 방 사진 — 지난 상담은 비운다
+    storeChoices();
     if (S.step !== 'photo') setStep('photo', false);
     else render();
   }
@@ -2158,6 +2229,9 @@
       if (refs.skipped) S.resMsg = '참고 사진 ' + refs.skipped + '장을 불러오지 못해 빼고 만듭니다';
       // 시작됐다 — 이 기기에 담아 둔 사진을 지운다 (화면의 사진은 실패 때 다시 시도하려고 남긴다)
       dropDraftPhoto();
+      // 상담도 썼다 — 비운다 (보낸 참고 내용은 이 연출컷에 남고, 정리본은 마이페이지에)
+      clearConsult();
+      storeChoices();
       try {
         history.replaceState(
           { mk: 'result' },
@@ -2229,6 +2303,8 @@
     S.phase = 'idle';
     resetResult();
     dropDraftPhoto();
+    clearConsult(); // 다시 만들기 — 지난 상담은 비운다 (정리본은 마이페이지에 남는다)
+    storeChoices();
     try {
       history.replaceState({ mk: 'photo' }, '', location.pathname);
     } catch {
@@ -2540,6 +2616,13 @@
     };
     $('mkBriefMake').onclick = function () {
       api.chatting = makeBrief();
+    };
+    $('mkChatReset').onclick = function () {
+      if (S.chatBusy) return;
+      clearConsult();
+      saveDraft();
+      renderChat();
+      $('mkChatInput').focus();
     };
     $('mkChatLogin').onclick = function (e) {
       // 로그인 전: 고른 값 · 사진을 이 기기에만 담고 로그인하러 간다 (생성 버튼과 같은 길)
