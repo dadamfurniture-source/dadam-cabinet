@@ -137,7 +137,7 @@ async function call(fake, token) {
 }
 
 test('이름 — 할 일 일곱 · 소식 글이 모두 있다, 14일 · 20줄', () => {
-  assert.deepEqual(Object.keys(TODO_LABEL), ['consult', 'offer', 'choose', 'approval', 'as', 'due', 'install_confirm']);
+  assert.deepEqual(Object.keys(TODO_LABEL), ['consult', 'offer', 'choose', 'approval', 'as', 'due', 'install_confirm', 'install_change']);
   assert.equal(TODO_LABEL.install_confirm, '설치 날 고객 확인');
   for (const v of Object.values(NEWS_LABEL)) assert.ok(typeof v === 'string' && v);
   assert.deepEqual([NEWS_DAYS, NEWS_LIMIT], [14, 20]);
@@ -449,4 +449,38 @@ test('할 일 — 설치 날 고객 확인: 앞으로 7일 안의 설치 일정 
   // 모두 확인했으면 할 일이 없다
   t.design_schedules = [S(3, { customer_confirmed_at: at(-1) })];
   assert.equal(await pick('t_owner'), null);
+});
+
+test('할 일 — 설치 날 변경 요청: 고객이 바꿔 달라고 한 열린 설치 일정, 대표 · 실장에게만 (DB 0082 전이면 없다)', async () => {
+  const at = (days) => new Date(AT + days * 86400000).toISOString();
+  const S = (i, extra = {}) => ({
+    id: id('0c', i),
+    design_id: D(1),
+    type: 'installation',
+    status: 'scheduled',
+    scheduled_at: at(20),
+    customer_confirmed_at: null,
+    customer_change_requested_at: null,
+    ...extra,
+  });
+  const t = tables();
+  t.design_schedules = [
+    S(1, { customer_change_requested_at: at(-1) }), // 20일 뒤 · 요청 → 센다 (7일 밖이어도)
+    S(2, { scheduled_at: at(5), customer_change_requested_at: at(0) }), // 5일 뒤 · 요청 → 센다 (가장 이르다)
+    S(3), // 요청 없음
+    S(4, { status: 'cancelled', customer_change_requested_at: at(-1) }), // 취소
+    S(5, { status: 'completed', customer_change_requested_at: at(-1) }), // 끝남
+    S(6, { design_id: D(9), customer_change_requested_at: at(-1) }), // 남의 업체 설계
+  ];
+  const pick = async (token, w = world(t)) =>
+    (await call(w, token)).json.data.todo.find((x) => x.kind === 'install_change') || null;
+  assert.deepEqual(await pick('t_owner'), {
+    kind: 'install_change',
+    label: '설치 날 변경 요청',
+    count: 2,
+    go: 'p-install',
+    due: at(5),
+  });
+  assert.equal((await pick('t_manager')).count, 2);
+  assert.equal(await pick('t_staff'), null);
 });

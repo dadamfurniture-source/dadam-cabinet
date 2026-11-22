@@ -76,6 +76,8 @@ export const TODO_LABEL = Object.freeze({
   due: '받을 돈 확인',
   // 설치 날 고객 확인 (2026-11-21 뒤 공정 2차, DB 0079) — 앞으로 INSTALL_CONFIRM_DAYS 일 안의 설치 일정 가운데 확인 표시가 없는 것
   install_confirm: '설치 날 고객 확인',
+  // 고객이 앱에서 설치 날을 바꿔 달라고 했다 (2026-11-23 뒤 공정 3차, DB 0082) — 날짜를 고치면 빠진다
+  install_change: '설치 날 변경 요청',
 });
 /** 설치 날 며칠 앞부터 「설치 날 고객 확인」을 알리나 */
 export const INSTALL_CONFIRM_DAYS = 7;
@@ -315,6 +317,21 @@ export async function getCompanyInbox(env, { user, nowMs = Date.now() }) {
       ).filter((s) => s.scheduled_at && s.scheduled_at < confirmUntil)
     : [];
   if (toConfirm.length) add('install_confirm', toConfirm.length, 'p-install', { due: toConfirm[0].scheduled_at });
+  // 고객의 설치 날 변경 요청 — 날짜를 고칠 수 있는 대표 · 실장에게 (칸이 없으면 없다)
+  const toChange = manage
+    ? await orEmpty(
+        selectMany(env, 'design_schedules', {
+          type: 'eq.installation',
+          status: 'in.(scheduled,confirmed,in_progress)',
+          customer_change_requested_at: 'not.is.null',
+          select: 'id,scheduled_at,designs!inner(company_id)',
+          'designs.company_id': co,
+          order: 'scheduled_at.asc',
+          limit: ROW_LIMIT,
+        })
+      )
+    : [];
+  if (toChange.length) add('install_change', toChange.length, 'p-install', { due: toChange[0].scheduled_at || null });
   // 기한이 있는 것이 먼저(이른 것부터), 그다음 넣은 차례
   todo.sort((a, b) => (a.due && b.due ? String(a.due).localeCompare(String(b.due)) : a.due ? -1 : b.due ? 1 : 0));
 

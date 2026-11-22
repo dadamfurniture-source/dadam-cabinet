@@ -140,7 +140,7 @@ describe('0074 — 서버가 넣는 알림 종류', () => {
     const messages = read('workers', 'workflow-api', 'src', 'push', 'messages.js');
     const list = /export const NOTIFICATION_KINDS = Object\.freeze\(\[([^\]]+)\]\)/.exec(messages)[1];
     // 뒤 번호 0077 이 사업자등록증 · 첫 달 무료 셋을 더한다 (db-migration-0077 시험이 본다)
-    const LATER = ['trial_ending', 'biz_cert_review', 'biz_cert_decided'];
+    const LATER = ['trial_ending', 'biz_cert_review', 'biz_cert_decided', 'as_factory', 'install_change'];
     const inCode = [...list.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).filter((k) => !LATER.includes(k));
     expect([...inCode].sort()).toEqual([...after].sort());
     expect(inCode[inCode.length - 1]).toBe('stock_band_low');

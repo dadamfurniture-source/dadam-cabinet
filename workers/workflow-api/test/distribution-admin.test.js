@@ -117,6 +117,11 @@ const P1_ROW = {
   quote: { total: 5200000, items: [] },
   sido: '서울특별시',
   gugun: '강남구',
+  // 유입 (DB 0080) — 본사 목록에만, 업체 사본에는 넘기지 않는다
+  inflow_source: 'instagram',
+  inflow_medium: 'social',
+  inflow_campaign: 'tones',
+  inflow_referrer: null,
   door_finish: 'pet',
   demolition_needed: true,
   wanted_price_tier: 'mid',
@@ -316,6 +321,10 @@ test('목록 — 기본은 본사 대기 상담 (업체 사본 · 공장 상담 
     'gugun',
     'has_generation',
     'id',
+    'inflow_campaign',
+    'inflow_medium',
+    'inflow_referrer',
+    'inflow_source',
     'name',
     'phone',
     'preferred_date',
@@ -329,6 +338,10 @@ test('목록 — 기본은 본사 대기 상담 (업체 사본 · 공장 상담 
     'wanted_price_tier',
   ]);
   assert.equal(items[0].quote_total, 5200000);
+  // 유입 — 꼬리표 그대로 (DB 0080)
+  assert.equal(items[0].inflow_source, 'instagram');
+  assert.equal(items[0].inflow_campaign, 'tones');
+  assert.equal(items[0].inflow_referrer, null);
   assert.equal(items[0].has_generation, false);
   assert.equal(items[0].assignment, null);
   assert.deepEqual(items[0].tried, []);
@@ -479,6 +492,10 @@ test('배정 — 201, 업체 사본(넘기는 칸만) · 배정 기록(순위 ·
     'generation_id',
     'consultation_type',
     'notified_at',
+    'inflow_source',
+    'inflow_medium',
+    'inflow_campaign',
+    'inflow_referrer',
   ]) {
     assert.ok(!(hidden in insert.body), hidden);
   }
