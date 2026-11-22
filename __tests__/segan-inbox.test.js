@@ -201,20 +201,22 @@ describe('자리 · 이름', () => {
     expect(el).not.toBeNull();
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('meDash');
-    expect(el.previousElementSibling.id).toBe('meDashTitle');
+    expect(el.previousElementSibling.id).toBe('meCalendar'); // 2026-11-23 달력이 맨 위
     expect(el.nextElementSibling.id).toBe('meDashBody');
-    expect(el.nextElementSibling.nextElementSibling.id).toBe('meCalendar');
+    expect(el.nextElementSibling.nextElementSibling.id).toBe('meNumbers');
     const at = (name) => html.indexOf('src="' + name);
     expect(at('inbox.js')).toBeGreaterThan(-1);
     expect(at('inbox.js')).toBeLessThan(at('me.js'));
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'inbox.js')");
   });
 
-  test('me.js — TODAY WORK 대시보드 · 새로 생긴 일 화면에서만 보이고(me-off), 업체 칸을 읽은 뒤 채우고, 목록이 바뀌면 다시 그린다', () => {
+  test('me.js — TODAY WORK 대시보드에서만 보이고(me-off), 업체 칸을 읽은 뒤 채우고, 목록이 바뀌면 다시 그린다', () => {
     const me = read('segan/me.js');
-    expect(me).toContain("off('meInbox', !(today || inner === 'meInbox'));");
-    expect(me).toContain("'today-inbox': { title: '새로 생긴 일', section: 'meDash', inner: 'meInbox' },");
-    expect(read('segan/me.html')).toMatch(/data-me-item="today-inbox"[\s\S]*?href="#today-inbox"[^>]*>새로 생긴 일</);
+    expect(me).toContain("off('meInbox', !today);");
+    // 2026-11-23 하위 줄 없앰 — 메뉴는 두 칸 가운데 하나라도 열렸을 때 (달력 → 새로 생긴 일)
+    expect(me).toContain("var MENU_PARTS = { today: ['meCalendar', 'meInbox'] };");
+    expect(me).not.toContain("'today-inbox'");
+    expect(read('segan/me.html')).not.toContain('data-me-item="today-inbox"');
     expect(me).toMatch(
       /synced\(Inbox && Inbox\.load \? Inbox\.load\(auth\.sb, auth\.session, me\) : null\)/
     );

@@ -73,6 +73,9 @@ const D1 = xid(1); // M 의 앱 설계 (플래너 d-kitchen-01 에서 옴, 프�
 const P1 = xid(2);
 const C1 = xid(3);
 const D_OTHER = xid(4); // M2 의 앱 설계
+const D2 = xid(5); // M 의 앱 설계 (플래너 d-closet-02 에서 옴, 프로젝트 없음)
+const O1 = xid(6); // D1 · P1 의 수주 (계약금 입금)
+const O2 = xid(7); // D2 의 수주 (계약금 입금)
 
 const DOCS = {
   insurance: { checked_at: '2026-10-01T00:00:00Z', by: ADMIN },
@@ -210,6 +213,14 @@ function tables() {
         source_ref: 'd-kitchen-01',
       },
       {
+        id: D2,
+        company_id: M,
+        project_id: null,
+        name: '안방 붙박이장',
+        source: 'planner-lite',
+        source_ref: 'd-closet-02',
+      },
+      {
         id: D_OTHER,
         company_id: M2,
         project_id: null,
@@ -220,6 +231,15 @@ function tables() {
     ],
     customers: [{ id: C1, company_id: M, user_id: null, name: '김고객', phone: '010-1111-2222' }],
     projects: [{ id: P1, company_id: M, customer_id: C1, title: '김고객 주방', status: 'active' }],
+    // 제작 의뢰는 계약금을 받은 뒤에만 (대표님 2026-11-23)
+    orders: [
+      { id: O1, company_id: M, design_id: D1, project_id: P1, status: 'confirmed' },
+      { id: O2, company_id: M, design_id: D2, project_id: null, status: 'confirmed' },
+    ],
+    order_payments: [
+      { id: xid(8), order_id: O1, stage: 'deposit', amount: 300000, paid_on: '2026-11-20' },
+      { id: xid(9), order_id: O2, stage: 'deposit', amount: 200000, paid_on: '2026-11-20' },
+    ],
   };
 }
 
@@ -1510,4 +1530,32 @@ test('값 — 24시간은 상담 배정과 같다, 대표 · 실장만, 점수�
     'declined'
   );
   assert.equal(offerState({ chosen: false }, {}), null);
+});
+
+// ── 계약금 (대표님 2026-11-23 「계약금을 받기 전까지 다음 단계로 못 넘어감」) ──
+test('의뢰 내기 — 계약금을 받은 수주가 없으면 409 deposit_required (수주 없음 · 입금 전 · 취소된 수주만)', async () => {
+  const post = (fake, body) => call(fake, '/production-requests', M_OWNER, { method: 'POST', body });
+  // 수주가 없다
+  const none = fresh();
+  none.db.orders = [];
+  none.db.order_payments = [];
+  const r1 = await post(none, { draft_id: 'd-kitchen-01' });
+  assert.deepEqual([r1.status, r1.json.code], [409, 'deposit_required']);
+  assert.match(r1.json.message, /계약/);
+  // 수주는 있는데 계약금이 아직
+  const unpaid = fresh();
+  for (const p of unpaid.db.order_payments) p.paid_on = null;
+  const r2 = await post(unpaid, { draft_id: 'd-kitchen-01' });
+  assert.deepEqual([r2.status, r2.json.code], [409, 'deposit_required']);
+  // 계약금이 들어온 수주가 취소됐다
+  const cancelled = fresh();
+  for (const o of cancelled.db.orders) o.status = 'cancelled';
+  const r3 = await post(cancelled, { draft_id: 'd-kitchen-01' });
+  assert.deepEqual([r3.status, r3.json.code], [409, 'deposit_required']);
+  for (const f of [none, unpaid, cancelled]) assert.equal(f.db.production_requests.length, 0);
+  // 프로젝트의 수주로도 된다 (설계에는 수주가 없고 같은 프로젝트의 다른 수주에 계약금)
+  const byProject = fresh();
+  byProject.db.orders[0].design_id = xid(99);
+  const r4 = await post(byProject, { draft_id: 'd-kitchen-01' });
+  assert.equal(r4.status, 201, JSON.stringify(r4.json));
 });

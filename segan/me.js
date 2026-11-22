@@ -11,10 +11,10 @@
        (처음엔 지금 화면이 든 큰 메뉴, 없으면 처음 보이는 큰 메뉴, 고른 것은 이 탭 동안 sessionStorage).
        보이는 하위 줄이 없으면 큰 메뉴 · 묶음째 감춘다.
        업무 (머리글은 업체 구성원 · 본사 구성원만)
-         TODAY WORK    업체 구성원 — 새로 생긴 일(#today-inbox — 할 일 · 소식, segan/inbox.js) ·
-                        업무 달력(#today-calendar — segan/calendar.js). 2026-11-21 대표님 — 프로젝트 관리 대시보드에서 옮겼다.
-                        대시보드(#dash-today) = 둘 다 (칸은 #meDash 안의 #meInbox · #meCalendar — 화면마다 그 칸만 보인다).
-                        두 칸 다 못 읽었으면(고객 · 본사 · 서버 403) 큰 메뉴째 없다
+         TODAY WORK    업체 구성원 — 하위 줄 · ▾ 없음. 이름을 누르면 대시보드(#dash-today)에 업무 달력(segan/calendar.js) →
+                        새로 생긴 일(할 일 · 소식, segan/inbox.js)이 다 나온다 (칸은 #meDash 안의 #meCalendar · #meInbox).
+                        2026-11-21 대표님 — 프로젝트 관리 대시보드에서 옮겼다 · 11-23 「달력을 맨위에」 「하위 메뉴는 없애주고」.
+                        두 칸 다 못 읽었으면(고객 · 본사 · 서버 403) 큰 메뉴째 없다 (MENU_PARTS)
          홈            관리자 — 오늘 현황 · 경영 대시보드 조각(이익 · 목표 · 손익 분석 · 현금 · 미수 · 매출 예측은 앱 화면
                         segan/hq-board.html#조각, 고객 흐름 · 공정 · 품질은 PC 화면 admin/management.html?part=)
          프로젝트 관리  상담 · 설계 · 견적 · 계약 · 생산 · 설치 · A/S — 일 차례대로 (2026-11-21 대표님 「설계 먼저」, 옛 「영업」 줄을 나눴다).
@@ -545,11 +545,15 @@
   // filled = 이 칸이 비어 있지 않아야 연다 (공장 구성원은 업체 내용 없이 상담 · 프로젝트 · A/S함만 온다) ·
   // needs = 이 칸 안에 이것이 있어야 연다 · label = 업체 칸 이름을 그 화면 제목으로 (모듈이 그리는 h3) ·
   // stage = 프로젝트를 이 단계로 거른다 ('' = 모두) · view = 업체 칸의 data-me-view (직원 화면은 업체 내용 안 직원만) ·
-  // soon = 준비 중 안내 (칸 없이) · empty = 칸이 없을 때 「볼 수 있는 내용이 없습니다」 대신 · pick = 보는 사람마다 고른다 ·
-  // inner = 대시보드 칸(#meDash) 안에서 이 칸만 보인다 (TODAY WORK 의 새로 생긴 일 · 업무 달력)
+  // soon = 준비 중 안내 (칸 없이) · empty = 칸이 없을 때 「볼 수 있는 내용이 없습니다」 대신 · pick = 보는 사람마다 고른다
+
+  // 하위 줄 없는 큰 메뉴 — 대시보드에 바로 보이는 칸들 (그 모듈이 하나라도 열었을 때만 메뉴가 보인다).
+  //   TODAY WORK = 업무 달력 → 새로 생긴 일 (2026-11-23 대표님 「하위 메뉴는 없애주고 TODAY WORK 메뉴 누르면 다 나오게」)
+  var MENU_PARTS = { today: ['meCalendar', 'meInbox'] };
+
   var SCREENS = {
     // 대시보드 — 큰 메뉴 이름을 누르면 (dash = 그 큰 메뉴 data-menu)
-    'dash-today': { title: 'TODAY WORK', dash: 'today', section: 'meDash' }, // 새로 생긴 일 · 업무 달력 (2026-11-21)
+    'dash-today': { title: 'TODAY WORK', dash: 'today', section: 'meDash' }, // 업무 달력 · 새로 생긴 일 (2026-11-21 · 11-23)
     'dash-home': { title: '홈', dash: 'home', section: 'meDash' },
     'dash-project': {
       title: '프로젝트 관리',
@@ -569,9 +573,6 @@
     'dash-master': { title: '기준정보', dash: 'master', section: 'meDash' },
     'dash-platform': { title: '플랫폼', dash: 'platform', section: 'meDash' },
     'dash-basic': { title: '내 계정', dash: 'basic', section: 'meDash' },
-    // TODAY WORK — 대시보드 칸(#meDash) 안의 그 칸 하나만 (inner — 그 모듈이 칸을 열었을 때만)
-    'today-inbox': { title: '새로 생긴 일', section: 'meDash', inner: 'meInbox' },
-    'today-calendar': { title: '업무 달력', section: 'meDash', inner: 'meCalendar' },
     // 프로젝트 관리 — 고객은 내 것, 업체 구성원은 업체 것 (pick)
     'p-consult': { title: '상담', pick: stageScreen('consult') },
     // 실측 — 상담 다음 · 설계 앞 (2026-11-21 대표님 「실측 일정을 잡아야 하고 설계 전에 이루어져야 함」, DB 0079)
@@ -1075,7 +1076,6 @@
       return !!f && f.children.length > 0;
     }
     if (s.needs) return !!document.querySelector(s.needs);
-    if (s.inner) return shown(s.inner);
     if (s.parts) return s.parts.some(shown);
     return true;
   }
@@ -1307,10 +1307,9 @@
     if (title) title.textContent = SCREENS['dash-' + key].title;
     // 프로젝트 관리 — 단계 칸은 왼쪽 메뉴 줄과 같은 화면이라 그리지 않는다 (수는 그 줄에 — paintCounts).
     //   수가 없는 줄(본사 · 관리자의 「설계」 = 플래너)만 칸으로 남긴다
-    //   TODAY WORK — 하위 줄의 칸(새로 생긴 일 · 업무 달력)을 대시보드에 그대로 보이니 칸 단추를 그리지 않는다
+    //   TODAY WORK — 하위 줄이 없다, 칸(업무 달력 · 새로 생긴 일)을 대시보드에 그대로 보인다 (MENU_PARTS)
     var tiles = rows.filter(function (li) {
-      var k = li.getAttribute('data-me-item');
-      return !own(ROW_COUNT, k) && !(own(SCREENS, k) && SCREENS[k].inner);
+      return !own(ROW_COUNT, li.getAttribute('data-me-item'));
     });
     var html = tiles.length
       ? '<div class="me-tiles">' +
@@ -1320,19 +1319,11 @@
           })
           .join('') +
         '</div>'
-      : rows.length
+      : rows.length || own(MENU_PARTS, key)
         ? ''
         : '<p class="me-empty">' + esc(TEXT.dashEmpty) + '</p>';
     paint(body, html);
     body.hidden = !html;
-  }
-
-  /** TODAY WORK 의 칸 하나 화면 — 대시보드 칸의 제목은 큰 메뉴 이름(칸이 제 제목을 가진다), 칸 단추는 없다 */
-  function innerScreen() {
-    var title = $('meDashTitle');
-    if (title) title.textContent = SCREENS['dash-today'].title;
-    var body = $('meDashBody');
-    if (body) body.hidden = true;
   }
 
   /** 지금 주소 · 폭에 맞는 화면을 보인다 ('' = 메뉴만, 폰 · 태블릿) */
@@ -1363,11 +1354,9 @@
     if (open) showStage(s);
     if (x) showStage(x);
     if (open && s.dash) renderDash(s.dash);
-    var inner = open && s.inner ? s.inner : '';
-    if (inner) innerScreen();
     var today = open && s.dash === 'today';
-    off('meInbox', !(today || inner === 'meInbox')); // 새로 생긴 일 — TODAY WORK 대시보드 · 그 화면에서만 (segan/inbox.js)
-    off('meCalendar', !(today || inner === 'meCalendar')); // 업무 달력 — TODAY WORK 대시보드 · 그 화면에서만 (segan/calendar.js)
+    off('meCalendar', !today); // 업무 달력 — TODAY WORK 대시보드 맨 위에서만 (segan/calendar.js)
+    off('meInbox', !today); // 새로 생긴 일 — TODAY WORK 대시보드 달력 아래에서만 (segan/inbox.js)
     off('meNumbers', !(open && s.dash === 'project')); // 우리 팩토리 숫자 — 프로젝트 관리 대시보드에서만 (segan/company-summary.js)
     off('meStockNumbers', !(open && s.dash === 'stock')); // 재고 한눈에 — 구매 · 재고 대시보드에서만 (segan/stock-moves.js)
     off('meStockNeedsNumbers', !(open && s.dash === 'stock')); // 진행 중 작업 자재 — 구매 · 재고 대시보드에서만 (segan/stock-needs.js)
@@ -1620,10 +1609,6 @@
     // 견적 ~ 설치 — 단계로 거를 프로젝트를 읽었을 때 (본사 구성원은 업체 프로젝트가 없다)
     var staged = !v.platform && (v.member ? pr : shown('meProjectSection'));
     switch (key) {
-      // TODAY WORK — 그 칸을 모듈이 열었을 때만 (segan/inbox.js · segan/calendar.js — 업체 구성원)
-      case 'today-inbox':
-      case 'today-calendar':
-        return available(key);
       // 프로젝트 관리
       case 'pj-consult':
         return !v.platform && (v.member ? available('p-consult') : true);
@@ -1814,9 +1799,12 @@
       co.textContent = t;
       co.hidden = !t;
     }
-    // 큰 메뉴 — 보이는 하위 줄이 없으면 감춘다, 묶음도 같게
+    // 큰 메뉴 — 보이는 하위 줄이 없으면 감춘다 (하위 줄 없는 메뉴는 그 칸을 모듈이 하나라도 열었을 때만), 묶음도 같게
     document.querySelectorAll('#meHub [data-menu]').forEach(function (m) {
-      m.hidden = !m.querySelector('li[data-me-item]:not([hidden])');
+      var key = m.getAttribute('data-menu');
+      m.hidden = own(MENU_PARTS, key)
+        ? !MENU_PARTS[key].some(shown)
+        : !m.querySelector('li[data-me-item]:not([hidden])');
     });
     GROUPS.forEach(function (id) {
       var g = $(id);

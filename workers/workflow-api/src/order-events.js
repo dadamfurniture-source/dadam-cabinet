@@ -9,6 +9,9 @@
  *              대표가 승인하면 그때 바뀐다 — 수주 상태가 요청 때(from_status)와 같을 때만 (아니면 409 stale).
  *              한 수주에 기다리는 요청은 하나뿐이다. 요청이 기다리는 동안에는 그 수주의 상태를 아무도
  *              (대표도) 바꾸지 못한다 — 먼저 승인 · 반려한다 (409 pending_exists).
+ * 계약금 — 계약금 입금(order_payments 의 deposit 줄에 받은 날)을 적기 전에는 접수에서 생산 중 · 배송 · 완료로
+ *   넘어가지 못한다 (409 deposit_required, 대표님 2026-11-23 「계약금을 받기 전까지 다음 단계로 못 넘어감」).
+ *   대표도 같다. 뒤로 가기 · 취소는 그대로.
  * 바뀐 상태는 모두 order_events 에 한 줄씩 남는다. 표는 지우기를 막고, 쓰기는 이 워커(service_role)만 한다.
  *
  * 고객 확인서 승인 전 작업지시서도 같은 표에 남는다 (kind early_work_order — 수주가 없어 설계에 단다).
@@ -84,6 +87,34 @@ export function staleError(message = '그 사이 수주 상태가 바뀌었습�
 /** 승인을 기다리는 요청이 있는 수주의 상태 바꾸기 — 대표도 먼저 승인 · 반려해야 한다 */
 function pendingExistsError() {
   return codedError(ConflictError, '기다리는 요청을 먼저 승인 · 반려해 주세요', 'pending_exists');
+}
+
+/** 계약금을 기다리는 짝 — 접수에서 앞으로 (생산 중 · 배송 · 완료) */
+export const DEPOSIT_GATED = Object.freeze(['in_production', 'delivered', 'completed']);
+export const needsDeposit = (from, to) => from === 'confirmed' && DEPOSIT_GATED.includes(to);
+
+export function depositRequiredError(message = '계약금 입금을 적어야 다음 단계로 넘어갑니다 — 수주 창 수금에서 계약금 받은 날을 적어 주세요') {
+  return codedError(ConflictError, message, 'deposit_required');
+}
+
+/** 그 수주들 가운데 계약금 줄에 받은 날이 적힌 것이 있나 */
+export async function depositPaidIn(env, orderIds) {
+  const ids = (orderIds || []).filter(Boolean);
+  if (!ids.length) return false;
+  const rows = await selectMany(env, 'order_payments', {
+    order_id: ids.length === 1 ? `eq.${ids[0]}` : `in.(${ids.join(',')})`,
+    stage: 'eq.deposit',
+    paid_on: 'not.is.null',
+    select: 'order_id',
+    limit: '1',
+  });
+  return !!(rows && rows.length);
+}
+
+/** 접수 → 앞으로 옮기기 전에 — 계약금이 없으면 409 deposit_required */
+export async function assertDepositFor(env, order, to) {
+  if (!needsDeposit(order.status, to)) return;
+  if (!(await depositPaidIn(env, [order.id]))) throw depositRequiredError();
 }
 
 function alreadyDecidedError() {
@@ -250,6 +281,8 @@ export async function listOrderEvents(env, { orderId, user }) {
   })) || [];
   const owner = await isCompanyOwner(env, user, order.company_id);
   const items = rows.map(eventView);
+  // 접수인데 계약금이 아직이면 앞으로 가는 짝에 needs_deposit (화면이 단추 대신 까닭을 보인다)
+  const waitDeposit = order.status === 'confirmed' && !(await depositPaidIn(env, [order.id]));
   return {
     status: order.status,
     can_decide: owner,
@@ -261,6 +294,7 @@ export async function listOrderEvents(env, { orderId, user }) {
       approval: m.approval,
       reason_required: m.reason,
       request: m.approval && !owner,
+      ...(waitDeposit && needsDeposit(order.status, m.to) ? { needs_deposit: true } : {}),
     })),
     items,
   };
