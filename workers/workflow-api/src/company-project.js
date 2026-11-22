@@ -44,6 +44,8 @@ import { isMissingRelation } from './work-order-data.js';
 import { NEWS_LABEL } from './company-inbox.js';
 import { EVENT_LABEL, mergeEvents } from './project-history.js';
 import { timelineOf } from './company-project-stage.js';
+import { lateOf } from './project-stay.js';
+import { kstDate } from './production/service.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** 한 프로젝트에서 읽는 행 수 */
@@ -232,6 +234,7 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
 
   // 지금 단계 · 다음 할 일 — 덧붙이는 값이라, 못 모아도 나머지는 그대로 준다 (목록과 같다)
   let flow = new Map();
+  const meta = {};
   try {
     flow = await pipelineOf(env, {
       company,
@@ -239,10 +242,21 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
       projects: [project],
       designs: designList,
       stages,
+      meta,
       nowMs,
     });
   } catch (e) {
     console.error('company project: pipeline failed —', e && e.message);
+  }
+  // 머문 날 — 목록 줄과 같은 판정 (project-stay.js). 못 읽어도 나머지는 그대로
+  const today = kstDate(new Date(nowMs).toISOString());
+  let late = { lateMake: new Set(), lateInstall: new Set() };
+  if (['make', 'install'].includes((flow.get(project.id) || {}).step)) {
+    try {
+      late = await lateOf(env, designList.map((d) => ({ id: d.id, project_id: project.id })), today);
+    } catch (e) {
+      console.error('company project: late schedules failed —', e && e.message);
+    }
   }
 
   // 계약금 줄 — 입금일('' = 줄은 있는데 아직). 잔금 줄 — 받은 날들과, 안 받은 줄이 남았나
@@ -346,6 +360,7 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
       stage: stages.get(project.id),
       flow: flow.get(project.id),
       memberOf,
+      stay: flow.size ? { today, orderOf: meta.order_at || new Map(), ...late } : null,
     }),
     designs: designList.map((d) => ({
       id: d.id,

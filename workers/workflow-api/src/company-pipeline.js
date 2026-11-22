@@ -66,7 +66,8 @@ function pushTo(map, key, value) {
  *           projects: Array<{ id, status, created_at, hold_until? }>,
  *           designs: Array<{ id, project_id, source?, source_ref? }>,   이 프로젝트들에 이어진 설계
  *           stages: Map<string, { stage: string }>,                       company-projects.js stagesOf
- *           meta?: object }} args                                         덧붙여 알리는 값을 여기에 적는다 — visit_ready (실측 일정 표가 있다)
+ *           meta?: object }} args                                         덧붙여 알리는 값을 여기에 적는다 — visit_ready (실측 일정 표가 있다) ·
+ *                                                                         order_at (Map 프로젝트 → 가장 새 취소 아닌 수주를 만든 때 — 머문 날을 잴 때 쓴다)
  */
 export async function pipelineOf(env, { company, viewer, projects, designs, stages, meta = null, nowMs = Date.now() }) {
   const out = new Map();
@@ -75,7 +76,10 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
     projectId: projects.length === 1 ? projects[0].id : null,
     limit: projects.length ? null : '1',
   });
-  if (meta) meta.visit_ready = visits.ready;
+  if (meta) {
+    meta.visit_ready = visits.ready;
+    meta.order_at = new Map();
+  }
   if (!projects.length) return out;
   const co = `eq.${company.id}`;
   const factory = isFactory(company);
@@ -266,6 +270,7 @@ export async function pipelineOf(env, { company, viewer, projects, designs, stag
     const born = bornDraft.has(p.id);
     const draft = draftOf.get(p.id) || (born ? draftById.get(bornDraft.get(p.id)) : null) || null;
     const visit = visits.byProject.get(p.id) || null;
+    if (meta && order && order.ordered_at) meta.order_at.set(p.id, { ordered_at: order.ordered_at });
     const facts = {
       id: p.id,
       status: p.status,
