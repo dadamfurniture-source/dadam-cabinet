@@ -48,6 +48,8 @@ import { isMissingRelation } from './work-order-data.js';
 import { projectStage } from './projects.js';
 import { pipelineOf } from './company-pipeline.js';
 import { visitOf } from './company-project-visits.js';
+import { lateOf, stayRow } from './project-stay.js';
+import { kstDate } from './production/service.js';
 import { logProject } from './project-log.js';
 import { invitesReady } from './customer-invites.js';
 
@@ -163,10 +165,17 @@ function textOf(value, field, max) {
 /**
  * 프로젝트 한 줄 — 목록(GET /company/projects)과 프로젝트 창(GET /company/projects/:id)이 같은 칸을 쓴다.
  * @param {object} p        projects 행
- * @param {{ customer?: object|null, designCount?: number, stage?: { stage, order }, flow?: { step, next }, memberOf: Map }} parts
+ * @param {{ customer?: object|null, designCount?: number, stage?: { stage, order }, flow?: { step, next }, memberOf: Map,
+ *           stay?: { today, orderOf, lateMake, lateInstall } }} parts   stay = 머문 날을 잴 값 (project-stay.js) — 주면 줄에 stay 를 싣는다
  */
-export function projectRow(p, { customer, designCount, stage, flow, memberOf }) {
+export function projectRow(p, { customer, designCount, stage, flow, memberOf, stay = null }) {
   const c = customer || null;
+  const visitRow = flow && flow.visit !== undefined ? visitOf(flow.visit, memberOf) : undefined;
+  // 머문 날 — 느림 · 멈춤 (진행 중이고 단계를 아는 줄에만. 대시보드와 같은 판정)
+  const stayed =
+    stay && flow && flow.step
+      ? stayRow({ id: p.id, status: p.status, created_at: p.created_at, step: flow.step, next: flow.next, visit: visitRow || null }, stay)
+      : null;
   return {
     id: p.id,
     title: p.title || null,
@@ -180,7 +189,9 @@ export function projectRow(p, { customer, designCount, stage, flow, memberOf }) 
     order: stage.order,
     ...(flow || {}),
     // 실측 일정 — 지금의 것 하나 (DB 0079. 갈 사람이 구성원이면 그 이름). 표가 없으면 칸 자체가 없다
-    ...(flow && flow.visit !== undefined ? { visit: visitOf(flow.visit, memberOf) } : {}),
+    ...(visitRow !== undefined ? { visit: visitRow } : {}),
+    // 머문 날 { days, state: fresh | slow | stuck } — 진행 중인 줄에만
+    ...(stayed ? { stay: stayed } : {}),
     // 보류 · 그만둠 — 다시 볼 날 · 메모 · 바꾼 때 (DB 0078. 진행 중인 줄에는 싣지 않는다)
     ...(p.status === 'on_hold' || p.status === 'cancelled'
       ? { hold_until: p.hold_until || null, status_note: p.status_note || null, status_at: p.status_at || null }
@@ -255,6 +266,16 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
   } catch (e) {
     console.error('company projects: pipeline failed —', e && e.message);
   }
+  // 머문 날 — 생산 · 설치 단계 프로젝트는 잡아 둔 날이 지났는지 본다. 못 읽어도 목록은 그대로 (그 줄은 여유로 본다)
+  const today = kstDate(new Date(nowMs).toISOString());
+  const lateSteps = new Set(projects.filter((p) => ['make', 'install'].includes((flow.get(p.id) || {}).step)).map((p) => p.id));
+  let late = { lateMake: new Set(), lateInstall: new Set() };
+  try {
+    late = await lateOf(env, designs.filter((d) => lateSteps.has(d.project_id)), today);
+  } catch (e) {
+    console.error('company projects: late schedules failed —', e && e.message);
+  }
+  const stay = flow.size ? { today, orderOf: meta.order_at || new Map(), ...late } : null;
   // 고객 초대 링크를 쓸 수 있나 (DB 0082 의 표가 있다) — 화면이 그때만 「고객 초대」를 낸다
   const inviteReady = await invitesReady(env, company.id).catch((e) => {
     console.error('company projects: invites check failed —', e && e.message);
@@ -278,6 +299,7 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
         stage: stages.get(p.id),
         flow: flow.get(p.id),
         memberOf,
+        stay,
       })
     ),
   };
