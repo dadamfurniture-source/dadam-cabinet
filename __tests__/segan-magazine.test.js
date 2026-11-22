@@ -24,6 +24,7 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 const CELL = 200; // 시험에서 쓰는 칸 폭
 const addListener = window.addEventListener.bind(window);
+const realStyle = window.getComputedStyle.bind(window); // 한 번만 — 화면을 다시 올려도 겹쳐 감싸지 않게
 let listeners = []; // 스크립트가 window 에 건 것 — 화면을 다시 올릴 때 · 시험이 끝날 때 걷는다
 function unhook() {
   for (const [type, fn] of listeners) window.removeEventListener(type, fn);
@@ -37,7 +38,17 @@ function unhook() {
 function load(options = {}) {
   const opts = { page: 'blog.html', reduced: false, clientWidth: 500, from: '', ...options };
   const doc = new DOMParser().parseFromString(read(`segan/${opts.page}`), 'text/html');
+  // 책을 더 꽂는다 (장 나누기 시험 — 첫 책을 되풀이)
+  const shelfOf = doc.querySelector('.bk-shelf');
+  for (let i = 0; i < (opts.extra || 0); i++)
+    shelfOf.appendChild(shelfOf.querySelector('.bk-cell').cloneNode(true));
   document.body.innerHTML = doc.body.innerHTML;
+  // 열 수 — magazine.css 의 --bk-cols (jsdom 은 그 파일을 읽지 않는다. 주지 않으면 모름 → 한 줄 책장)
+  window.getComputedStyle = jest.fn((el, p) => {
+    const s = realStyle(el, p);
+    if (!opts.cols || !el.classList || !el.classList.contains('bk-case--pages')) return s;
+    return { getPropertyValue: (k) => (k === '--bk-cols' ? String(opts.cols) : s.getPropertyValue(k)) };
+  });
   window.history.replaceState(null, '', opts.url || `/segan/${opts.page}`);
   window.matchMedia = (q) => ({
     matches: /prefers-reduced-motion/.test(q) ? opts.reduced : false,
@@ -66,7 +77,7 @@ function load(options = {}) {
     Object.defineProperty(ul, 'clientWidth', { configurable: true, value: opts.clientWidth });
     Object.defineProperty(ul, 'scrollWidth', {
       configurable: true,
-      value: Math.max(count * CELL, opts.clientWidth),
+      value: opts.scrollWidth || Math.max(count * CELL, opts.clientWidth),
     });
     let left = 0;
     Object.defineProperty(ul, 'scrollLeft', {
@@ -333,6 +344,117 @@ describe('책장 — 마우스 끌기', () => {
     const e = new window.Event('dragstart', { bubbles: true, cancelable: true });
     ul.querySelector('a.bk-book').dispatchEvent(e);
     expect(e.defaultPrevented).toBe(true);
+  });
+});
+
+describe('매거진 화면의 장 — 4열 × 4행(폰 2열), 넘치면 끌어 다음 장 (2026-11-23 대표님)', () => {
+  const place = () =>
+    $$('.bk-shelf > .bk-cell').map((li) => [
+      li.classList.contains('bk-cell--empty') ? '빈' : '책',
+      li.style.gridColumn,
+      li.style.gridRow,
+    ]);
+
+  test('pageLayout — 줄마다 왼쪽부터, 행은 책 수만큼(4 까지), 넘치면 다음 장이 오른쪽에', () => {
+    const { Mag } = load();
+    const six = Mag.pageLayout(6, 4);
+    expect([six.rows, six.per, six.pages, six.at.length]).toEqual([2, 8, 1, 8]);
+    expect(six.at.slice(0, 6).map((a) => [a.col, a.row])).toEqual([
+      [1, 1], [2, 1], [3, 1], [4, 1], [1, 2], [2, 2],
+    ]);
+    const phone = Mag.pageLayout(6, 2);
+    expect([phone.rows, phone.per, phone.pages]).toEqual([3, 6, 1]);
+    const many = Mag.pageLayout(20, 4);
+    expect([many.rows, many.per, many.pages, many.at.length]).toEqual([4, 16, 2, 32]);
+    expect(many.at[15]).toEqual({ col: 4, row: 4, start: false }); // 첫 장 끝 = 16권째
+    expect(many.at[16]).toEqual({ col: 5, row: 1, start: true }); // 17권째 = 다음 장 왼쪽 위
+    expect(Mag.pageLayout(3, 4).rows).toBe(1);
+  });
+
+  test('매거진 화면만 장으로 — 홈 책장은 한 줄 그대로', () => {
+    const blog = new DOMParser().parseFromString(read('segan/blog.html'), 'text/html');
+    const home = new DOMParser().parseFromString(read('segan/index.html'), 'text/html');
+    expect(blog.querySelector('.bk-case').classList.contains('bk-case--pages')).toBe(true);
+    expect(home.querySelector('.bk-case').classList.contains('bk-case--pages')).toBe(false);
+    load({ page: 'index.html', cols: 4 });
+    expect($('.bk-shelf').classList.contains('is-paged')).toBe(false);
+    expect($('.bk-cell--empty')).toBeNull();
+  });
+
+  test('PC 4열 — 여섯 권이면 두 줄, 남는 자리는 불 켜진 빈 칸(누를 수 없음), 장 표시는 없다', () => {
+    load({ cols: 4, clientWidth: 800, scrollWidth: 800 });
+    expect($('.bk-shelf').classList.contains('is-paged')).toBe(true);
+    expect(place()).toEqual([
+      ['책', '1', '1'], ['책', '2', '1'], ['책', '3', '1'], ['책', '4', '1'],
+      ['책', '1', '2'], ['책', '2', '2'], ['빈', '3', '2'], ['빈', '4', '2'],
+    ]);
+    const empty = $('.bk-cell--empty');
+    expect(empty.getAttribute('aria-hidden')).toBe('true');
+    expect(empty.querySelector('a')).toBeNull();
+    expect($('.bk-dots').hidden).toBe(true);
+    expect([$('.bk-nav--prev').hidden, $('.bk-nav--next').hidden]).toEqual([true, true]);
+  });
+
+  test('폰 2열 — 여섯 권이면 세 줄', () => {
+    load({ cols: 2, clientWidth: 400, scrollWidth: 400 });
+    expect(place().map((p) => p.slice(1).join('/'))).toEqual(['1/1', '2/1', '1/2', '2/2', '1/3', '2/3']);
+    expect($('.bk-cell--empty')).toBeNull();
+  });
+
+  test('16권 넘으면 다음 장 — ‹ › · 장 표시가 한 장씩 옮긴다, 장의 첫 칸에만 맞춰 선다', () => {
+    // 6 + 14 = 20권 → 두 장 (16 + 4, 둘째 장 빈 칸 12)
+    const { ul, run } = load({ extra: 14, cols: 4, clientWidth: 800, scrollWidth: 1600 });
+    expect($$('.bk-cell:not(.bk-cell--empty)')).toHaveLength(20);
+    expect($$('.bk-cell--empty')).toHaveLength(12);
+    expect($$('.bk-cell.is-page-start').map((li) => li.style.gridColumn)).toEqual(['1', '5']);
+    const dots = $('.bk-dots');
+    expect(dots.hidden).toBe(false);
+    expect($$('.bk-dot').map((b) => b.getAttribute('aria-label'))).toEqual(['1쪽', '2쪽']);
+    expect($('.bk-dot[aria-current="true"]').getAttribute('data-page')).toBe('0');
+    $('.bk-nav--next').click();
+    run();
+    ul.dispatchEvent(new window.Event('scroll'));
+    expect(ul.scrollLeft).toBe(800); // 한 장 = 4칸
+    expect($('.bk-dot[aria-current="true"]').getAttribute('data-page')).toBe('1');
+    expect([$('.bk-nav--prev').hidden, $('.bk-nav--next').hidden]).toEqual([false, true]);
+    $('.bk-dot[data-page="0"]').click();
+    run();
+    ul.dispatchEvent(new window.Event('scroll'));
+    expect(ul.scrollLeft).toBe(0);
+  });
+
+  test('끌어 넘기기 — 조금 끌고 놓으면 제자리, 반 넘게 끌면 다음 장, 세게 던져도 한 장만', () => {
+    // 6 + 42 = 48권 → 세 장
+    const { ul, run } = load({ extra: 42, cols: 4, clientWidth: 800, scrollWidth: 2400 });
+    const book = $('a.bk-book');
+    ptr(book, 'pointerdown', 700);
+    ptr(book, 'pointermove', 500); // 200 — 반이 안 된다
+    jest.advanceTimersByTime(300);
+    ptr(book, 'pointerup', 500);
+    run();
+    expect(ul.scrollLeft).toBe(0);
+    ptr(book, 'pointerdown', 700);
+    ptr(book, 'pointermove', 200); // 500 — 반을 넘었다
+    jest.advanceTimersByTime(300);
+    ptr(book, 'pointerup', 200);
+    run();
+    expect(ul.scrollLeft).toBe(800);
+    ptr(book, 'pointerdown', 700);
+    for (const x of [600, 450, 300, 150]) {
+      jest.advanceTimersByTime(16);
+      ptr(book, 'pointermove', x);
+    }
+    jest.advanceTimersByTime(8);
+    ptr(book, 'pointerup', 150); // 빠르게 던졌다
+    run();
+    expect(ul.scrollLeft).toBe(1600); // 셋째 장까지 — 그 너머로는 가지 않는다
+  });
+
+  test('magazine.css — 장은 매거진 화면 책장에만, 칸 폭 = 책장 폭 ÷ 열, PC · 태블릿 4열 · 폰 2열', () => {
+    expect(CSS).toMatch(/\.bk-case--pages\s*\{[^}]*--bk-cols:\s*2;[^}]*--bk-cell:\s*calc\(100cqw \/ var\(--bk-cols\)\);[^}]*container-type:\s*inline-size;/);
+    expect(CSS).toMatch(/@media \(min-width: 768px\)\s*\{\s*\.bk-case--pages\s*\{\s*--bk-cols:\s*4;/);
+    expect(CSS).toMatch(/\.bk-shelf\.is-paged\s*\{[^}]*display:\s*grid;[^}]*scroll-snap-type:\s*x mandatory;/);
+    expect(CSS).toMatch(/\.bk-shelf\.is-paged \.bk-cell\.is-page-start\s*\{[^}]*scroll-snap-align:\s*start;/);
   });
 });
 
