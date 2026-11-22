@@ -44,13 +44,13 @@
       }
     </script>
     <!-- 옛 만들기 주소(?g= · ?ref= · #result …)로 들어오면 그리기 전에 make.html 로 넘긴다 -->
-    <script src="forward.js?v=2026112305"></script>
+    <script src="forward.js?v=2026112306"></script>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112305" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112305" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112305" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112305" />
+    <link rel="icon" href="icons/icon.svg?v=2026112306" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112306" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112306" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112306" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -60,21 +60,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112305" />
-    <link rel="stylesheet" href="home.css?v=2026112305" />
+    <link rel="stylesheet" href="shell.css?v=2026112306" />
+    <link rel="stylesheet" href="home.css?v=2026112306" />
     <!-- 매거진 책장 — 나무 · 조명은 매거진 책장만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112305" />
+    <link rel="stylesheet" href="magazine.css?v=2026112306" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112305"></script>
+    <script src="../js/config.js?v=2026112306"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112305"></script>
-    <script src="shell.js?v=2026112305" defer blocking="render"></script>
+    <script src="motion.js?v=2026112306"></script>
+    <script src="shell.js?v=2026112306" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112305" defer></script>
+    <script src="guide.js?v=2026112306" defer></script>
     <!-- 매거진 책장 — 끌기 · 책 → 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112305" defer blocking="render"></script>
+    <script src="blog.js?v=2026112306" defer blocking="render"></script>
   </head>
   <body class="sg-app" data-tab="home">
     <div data-segan-shell="header"></div>
@@ -121,6 +121,93 @@
           </li>
         </ol>
       </div>
+
+      <!-- 견본 — 같은 주방, 다른 색 (2026-11-23 「사이트 새는 곳 막기」 묶음 6, 대표님 11-21 「견본 체험 + 바로 이어 만들기」).
+           로그인 전에도 눌러 본다. 같은 방 다섯 장을 라디오 + 형제 선택자로 바꾼다 — 스크립트 없음 · opacity 만.
+           사진은 AI 연출 (app/portfolio/display/tone-0N, 11-23 주 게시물과 같은 다섯 조합). 실제 생성은 만들기에서 로그인 뒤 -->
+      <section class="hm-sec" aria-labelledby="hmToneTitle">
+        <div class="hm-in hm-head">
+          <h2 id="hmToneTitle">같은 주방, 다른 색</h2>
+        </div>
+        <div class="hm-in hm-tone">
+          <input class="hm-tone-in" type="radio" name="hmTone" id="hmTone1" checked />
+          <input class="hm-tone-in" type="radio" name="hmTone" id="hmTone2" />
+          <input class="hm-tone-in" type="radio" name="hmTone" id="hmTone3" />
+          <input class="hm-tone-in" type="radio" name="hmTone" id="hmTone4" />
+          <input class="hm-tone-in" type="radio" name="hmTone" id="hmTone5" />
+          <div class="hm-tone-shot">
+            <picture class="hm-tone-p1">
+              <source srcset="../app/portfolio/display/tone-01.avif" type="image/avif" />
+              <img
+                src="../app/portfolio/display/tone-01.jpg"
+                alt="매트 라이트그레이 · 카카오월넛"
+                width="800"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+              />
+            </picture>
+            <picture class="hm-tone-p2">
+              <source srcset="../app/portfolio/display/tone-02.avif" type="image/avif" />
+              <img
+                src="../app/portfolio/display/tone-02.jpg"
+                alt="매트 미스트그린 · 매트 아이보리"
+                width="800"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+              />
+            </picture>
+            <picture class="hm-tone-p3">
+              <source srcset="../app/portfolio/display/tone-03.avif" type="image/avif" />
+              <img
+                src="../app/portfolio/display/tone-03.jpg"
+                alt="매트 블랙 · 세이오크"
+                width="800"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+              />
+            </picture>
+            <picture class="hm-tone-p4">
+              <source srcset="../app/portfolio/display/tone-04.avif" type="image/avif" />
+              <img
+                src="../app/portfolio/display/tone-04.jpg"
+                alt="아크 마멀레이드 · 매트 아이보리"
+                width="800"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+              />
+            </picture>
+            <picture class="hm-tone-p5">
+              <source srcset="../app/portfolio/display/tone-05.avif" type="image/avif" />
+              <img
+                src="../app/portfolio/display/tone-05.jpg"
+                alt="매트 화이트 · 매트 샌드그레이"
+                width="800"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+              />
+            </picture>
+          </div>
+          <div class="hm-tone-picks">
+            <label for="hmTone1"><i aria-hidden="true">1</i>매트 라이트그레이 · 카카오월넛</label>
+            <label for="hmTone2"><i aria-hidden="true">2</i>매트 미스트그린 · 매트 아이보리</label>
+            <label for="hmTone3"><i aria-hidden="true">3</i>매트 블랙 · 세이오크</label>
+            <label for="hmTone4"><i aria-hidden="true">4</i>아크 마멀레이드 · 매트 아이보리</label>
+            <label for="hmTone5"><i aria-hidden="true">5</i>매트 화이트 · 매트 샌드그레이</label>
+            <p class="hm-tone-note">AI 로 연출한 이미지입니다. 방은 그대로 두고 도어 색만 바꿨습니다.</p>
+            <a class="hm-tone-cta" href="make.html">내 방 사진으로 해 보기</a>
+          </div>
+        </div>
+      </section>
 
       <section class="hm-sec" aria-labelledby="hmWorksTitle">
         <div class="hm-in hm-head">
