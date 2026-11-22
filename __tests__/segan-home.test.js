@@ -116,6 +116,7 @@ describe('홈 화면 (segan/index.html)', () => {
     expect(local).toEqual([
       'forward.js',
       '../js/config.js',
+      'source.js', // 유입 경로 (2026-11-23)
       'motion.js',
       'shell.js',
       'guide.js',
