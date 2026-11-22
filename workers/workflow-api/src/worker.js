@@ -217,6 +217,8 @@ import {
 import { runConsultNotices, runPartnerApplicationNotices, isConsultNoticeMinute } from './consult-notify.js';
 import { getMe, registerWorker, leaveLink, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite, peekInvite } from './work/invites.js';
+import { createCustomerInvite, peekCustomerInvite, acceptCustomerInvite } from './customer-invites.js';
+import { confirmMySchedule, requestMyScheduleChange } from './my-schedules.js';
 import { listCompanyWorkers, createCompanyInvite, revokeCompanyInvite, patchCompanyWorker } from './work/company.js';
 import { getCompanyWorker, addCompanyWorkerNote } from './work/company-worker.js';
 import {
@@ -1765,6 +1767,12 @@ const router = createRouter([
   // 상담 확정 (관리자, 본사 상담) · 내 프로젝트 (로그인한 고객)
   { method: 'POST', path: '/consultations/:id/accept', auth: 'jwt', handler: handleAcceptConsultation },
   { method: 'GET',  path: '/me/projects',              auth: 'jwt', handler: handleMyProjects },
+  // 고객이 앱에서 설치 날 확인 · 바꿔 달라고 요청 (2026-11-23 뒤 공정 3차 — src/my-schedules.js, DB 0079 · 0082)
+  { method: 'POST', path: '/me/schedules/:id/confirm',  auth: 'jwt', handler: workRoute(confirmMySchedule) },
+  { method: 'POST', path: '/me/schedules/:id/change',   auth: 'jwt', handler: workRoute(requestMyScheduleChange) },
+  // 고객 초대 링크 (src/customer-invites.js, DB 0082) — 미리보기는 로그인 전에도
+  { method: 'POST', path: '/customer-invites/peek',     auth: 'none', handler: workRoute(peekCustomerInvite) },
+  { method: 'POST', path: '/customer-invites/accept',   auth: 'jwt', handler: workRoute(acceptCustomerInvite) },
 
   // 다담 본사 상담 분배 · 업체 평가표 (관리자)
   { method: 'GET',  path: '/admin/consult-inbox',                 auth: 'jwt', handler: handleConsultInbox },
@@ -1794,6 +1802,7 @@ const router = createRouter([
   { method: 'PATCH', path: '/company/projects/:id/status',        auth: 'jwt', handler: workRoute((env, a) => setProjectStatus(env, a)) },
   { method: 'PUT',   path: '/company/projects/:id/visit',         auth: 'jwt', handler: workRoute((env, a) => setProjectVisit(env, a)) },
   { method: 'PATCH', path: '/company/projects/:id/visit',         auth: 'jwt', handler: workRoute((env, a) => changeProjectVisit(env, a)) },
+  { method: 'POST',  path: '/company/projects/:id/customer-invite', auth: 'jwt', handler: workRoute((env, a) => createCustomerInvite(env, a), 201) },
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
   { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
   // 프로젝트의 작업 배정 — 종류 줄(철거 · 재단 · 엣지 · 조립 · 납품 · 설치 · A/S)마다 작업자 (src/work/project-work.js, DB 0064 · 0065 · 0066)

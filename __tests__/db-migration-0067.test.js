@@ -196,7 +196,7 @@ describe('0067 — 간편 플래너 설계가 모여 검토되는 길', () => {
       messages
     )[1];
     // 뒤 번호 0074 가 밴드 만들기 요청 하나를, 0077 이 사업자등록증 · 첫 달 무료 셋을 더한다 (db-migration-0074 · 0077 시험이 본다)
-    const LATER = ['stock_band_low', 'trial_ending', 'biz_cert_review', 'biz_cert_decided'];
+    const LATER = ['stock_band_low', 'trial_ending', 'biz_cert_review', 'biz_cert_decided', 'as_factory', 'install_change'];
     const inCode = [...list.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).filter((k) => !LATER.includes(k));
     expect([...inCode].sort()).toEqual([...after].sort());
     expect(inCode[inCode.length - 1]).toBe('system_check_failed');

@@ -230,6 +230,8 @@ test('설치 목록 — 납품 · 설치만, 날짜 차례, 취소 · 기간 밖
     project_title: '예시 프로젝트 1',
     order_no: 'SO-20261101-AAAA',
     customer_confirmed_at: null, // 설치 날 고객 확인 (DB 0079) — 설치 줄에만
+    customer_change_requested_at: null, // 고객의 설치 날 변경 요청 (DB 0082) — 설치 줄에만
+    customer_change_note: null,
     address: ADDR1,
     address_detail: '1동 1호',
     sido: '시험시',

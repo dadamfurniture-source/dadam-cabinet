@@ -53,8 +53,9 @@ const CERT = 'b0000000-0000-4000-8000-000000000001';
 // 가짜 개인정보 — 글에 나오면 안 된다
 const PII = ['1234567891', '123-45-67891', '김가짜', '새봄가구', '99,000', '99000'];
 
-test('종류 — 목록 맨 끝에 이 차례로 셋. 검토 결과만 업체 없이 넣는 종류', () => {
-  assert.deepEqual(NOTIFICATION_KINDS.slice(-3), [
+test('종류 — 0077 셋이 이 차례로 (그 뒤는 0082 의 둘). 검토 결과만 업체 없이 넣는 종류', () => {
+  assert.deepEqual(NOTIFICATION_KINDS.slice(-2), ['as_factory', 'install_change']);
+  assert.deepEqual(NOTIFICATION_KINDS.slice(-5, -2), [
     'trial_ending',
     'biz_cert_review',
     'biz_cert_decided',

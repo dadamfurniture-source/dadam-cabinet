@@ -253,7 +253,7 @@ describe('0033 — 장부 사진 확인 · 거래처 기억 · 장부 알림', (
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
     const all = kindsOf(S, 'notification_outbox_kind_check');
-    expect(names.filter((k) => !all.includes(k))).toEqual(['as_request', 'production_recommended', 'production_offered', 'production_answered', 'production_cancelled', 'work_link_request', 'work_reply', 'work_report', 'system_check_failed', 'stock_band_low', 'trial_ending', 'biz_cert_review', 'biz_cert_decided']);   // 0077 사업자등록증 · 첫 달 무료 셋
+    expect(names.filter((k) => !all.includes(k))).toEqual(['as_request', 'production_recommended', 'production_offered', 'production_answered', 'production_cancelled', 'work_link_request', 'work_reply', 'work_report', 'system_check_failed', 'stock_band_low', 'trial_ending', 'biz_cert_review', 'biz_cert_decided', 'as_factory', 'install_change']);   // 0077 사업자등록증 · 첫 달 무료 셋 · 0082 A/S 팩토리 · 설치 날 변경 요청
     expect(names).toContain('ledger_notice');
   });
 
