@@ -1,0 +1,91 @@
+{
+  "title": "0080 유입 경로 — 상담은 고객이 넣을 때 유입 칸 넷을 같이 넣는다(익명 · 회원), 가입 유입은 본인 줄만 읽고 고친다, 길이 제한 (scripts/rls-probe.mjs)",
+  "ids": [],
+  "users": [
+    "cust_user",
+    "other_user"
+  ],
+  "setup": [
+    "UPDATE public.profiles SET inflow_source = 'instagram', inflow_medium = 'social', inflow_campaign = 'tones', inflow_at = now() WHERE id = {{cust_user}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "cust": {
+      "role": "authenticated",
+      "user": "cust_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "상담 넣기 — 유입 칸 넷과 함께 (익명 · 회원 모두 넣는다)",
+      "sql": "INSERT INTO public.consultations (name, email, title, inflow_source, inflow_medium, inflow_campaign, inflow_referrer) VALUES ('probe', 'probe@example.invalid', 'probe', 'instagram', 'social', 'tones', NULL)",
+      "roles": [
+        "anon",
+        "cust"
+      ],
+      "expect": {
+        "anon": "ok",
+        "cust": "ok"
+      }
+    },
+    {
+      "name": "상담 유입 — 꼬리표는 100자까지",
+      "sql": "INSERT INTO public.consultations (name, email, title, inflow_source) VALUES ('probe', 'probe@example.invalid', 'probe', repeat('a', 101))",
+      "roles": [
+        "anon"
+      ],
+      "expect": {
+        "anon": "err:23514"
+      }
+    },
+    {
+      "name": "상담 유입 — 들어온 곳은 200자까지",
+      "sql": "INSERT INTO public.consultations (name, email, title, inflow_referrer) VALUES ('probe', 'probe@example.invalid', 'probe', repeat('a', 201))",
+      "roles": [
+        "anon"
+      ],
+      "expect": {
+        "anon": "err:23514"
+      }
+    },
+    {
+      "name": "가입 유입 읽기 — 본인 줄만 (남 0 · 익명 0)",
+      "sql": "select count(*) from public.profiles where id = {{cust_user}} and inflow_source = 'instagram' and inflow_campaign = 'tones' and inflow_at is not null",
+      "expect": {
+        "anon": "0",
+        "cust": "1",
+        "other": "0",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "가입 유입 채우기 — 본인 줄만 고친다",
+      "sql": "update public.profiles set inflow_referrer = 'search.naver.com' where id = {{cust_user}}",
+      "expect": {
+        "anon": "rows:0",
+        "cust": "rows:1",
+        "other": "rows:0",
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "가입 유입 — 들어온 곳은 200자까지",
+      "sql": "update public.profiles set inflow_referrer = repeat('a', 201) where id = {{cust_user}}",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "err:23514"
+      }
+    }
+  ]
+}

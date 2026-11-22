@@ -18,6 +18,13 @@
  *     GET  /admin/as-requests?days=                 관리자 — 기록 (접수 · 받기 · 끝 시간, 팩토리마다 A/S 수 · 끝낸 수주 수)
  *     runAsAlerts (cron)                            48시간 넘게 아무도 안 받은 접수 → 회사 Slack 한 메시지, alerted_at 을 찍는다
  *
+ * 2026-11-23 대표님 「프로젝트 한 길」 뒤 공정 3차 ① (DB 0082 handler_company_id · handler_project_id):
+ *   영업 사원 업체(plan manager — 생산을 하지 않는다)의 수주에 들어온 A/S 는 그 프로젝트의 제작 의뢰를 받은 팩토리
+ *   (production_requests accepted 의 factory_company_id · factory_project_id)가 바로 받는다.
+ *     · 팩토리 쪽: 그 팩토리 프로젝트의 담당자(없으면 대표 · 실장)에게 as_request 알림, 팩토리 A/S함에 보이고 받기 · 끝을 한다
+ *     · 영업 사원 업체 쪽: 대표 · 실장(과 그 프로젝트 담당자)에게 as_factory 알림, A/S함에 「만든 팩토리가 처리」로 보이고 단추는 없다
+ *   받은 의뢰가 없으면(직접 만든 · 의뢰 전) 지금처럼 수주한 업체가 받는다. 0082 전이면 지금처럼.
+ *   팩토리가 끝낼 때는 완료 보고(report_id)를 잇지 않는다 — 보고는 수주한 업체의 수주에 붙는다.
  * 앱 알림 · Slack 에는 고객 이름 · 전화 · 주소 · 금액 · 내용을 싣지 않는다 (주문번호 · 건수만).
  * 0045 적용 전이면 쓰기 409 db_pending · 보기 ready false.
  */
@@ -58,7 +65,7 @@ const dbPending = () => conflict('DB 0045 적용 전입니다 — A/S 접수는 
 /** 본인 수주 — 고객 계정과 이어진 수주만 (④). 아니면 404 (남의 수주는 있는지도 모르게) */
 async function myOrderOf(env, user, rawId) {
   const orderId = assertUuid(rawId, '수주 id');
-  const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: 'id,company_id,project_id,order_no,status' });
+  const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: 'id,company_id,project_id,design_id,order_no,status' });
   if (!order || !order.project_id || order.status === 'cancelled') throw new NotFoundError('수주를 찾을 수 없습니다');
   const project = await selectOne(env, 'projects', { id: `eq.${order.project_id}`, company_id: `eq.${order.company_id}`, select: 'id,customer_id' });
   if (!project) throw new NotFoundError('수주를 찾을 수 없습니다');
@@ -96,6 +103,51 @@ export async function routeOf(env, order) {
   return { route: 'owners', assignee_id: null };
 }
 
+/**
+ * 처리하는 팩토리 — 수주한 업체가 영업 사원 업체(plan manager)이고 그 프로젝트 · 설계로 받은 제작 의뢰가 있으면
+ * { company_id, project_id, route, assignee_id } (팩토리 쪽 프로젝트 담당자가 있으면 그 사람에게), 아니면 null.
+ */
+export async function handlerOf(env, order) {
+  const company = await selectOne(env, 'companies', { id: `eq.${order.company_id}`, select: 'id,plan' });
+  if (!company || company.plan !== 'manager') return null;
+  const read = (key, val) =>
+    val
+      ? selectMany(env, 'production_requests', {
+          company_id: `eq.${order.company_id}`,
+          [key]: `eq.${val}`,
+          status: 'eq.accepted',
+          select: 'id,factory_company_id,factory_project_id,created_at',
+          order: 'created_at.desc',
+          limit: '5',
+        }).catch((e) => {
+          if (isMissingRelation(e)) return [];
+          throw e;
+        })
+      : Promise.resolve([]);
+  const [byProject, byDesign] = await Promise.all([read('project_id', order.project_id), read('design_id', order.design_id)]);
+  const hit = [...(byProject || []), ...(byDesign || [])].find((r) => r.factory_company_id && r.factory_company_id !== order.company_id);
+  if (!hit) return null;
+  let assignee = null;
+  if (hit.factory_project_id) {
+    try {
+      const p = await selectOne(env, 'projects', {
+        id: `eq.${hit.factory_project_id}`,
+        company_id: `eq.${hit.factory_company_id}`,
+        select: 'id,assignee_id',
+      });
+      assignee = (p && p.assignee_id) || null;
+    } catch (e) {
+      if (!isMissingRelation(e)) throw e;
+    }
+  }
+  return {
+    company_id: hit.factory_company_id,
+    project_id: hit.factory_project_id || null,
+    route: assignee ? 'assignee' : 'owners',
+    assignee_id: assignee,
+  };
+}
+
 /** POST /me/orders/:orderId/as-requests/photo */
 export async function addAsPhoto(env, { user, params, request }) {
   const order = await myOrderOf(env, user, params.orderId);
@@ -117,37 +169,69 @@ export async function addAsPhoto(env, { user, params, request }) {
   return { photo_path: path };
 }
 
-/** 새 접수 알림 — 담당자에게, 없으면 대표 · 실장에게 (던지지 않는다) */
-export async function notifyAsRequest(env, row, order) {
+/**
+ * 새 접수 알림 — 받는 업체(처리하는 팩토리가 있으면 그 팩토리)의 담당자에게, 없으면 대표 · 실장에게.
+ * 팩토리가 받으면 수주한 영업 사원 업체의 대표 · 실장(과 그 프로젝트 담당자)에게 as_factory 도 (던지지 않는다)
+ */
+export async function notifyAsRequest(env, row, order, { managerAssignee = null } = {}) {
   const msg = buildMessage('as_request', { orderNo: order.order_no });
   if (!msg) return 0;
+  const to = row.handler_company_id || order.company_id;
+  let sent = 0;
   if (row.route === 'assignee' && row.assignee_id) {
-    return (await enqueueNotification(env, { userId: row.assignee_id, companyId: order.company_id, kind: 'as_request', ...msg, refId: row.id, dedupeKey: `as_request:${row.id}:${row.assignee_id}` })) ? 1 : 0;
+    sent += (await enqueueNotification(env, { userId: row.assignee_id, companyId: to, kind: 'as_request', ...msg, refId: row.id, dedupeKey: `as_request:${row.id}:${row.assignee_id}` })) ? 1 : 0;
+  } else {
+    sent += await notifyRoles(env, { companyId: to, roles: ['owner', 'manager'], kind: 'as_request', ...msg, refId: row.id });
   }
-  return notifyRoles(env, { companyId: order.company_id, roles: ['owner', 'manager'], kind: 'as_request', ...msg, refId: row.id });
+  if (row.handler_company_id) {
+    const told = buildMessage('as_factory', { orderNo: order.order_no });
+    if (told)
+      sent += await notifyRoles(env, {
+        companyId: order.company_id,
+        roles: ['owner', 'manager'],
+        userIds: managerAssignee ? [managerAssignee] : [],
+        kind: 'as_factory',
+        ...told,
+        refId: row.id,
+      });
+  }
+  return sent;
 }
 
 /** POST /me/orders/:orderId/as-requests */
 export async function addAsRequest(env, { user, params, body, ctx }) {
   const order = await myOrderOf(env, user, params.orderId);
   const r = requestOf(body, order);
-  const to = await routeOf(env, order);
+  const [mine, handler] = await Promise.all([routeOf(env, order), handlerOf(env, order)]);
+  const to = handler || mine;
+  const base = {
+    company_id: order.company_id,
+    order_id: order.id,
+    customer_user_id: user.id,
+    body: r.body,
+    photos: r.photos,
+  };
   let row;
   try {
-    row = await insertOne(env, 'as_requests', {
-      company_id: order.company_id,
-      order_id: order.id,
-      customer_user_id: user.id,
-      body: r.body,
-      photos: r.photos,
-      route: to.route,
-      assignee_id: to.assignee_id,
-    });
+    row = await insertOne(
+      env,
+      'as_requests',
+      handler
+        ? { ...base, route: to.route, assignee_id: to.assignee_id, handler_company_id: handler.company_id, handler_project_id: handler.project_id }
+        : { ...base, route: to.route, assignee_id: to.assignee_id }
+    );
   } catch (e) {
-    if (isMissingRelation(e)) throw dbPending();
-    throw e;
+    if (!isMissingRelation(e)) throw e;
+    if (!handler) throw dbPending();
+    // 0082 전 — 처리하는 업체 칸이 없다: 지금처럼 수주한 업체가 받는다
+    try {
+      row = await insertOne(env, 'as_requests', { ...base, route: mine.route, assignee_id: mine.assignee_id });
+    } catch (e2) {
+      if (isMissingRelation(e2)) throw dbPending();
+      throw e2;
+    }
   }
-  const push = notifyAsRequest(env, row, order).catch(() => 0);
+  const push = notifyAsRequest(env, row, order, { managerAssignee: mine.assignee_id }).catch(() => 0);
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(push);
   else await push;
   // 프로젝트 일지 — 고객이 접수했다
@@ -158,6 +242,16 @@ export async function addAsRequest(env, { user, params, body, ctx }) {
     type: 'as_requested',
     subject: { type: 'as', id: row.id },
   });
+  // 팩토리 쪽 프로젝트 일지에도 — 팩토리가 받는다
+  if (row.handler_company_id && row.handler_project_id) {
+    await logProject(env, ctx, {
+      companyId: row.handler_company_id,
+      projectId: row.handler_project_id,
+      actor: { id: user.id, kind: 'customer' },
+      type: 'as_requested',
+      subject: { type: 'as', id: row.id },
+    });
+  }
   return { id: row.id, state: row.state, route: row.route, created_at: row.created_at };
 }
 
@@ -247,26 +341,56 @@ async function namesOf(env, rows) {
   };
 }
 
+const AS_LIST_COLUMNS = 'id,company_id,order_id,body,photos,state,route,assignee_id,created_at,received_at,done_at,cancelled_at';
+
+/** 우리 A/S함의 줄 — 우리 수주에 들어온 것 + 우리가 처리하는 팩토리인 것 (0082 전이면 앞의 것만), 새 것부터 */
+async function companyRows(env, companyId) {
+  const read = (key, cols) =>
+    selectMany(env, 'as_requests', { [key]: `eq.${companyId}`, select: cols, order: 'created_at.desc', limit: '200' });
+  const withHandler = `${AS_LIST_COLUMNS},handler_company_id,handler_project_id`;
+  let own;
+  let handled = [];
+  try {
+    [own, handled] = await Promise.all([read('company_id', withHandler), read('handler_company_id', withHandler)]);
+  } catch (e) {
+    if (!isMissingRelation(e)) throw e;
+    own = await read('company_id', AS_LIST_COLUMNS);
+    handled = [];
+  }
+  const seen = new Set();
+  return [...(own || []), ...(handled || [])]
+    .filter((r) => (seen.has(r.id) ? false : seen.add(r.id)))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, 200);
+}
+
+/** 이 줄을 우리가 받아 처리하나 — 처리하는 팩토리가 따로 있으면 그 팩토리만 */
+const weHandle = (r, companyId) => (r.handler_company_id ? r.handler_company_id === companyId : r.company_id === companyId);
+
 /** GET /company/as-requests */
 export async function listCompanyAsRequests(env, { user }) {
   const { companyId, role } = await companyOf(env, user);
   let rows;
   try {
-    rows = (await selectMany(env, 'as_requests', {
-      company_id: `eq.${companyId}`,
-      select: 'id,order_id,body,photos,state,route,assignee_id,created_at,received_at,done_at,cancelled_at',
-      order: 'created_at.desc',
-      limit: '200',
-    })) || [];
+    rows = await companyRows(env, companyId);
   } catch (e) {
     if (isMissingRelation(e)) return { ready: false, items: [] };
     throw e;
   }
   const names = await namesOf(env, rows);
   const photosOf = await signPhotos(env, rows);
+  const handlers = [...new Set(rows.map((r) => r.handler_company_id).filter((id) => id && id !== companyId))];
+  const handlerName = new Map(
+    handlers.length
+      ? ((await selectMany(env, 'companies', { id: `in.(${handlers.join(',')})`, select: 'id,name' })) || []).map((c) => [c.id, c.name || null])
+      : []
+  );
   return {
     ready: true,
     items: rows.map((r) => ({
+      // 처리하는 곳 — mine 우리가 받는다 · factory 만든 팩토리가 처리한다(영업 사원 업체가 보는 줄) · from_manager 영업 사원 업체 고객의 접수를 우리가 받는다
+      handled_by: !r.handler_company_id ? 'mine' : r.handler_company_id === companyId ? 'from_manager' : 'factory',
+      handler_name: r.handler_company_id && r.handler_company_id !== companyId ? handlerName.get(r.handler_company_id) || null : null,
       id: r.id,
       order_no: names.order.get(r.order_id) || null,
       body: r.body,
@@ -275,7 +399,7 @@ export async function listCompanyAsRequests(env, { user }) {
       label: AS_STATE_LABEL[r.state] || r.state,
       route: r.route,
       mine: r.assignee_id === user.id,
-      can_handle: (r.state === 'requested' || r.state === 'received') && canHandle(r, user, role),
+      can_handle: (r.state === 'requested' || r.state === 'received') && weHandle(r, companyId) && canHandle(r, user, role),
       created_at: r.created_at,
       received_at: r.received_at || null,
       done_at: r.done_at || null,
@@ -288,12 +412,21 @@ async function myCompanyRequest(env, user, rawId) {
   const { companyId, role } = await companyOf(env, user);
   let row;
   try {
-    row = await selectOne(env, 'as_requests', { id: `eq.${id}`, company_id: `eq.${companyId}`, select: 'id,company_id,order_id,state,assignee_id' });
+    row = await selectOne(env, 'as_requests', {
+      id: `eq.${id}`,
+      select: 'id,company_id,order_id,state,assignee_id,handler_company_id,handler_project_id',
+    }).catch((e) => {
+      if (!isMissingRelation(e)) throw e;
+      return selectOne(env, 'as_requests', { id: `eq.${id}`, select: 'id,company_id,order_id,state,assignee_id' });
+    });
   } catch (e) {
     if (isMissingRelation(e)) throw dbPending();
     throw e;
   }
-  if (!row) throw new NotFoundError('접수를 찾을 수 없습니다');
+  if (!row || (row.company_id !== companyId && row.handler_company_id !== companyId))
+    throw new NotFoundError('접수를 찾을 수 없습니다');
+  if (!weHandle(row, companyId))
+    throw new ForbiddenError('이 A/S 는 만든 팩토리가 받아 처리합니다', 'factory_handles');
   if (!canHandle(row, user, role)) throw new ForbiddenError('A/S 는 그 수주의 담당자나 팩토리 대표 · 실장이 받습니다', 'not_handler');
   return row;
 }
@@ -305,7 +438,7 @@ export async function receiveAsRequest(env, { user, params, ctx }) {
   const out = await updateBy(env, 'as_requests', { id: `eq.${row.id}`, state: 'eq.requested', select: 'id,received_at' }, { state: 'received', received_by: user.id });
   const got = Array.isArray(out) ? out[0] : out;
   if (!got) throw conflict('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
-  await logAt(env, ctx, { order: row.order_id }, { actor: { id: user.id }, type: 'as_received', subject: { type: 'as', id: row.id } });
+  await logBoth(env, ctx, row, { actor: { id: user.id }, type: 'as_received', subject: { type: 'as', id: row.id } });
   return { id: row.id, state: 'received', received_at: got.received_at || null };
 }
 
@@ -314,6 +447,9 @@ export async function finishAsRequest(env, { user, params, body, ctx }) {
   const row = await myCompanyRequest(env, user, params.id);
   if (row.state !== 'received') throw conflict('받은 접수만 끝낼 수 있습니다', 'not_received');
   const reportId = body && body.report_id != null ? assertUuid(body.report_id, '보고 id') : null;
+  // 처리하는 팩토리는 보고를 잇지 않는다 — 완료 보고는 수주한 업체의 수주에 붙는다
+  if (reportId && row.handler_company_id)
+    throw new ValidationError('만든 팩토리가 처리한 A/S 에는 완료 보고를 잇지 않습니다', { field: 'report_id' });
   if (reportId) {
     const rep = await selectOne(env, 'order_reports', { id: `eq.${reportId}`, order_id: `eq.${row.order_id}`, select: 'id,kind' });
     if (!rep || rep.kind !== 'as_done') throw new ValidationError('이 수주의 「A/S 완료」 보고만 이을 수 있습니다', { field: 'report_id' });
@@ -326,8 +462,18 @@ export async function finishAsRequest(env, { user, params, body, ctx }) {
   );
   const got = Array.isArray(out) ? out[0] : out;
   if (!got) throw conflict('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
-  await logAt(env, ctx, { order: row.order_id }, { actor: { id: user.id }, type: 'as_done', subject: { type: 'as', id: row.id } });
+  await logBoth(env, ctx, row, { actor: { id: user.id }, type: 'as_done', subject: { type: 'as', id: row.id } });
   return { id: row.id, state: 'done', done_at: got.done_at || null, report_id: reportId };
+}
+
+/**
+ * 수주 쪽 프로젝트 일지 + 처리하는 팩토리 쪽 프로젝트 일지 (있으면).
+ * 팩토리가 한 일은 수주 쪽(영업 사원 업체) 일지에 「누가」 없이 적는다 — 그 업체 구성원이 아니다
+ */
+async function logBoth(env, ctx, row, ev) {
+  await logAt(env, ctx, { order: row.order_id }, row.handler_company_id ? { ...ev, actor: { kind: 'system' } } : ev);
+  if (row.handler_company_id && row.handler_project_id)
+    await logProject(env, ctx, { companyId: row.handler_company_id, projectId: row.handler_project_id, ...ev });
 }
 
 // ── 본사 ──────────────────────────────────────────────────

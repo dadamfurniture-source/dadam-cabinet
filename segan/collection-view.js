@@ -53,6 +53,10 @@
     companyInfo: '업체 정보',
     like: '좋아요',
     make: '이 스타일로 연출컷',
+    share: '공유',
+    shareTitle: '시공사례',
+    shareCopied: '주소를 복사했습니다',
+    shareFail: '주소를 복사하지 못했습니다',
     open: '정보 보기',
     zoom: '사진 크게 보기',
     likeFail: '좋아요를 저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.',
@@ -551,6 +555,39 @@
    *           onLike?: function(object, boolean), onClose?: function(string) }} o
    * @returns 시트 손잡이 (SeganShell.sheet.open) — 셸이 없으면 null
    */
+  // ── 공유 — 사진 한 장 주소 /segan/p/<id> (functions/segan/p/[id].js 가 그 사진으로 미리보기를 준다) ──
+  var SITE = 'https://dadamfurniture.com';
+  /** 공유할 수 있는 사진 — DB 게시물(uuid)만. 앱 안 AI 연출 사진(STATIC)은 주소가 없다 */
+  function canShare(p) {
+    return !!(p && UUID_RE.test(str(p.id)));
+  }
+  /** 공유 주소 — 이 사이트에서 열었으면 그 출처(미리보기 주소 포함), 아니면 실서비스 */
+  function shareUrl(p) {
+    var o =
+      window.location && /^https?:$/.test(window.location.protocol) ? window.location.origin : SITE;
+    return o + '/segan/p/' + str(p.id).toLowerCase();
+  }
+  /** 공유 창(있으면) → 없으면 주소 복사. 결과: 'shared' · 'copied' · 'cancel' · 'fail' */
+  async function sharePost(p) {
+    if (!canShare(p)) return 'fail';
+    var url = shareUrl(p);
+    var nav = window.navigator || {};
+    try {
+      if (typeof nav.share === 'function') {
+        await nav.share({ title: nameOf(p) + ' · SEGAN', url: url });
+        return 'shared';
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return 'cancel'; // 공유 창을 닫았다
+    }
+    try {
+      await nav.clipboard.writeText(url);
+      return 'copied';
+    } catch {
+      return 'fail';
+    }
+  }
+
   function open(p, o) {
     o = o || {};
     var sheet = sheetApi();
@@ -559,6 +596,7 @@
     var size = sizeOf(o.img);
     var st = { liked: likedOf(o), count: num(p.like_count), busy: false };
     var likeable = canLike(p);
+    var shareable = canShare(p);
     var href = refHref(p);
 
     var colors = colorsHTML(p, 'pv-colors');
@@ -581,7 +619,7 @@
       '" height="' +
       size.h +
       '" decoding="async" draggable="false" /></button>' +
-      (l.place || likeable
+      (l.place || likeable || shareable
         ? '<div class="pv-bar">' +
           (l.place ? '<p class="pv-place">' + esc(l.place) + '</p>' : '') +
           (likeable
@@ -591,9 +629,13 @@
               esc(TEXT.like) +
               '</span> <span class="pv-count"></span></button>'
             : '') +
+          (shareable
+            ? '<button type="button" class="pv-share">' + esc(TEXT.share) + '</button>'
+            : '') +
           '</div>'
         : '') +
       (likeable ? '<p class="pv-error" role="alert" hidden></p>' : '') +
+      (shareable ? '<p class="pv-note" role="status" hidden></p>' : '') +
       (colors
         ? '<section class="pv-sec"><h3 class="pv-h">' +
           esc(TEXT.color) +
@@ -616,6 +658,18 @@
     photo.addEventListener('click', function () {
       full(p, { img: photo.querySelector('img'), onFullClose: o.onFullClose });
     });
+
+    var shareBtn = box.querySelector('.pv-share');
+    var note = box.querySelector('.pv-note');
+    if (shareBtn)
+      shareBtn.addEventListener('click', function () {
+        note.hidden = true;
+        sharePost(p).then(function (r) {
+          if (r !== 'copied' && r !== 'fail') return;
+          note.textContent = r === 'copied' ? TEXT.shareCopied : TEXT.shareFail;
+          note.hidden = false;
+        });
+      });
 
     var btn = box.querySelector('.pv-like');
     var err = box.querySelector('.pv-error');
@@ -671,6 +725,9 @@
     setLike: setLike,
     askLogin: askLogin,
     canLike: canLike,
+    canShare: canShare,
+    shareUrl: shareUrl,
+    sharePost: sharePost,
     likeTile: likeTile,
     full: full,
     open: open,

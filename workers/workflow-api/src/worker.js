@@ -48,11 +48,13 @@
  *   GET /company/quotes — 업체 견적(고객 확인서) 목록, 읽기만 (src/company-quotes.js)
  *   GET /company/inbox — 받은 일: 할 일 묶음 · 지난 14일 소식, 읽기만 (src/company-inbox.js)
  *   POST /company/inbox/seen — 소식을 본 때를 계정마다 적는다 (src/company-inbox.js, DB 0078)
- *   GET /company/projects/:id — 프로젝트 하나: 목록 줄 + 설계 · 견적 · 수주 · 의뢰 · A/S · 일어난 일, 읽기만 (src/company-project.js)
+ *   GET /company/projects/:id — 프로젝트 하나: 목록 줄 + 설계 · 견적 · 수주 · 의뢰 · A/S · 일어난 일 · 단계 띠, 읽기만 (src/company-project.js)
+ *   GET /company/projects/:id/stages/:key — 그 프로젝트 한 단계의 자료: 정보 · 일정 · 문서 · 사진(서명 주소), 읽기만 (src/company-project-stage.js)
  *   PATCH /company/projects/:id/status — 보류 · 그만둠 · 다시 진행. 계약금을 받은 프로젝트는 보류 · 그만둠 불가 (src/company-project-status.js, DB 0078)
  *   PUT · PATCH /company/projects/:id/visit — 실측 일정 잡기 · 고치기 / 완료 처리 · 취소. 대표 · 실장 · 담당자 (src/company-project-visits.js, DB 0079)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
  *   GET /company/summary — 업체 숫자(견적 흐름 · 리드타임), 대표 · 실장, 읽기만 (src/company-summary.js)
+ *   GET /company/dashboard — 프로젝트 관리 대시보드(단계마다 쌓인 수 · 걸린 날 · 받을 돈 · 앞 8주 일정), 대표 · 실장, 읽기만 (src/company-dashboard.js)
  *   GET|PUT /company/shifts — 근무 일정(쉬는 날), 구성원이 보고 대표 · 실장이 적는다 (src/work-shifts.js, DB 0060)
  *   GET /company/workers · POST /company/workers/invites(/:id/revoke) · PATCH /company/workers/:linkId — 팩토리의 작업자:
  *     연결된 작업자 · 초대 · 승인 · 정지 (src/work/company.js, DB 0064 — 2026-11-13 「작업자 한 길」). POST /work/invites/peek 는 초대 미리보기
@@ -216,6 +218,8 @@ import {
 import { runConsultNotices, runPartnerApplicationNotices, isConsultNoticeMinute } from './consult-notify.js';
 import { getMe, registerWorker, leaveLink, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite, peekInvite } from './work/invites.js';
+import { createCustomerInvite, peekCustomerInvite, acceptCustomerInvite } from './customer-invites.js';
+import { confirmMySchedule, requestMyScheduleChange } from './my-schedules.js';
 import { listCompanyWorkers, createCompanyInvite, revokeCompanyInvite, patchCompanyWorker } from './work/company.js';
 import { getCompanyWorker, addCompanyWorkerNote } from './work/company-worker.js';
 import {
@@ -298,6 +302,8 @@ import { changeProjectVisit, setProjectVisit } from './company-project-visits.js
 import { logAt } from './project-log.js';
 import { listCompanyCustomers, updateCompanyCustomer } from './company-customers.js';
 import { getCompanySummary } from './company-summary.js';
+import { getCompanyDashboard } from './company-dashboard.js';
+import { getCompanyProjectStage } from './company-project-stage.js';
 import { listShifts, putShift } from './work-shifts.js';
 import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
 import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
@@ -1763,6 +1769,12 @@ const router = createRouter([
   // 상담 확정 (관리자, 본사 상담) · 내 프로젝트 (로그인한 고객)
   { method: 'POST', path: '/consultations/:id/accept', auth: 'jwt', handler: handleAcceptConsultation },
   { method: 'GET',  path: '/me/projects',              auth: 'jwt', handler: handleMyProjects },
+  // 고객이 앱에서 설치 날 확인 · 바꿔 달라고 요청 (2026-11-23 뒤 공정 3차 — src/my-schedules.js, DB 0079 · 0082)
+  { method: 'POST', path: '/me/schedules/:id/confirm',  auth: 'jwt', handler: workRoute(confirmMySchedule) },
+  { method: 'POST', path: '/me/schedules/:id/change',   auth: 'jwt', handler: workRoute(requestMyScheduleChange) },
+  // 고객 초대 링크 (src/customer-invites.js, DB 0082) — 미리보기는 로그인 전에도
+  { method: 'POST', path: '/customer-invites/peek',     auth: 'none', handler: workRoute(peekCustomerInvite) },
+  { method: 'POST', path: '/customer-invites/accept',   auth: 'jwt', handler: workRoute(acceptCustomerInvite) },
 
   // 다담 본사 상담 분배 · 업체 평가표 (관리자)
   { method: 'GET',  path: '/admin/consult-inbox',                 auth: 'jwt', handler: handleConsultInbox },
@@ -1788,10 +1800,13 @@ const router = createRouter([
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
   // 프로젝트 하나 — 처음부터 끝까지 한 창 (src/company-project.js, 읽기만)
   { method: 'GET',  path: '/company/projects/:id',                auth: 'jwt', handler: workRoute((env, a) => getCompanyProject(env, { user: a.user, projectId: a.params.id })) },
+  // 프로젝트 한 단계의 자료 — 정보 · 일정 · 문서 · 사진 (src/company-project-stage.js)
+  { method: 'GET',  path: '/company/projects/:id/stages/:key',    auth: 'jwt', handler: workRoute((env, a) => getCompanyProjectStage(env, a)) },
   // 프로젝트 상태 — 보류 · 그만둠 · 다시 진행 (src/company-project-status.js, DB 0078)
   { method: 'PATCH', path: '/company/projects/:id/status',        auth: 'jwt', handler: workRoute((env, a) => setProjectStatus(env, a)) },
   { method: 'PUT',   path: '/company/projects/:id/visit',         auth: 'jwt', handler: workRoute((env, a) => setProjectVisit(env, a)) },
   { method: 'PATCH', path: '/company/projects/:id/visit',         auth: 'jwt', handler: workRoute((env, a) => changeProjectVisit(env, a)) },
+  { method: 'POST',  path: '/company/projects/:id/customer-invite', auth: 'jwt', handler: workRoute((env, a) => createCustomerInvite(env, a), 201) },
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
   { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
   // 프로젝트의 작업 배정 — 종류 줄(철거 · 재단 · 엣지 · 조립 · 납품 · 설치 · A/S)마다 작업자 (src/work/project-work.js, DB 0064 · 0065 · 0066)
@@ -1813,6 +1828,8 @@ const router = createRouter([
   { method: 'PATCH', path: '/company/customers/:id',              auth: 'jwt', handler: workRoute((env, a) => updateCompanyCustomer(env, a)) },
   // 업체 숫자 — 견적 흐름 · 리드타임 (src/company-summary.js)
   { method: 'GET',  path: '/company/summary',                     auth: 'jwt', handler: workRoute((env, a) => getCompanySummary(env, a)) },
+  // 프로젝트 관리 대시보드 — 진행 중 프로젝트를 경영 숫자로 (src/company-dashboard.js)
+  { method: 'GET',  path: '/company/dashboard',                   auth: 'jwt', handler: workRoute((env, a) => getCompanyDashboard(env, a)) },
   // 근무 일정 — 쉬는 날만 (src/work-shifts.js, DB 0060)
   // 팩토리의 작업자 — 연결 · 초대 · 승인 (src/work/company.js, DB 0064)
   { method: 'GET',   path: '/company/workers',                     auth: 'jwt', handler: workRoute(listCompanyWorkers) },

@@ -4,9 +4,15 @@
    2026-11-21 대표님 「모든 공정이 자연 스럽게 이어지도록 UI가 배치 되어 있어야하고, 파이프라인도 구축 되어 있어야해」
    — 승인 계획 「프로젝트 한 길」 묶음 4. 새로 생긴 일 표의 프로젝트 이름이 연다 (줄의 「진행 보기」 단추는 11-21 뺌).
 
+   2026-11-23 대표님 「선형 단계를 찍으면 구체적으로 어떤 사진 및 도면, 정보들이 있는지 한눈에」 — 승인 계획
+   「프로젝트 관리 새 틀」: 프로젝트 줄의 이름을 눌러도 열린다. 띠의 단계 칸을 누르면 그 단계의 정보 · 일정 ·
+   문서 · 사진이 아래에 나온다 (GET /company/projects/:id/stages/:key — SeganPartnerProjects.readStage).
+   서버가 단계 띠(stages)를 주지 않으면(옛 서버) 아래의 옛 모습 그대로 그린다.
+
    창에 있는 것 (위에서부터)
      고객 · 전화 · 담당 · 시작한 날
      단계 띠 · 다음 할 일 — 프로젝트 줄과 같은 것 (SeganPartnerProjects.nextOf · runNext)
+     (새 모습) 누른 단계의 칸 — 핵심 정보 · 사진 · 도면 · 문서 · 그 단계에 일어난 일, 맨 아래 「일어난 일 모두」
      일어난 일 — 오래된 것부터 (프로젝트 생김 → 설계 → 견적 → 계약 → 배송 · 완료 → A/S).
        줄 끝에 「누가」 — 구성원 이름 · 고객 · 본사 (일지가 있는 일만 — 2026-11-21 뒤 공정 1차)
      설계 · 견적 · 계약 · 제작 의뢰 · A/S — 있는 것만, 저마다 그 화면으로 가는 링크 (계약은 수주 창을 연다)
@@ -59,7 +65,69 @@
     held: '보류 중',
     cancelled: '그만둔 프로젝트',
     holdUntil: '다시 볼 날 ',
+    // 단계 띠 · 단계 칸 (2026-11-23)
+    stages: '단계',
+    day: '일',
+    dayth: '일째',
+    won: '원',
+    info: '핵심 정보',
+    media: '사진 · 도면',
+    docs: '문서',
+    schedules: '일정',
+    reports: '완료 보고',
+    payments: '수금',
+    quoteDocs: '고객 확인서',
+    stageHistory: '이 단계에 일어난 일',
+    allHistory: '일어난 일 모두',
+    stageTodo: '아직 이 단계에 오지 않았습니다.',
+    stageEmpty: '이 단계에 남은 자료가 없습니다.',
+    stageFailed: '이 단계의 자료를 불러오지 못했습니다. 단계 칸을 다시 눌러 주세요.',
+    photo: '사진',
+    shot: 'AI 연출컷',
+    view: '보기',
+    rev: '판',
+    current: '지금 판',
+    request: '요청',
+    items: '품목',
+    region: '지역',
+    wantVisit: '방문 희망',
+    wantDone: '완료 희망',
+    doorFinish: '도어 마감',
+    priceTier: '가격대',
+    demolition: '철거',
+    yes: '필요',
+    no: '필요 없음',
+    received: '받은 날',
+    visitDay: '실측 날',
+    visitDone: '끝낸 때',
+    visitWho: '갈 사람',
+    visitBtn: '실측 일정',
+    planned: '예정',
+    memo: '메모',
+    modules: '모듈',
+    walls: '벽',
+    orderNo: '수주 번호',
+    state: '상태',
+    ordered: '계약한 날',
+    amount: '계약 금액',
+    openOrder: '수주 창 열기',
+    paid: '받음',
+    notPaid: '아직',
+    due: '받을 날',
+    work: '작업 배정',
+    schDone: '끝',
+    schCancelled: '취소',
+    confirmed: '고객 확인',
+    notConfirmed: '고객 확인 전',
+    asBody: '접수 글',
+    asReceived: '받은 날',
+    asDone: '끝낸 날',
+    asPhoto: '고객 사진',
+    popup: '새 창이 막혀 문서를 열지 못했습니다. 팝업을 허용해 주세요.',
+    printFailed: '문서를 열지 못했습니다.',
   };
+  // 수금 줄 종류 — segan/orders.js 와 같은 이름
+  var PAY_STAGE = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' };
   // 수주 상태 — segan/orders.js STATUS 와 같은 이름 (그 파일이 있으면 그것을 쓴다)
   var ORDER_STATUS = {
     confirmed: '접수',
@@ -211,8 +279,516 @@
     );
   }
 
-  /** 창의 몸 — d = GET /company/projects/:id 의 data (못 읽었으면 { project: 이미 읽은 줄 }) */
-  function bodyHtml(d, now) {
+  /** 일어난 일 목록 */
+  function historyHtml(list) {
+    return (
+      '<ol class="ps-history">' +
+      list
+        .map(function (h) {
+          return (
+            '<li><time datetime="' +
+            esc(h.at) +
+            '">' +
+            esc(whenText(h.at)) +
+            '</time><span>' +
+            esc(h.label) +
+            (byText(h.who) ? ' <span class="ps-by">· ' + esc(byText(h.who)) + '</span>' : '') +
+            '</span></li>'
+          );
+        })
+        .join('') +
+      '</ol>'
+    );
+  }
+
+  // ── 단계 띠 · 단계 칸 (2026-11-23 대표님 「선형 단계를 찍으면 … 사진 및 도면, 정보들이 한눈에」) ──────
+  //   띠 = 서버의 stages[] (끝난 단계는 걸린 날, 지금 단계는 머문 날). 칸을 누르면 그 단계의 자료를 읽어 아래에 그린다
+  //   (GET /company/projects/:id/stages/:key — 정보 · 일정 · 문서 · 사진. 사진은 한 시간짜리 주소다).
+  var MARK = { done: '✓ 끝', now: '● 지금', todo: '○ 아직' };
+  var HISTORY_STAGE = {
+    'p-quote': 'quote',
+    'p-contract': 'contract',
+    'p-make': 'make',
+    'p-install': 'install',
+    'p-as': 'done',
+  };
+
+  /** 'MM.DD' (한국 시간) */
+  function shortDay(at) {
+    var d = dayText(at);
+    return d ? d.slice(5) : '';
+  }
+  function wonText(n) {
+    return typeof n === 'number' && isFinite(n)
+      ? Math.round(n).toLocaleString('ko-KR') + TEXT.won
+      : '';
+  }
+  /** 단계 이름 — 마지막 칸(끝)은 프로젝트 줄의 띠처럼 「A/S」 */
+  function stageLabel(s) {
+    return s.key === 'done' ? TEXT.as : s.label;
+  }
+  /** 서버의 단계 띠 — 모양이 맞는 칸만 */
+  function stagesOf(data) {
+    return arr(obj(data).stages).filter(function (s) {
+      return s && typeof s.key === 'string' && typeof s.label === 'string' && MARK[s.state];
+    });
+  }
+  /** 처음 펼칠 단계 — 지금 단계, 없으면 마지막으로 끝난 단계, 그것도 없으면 첫 칸 */
+  function firstStage(stages) {
+    var now = stages.filter(function (s) {
+      return s.state === 'now';
+    })[0];
+    var done = stages.filter(function (s) {
+      return s.state === 'done';
+    });
+    return (now || done[done.length - 1] || stages[0] || {}).key || '';
+  }
+  /** 일어난 일 한 줄이 어느 단계 것인가 */
+  function historyStage(h) {
+    var r = obj(h);
+    if (HISTORY_STAGE[r.go]) return HISTORY_STAGE[r.go];
+    var k = typeof r.kind === 'string' ? r.kind : '';
+    if (/^as_/.test(k)) return 'done';
+    if (/measure|visit/.test(k)) return 'measure';
+    if (/^(design|draft)/.test(k)) return 'design';
+    if (/^quote/.test(k)) return 'quote';
+    if (/^(order_created|deposit|approval|payment)/.test(k)) return 'contract';
+    if (/^(request|produce)/.test(k)) return 'make';
+    if (/deliver|install|complete/.test(k)) return 'install';
+    return 'consult';
+  }
+
+  function stripHtml(stages, picked) {
+    return (
+      '<div class="pg-strip" role="group" aria-label="' +
+      esc(TEXT.stages) +
+      '" data-ps="strip">' +
+      stages
+        .map(function (s) {
+          var when = s.state === 'todo' ? '' : shortDay(s.from);
+          var days =
+            typeof s.days === 'number' ? s.days + (s.state === 'now' ? TEXT.dayth : TEXT.day) : '';
+          return (
+            '<button type="button" class="pg-step pg-' +
+            s.state +
+            '" data-act="stage" data-key="' +
+            esc(s.key) +
+            '" aria-pressed="' +
+            (s.key === picked) +
+            '"><span class="pg-mark">' +
+            MARK[s.state] +
+            '</span><b>' +
+            esc(stageLabel(s)) +
+            '</b><small>' +
+            esc([when, days].filter(Boolean).join(' · ')) +
+            '</small></button>'
+          );
+        })
+        .join('') +
+      '</div>'
+    );
+  }
+
+  function kvHtml(rows) {
+    var live = rows.filter(function (r) {
+      return r[1] !== null && r[1] !== undefined && r[1] !== '';
+    });
+    if (!live.length) return '';
+    return (
+      '<dl class="pg-kv">' +
+      live
+        .map(function (r) {
+          return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>';
+        })
+        .join('') +
+      '</dl>'
+    );
+  }
+  function headHtml(title, n) {
+    return (
+      '<h4 class="od-h">' + esc(title) + (n ? ' <span class="ps-n">' + n + '</span>' : '') + '</h4>'
+    );
+  }
+  /** 사진 격자 — list [{ url, label, at }] (https 주소만 그린다) */
+  function photosHtml(list) {
+    var ok = arr(list).filter(function (p) {
+      return p && typeof p.url === 'string' && /^https:\/\//.test(p.url);
+    });
+    if (!ok.length) return '';
+    return (
+      '<ul class="pg-photos" data-ps="photos">' +
+      ok
+        .map(function (p) {
+          var cap = [p.label, shortDay(p.at)].filter(Boolean).join(' · ');
+          return (
+            '<li><a href="' +
+            esc(p.url) +
+            '" target="_blank" rel="noopener"><img src="' +
+            esc(p.url) +
+            '" alt="' +
+            esc(p.label || TEXT.photo) +
+            '" loading="lazy" /></a><small>' +
+            esc(cap) +
+            (p.note ? ' · ' + esc(p.note) : '') +
+            '</small></li>'
+          );
+        })
+        .join('') +
+      '</ul>'
+    );
+  }
+  function schedulesHtml(list) {
+    var rows = arr(list).map(function (x) {
+      var s = obj(x);
+      var state =
+        s.status === 'cancelled'
+          ? TEXT.schCancelled
+          : s.completed_at
+            ? TEXT.schDone + ' ' + shortDay(s.completed_at)
+            : '';
+      var confirm =
+        s.customer_confirmed_at === undefined
+          ? ''
+          : s.customer_confirmed_at
+            ? TEXT.confirmed
+            : TEXT.notConfirmed;
+      return rowHtml(
+        (s.label || '') + ' · ' + whenText(s.scheduled_at),
+        [s.assignee_name, state, confirm].filter(Boolean).join(' · ')
+      );
+    });
+    return rows.length ? '<ul class="ps-list" data-ps="schedules">' + rows.join('') + '</ul>' : '';
+  }
+  function docsHtml(list) {
+    var rows = arr(list).map(function (x) {
+      var d = obj(x);
+      return rowHtml(
+        (d.label || '') + (d.doc_no ? ' ' + d.doc_no : ''),
+        [d.rev ? d.rev + TEXT.rev : '', dayText(d.created_at)].filter(Boolean).join(' · '),
+        printBtn(d.id)
+      );
+    });
+    return rows.length ? '<ul class="ps-list" data-ps="documents">' + rows.join('') + '</ul>' : '';
+  }
+  function printBtn(id) {
+    return id
+      ? '<button type="button" class="mk-btn" data-act="print" data-id="' +
+          esc(id) +
+          '">' +
+          esc(TEXT.view) +
+          '</button>'
+      : '';
+  }
+  function reportsHtml(list) {
+    return arr(list)
+      .map(function (x) {
+        var r = obj(x);
+        return (
+          '<div data-ps="report"><p class="ps-who">' +
+          esc([r.label, dayText(r.created_at), r.note].filter(Boolean).join(' · ')) +
+          '</p>' +
+          photosHtml(
+            arr(r.photo_urls).map(function (u) {
+              return { url: u, label: r.label, at: r.created_at };
+            })
+          ) +
+          '</div>'
+        );
+      })
+      .join('');
+  }
+  function labelOf(map, v) {
+    return map && typeof v === 'string' && map[v] ? map[v] : typeof v === 'string' ? v : '';
+  }
+
+  /** 단계마다 — 서버 자료 → 칸의 글. 빈 글자면 그 단계에 남은 자료가 없다 */
+  var PANELS = {
+    consult: function (d) {
+      var C = window.SeganPartnerConsults || {};
+      return arr(d.consults)
+        .map(function (x) {
+          var c = obj(x);
+          var items = arr(c.categories)
+            .map(function (k) {
+              return labelOf(C.ITEMS, k);
+            })
+            .filter(Boolean)
+            .join(' · ');
+          return (
+            headHtml(TEXT.info) +
+            kvHtml([
+              [TEXT.request, c.description],
+              [TEXT.items, items],
+              [TEXT.region, [c.sido, c.gugun].filter(Boolean).join(' ')],
+              [
+                TEXT.wantVisit,
+                [c.preferred_date, labelOf(C.TIME_LABELS, c.preferred_time)]
+                  .filter(Boolean)
+                  .join(' '),
+              ],
+              [TEXT.wantDone, c.wanted_done_date],
+              [TEXT.doorFinish, labelOf(C.DOOR_FINISH, c.door_finish)],
+              [TEXT.priceTier, labelOf(C.PRICE_TIER, c.price_tier)],
+              [
+                TEXT.demolition,
+                c.demolition_needed === true
+                  ? TEXT.yes
+                  : c.demolition_needed === false
+                    ? TEXT.no
+                    : '',
+              ],
+              [TEXT.received, dayText(c.created_at)],
+            ]) +
+            (c.has_image && c.id
+              ? headHtml(TEXT.media) +
+                '<ul class="pg-photos"><li><a data-shot="' +
+                esc(c.id) +
+                '" target="_blank" rel="noopener" hidden><img alt="' +
+                esc(TEXT.shot) +
+                '" /></a><small>' +
+                esc(TEXT.shot) +
+                '</small></li></ul>'
+              : '')
+          );
+        })
+        .join('');
+    },
+    measure: function (d, p) {
+      var v = d.visit ? obj(d.visit) : null;
+      var pp = PP();
+      var can = pp && typeof pp.canVisit === 'function' && p.id ? pp.canVisit(p) : false;
+      var info = v
+        ? kvHtml([
+            [
+              TEXT.visitDay,
+              whenText(v.scheduled_at) + (v.status === 'done' ? '' : ' ' + TEXT.planned),
+            ],
+            [TEXT.visitDone, v.status === 'done' ? whenText(v.done_at) : ''],
+            [TEXT.visitWho, v.assignee_name],
+            [TEXT.memo, v.note],
+          ])
+        : '';
+      var act = can
+        ? '<div class="rd-acts"><button type="button" class="mk-btn" data-act="visit" data-for="' +
+          esc(p.id) +
+          '">' +
+          esc(TEXT.visitBtn) +
+          '</button></div>'
+        : '';
+      var photos = photosHtml(d.photos);
+      if (!info && !photos && !act) return '';
+      return (
+        (info || act ? headHtml(TEXT.info) + info + act : '') +
+        (photos ? headHtml(TEXT.media) + photos : '')
+      );
+    },
+    design: function (d) {
+      var drafts = arr(d.drafts).map(function (x) {
+        var r = obj(x);
+        return rowHtml(
+          r.name || TEXT.noName,
+          [
+            r.modules ? TEXT.modules + ' ' + r.modules : '',
+            r.walls ? TEXT.walls + ' ' + r.walls : '',
+            dayText(r.updated_at) ? dayText(r.updated_at) + TEXT.edited : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        );
+      });
+      var designs = drafts.length
+        ? []
+        : arr(d.designs).map(function (x) {
+            var r = obj(x);
+            return rowHtml(
+              r.name || TEXT.noName,
+              dayText(r.updated_at) ? dayText(r.updated_at) + TEXT.edited : ''
+            );
+          });
+      var rows = drafts.concat(designs);
+      var media = photosHtml(arr(d.renders).concat(arr(d.photos)));
+      return (
+        (rows.length
+          ? headHtml(TEXT.designs, rows.length) + '<ul class="ps-list">' + rows.join('') + '</ul>'
+          : '') + (media ? headHtml(TEXT.media) + media : '')
+      );
+    },
+    quote: function (d, p, now) {
+      var rows = arr(d.quotes).map(function (x) {
+        var q = obj(x);
+        return rowHtml(
+          (q.rev ? q.rev + TEXT.rev : TEXT.quotes) +
+            (q.current ? ' · ' + TEXT.current : '') +
+            (wonText(q.total) ? ' · ' + wonText(q.total) : ''),
+          [
+            dayText(q.created_at) + TEXT.sent,
+            quoteText(q, now),
+            q.decided_at ? dayText(q.decided_at) : '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          printBtn(q.id)
+        );
+      });
+      return rows.length
+        ? headHtml(TEXT.quoteDocs, rows.length) +
+            '<ul class="ps-list" data-ps="quotes">' +
+            rows.join('') +
+            '</ul>'
+        : '';
+    },
+    contract: function (d) {
+      var status = (window.SeganOrders && window.SeganOrders.STATUS) || ORDER_STATUS;
+      return arr(d.orders)
+        .map(function (x) {
+          var o = obj(x);
+          var pays = arr(o.payments).map(function (y) {
+            var pay = obj(y);
+            return rowHtml(
+              (PAY_STAGE[pay.stage] || pay.stage || '') +
+                (wonText(pay.amount) ? ' · ' + wonText(pay.amount) : ''),
+              pay.paid_on
+                ? pay.paid_on.replace(/-/g, '.') + ' ' + TEXT.paid
+                : pay.due_on
+                  ? TEXT.due + ' ' + pay.due_on.replace(/-/g, '.')
+                  : TEXT.notPaid
+            );
+          });
+          return (
+            headHtml(TEXT.orders) +
+            kvHtml([
+              [TEXT.orderNo, o.order_no || TEXT.noOrderNo],
+              [TEXT.state, status[o.status] || ORDER_STATUS[o.status] || ''],
+              [TEXT.ordered, dayText(o.ordered_at)],
+              [TEXT.amount, wonText(o.amount)],
+            ]) +
+            '<div class="rd-acts"><button type="button" class="mk-btn" data-act="order" data-id="' +
+            esc(o.id) +
+            '">' +
+            esc(TEXT.openOrder) +
+            '</button></div>' +
+            (pays.length
+              ? headHtml(TEXT.payments) +
+                '<ul class="ps-list" data-ps="payments">' +
+                pays.join('') +
+                '</ul>'
+              : '')
+          );
+        })
+        .join('');
+    },
+    make: function (d, p) {
+      var pp = PP();
+      var work =
+        pp && typeof pp.openWork === 'function' && p.status === 'active'
+          ? '<div class="rd-acts"><button type="button" class="mk-btn" data-act="work" data-for="' +
+            esc(p.id) +
+            '">' +
+            esc(TEXT.work) +
+            '</button></div>'
+          : '';
+      var sch = schedulesHtml(d.schedules);
+      var docs = docsHtml(d.documents);
+      var photos = photosHtml(d.photos);
+      var reqs = arr(d.requests).map(function (x) {
+        var r = obj(x);
+        return rowHtml(REQUEST_STATUS[r.status] || '', dayText(r.status_at));
+      });
+      if (!sch && !docs && !photos && !reqs.length) return '';
+      return (
+        (sch ? headHtml(TEXT.schedules) + sch : '') +
+        work +
+        (reqs.length
+          ? headHtml(TEXT.requests, reqs.length) + '<ul class="ps-list">' + reqs.join('') + '</ul>'
+          : '') +
+        (docs ? headHtml(TEXT.docs) + docs : '') +
+        (photos ? headHtml(TEXT.media) + photos : '')
+      );
+    },
+    install: function (d) {
+      var sch = schedulesHtml(d.schedules);
+      var docs = docsHtml(d.documents);
+      var reports = reportsHtml(d.reports);
+      var photos = photosHtml(d.photos);
+      return (
+        (sch ? headHtml(TEXT.schedules) + sch : '') +
+        (reports ? headHtml(TEXT.reports) + reports : '') +
+        (photos ? headHtml(TEXT.media) + photos : '') +
+        (docs ? headHtml(TEXT.docs) + docs : '')
+      );
+    },
+    done: function (d) {
+      var list = arr(d.as)
+        .map(function (x) {
+          var a = obj(x);
+          return (
+            '<div data-ps="as-item"><p class="ps-who">' +
+            esc(
+              [a.label || AS_STATE[a.state] || '', dayText(a.created_at)]
+                .filter(Boolean)
+                .join(' · ')
+            ) +
+            '</p>' +
+            kvHtml([
+              [TEXT.asBody, a.body],
+              [TEXT.asReceived, dayText(a.received_at)],
+              [TEXT.asDone, dayText(a.done_at)],
+            ]) +
+            photosHtml(
+              arr(a.photo_urls).map(function (u) {
+                return { url: u, label: TEXT.asPhoto, at: a.created_at };
+              })
+            ) +
+            '</div>'
+          );
+        })
+        .join('');
+      var sch = schedulesHtml(d.schedules);
+      var reports = reportsHtml(d.reports);
+      return (
+        (list ? headHtml(TEXT.as) + list : '') +
+        (sch ? headHtml(TEXT.schedules) + sch : '') +
+        (reports ? headHtml(TEXT.reports) + reports : '')
+      );
+    },
+  };
+
+  /**
+   * 누른 단계의 칸 — stage = 띠의 그 칸, got = { loading } | { failed } | { data }, history = 일어난 일 전부
+   */
+  function panelHtml(stage, got, p, history, now) {
+    var g = obj(got);
+    var inner;
+    if (g.loading || (!g.failed && !g.data))
+      inner = '<p class="pg-empty">' + esc(TEXT.loading) + '</p>';
+    else if (g.failed) inner = '<p class="pg-empty">' + esc(TEXT.stageFailed) + '</p>';
+    else {
+      var make = PANELS[stage.key];
+      inner = make ? make(obj(g.data), obj(p), now) : '';
+      if (!inner)
+        inner =
+          '<p class="pg-empty">' +
+          esc(stage.state === 'todo' ? TEXT.stageTodo : TEXT.stageEmpty) +
+          '</p>';
+    }
+    var events = arr(history).filter(function (h) {
+      return historyStage(h) === stage.key;
+    });
+    return (
+      '<div class="pg-panel" data-ps="stage" data-key="' +
+      esc(stage.key) +
+      '">' +
+      inner +
+      (events.length ? headHtml(TEXT.stageHistory) + historyHtml(events) : '') +
+      '</div>'
+    );
+  }
+
+  /**
+   * 창의 몸 — d = GET /company/projects/:id 의 data (못 읽었으면 { project: 이미 읽은 줄 }).
+   * view = { stage: 펼친 단계, got: { 단계: { loading | failed | data } } } — 서버가 단계 띠를 줄 때만 쓴다
+   */
+  function bodyHtml(d, now, view) {
     var data = obj(d);
     var p = obj(data.project);
     var pp = PP();
@@ -238,37 +814,44 @@
     // 실측 한 줄 — 프로젝트 줄과 같은 글 (2026-11-21 뒤 공정 2차. 잡고 끝내는 것은 프로젝트 줄에서)
     var visit = pp && typeof pp.visitText === 'function' ? pp.visitText(p) : '';
     if (visit) html += '<p class="ps-state" data-ps="visit">' + esc(visit) + '</p>';
+    var history = arr(data.history).filter(function (h) {
+      return h && typeof h.label === 'string' && h.label && whenText(h.at);
+    });
+    var stages = stagesOf(data);
+    if (stages.length) {
+      // 새 모습 — 단계 띠(누르는 칸) · 다음 할 일 · 누른 단계의 칸 · 일어난 일 모두
+      var v = obj(view);
+      var picked =
+        stages.filter(function (s) {
+          return s.key === v.stage;
+        })[0] ||
+        stages.filter(function (s) {
+          return s.key === firstStage(stages);
+        })[0];
+      html += stripHtml(stages, picked.key);
+      if (flow)
+        html +=
+          (flow.note || '') +
+          (flow.act ? '<div class="rd-acts">' + flow.act + (flow.tail || '') + '</div>' : '');
+      html += panelHtml(picked, obj(v.got)[picked.key], p, history, now);
+      if (history.length)
+        html +=
+          '<details class="pg-all" data-ps="history"><summary>' +
+          esc(TEXT.allHistory) +
+          ' <span class="ps-n">' +
+          history.length +
+          '</span></summary>' +
+          historyHtml(history) +
+          '</details>';
+      return html;
+    }
     if (flow) {
       html +=
         (flow.strip || '') +
         (flow.note || '') +
         (flow.act ? '<div class="rd-acts">' + flow.act + (flow.tail || '') + '</div>' : '');
     }
-    var history = arr(data.history).filter(function (h) {
-      return h && typeof h.label === 'string' && h.label && whenText(h.at);
-    });
-    if (history.length)
-      html += secHtml(
-        'history',
-        TEXT.history,
-        0,
-        '<ol class="ps-history">' +
-          history
-            .map(function (h) {
-              return (
-                '<li><time datetime="' +
-                esc(h.at) +
-                '">' +
-                esc(whenText(h.at)) +
-                '</time><span>' +
-                esc(h.label) +
-                (byText(h.who) ? ' <span class="ps-by">· ' + esc(byText(h.who)) + '</span>' : '') +
-                '</span></li>'
-              );
-            })
-            .join('') +
-          '</ol>'
-      );
+    if (history.length) html += secHtml('history', TEXT.history, 0, historyHtml(history));
     var designs = arr(data.designs);
     if (designs.length)
       html += secHtml(
@@ -388,12 +971,89 @@
     var body = O.node.querySelector('[data-ps="body"]');
     note.textContent = O.note || '';
     note.hidden = !O.note;
-    body.innerHTML = O.data ? bodyHtml(O.data, Date.now()) : '';
+    var stages = stagesOf(O.data);
+    if (stages.length && !O.stage) O.stage = firstStage(stages);
+    body.innerHTML = O.data ? bodyHtml(O.data, Date.now(), { stage: O.stage, got: O.got }) : '';
     var Shell = window.SeganShell || {};
     if (Shell.applyLinkTarget)
       body.querySelectorAll('a[data-desktop-tab]').forEach(function (a) {
         Shell.applyLinkTarget(a);
       });
+    if (stages.length) {
+      loadStage(O, O.stage);
+      paintShots(O);
+    }
+  }
+
+  /** 그 단계의 자료를 읽는다 — 한 번 읽은 단계는 다시 읽지 않는다 (못 읽은 단계는 칸을 다시 누르면 읽는다) */
+  async function loadStage(O, key) {
+    var pp = PP();
+    if (!key || O.got[key] || !pp || typeof pp.readStage !== 'function') return;
+    O.got[key] = { loading: true };
+    paint();
+    var r = await pp.readStage(O.id, key);
+    if (S.open !== O) return;
+    O.got[key] = r && r.ok && r.data ? { data: r.data } : { failed: true };
+    paint();
+  }
+
+  /** 상담의 연출컷 — 본인 토큰으로 받아 그 칸에 채운다 (못 받으면 칸을 뺀다) */
+  function paintShots(O) {
+    var pp = PP();
+    O.node.querySelectorAll('a[data-shot]').forEach(function (a) {
+      var id = a.getAttribute('data-shot');
+      var put = function (url) {
+        if (!url) {
+          var li = a.closest('li');
+          if (li && li.parentNode && li.parentNode.children.length === 1) li.parentNode.remove();
+          else if (li) li.remove();
+          return;
+        }
+        a.href = url;
+        a.querySelector('img').src = url;
+        a.hidden = false;
+      };
+      if (O.shots[id] !== undefined) return put(O.shots[id]);
+      if (!pp || typeof pp.fetchRaw !== 'function') return;
+      O.shots[id] = '';
+      pp.fetchRaw('/company/consults/' + encodeURIComponent(id) + '/image')
+        .then(function (res) {
+          return res && res.ok ? res.blob() : null;
+        })
+        .then(function (blob) {
+          O.shots[id] =
+            blob && window.URL && window.URL.createObjectURL
+              ? window.URL.createObjectURL(blob)
+              : '';
+          if (S.open === O) paint();
+        })
+        .catch(function () {
+          O.shots[id] = '';
+        });
+    });
+  }
+
+  /** 문서를 새 창에 — 인쇄 화면은 로그인이 필요해 받아서 쓴다 (segan/project-work.js openPrint 와 같은 방식) */
+  async function openPrint(O, docId) {
+    var pp = PP();
+    if (!docId || !pp || typeof pp.fetchRaw !== 'function') return;
+    var win = window.open('', '_blank');
+    var fail = function (text) {
+      try {
+        if (win) win.close();
+      } catch {
+        /* 이미 닫혔다 */
+      }
+      O.note = text;
+      paint();
+    };
+    if (!win) return fail(TEXT.popup);
+    var res = await pp.fetchRaw('/documents/' + encodeURIComponent(docId) + '/print');
+    if (!res || !res.ok) return fail(TEXT.printFailed);
+    var html = await res.text();
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
   }
 
   /** 창을 닫고 그 화면으로 — 닫기의 뒤로 가기가 끝난 뒤에 주소를 바꾼다 */
@@ -415,7 +1075,26 @@
       var act = btn.getAttribute('data-act');
       var id = btn.getAttribute('data-id') || '';
       var pp = PP();
-      if (act === 'order') {
+      if (act === 'stage') {
+        var key = btn.getAttribute('data-key') || '';
+        // 못 읽은 단계는 다시 누르면 다시 읽는다
+        if (O.got[key] && O.got[key].failed) delete O.got[key];
+        O.stage = key;
+        paint();
+        var again = O.node.querySelector('[data-act="stage"][data-key="' + key + '"]');
+        if (again && again.focus) again.focus();
+      } else if (act === 'print') {
+        openPrint(O, id);
+      } else if (act === 'work' && pp && typeof pp.openWork === 'function') {
+        // 작업 배정 — 창을 닫고 프로젝트 줄에서 한다
+        var forId = btn.getAttribute('data-for') || '';
+        var shut = O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
+        var go = function () {
+          pp.openWork(forId);
+        };
+        if (shut && typeof shut.then === 'function') shut.then(go, go);
+        else go();
+      } else if (act === 'order') {
         var Orders = window.SeganOrders;
         var opened = Orders && typeof Orders.open === 'function' ? Orders.open(id) : null;
         // 수주 창이 이 창을 바꾼다. 못 열면 계약 화면으로
@@ -433,9 +1112,11 @@
         var target = btn.getAttribute('data-for') || '';
         var after = function () {
           if (act === 'visit' && typeof pp.openVisit === 'function') pp.openVisit(target);
-          else if (act === 'next-visit-done' && typeof pp.runNext === 'function') pp.runNext(act, target);
+          else if (act === 'next-visit-done' && typeof pp.runNext === 'function')
+            pp.runNext(act, target);
         };
-        var closing = O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
+        var closing =
+          O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
         if (closing && typeof closing.then === 'function') closing.then(after, after);
         else after();
       }
@@ -490,6 +1171,9 @@
       handle: null,
       data: row ? { project: row } : null,
       note: TEXT.loading,
+      stage: '', // 펼친 단계
+      got: {}, // 단계 → { loading | failed | data }
+      shots: {}, // 상담 id → 연출컷 blob 주소 ('' = 못 받음)
     };
     S.open = O;
     O.handle = window.SeganShell.sheet.open({
@@ -521,6 +1205,10 @@
     byText: byText,
     stateText: stateText,
     whoText: whoText,
+    stagesOf: stagesOf,
+    firstStage: firstStage,
+    historyStage: historyStage,
+    panelHtml: panelHtml,
     bodyHtml: bodyHtml,
     canOpen: canOpen,
     open: open,

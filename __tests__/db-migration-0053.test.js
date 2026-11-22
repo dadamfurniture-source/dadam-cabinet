@@ -86,6 +86,8 @@ describe('0053 — 제작 의뢰 거둠 앱 알림 종류', () => {
       'trial_ending',
       'biz_cert_review',
       'biz_cert_decided',
+      'as_factory', // 0082
+      'install_change',
     ]);
     // 거둠 알림은 제작 의뢰를 거두는 곳에서 넣는다
     expect(read('workers', 'workflow-api', 'src', 'production-requests', 'manager.js')).toContain(

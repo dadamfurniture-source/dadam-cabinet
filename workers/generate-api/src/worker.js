@@ -61,7 +61,7 @@ import { assertPlannerTier } from './tier-gate.js';
 import { copyApplianceImage } from './appliance-image.js';
 import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
 import { callClaudeJson } from './claude.js';
-import { requestBrief, requestChatReply } from './chat-brief.js';
+import { cleanNoteKey, requestBrief, requestChatReply, saveBriefNote } from './chat-brief.js';
 import {
   generateShareToken,
   hashShareToken,
@@ -388,6 +388,8 @@ async function readChatRequest(request, env) {
     messages,
     app: body.app === true,
     images: photo ? [{ base64: photo, mimeType: body.image_type }] : [],
+    userId: user.id,
+    noteKey: cleanNoteKey(body.note_key),
   };
 }
 
@@ -409,11 +411,15 @@ async function chat(request, env) {
 /**
  * POST /api/chat/brief — 상담 정리 (앱 연출컷 「정리하기」, 2026-11-21 대표님).
  * /api/chat 과 같은 본문 · 로그인 · 한도. 텍스트 모델 한 번(JSON). 크레딧은 쓰지 않는다.
- * → { success, brief, door_color?, design_style? } — 색 · 스타일은 화면 목록 안의 값일 때만 실린다.
+ * → { success, brief, door_color?, design_style?, saved? } — 색 · 스타일은 화면 목록 안의 값일 때만 실린다.
+ * 화면이 상담 열쇠(note_key, uuid)를 보내면 정리본을 마이페이지 「AI 상담 기록」에 적고 saved 로 알린다 (DB 0081, 11-23).
  */
 async function chatBrief(request, env) {
   const c = await readChatRequest(request, env);
-  return { success: true, ...(await requestBrief(env, c)) };
+  const out = await requestBrief(env, c);
+  if (!c.noteKey) return { success: true, ...out };
+  const saved = await saveBriefNote(env, { userId: c.userId, noteKey: c.noteKey, category: c.category, brief: out.brief });
+  return { success: true, ...out, saved };
 }
 
 async function requireOwner(request, env, id) {

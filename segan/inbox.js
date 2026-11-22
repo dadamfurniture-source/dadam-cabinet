@@ -4,7 +4,17 @@
    2026-11-21 대표님 「새롭게 발생 된 일을 표로 만들어서 제일 위에 표시 해주고 그다음에 달력을 표시」 ·
    질문 창에서 고르심 「할 일 + 소식」 (승인 계획 「프로젝트 한 길」).
 
-   할 일 표 — 내가 눌러야 끝나는 일. 끝내면 여기서 빠진다 (읽음 표시가 아니라 상태로 정해진다)
+   2026-11-23 대표님 「오늘 할일은 제거 해주고, 새로 생긴 일에 오늘, 주간, 월간을 선택 해서 할일 목록」 → 「두 가지를 하나로
+   합칠 순 없나?」 → 계획(Tbd1CBibNmZgGpZtvKHt5w) 「추천대로 진행」:
+     할 일 표 자리에 기간 단추(오늘 · 주간 · 월간, 단추마다 줄 수)와 할 일 + 달력 일정을 합친 한 목록.
+     · 「지금 할 일」(맨 위, 세 기간 모두) — 날이 없는 할 일(프로젝트마다 · 기한 없는 묶음) · 기한 지난 묶음
+     · 날마다 — 기한 있는 묶음(그 기한 날 · 시각)과 달력 일정(GET /company/schedules — 오늘부터 읽는다,
+       달력에서 달을 넘겨도 이 목록은 그대로). 시각 차례, 시각 없는 줄은 그날 맨 아래
+     · 기간 — 오늘 / 오늘 ~ 이번 주 일요일 / 오늘 ~ 이번 달 말일. 지난 날 일정은 없다 · 끝남 · 취소 일정은 뺀다 (달력에는 그대로)
+     · 처음 칸은 오늘, 고른 칸은 이 기기가 기억한다 (localStorage segan.inbox.range)
+     · 일정 줄의 색 · 「열기」 · 「작업 배정」은 segan/calendar.js 의 것(openOf · workProjectOf · statusOf · detailOf)을 쓴다.
+       일정을 못 읽으면(403 · 끊김 · 달력 파일 없음) 할 일만 그린다.
+   할 일 — 내가 눌러야 끝나는 일. 끝내면 여기서 빠진다 (읽음 표시가 아니라 상태로 정해진다)
      ① 묶음: 서버 GET /company/inbox 의 todo — 새 상담 받기 · 제작 의뢰 답하기 · 팩토리 고르기 ·
         수주 요청 승인 · A/S 접수 받기 · 받을 돈 확인 (수만, 기한이 이른 것부터)
      ② 프로젝트마다: 이미 읽은 프로젝트 목록(segan/partner-projects.js)의 다음 할 일(next) 가운데
@@ -31,18 +41,37 @@
   var SEEN_KEY = 'segan.inbox.seen'; // + 업체 id + 사람 id — 지난번에 본 가장 새 소식의 때 (서버가 기억하지 못할 때만)
   // 서버 묶음이 이미 세는 일 — 프로젝트 줄의 next.key
   var COVERED = { choose: 'choose', approve: 'approval' };
+  var RANGES = ['day', 'week', 'month'];
+  var RANGE_KEY = 'segan.inbox.range'; // 고른 기간 — 이 기기가 기억한다
+  var WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+  // 끝난 · 취소한 일정은 목록에서 뺀다 (달력에는 그대로) — source 마다의 상태 (segan/calendar.js 와 같은 값)
+  var DONE = {
+    schedule: { completed: 1, cancelled: 1 },
+    visit: { completed: 1, cancelled: 1 },
+    work: { done: 1 },
+    as: { done: 1 },
+  };
   var TEXT = {
     title: '새로 생긴 일',
-    todo: '할 일',
     news: '소식',
     newsNote: '최근 14일',
+    range: '기간',
+    rangeName: { day: '오늘', week: '주간', month: '월간' },
+    now: '지금 할 일',
     colWhat: '할 일',
     colWhere: '프로젝트',
-    colWhen: '기한 · 머문 날',
+    colWhen: '때',
     open: '열기',
     count: '건',
     more: '건 더 — 프로젝트 관리 목록에서',
-    none: '지금 처리할 일이 없습니다.',
+    none: {
+      day: '오늘 할 일이 없습니다.',
+      week: '이번 주 할 일이 없습니다.',
+      month: '이번 달 할 일이 없습니다.',
+    },
+    workOpen: '작업 배정',
+    workView: '작업자 보기',
+    workGone: '프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.',
     noNews: '최근 14일 동안 새로 생긴 일이 없습니다.',
     fresh: '새',
     late: '기한 지남',
@@ -66,6 +95,9 @@
     me: null,
     ready: false, // 볼 사람이다
     data: null, // GET /company/inbox data (못 읽었으면 null)
+    sched: null, // GET /company/schedules — { manage, today, items } (못 읽었으면 null)
+    range: 'day', // 고른 기간
+    msg: '', // 「작업 배정」을 못 열었을 때의 글
     seenAt: '', // 이 화면을 연 때의 「지난번에 본 때」 — 이 방문 동안 「새」 표시의 기준
     server: false, // 서버가 본 때를 기억한다 (응답에 seen_at 칸이 있다)
     sent: '', // 서버에 마지막으로 보낸 본 때 — 같은 값을 다시 보내지 않는다
@@ -197,6 +229,92 @@
       });
   }
 
+  // ── 날짜 (순수 — 'YYYY-MM-DD' 한국 날짜) ───────────────
+  function addDays(day, n) {
+    return new Date(Date.parse(day + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  }
+  function weekdayOf(day) {
+    return new Date(Date.parse(day + 'T00:00:00Z')).getUTCDay();
+  }
+  function kstToday(now) {
+    return new Date(now + 9 * 3600000).toISOString().slice(0, 10);
+  }
+
+  /** 기간의 마지막 날 — 오늘 / 이번 주 일요일 / 이번 달 말일 (오늘부터, 그날 포함) */
+  function rangeEnd(range, today) {
+    if (range === 'week') return addDays(today, (7 - weekdayOf(today)) % 7);
+    if (range === 'month') {
+      var y = Number(today.slice(0, 4));
+      var m = Number(today.slice(5, 7));
+      return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+    }
+    return today;
+  }
+
+  /** 그 때(ISO)의 한국 날 · 시각 — { day, time } (모르면 null) */
+  function kstAt(iso) {
+    var t = Date.parse(iso);
+    if (isNaN(t)) return null;
+    var s = new Date(t + 9 * 3600000).toISOString();
+    return { day: s.slice(0, 10), time: s.slice(11, 16) };
+  }
+
+  /** 'M월 D일 (요일)' */
+  function dayTitle(day) {
+    return (
+      Number(day.slice(5, 7)) + '월 ' + Number(day.slice(8, 10)) + '일 (' + WEEKDAYS[weekdayOf(day)] + ')'
+    );
+  }
+
+  /** 목록에 넣을 달력 일정 — 오늘부터, 끝남 · 취소는 뺀다 */
+  function schedulesFrom(items, today) {
+    return (Array.isArray(items) ? items : []).filter(function (x) {
+      if (!x || typeof x !== 'object' || typeof x.day !== 'string' || x.day < today) return false;
+      var done = DONE[x.source];
+      return !(done && done[x.status]);
+    });
+  }
+
+  /**
+   * 줄을 자리에 놓는다 — rows[{ at: 'now' | 'YYYY-MM-DD', time, ... }] → [{ at, rows }]
+   * 「지금 할 일」이 맨 위, 날은 차례로. 한 날 안은 시각 차례 (시각 없는 줄은 맨 아래, 같으면 넣은 차례)
+   */
+  function groupRows(rows, range, today) {
+    var end = rangeEnd(range, today);
+    var at = {};
+    var out = [];
+    rows.forEach(function (r) {
+      if (r.at !== 'now' && (r.at < today || r.at > end)) return;
+      if (at[r.at] == null) {
+        at[r.at] = out.length;
+        out.push({ at: r.at, rows: [] });
+      }
+      out[at[r.at]].rows.push(r);
+    });
+    out.sort(function (a, b) {
+      if (a.at === b.at) return 0;
+      if (a.at === 'now') return -1;
+      if (b.at === 'now') return 1;
+      return a.at < b.at ? -1 : 1;
+    });
+    out.forEach(function (g) {
+      if (g.at === 'now') return;
+      g.rows = g.rows
+        .map(function (r, i) {
+          return { r: r, i: i };
+        })
+        .sort(function (a, b) {
+          var x = a.r.time || '99:99';
+          var y = b.r.time || '99:99';
+          return x === y ? a.i - b.i : x < y ? -1 : 1;
+        })
+        .map(function (v) {
+          return v.r;
+        });
+    });
+    return out;
+  }
+
   // ── 그리기 ─────────────────────────────────────────────
   function seenKey() {
     var c = obj(obj(I.me).company);
@@ -217,6 +335,21 @@
       return '';
     }
   }
+  function readRange() {
+    try {
+      var r = window.localStorage.getItem(RANGE_KEY);
+      return RANGES.indexOf(r) >= 0 ? r : 'day';
+    } catch {
+      return 'day';
+    }
+  }
+  function writeRange(r) {
+    try {
+      window.localStorage.setItem(RANGE_KEY, r);
+    } catch {
+      /* 기억하지 못해도 이번 화면은 그대로 */
+    }
+  }
   function writeSeen(at) {
     try {
       if (at) window.localStorage.setItem(seenKey(), at);
@@ -225,8 +358,30 @@
     }
   }
 
-  function todoHtml(now) {
+  /** 하위 화면을 열 수 있나 — 그 사람 메뉴에 있고 준비 중이 아닐 때 (segan/me.js — 달력과 같은 판정) */
+  function canGo(name) {
+    var Me = window.SeganMe;
+    if (!name || !Me || !Me.defOf || !Me.available) return false;
+    var s = Me.defOf(name);
+    return !!s && !s.soon && Me.available(name);
+  }
+
+  function goHtml(go) {
+    return (
+      '<a class="mk-btn" href="#' + esc(go) + '" data-me-go="' + esc(go) + '">' + esc(TEXT.open) + '</a>'
+    );
+  }
+
+  /** 오늘 — 일정 응답의 날(서버 시계)이 있으면 그것, 아니면 이 기기의 한국 날짜 */
+  function todayOf(now) {
+    var d = I.sched && I.sched.today;
+    return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : kstToday(now);
+  }
+
+  /** 할 일 + 달력 일정 → 줄들 [{ at, time, html }] (기간은 아직 거르지 않는다) */
+  function agendaRows(now) {
     var PP = window.SeganPartnerProjects;
+    var Cal = window.SeganCalendar;
     var packs = todoOf(I.data);
     var covered = {};
     packs.forEach(function (t) {
@@ -237,36 +392,39 @@
     // 프로젝트 이름 — 누르면 프로젝트 한 건 창 (segan/project-sheet.js)
     var Sheet = window.SeganProjectSheet;
     var canSheet = !!(Sheet && typeof Sheet.canOpen === 'function' && Sheet.canOpen());
-    var rows = packs.map(function (t) {
-      var when =
-        t.kind === 'due' && t.late ? TEXT.lateDue + t.late + TEXT.count : dueText(t.due, now);
-      return (
-        '<tr data-ib-todo="' +
-        esc(t.kind) +
-        '"><th scope="row">' +
-        esc(t.label) +
-        '</th><td>' +
-        esc(t.count + TEXT.count) +
-        '</td><td>' +
-        esc(when) +
-        '</td><td class="ib-act">' +
-        (t.go
-          ? '<a class="mk-btn" href="#' +
-            esc(t.go) +
-            '" data-me-go="' +
-            esc(t.go) +
-            '">' +
-            esc(TEXT.open) +
-            '</a>'
-          : '') +
-        '</td></tr>'
-      );
+    var rows = [];
+    // ① 서버 묶음 — 기한이 지났거나 없으면 「지금 할 일」, 남았으면 그 기한 날 · 시각에
+    packs.forEach(function (t) {
+      var late = t.kind === 'due' && t.late;
+      var when = late ? TEXT.lateDue + t.late + TEXT.count : dueText(t.due, now);
+      var due = late ? null : kstAt(t.due);
+      var ahead = !!due && Date.parse(t.due) > now;
+      rows.push({
+        at: ahead ? due.day : 'now',
+        time: ahead ? due.time : '',
+        html:
+          '<tr data-ib-todo="' +
+          esc(t.kind) +
+          '"><th scope="row">' +
+          esc(t.label) +
+          '</th><td>' +
+          esc(t.count + TEXT.count) +
+          '</td><td>' +
+          esc(when) +
+          '</td><td class="ib-act">' +
+          (t.go ? goHtml(t.go) : '') +
+          '</td></tr>',
+      });
     });
+    // ② 프로젝트마다의 다음 할 일 — 날이 없다, 늘 「지금 할 일」
     mine.slice(0, PROJECT_MAX).forEach(function (p) {
       var flow = PP && typeof PP.nextOf === 'function' ? PP.nextOf(p) : null;
       if (!flow || !flow.act) return;
-      rows.push(
-        '<tr data-ib-project="' +
+      rows.push({
+        at: 'now',
+        time: '',
+        html:
+          '<tr data-ib-project="' +
           esc(p.id) +
           '"><th scope="row">' +
           esc(p.next.label) +
@@ -282,27 +440,118 @@
           esc(sinceText(p.next.since, now)) +
           '</td><td class="ib-act">' +
           flow.act +
-          '</td></tr>'
-      );
+          '</td></tr>',
+      });
     });
-    var total = packs.length + mine.length;
-    var more = mine.length > PROJECT_MAX ? mine.length - PROJECT_MAX : 0;
+    // ③ 달력 일정 — 그날 · 시각에. 색 · 종류 · 「열기」 · 「작업 배정」은 달력의 것
+    if (I.sched && Cal) {
+      var manage = I.sched.manage;
+      var canWork = !!PP && typeof PP.openWork === 'function';
+      schedulesFrom(I.sched.items, todayOf(now)).forEach(function (x) {
+        var kind = Cal.KIND_LABEL[x.kind] || '';
+        var time = typeof x.time === 'string' && /^\d{2}:\d{2}$/.test(x.time.trim()) ? x.time.trim() : '';
+        var go = Cal.openOf(x);
+        var workFor = canWork ? Cal.workProjectOf(x) : '';
+        var where = [kind, Cal.detailOf(x), Cal.statusOf(x)].filter(Boolean).join(' · ');
+        rows.push({
+          at: x.day,
+          time: time,
+          html:
+            '<tr data-ib-sched="' +
+            esc(x.key) +
+            '"><th scope="row"><i class="cal-sw cal-sw--' +
+            esc(x.kind) +
+            '" aria-hidden="true"></i> ' +
+            esc(x.label || kind) +
+            '</th><td>' +
+            esc(where) +
+            '</td><td>' +
+            esc(time || (typeof x.time === 'string' ? x.time.trim() : '')) +
+            '</td><td class="ib-act">' +
+            (canGo(go) ? goHtml(go) : '') +
+            (workFor
+              ? '<button type="button" class="mk-btn" data-act="work" data-project="' +
+                esc(workFor) +
+                '">' +
+                esc(manage ? TEXT.workOpen : TEXT.workView) +
+                '</button>'
+              : '') +
+            '</td></tr>',
+        });
+      });
+    }
+    return { rows: rows, more: mine.length > PROJECT_MAX ? mine.length - PROJECT_MAX : 0 };
+  }
+
+  /** 기간 단추 + 한 목록 — { total(지금 할 일 수), html } */
+  function agendaHtml(now) {
+    var got = agendaRows(now);
+    var today = todayOf(now);
+    var count = {};
+    RANGES.forEach(function (r) {
+      count[r] = groupRows(got.rows, r, today).reduce(function (n, g) {
+        return n + g.rows.length;
+      }, 0);
+    });
+    var groups = groupRows(got.rows, I.range, today);
+    var nowRows = got.rows.filter(function (r) {
+      return r.at === 'now';
+    }).length;
+    var head =
+      '<div class="ib-head ib-ranges" role="group" aria-label="' +
+      esc(TEXT.range) +
+      '">' +
+      RANGES.map(function (r) {
+        return (
+          '<button type="button" class="cal-btn ib-range" data-act="range" data-range="' +
+          r +
+          '" aria-pressed="' +
+          (r === I.range ? 'true' : 'false') +
+          '">' +
+          esc(TEXT.rangeName[r]) +
+          ' <span class="ib-n">' +
+          count[r] +
+          '</span></button>'
+        );
+      }).join('') +
+      '</div>';
+    var body = groups
+      .map(function (g) {
+        var name =
+          g.at === 'now' ? TEXT.now : dayTitle(g.at) + (g.at === today ? ' · ' + TEXT.today : '');
+        return (
+          '<tr class="ib-day" data-ib-day="' +
+          esc(g.at) +
+          '"><th scope="rowgroup" colspan="4">' +
+          esc(name) +
+          '</th></tr>' +
+          g.rows
+            .map(function (r) {
+              return r.html;
+            })
+            .join('')
+        );
+      })
+      .join('');
     return {
-      total: total,
-      html: rows.length
-        ? '<div class="od-tablewrap"><table class="od-table ib-table"><thead><tr><th scope="col">' +
-          esc(TEXT.colWhat) +
-          '</th><th scope="col">' +
-          esc(TEXT.colWhere) +
-          '</th><th scope="col">' +
-          esc(TEXT.colWhen) +
-          '</th><th scope="col" aria-label="' +
-          esc(TEXT.open) +
-          '"></th></tr></thead><tbody>' +
-          rows.join('') +
-          '</tbody></table></div>' +
-          (more ? '<p class="mk-note">' + esc(more + TEXT.more) + '</p>' : '')
-        : '<p class="me-empty" data-ib="none">' + esc(TEXT.none) + '</p>',
+      total: nowRows + (I.sched ? I.sched.items.length : 0),
+      html:
+        head +
+        (body
+          ? '<div class="od-tablewrap"><table class="od-table ib-table"><thead><tr><th scope="col">' +
+            esc(TEXT.colWhat) +
+            '</th><th scope="col">' +
+            esc(TEXT.colWhere) +
+            '</th><th scope="col">' +
+            esc(TEXT.colWhen) +
+            '</th><th scope="col" aria-label="' +
+            esc(TEXT.open) +
+            '"></th></tr></thead><tbody>' +
+            body +
+            '</tbody></table></div>' +
+            (got.more ? '<p class="mk-note">' + esc(got.more + TEXT.more) + '</p>' : '')
+          : '<p class="me-empty" data-ib="none">' + esc(TEXT.none[I.range]) + '</p>') +
+        (I.msg ? '<p class="mk-note" data-ib="msg" role="status">' + esc(I.msg) + '</p>' : ''),
     };
   }
 
@@ -347,10 +596,10 @@
       return;
     }
     var now = Date.now();
-    var todo = todoHtml(now);
+    var todo = agendaHtml(now);
     var hasNews = I.data !== null;
-    // 서버 길도 못 읽고 프로젝트마다의 할 일도 없으면 칸을 감춘다 (가짜 「없음」을 그리지 않는다)
-    if (!hasNews && !todo.total) {
+    // 서버 길(할 일 · 일정)을 다 못 읽고 프로젝트마다의 할 일도 없으면 칸을 감춘다 (가짜 「없음」을 그리지 않는다)
+    if (!hasNews && !I.sched && !todo.total) {
       box.hidden = true;
       box.innerHTML = '';
       I.html = null;
@@ -359,11 +608,7 @@
     var html =
       '<h3 class="me-pt-sub" id="meInboxTitle">' +
       esc(TEXT.title) +
-      '</h3><div class="ib-head"><b>' +
-      esc(TEXT.todo) +
-      '</b> <span class="ib-n">' +
-      esc(String(todo.total)) +
-      '</span></div>' +
+      '</h3>' +
       todo.html +
       (hasNews
         ? '<div class="ib-head"><b>' +
@@ -402,8 +647,27 @@
   function onClick(e) {
     var el = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
     var PP = window.SeganPartnerProjects;
-    if (!el || el.disabled || !PP || typeof PP.runNext !== 'function') return;
+    if (!el || el.disabled) return;
     var act = el.getAttribute('data-act');
+    // 기간 — 오늘 · 주간 · 월간 (이 기기가 기억한다)
+    if (act === 'range') {
+      var r = el.getAttribute('data-range');
+      if (RANGES.indexOf(r) < 0 || r === I.range) return;
+      I.range = r;
+      I.msg = '';
+      writeRange(r);
+      render();
+      return;
+    }
+    // 달력 일정의 「작업 배정」 — 프로젝트 관리 화면의 목록에서 그 프로젝트 칸을 연다 (달력과 같다). 목록에 없으면 그 글만
+    if (act === 'work') {
+      var opened = !!PP && typeof PP.openWork === 'function' && PP.openWork(el.getAttribute('data-project') || '');
+      var was = I.msg;
+      I.msg = opened ? '' : TEXT.workGone;
+      if (I.msg !== was) render();
+      return;
+    }
+    if (!PP || typeof PP.runNext !== 'function') return;
     if (act === 'next-sheet' || act === 'next-order')
       PP.runNext(act, el.getAttribute('data-id') || '');
     // 보류를 다시 볼 날 — 프로젝트 목록의 그 줄에서 「다시 진행 · 그만둠」 칸을 연다
@@ -451,6 +715,29 @@
     return b.data;
   }
 
+  /**
+   * 달력 일정 — GET /company/schedules 오늘 ~ (이번 주 일요일 · 이번 달 말일 가운데 늦은 날).
+   * 달력 파일(segan/calendar.js)이 없거나 못 읽으면(403 · 끊김 · 모양이 틀림) null — 할 일만 그린다
+   */
+  async function readSched() {
+    var Cal = window.SeganCalendar;
+    if (!Cal || typeof Cal.dataOf !== 'function') return null;
+    var today = kstToday(Date.now());
+    var a = rangeEnd('week', today);
+    var b = rangeEnd('month', today);
+    var to = a > b ? a : b;
+    try {
+      var res = await fetch(
+        I.base + '/company/schedules?from=' + today + '&to=' + to,
+        { headers: { Authorization: 'Bearer ' + (await token()) }, cache: 'no-store' }
+      );
+      if (!res.ok) return null;
+      return Cal.dataOf(await res.json());
+    } catch {
+      return null;
+    }
+  }
+
   /** POST /company/inbox/seen — 실패해도 조용히 (다음에 다시 「새」로 보일 뿐이다) */
   async function postSeen(at) {
     try {
@@ -465,11 +752,12 @@
     }
   }
 
-  /** 다시 읽고 그린다 — 할 일을 끝낸 뒤 (묶음의 수가 바뀐다) */
+  /** 다시 읽고 그린다 — 할 일을 끝낸 뒤 (묶음의 수가 바뀐다) · 달력에서 일정을 넣거나 고친 뒤 */
   async function refresh() {
     if (!I.ready || !I.base) return;
-    var got = await read();
-    if (got) I.data = got;
+    var both = await Promise.all([read(), readSched()]);
+    if (both[0]) I.data = both[0];
+    if (both[1]) I.sched = both[1];
     render();
   }
 
@@ -483,6 +771,8 @@
     I.session = session || null;
     I.me = me || null;
     I.data = null;
+    I.sched = null;
+    I.msg = '';
     I.html = null;
     I.ready = !!(
       box &&
@@ -503,7 +793,10 @@
       box.setAttribute('data-bound', '1');
       box.addEventListener('click', onClick);
     }
-    I.data = await read();
+    I.range = readRange();
+    var both = await Promise.all([read(), readSched()]);
+    I.data = both[0];
+    I.sched = both[1];
     // 「새」의 기준 — 서버가 계정마다 기억하면 그 값(없으면 처음 본 것), 아니면 이 기기의 값
     I.server = !!I.data && Object.prototype.hasOwnProperty.call(I.data, 'seen_at');
     I.seenAt = I.server ? (typeof I.data.seen_at === 'string' ? I.data.seen_at : '') : readSeen();
@@ -521,6 +814,9 @@
     todoOf: todoOf,
     newsOf: newsOf,
     projectTodos: projectTodos,
+    rangeEnd: rangeEnd,
+    schedulesFrom: schedulesFrom,
+    groupRows: groupRows,
     render: render,
     refresh: refresh,
     load: load,

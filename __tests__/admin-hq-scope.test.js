@@ -102,7 +102,7 @@ describe('admin/consultations.html — 본사 상담만', () => {
     expect(companyReads).toHaveLength(1);
     expectPlatformRead(companyReads[0]);
     const consult = reads(log, 'consultations');
-    expect(consult.length).toBe(2); // loadStats + loadConsultations
+    expect(consult.length).toBe(3); // loadStats + 최근 30일 유입(loadInflowStats, DB 0080) + loadConsultations
     consult.forEach((e) => expect(hasEq(e, 'company_id', PLATFORM)).toBe(true));
     expect(document.querySelectorAll('#consultationList .consultation-card')).toHaveLength(1);
   });
