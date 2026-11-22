@@ -445,12 +445,16 @@ const articlePage = (slug) => `blog-${slug}.html`;
 /** 표 하나 — 캡션 글로 찾는다 */
 const tableOf = (caption) =>
   $$('article table').find((t) => text(t.querySelector('caption')) === caption);
-/** 아직 검색에 내지 않는다 — noindex · canonical 없음 · 사이트맵에 없음 */
-const expectHidden = (page) => {
+/** 검색에 연다 (11-23) — noindex 없음 · canonical · 사이트맵에 있음 · 공유 사진 segan/og/ */
+const expectOpen = (page) => {
   const html = read(`segan/${page}`);
-  expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
-  expect(html).not.toMatch(/rel="canonical"/);
-  expect(read('sitemap.xml')).not.toContain(`/segan/${page.replace(/\.html$/, '')}`);
+  const url = `https://dadamfurniture.com/segan/${page.replace(/\.html$/, '')}`;
+  expect(html).not.toMatch(/name="robots"/);
+  expect(html).toContain(`<link rel="canonical" href="${url}" />`);
+  expect(read('sitemap.xml')).toContain(`<loc>${url}</loc>`);
+  expect(html).toContain(
+    `<meta property="og:image" content="https://dadamfurniture.com/segan/og/${page.replace(/\.html$/, '')}.jpg" />`
+  );
 };
 
 describe('매거진 (blog.html) — 책장', () => {
@@ -553,9 +557,8 @@ describe('매거진 (blog.html) — 책장', () => {
     expect(html).toMatch(/<link rel="stylesheet" href="magazine\.css\?v=\d+" \/>/);
   });
 
-  test('아직 검색에 내지 않는다 — noindex · canonical 없음 · 사이트맵에 없음 (글 화면도)', () => {
-    expectHidden('blog.html');
-    expect(read('sitemap.xml')).not.toContain('/segan/blog');
+  test('검색에 연다 — noindex 없음 · canonical · 사이트맵 · 공유 사진', () => {
+    expectOpen('blog.html');
   });
 });
 
@@ -642,8 +645,14 @@ describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min, 
     );
   });
 
-  test('아직 검색에 내지 않는다 — noindex · canonical 없음 · 사이트맵에 없음', () => {
-    expectHidden(page);
+  test('검색에 연다 — noindex 없음 · canonical · 사이트맵 · 공유 사진 · 글 정보(제목 · 처음 올린 날)', () => {
+    expectOpen(page);
+    const html = read(`segan/${page}`);
+    const art = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+    expect(art['@type']).toBe('Article');
+    expect(art.headline).toBe(title);
+    expect(art.datePublished).toMatch(/^2026-11-\d{2}$/);
+    expect(html).toContain(`<meta property="article:published_time" content="${art.datePublished}" />`);
   });
 });
 

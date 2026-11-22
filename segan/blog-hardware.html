@@ -3,16 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <!-- 매거진 글 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다 -->
-    <meta name="robots" content="noindex,nofollow" />
+    <!-- 매거진 글 — 검색에 연다 (11-23 · 사이트맵에 있다). 글 날짜는 손으로 (처음 올린 날) -->
+    <meta name="description" content="레일 · 망 · 쇼바 · 리프트 장치의 종류, 국내에서 볼 수 있는 브랜드, 견적서에서 물어볼 것." />
+    <link rel="canonical" href="https://dadamfurniture.com/segan/blog-hardware" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="SEGAN" />
+    <meta property="og:title" content="서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기 · SEGAN" />
+    <meta property="og:description" content="레일 · 망 · 쇼바 · 리프트 장치의 종류, 국내에서 볼 수 있는 브랜드, 견적서에서 물어볼 것." />
+    <meta property="og:url" content="https://dadamfurniture.com/segan/blog-hardware" />
+    <meta property="og:image" content="https://dadamfurniture.com/segan/og/blog-hardware.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="남색 서랍이 열려 레일이 보이는 표지" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="article:published_time" content="2026-11-09" />
     <meta name="theme-color" content="#F6F3EE" />
     <title>서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기 · 매거진 · SEGAN</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기",
+        "description": "레일 · 망 · 쇼바 · 리프트 장치의 종류, 국내에서 볼 수 있는 브랜드, 견적서에서 물어볼 것.",
+        "image": "https://dadamfurniture.com/segan/og/blog-hardware.jpg",
+        "datePublished": "2026-11-09",
+        "dateModified": "2026-11-09",
+        "inLanguage": "ko",
+        "mainEntityOfPage": "https://dadamfurniture.com/segan/blog-hardware",
+        "author": {
+          "@type": "Organization",
+          "name": "다담가구",
+          "url": "https://dadamfurniture.com/segan/",
+          "logo": "https://dadamfurniture.com/segan/icons/icon-512.png"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "다담가구",
+          "url": "https://dadamfurniture.com/segan/",
+          "logo": "https://dadamfurniture.com/segan/icons/icon-512.png"
+        }
+      }
+    </script>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112134" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112134" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112134" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112134" />
+    <link rel="icon" href="icons/icon.svg?v=2026112301" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112301" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112301" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112301" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -22,21 +59,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112134" />
-    <link rel="stylesheet" href="info.css?v=2026112134" />
+    <link rel="stylesheet" href="shell.css?v=2026112301" />
+    <link rel="stylesheet" href="info.css?v=2026112301" />
     <!-- 매거진 책장 · 표지 — 나무 · 조명은 매거진만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112134" />
+    <link rel="stylesheet" href="magazine.css?v=2026112301" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112134"></script>
+    <script src="../js/config.js?v=2026112301"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112134"></script>
-    <script src="shell.js?v=2026112134" defer blocking="render"></script>
+    <script src="motion.js?v=2026112301"></script>
+    <script src="shell.js?v=2026112301" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112134" defer></script>
+    <script src="guide.js?v=2026112301" defer></script>
     <!-- 매거진 — 책장 끌기 · 책 ↔ 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112134" defer blocking="render"></script>
+    <script src="blog.js?v=2026112301" defer blocking="render"></script>
   </head>
   <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
   <body class="sg-app" data-tab="blog">

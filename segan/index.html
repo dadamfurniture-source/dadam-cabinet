@@ -8,20 +8,49 @@
     <link rel="canonical" href="https://dadamfurniture.com/segan/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SEGAN" />
-    <meta property="og:title" content="SEGAN" />
+    <meta property="og:title" content="내 방 사진으로 보는 맞춤 가구 AI 연출컷 · SEGAN" />
     <meta property="og:description" content="공간 사진을 올리면 맞춤 가구가 들어간 연출컷을 만들어 드립니다. 다담가구 SEGAN." />
     <meta property="og:url" content="https://dadamfurniture.com/segan/" />
-    <meta property="og:image" content="https://dadamfurniture.com/segan/icons/icon-512.png" />
+    <meta property="og:image" content="https://dadamfurniture.com/segan/og/home.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="흰 상부장과 오크 아일랜드가 놓인 밝은 주방 연출컷" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#F6F3EE" />
-    <title>SEGAN</title>
+    <title>내 방 사진으로 보는 맞춤 가구 AI 연출컷 · SEGAN</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://dadamfurniture.com/segan/#website",
+            "name": "SEGAN",
+            "alternateName": "다담가구 SEGAN",
+            "url": "https://dadamfurniture.com/segan/",
+            "inLanguage": "ko",
+            "publisher": {
+              "@id": "https://dadamfurniture.com/segan/#org"
+            }
+          },
+          {
+            "@type": "Organization",
+            "name": "다담가구",
+            "url": "https://dadamfurniture.com/segan/",
+            "logo": "https://dadamfurniture.com/segan/icons/icon-512.png",
+            "@id": "https://dadamfurniture.com/segan/#org"
+          }
+        ]
+      }
+    </script>
     <!-- 옛 만들기 주소(?g= · ?ref= · #result …)로 들어오면 그리기 전에 make.html 로 넘긴다 -->
-    <script src="forward.js?v=2026112134"></script>
+    <script src="forward.js?v=2026112301"></script>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112134" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112134" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112134" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112134" />
+    <link rel="icon" href="icons/icon.svg?v=2026112301" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112301" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112301" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112301" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -31,21 +60,21 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112134" />
-    <link rel="stylesheet" href="home.css?v=2026112134" />
+    <link rel="stylesheet" href="shell.css?v=2026112301" />
+    <link rel="stylesheet" href="home.css?v=2026112301" />
     <!-- 매거진 책장 — 나무 · 조명은 매거진 책장만의 예외 (magazine.css 머리 주석) -->
-    <link rel="stylesheet" href="magazine.css?v=2026112134" />
+    <link rel="stylesheet" href="magazine.css?v=2026112301" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026112134"></script>
+    <script src="../js/config.js?v=2026112301"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112134"></script>
-    <script src="shell.js?v=2026112134" defer blocking="render"></script>
+    <script src="motion.js?v=2026112301"></script>
+    <script src="shell.js?v=2026112301" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112134" defer></script>
+    <script src="guide.js?v=2026112301" defer></script>
     <!-- 매거진 책장 — 끌기 · 책 → 글 화면 바꾸기 (표지 이름은 첫 그림 전에 붙인다) -->
-    <script src="blog.js?v=2026112134" defer blocking="render"></script>
+    <script src="blog.js?v=2026112301" defer blocking="render"></script>
   </head>
   <body class="sg-app" data-tab="home">
     <div data-segan-shell="header"></div>

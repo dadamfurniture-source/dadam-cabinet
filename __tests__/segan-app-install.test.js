@@ -18,6 +18,17 @@ const { pathToFileURL } = require('url');
 const ROOT = path.join(__dirname, '..');
 const SEGAN = path.join(ROOT, 'segan');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+/** JPEG 가로 · 세로 — SOF 표지에서 읽는다 */
+function jpegSize(file) {
+  const b = fs.readFileSync(file);
+  for (let i = 2; i < b.length; ) {
+    const marker = b[i + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker))
+      return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)];
+    i += 2 + b.readUInt16BE(i + 2);
+  }
+  return null;
+}
 const MANIFEST = JSON.parse(read('segan/manifest.webmanifest'));
 /** 검색에 여는 앱 화면 — 사이트맵 · _redirects 의 대상과 같다 */
 const PUBLIC_PAGES = [
@@ -28,6 +39,17 @@ const PUBLIC_PAGES = [
   'segan/about.html',
   'segan/plans.html',
 ];
+/** 검색에 여는 매거진 — 책장 + 글 여섯 편 (11-23 연다, 사이트맵에도 있다) */
+const MAGAZINE_PAGES = [
+  'segan/blog.html',
+  'segan/blog-materials.html',
+  'segan/blog-edge-finish.html',
+  'segan/blog-hardware.html',
+  'segan/blog-kitchen-appliances.html',
+  'segan/blog-drawer-rails.html',
+  'segan/blog-hinges.html',
+];
+const INDEXED_PAGES = [...PUBLIC_PAGES, ...MAGAZINE_PAGES];
 const SEGAN_PAGES = fs
   .readdirSync(SEGAN)
   .filter((n) => n.endsWith('.html'))
@@ -256,14 +278,24 @@ describe('segan 페이지 — 숨김 · 설치 정보', () => {
     expect(SEGAN_PAGES).toEqual(expect.arrayContaining(['segan/index.html', 'segan/offline.html']));
   });
 
-  test.each(SEGAN_PAGES)('%s — 검색(공개 셋만 연다) · 매니페스트 · theme-color · 아이콘', (page) => {
+  test.each(SEGAN_PAGES)('%s — 검색(공개 화면 · 매거진만 연다) · 매니페스트 · theme-color · 아이콘', (page) => {
     const html = read(page);
-    if (PUBLIC_PAGES.includes(page)) {
+    if (INDEXED_PAGES.includes(page)) {
       expect(html).not.toMatch(/name="robots"/);
       const url = `https://dadamfurniture.com/${page.replace(/(index)?\.html$/, '')}`;
       expect(html).toContain(`<link rel="canonical" href="${url}" />`);
       expect(html).toContain(`<meta property="og:url" content="${url}" />`);
       expect(html).toMatch(/<meta name="description" content="[^"]{10,}" \/>/);
+      // 링크를 붙였을 때 뜨는 사진 — 앱 아이콘이 아니라 가로 사진(1200×630, segan/og/)
+      const og = html.match(/<meta property="og:image" content="https:\/\/dadamfurniture\.com\/segan\/(og\/[a-z-]+\.jpg)" \/>/);
+      expect(og).not.toBeNull();
+      expect(fs.existsSync(path.join(SEGAN, og[1]))).toBe(true);
+      expect(jpegSize(path.join(SEGAN, og[1]))).toEqual([1200, 630]);
+      expect(html).toContain('<meta property="og:image:width" content="1200" />');
+      expect(html).toContain('<meta property="og:image:height" content="630" />');
+      expect(html).toContain('<meta name="twitter:card" content="summary_large_image" />');
+      for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g))
+        expect(() => JSON.parse(m[1])).not.toThrow();
     } else {
       expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
     }
@@ -371,7 +403,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
       expect(froms).not.toContain(keep);
   });
 
-  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 (매거진 목록 · 글은 올린 글을 살펴본 뒤)', () => {
+  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 + 매거진 (lastmod 는 손으로)', () => {
     const robots = read('robots.txt');
     expect(robots).toMatch(/^Sitemap: https:\/\/dadamfurniture\.com\/sitemap\.xml$/m);
     expect(robots).toMatch(/^Disallow: \/docs\/$/m);
@@ -384,15 +416,23 @@ describe('전환 — 옛 주소는 앱으로', () => {
       'https://dadamfurniture.com/segan/consult',
       'https://dadamfurniture.com/segan/about',
       'https://dadamfurniture.com/segan/plans',
+      'https://dadamfurniture.com/segan/blog',
+      'https://dadamfurniture.com/segan/blog-materials',
+      'https://dadamfurniture.com/segan/blog-edge-finish',
+      'https://dadamfurniture.com/segan/blog-hardware',
+      'https://dadamfurniture.com/segan/blog-kitchen-appliances',
+      'https://dadamfurniture.com/segan/blog-drawer-rails',
+      'https://dadamfurniture.com/segan/blog-hinges',
     ]);
-    // 사이트맵 = 검색에 여는 앱 화면 (주소는 확장자 없이)
+    // 사이트맵 = 검색에 여는 화면 (주소는 확장자 없이)
     const pageOf = (u) => {
       const rest = u.replace('https://dadamfurniture.com/segan/', '');
       return `segan/${rest || 'index'}.html`;
     };
-    expect(locs.map(pageOf)).toEqual(PUBLIC_PAGES);
-    expect(locs).not.toContain('https://dadamfurniture.com/segan/blog');
-    expect(locs.filter((u) => u.includes('/segan/blog'))).toEqual([]); // 글(blog-*) 도 아직
+    expect(locs.map(pageOf)).toEqual(INDEXED_PAGES);
+    const lastmods = [...read('sitemap.xml').matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
+    expect(lastmods).toHaveLength(locs.length);
+    for (const d of lastmods) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 

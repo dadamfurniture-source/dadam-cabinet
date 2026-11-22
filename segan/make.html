@@ -4,22 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <!-- AI 연출컷 만들기 — 검색에 연다 (옛 주소 /segan/?g= 은 홈의 forward.js 가 여기로 넘긴다) -->
-    <meta name="description" content="공간 사진을 올리면 맞춤 가구가 들어간 연출컷을 만들어 드립니다. 다담가구 SEGAN." />
+    <meta name="description" content="내 방 사진 한 장을 올리면 AI 가 맞춤 가구를 넣은 연출컷을 만듭니다. 원하는 가구는 글로 적거나 AI 와 상담해 정합니다." />
     <link rel="canonical" href="https://dadamfurniture.com/segan/make" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SEGAN" />
     <meta property="og:title" content="AI 연출컷 · SEGAN" />
-    <meta property="og:description" content="공간 사진을 올리면 맞춤 가구가 들어간 연출컷을 만들어 드립니다. 다담가구 SEGAN." />
+    <meta property="og:description" content="내 방 사진 한 장을 올리면 AI 가 맞춤 가구를 넣은 연출컷을 만듭니다. 원하는 가구는 글로 적거나 AI 와 상담해 정합니다." />
     <meta property="og:url" content="https://dadamfurniture.com/segan/make" />
-    <meta property="og:image" content="https://dadamfurniture.com/segan/icons/icon-512.png" />
+    <meta property="og:image" content="https://dadamfurniture.com/segan/og/home.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="흰 상부장과 오크 아일랜드가 놓인 밝은 주방 연출컷" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#F6F3EE" />
     <title>AI 연출컷 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026112134" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026112134" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026112134" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112134" />
+    <link rel="icon" href="icons/icon.svg?v=2026112301" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026112301" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026112301" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026112301" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -29,25 +33,25 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026112134" />
-    <link rel="stylesheet" href="make.css?v=2026112134" />
+    <link rel="stylesheet" href="shell.css?v=2026112301" />
+    <link rel="stylesheet" href="make.css?v=2026112301" />
     <!-- 로그인 · 크레딧 · 생성 — 기존 사이트와 같은 설정 · 라이브러리 -->
-    <script src="../js/config.js?v=2026112134"></script>
+    <script src="../js/config.js?v=2026112301"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026112134"></script>
+    <script src="../js/admin-access.js?v=2026112301"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026112134"></script>
+    <script src="../js/mypage-work.js?v=2026112301"></script>
     <!-- 결과 내려받기 직전 서명 URL 다시 확인 (내 연출컷 목록 · my-designs.html 과 같다) -->
-    <script src="../js/storage-urls.js?v=2026112134"></script>
+    <script src="../js/storage-urls.js?v=2026112301"></script>
     <!-- ③ 참고 사진의 테마 이름 · 버킷 (ai-design.html · admin/reference-images.html 과 같은 공용 파일) -->
-    <script src="../js/reference-images.js?v=2026112134"></script>
+    <script src="../js/reference-images.js?v=2026112301"></script>
     <!-- 움직임 한 벌 — 화면 바꾸기 방향을 첫 그림 전에 정한다 (CLAUDE.md 「SEGAN 앱 모션 규칙」) -->
-    <script src="motion.js?v=2026112134"></script>
-    <script src="shell.js?v=2026112134" defer blocking="render"></script>
+    <script src="motion.js?v=2026112301"></script>
+    <script src="shell.js?v=2026112301" defer blocking="render"></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026112134" defer></script>
-    <script src="make.js?v=2026112134" defer></script>
+    <script src="guide.js?v=2026112301" defer></script>
+    <script src="make.js?v=2026112301" defer></script>
   </head>
   <body class="sg-app" data-tab="make">
     <div data-segan-shell="header"></div>
