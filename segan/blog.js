@@ -10,6 +10,11 @@
      들어오기 책장이 처음 화면에 보일 때 책이 왼쪽부터 차례로 선반에 내려앉고 칸 조명이 따라 켜진다 (60ms 간격 —
               홈에서는 스크롤로 내려와 보일 때). 글에서 돌아온 때는 하지 않는다
      ‹ ›      책이 화면보다 많을 때만 보인다 (마우스 · 키보드용)
+     장       매거진 화면(.bk-case--pages)만 — 2026-11-23 대표님 「4열이 넘어가면 행을 추가해서 4*4, 그 이상은 다음으로
+              드래그해서 넘어가도록」. 한 장 = 열(--bk-cols: PC · 태블릿 4, 폰 2) × 행(책 수만큼, 4 까지).
+              책은 한 장 안에서 왼쪽 위부터 줄마다 채운다(grid-column · grid-row). 넘치면 다음 장이 오른쪽에 이어지고,
+              끌기 · ‹ › · 놓은 뒤 맞춰 서기는 책 한 권이 아니라 한 장씩. 마지막 장의 빈 자리는 불 켜진 빈 칸.
+              장이 둘 이상이면 아래에 장 표시(눌러서 그 장으로). 홈(index.html)의 책장은 한 줄 그대로
 
    화면 바꾸기 (문서 사이 — magazine.css 「화면 바꾸기」 칸과 짝)
      책을 누르면 그 표지에만 view-transition-name: bk-cover 를 붙인다. 글 화면은 매거진에서 왔을 때
@@ -37,6 +42,29 @@
   var STAGGER = 60; // ms — 책이 차례로 내려앉는 간격
   var NAME = 'bk-cover';
   var SLIDES = ['sg-forward', 'sg-back'];
+  var PAGE_ROWS = 4; // 한 장의 행 수 (많아야)
+
+  /**
+   * 장 나누기 (순수) — 책 n 권 · 열 cols → { rows, per, pages, at[i] = { col, row, start } }
+   * col · row 는 grid 의 1 부터. 빈 칸까지 셈한 칸 수는 pages * per
+   */
+  function pageLayout(n, cols) {
+    cols = Math.max(1, Math.floor(cols) || 1);
+    var rows = Math.min(PAGE_ROWS, Math.max(1, Math.ceil(n / cols)));
+    var per = cols * rows;
+    var pages = Math.max(1, Math.ceil(n / per));
+    var at = [];
+    for (var i = 0; i < pages * per; i++) {
+      var page = Math.floor(i / per);
+      var k = i % per;
+      at.push({
+        col: page * cols + (k % cols) + 1,
+        row: Math.floor(k / cols) + 1,
+        start: k === 0,
+      });
+    }
+    return { cols: cols, rows: rows, per: per, pages: pages, at: at };
+  }
 
   function motion() {
     return window.SeganMotion || null;
@@ -160,12 +188,105 @@
     var cells = ul.querySelectorAll('.bk-cell');
     var prev = box ? box.querySelector('.bk-nav--prev') : null;
     var next = box ? box.querySelector('.bk-nav--next') : null;
+    var paged = !!box && box.classList.contains('bk-case--pages');
+    var lay = null; // 장으로 놓았을 때의 pageLayout (못 놓으면 null — 한 줄 책장)
+    var dots = null;
 
     function cell() {
       return cells.length ? cells[0].getBoundingClientRect().width : 0;
     }
+    /** 맞춰 서는 한 단위 — 장이면 한 장 폭, 아니면 책 한 권 */
+    function unit() {
+      return lay ? cell() * lay.cols : cell();
+    }
+    function units() {
+      return lay ? lay.pages : cells.length;
+    }
     function maxScroll() {
       return Math.max(0, ul.scrollWidth - ul.clientWidth);
+    }
+
+    /** 지금 폭의 열 수 — magazine.css 의 --bk-cols (모르면 0 — 한 줄 책장 그대로) */
+    function colsNow() {
+      if (!paged || typeof window.getComputedStyle !== 'function') return 0;
+      var n = parseInt(window.getComputedStyle(box).getPropertyValue('--bk-cols'), 10);
+      return n > 0 ? n : 0;
+    }
+
+    /** 책을 장으로 놓는다 — 열 수가 바뀔 때만 다시 (빈 칸도 그때 다시 만든다) */
+    function arrange() {
+      var cols = colsNow();
+      if ((lay ? lay.cols : 0) === cols) return false;
+      [].forEach.call(ul.querySelectorAll('.bk-cell--empty'), function (li) {
+        li.remove();
+      });
+      var real = [].slice.call(ul.querySelectorAll('.bk-cell'));
+      if (!cols) {
+        lay = null;
+        ul.classList.remove('is-paged');
+        real.forEach(function (li) {
+          li.style.gridColumn = '';
+          li.style.gridRow = '';
+          li.classList.remove('is-page-start');
+        });
+      } else {
+        lay = pageLayout(real.length, cols);
+        for (var i = real.length; i < lay.at.length; i++) {
+          var li = document.createElement('li');
+          li.className = 'bk-cell bk-cell--empty';
+          li.setAttribute('aria-hidden', 'true');
+          li.innerHTML = '<span class="bk-niche"><span class="bk-glow"></span></span>';
+          ul.appendChild(li);
+          real.push(li);
+        }
+        real.forEach(function (li, k) {
+          li.style.gridColumn = String(lay.at[k].col);
+          li.style.gridRow = String(lay.at[k].row);
+          li.classList.toggle('is-page-start', lay.at[k].start);
+        });
+        ul.classList.add('is-paged');
+      }
+      cells = ul.querySelectorAll('.bk-cell:not(.bk-cell--empty)');
+      drawDots();
+      return true;
+    }
+
+    /** 장 표시 — 장이 둘 이상일 때만. 누르면 그 장으로 */
+    function drawDots() {
+      if (!paged || !box) return;
+      if (!dots) {
+        dots = document.createElement('div');
+        dots.className = 'bk-dots';
+        dots.setAttribute('role', 'group');
+        dots.setAttribute('aria-label', '책장 장');
+        dots.addEventListener('click', function (e) {
+          var b = e.target && e.target.closest ? e.target.closest('[data-page]') : null;
+          if (!b) return;
+          var c = unit();
+          glide(snapScroll(Number(b.getAttribute('data-page')) * c, c, units(), maxScroll()), 0, false);
+        });
+        box.appendChild(dots);
+      }
+      var n = lay ? lay.pages : 1;
+      dots.hidden = n < 2;
+      var html = '';
+      for (var i = 0; i < n; i++)
+        html +=
+          '<button type="button" class="bk-dot" data-page="' + i + '" aria-label="' + (i + 1) + '쪽"></button>';
+      if (dots.getAttribute('data-n') !== String(n)) {
+        dots.innerHTML = html;
+        dots.setAttribute('data-n', String(n));
+      }
+      markDot();
+    }
+    function markDot() {
+      if (!dots || dots.hidden) return;
+      var c = unit();
+      var on = c ? Math.round(ul.scrollLeft / c) : 0;
+      [].forEach.call(dots.querySelectorAll('[data-page]'), function (b) {
+        if (Number(b.getAttribute('data-page')) === on) b.setAttribute('aria-current', 'true');
+        else b.removeAttribute('aria-current');
+      });
     }
 
     // 누른 책의 표지에 이름을 붙인다 (새 창 · 새 탭으로 여는 누름은 화면 바꾸기가 아니다)
@@ -227,11 +348,11 @@
     }
 
     function step(dir) {
-      var c = cell();
+      var c = unit();
       if (!c) return;
-      var per = Math.max(1, Math.floor(ul.clientWidth / c) - 1);
+      var per = lay ? 1 : Math.max(1, Math.floor(ul.clientWidth / c) - 1); // 장이면 한 장씩
       var at = Math.round(ul.scrollLeft / c) + dir * per;
-      glide(snapScroll(at * c, c, cells.length, maxScroll()), 0, false);
+      glide(snapScroll(at * c, c, units(), maxScroll()), 0, false);
     }
     if (prev)
       prev.addEventListener('click', function () {
@@ -250,6 +371,7 @@
       'scroll',
       function () {
         navs();
+        markDot();
         if (!leanSp || reduced()) return;
         var t = Date.now();
         var dt = t - lastT;
@@ -312,9 +434,14 @@
       if (!d.on) return;
       var vel = e && e.type === 'pointercancel' ? 0 : -velocityOf(d.hist, Date.now()); // 스크롤 쪽 속도
       if (pullSp && pullSp.x) pullSp.to(0, { response: 0.3, damping: 1 });
-      var c = cell();
+      var c = unit();
       var landing = ul.scrollLeft + (M && M.project ? M.project(vel) : 0);
-      var to = c ? snapScroll(landing, c, cells.length, maxScroll()) : ul.scrollLeft;
+      // 장이면 한 번 놓을 때 많아야 한 장 — 힘껏 던져도 바로 옆 장까지만
+      if (lay && c) {
+        var here = Math.round(d.from / c) * c;
+        landing = Math.max(here - c, Math.min(here + c, landing));
+      }
+      var to = c ? snapScroll(landing, c, units(), maxScroll()) : ul.scrollLeft;
       glide(to, vel, Math.abs(vel) > 200);
     }
     ul.addEventListener('pointerup', release);
@@ -379,9 +506,18 @@
       } else settleIn();
     }
 
+    arrange();
     navs();
-    window.addEventListener('resize', navs);
-    return { step: step, navs: navs };
+    // 폭이 바뀌면 — 열 수가 바뀌었으면 다시 놓고, 보던 장(그 장의 첫 책)에 맞춰 선다
+    window.addEventListener('resize', function () {
+      var c0 = unit();
+      var page = c0 ? Math.round(ul.scrollLeft / c0) : 0;
+      var first = lay ? page * lay.per : 0;
+      if (arrange() && lay) ul.scrollLeft = Math.floor(first / lay.per) * unit();
+      navs();
+      markDot();
+    });
+    return { step: step, navs: navs, arrange: arrange };
   }
 
   if (typeof window.addEventListener === 'function') {
@@ -396,6 +532,7 @@
     snapScroll: snapScroll,
     leanOf: leanOf,
     bookFor: bookFor,
+    pageLayout: pageLayout,
     shelf: null,
   };
   window.SeganMagazine = api;

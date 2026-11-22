@@ -458,6 +458,82 @@
   }
 }
 
+/* ── 매거진 화면(blog.html)의 책장 — 장으로 (2026-11-23 대표님 「4열이 넘어가면 행을 추가해서 4*4,
+   그 이상은 다음으로 드래그해서 넘어가도록」). 한 장 = --bk-cols 열(PC · 태블릿 4, 폰 2) × 4행까지,
+   칸 폭은 책장 폭 ÷ 열 (100cqw — 책장이 크기 그릇). 책 자리(grid-column · grid-row) · 빈 칸 · 장 표시는 blog.js.
+   맞춰 서기는 장의 첫 칸에만 — 손가락으로 넘겨도 한 장씩 선다. 홈 책장은 한 줄 그대로 ── */
+.bk-case--pages {
+  --bk-cols: 2;
+  --bk-cell: calc(100cqw / var(--bk-cols));
+  --bk-h: calc(var(--bk-cell) * 1.25);
+  container-type: inline-size;
+  background-image: none;
+}
+
+@media (min-width: 768px) {
+  .bk-case--pages {
+    --bk-cols: 4;
+  }
+}
+
+.bk-shelf.is-paged {
+  display: grid;
+  grid-auto-columns: var(--bk-cell);
+  align-items: start;
+  scroll-snap-type: x mandatory;
+}
+
+.bk-shelf.is-paged::after {
+  content: none;
+}
+
+.bk-shelf.is-paged .bk-cell {
+  scroll-snap-align: none;
+}
+
+.bk-shelf.is-paged .bk-cell.is-page-start {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* 장 표시 — 장이 둘 이상일 때만 (blog.js 가 켠다). 지금 장은 진하고 길게 (색만이 아니라 길이로도 — scale 만 움직인다) */
+.bk-dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 0 4px;
+}
+
+.bk-dot {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.bk-dot::before {
+  content: '';
+  display: block;
+  width: 18px;
+  height: 8px;
+  margin: 0 auto;
+  background: var(--v5-line-25);
+  scale: 0.45 1;
+  transition: scale var(--sg-spring-ms) var(--sg-spring);
+}
+
+.bk-dot[aria-current='true']::before {
+  background: var(--v5-ink);
+  scale: 1;
+}
+
+.bk-dot:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
 /* ── 홈 화면(index.html)의 매거진 칸 — 같은 책장. 폰 · 태블릿은 그대로(본문 여백만큼 당겨 화면 끝까지) ──
    PC 는 홈 본문 폭(1216 − 좌우 48)에 다섯 칸 — 책 넷 + 불 켜진 빈 칸 하나 */
 .hm-head + .bk-case {
@@ -516,5 +592,9 @@
   .bk-glow::after {
     transition-duration: 200ms;
     transition-timing-function: ease;
+  }
+
+  .bk-dot::before {
+    transition: none;
   }
 }
