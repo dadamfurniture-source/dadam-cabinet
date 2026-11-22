@@ -349,6 +349,23 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
 });
 
 describe('진행 → 결과', () => {
+  test('생성이 시작되면 상담 · 참고 내용을 비운다 — 보낸 본문에는 참고 내용이 실렸다 (11-23 대표님 「다시 시도하면 초기화」)', async () => {
+    const chat = [
+      { role: 'ai', text: '싱크대 구성에서 원하시는 게 있으면 적어 주세요.' },
+      { role: 'me', text: '정수기' },
+    ];
+    const NK = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const { calls } = await load({
+      draft: { v: 1, step: 'refs', photo: PHOTO, choices: { kind: 'sink', chat, brief: '정수기가 들어갑니다', noteKey: NK } },
+    });
+    $('mkRun').click();
+    await tick();
+    expect(JSON.parse(posts(calls)[0].body).customer_request).toBe('정수기가 들어갑니다');
+    const d = JSON.parse(sessionStorage.getItem(KEY));
+    expect(d.choices).toMatchObject({ kind: 'sink', chat: [], brief: '', prompt: '', noteKey: '' });
+    expect(d.photo).toBeNull();
+  });
+
   test('202 → 담아 둔 사진을 지우고 ?g=<id>#result, 3초마다 읽어 진행 안내 · 진행률', async () => {
     const { calls } = await load();
     $('mkRun').click();

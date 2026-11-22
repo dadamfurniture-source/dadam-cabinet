@@ -61,7 +61,7 @@
                         A/S 현황(#as-status — 사이트 관리자, segan/as-status.js — 못 읽으면 PC 화면 줄),
                         관리자 — 팩토리 신청 · 평가 · 상담 배정 · 제작 의뢰 추천 · 완료 보고 · A/S 현황 · 거래처 · 공급처 성적 ·
                         회원 · 관리자 계정 · 활동 로그 (앱 관리 admin.html#… 또는 PC 관리자 화면)
-       내 계정 (누구나) — 내 연출컷 · 좋아요 #likes · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
+       내 계정 (누구나) — 내 연출컷 · 좋아요 #likes · AI 상담 기록 #consult-notes(segan/consult-notes.js) · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
          「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」, 다담 공장 · 본사 구성원은 없다) · 내 활동 · 알림 #notify · 설정
        맨 아래 로그아웃
    대시보드 (#dash-이름 — 칸 #meDash) — 그 큰 메뉴의 보이는 하위 줄마다 칸 하나 (누르면 그 줄과 같다).
@@ -744,6 +744,7 @@
       },
     },
     likes: { title: '좋아요', section: 'meLikeSection' },
+    'consult-notes': { title: 'AI 상담 기록', section: 'meNoteSection' },
     notify: { title: '알림', section: 'mePush' },
     // 옛 주소 — 알림 · 결제 · 다른 화면이 여는 # 는 그대로 그 화면 (메뉴 줄은 위 하위 메뉴가 맡는다)
     'partner-consults': {
@@ -825,6 +826,7 @@
     'meAsSection',
     'partner',
     'meLikeSection',
+    'meNoteSection',
     'meConsultSection',
     'mePush',
   ];
@@ -1392,6 +1394,8 @@
     if (title) title.textContent = asked && !wide ? askedTitle : HUB_TITLE;
     document.title = (asked ? askedTitle + ' · ' : '') + HUB_TITLE + ' · SEGAN';
     if (open && name === 'likes' && !LK.started) loadLikes(); // 좋아요 — 처음 열 때 읽는다
+    // AI 상담 기록 — 처음 열 때 읽는다 (segan/consult-notes.js 가 한 번만)
+    if (open && name === 'consult-notes' && window.SeganConsultNotes) window.SeganConsultNotes.open(H);
     if (H.shown !== null && H.shown !== asked && !wide) slideIn(!!asked);
     H.shown = asked;
   }
@@ -1725,6 +1729,7 @@
       // 내 계정
       case 'partner':
       case 'likes':
+      case 'consult-notes':
       case 'notify':
         return available(key);
       case 'renders':
