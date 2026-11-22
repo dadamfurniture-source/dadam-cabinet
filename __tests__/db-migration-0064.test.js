@@ -124,7 +124,7 @@ describe('0064 — 작업자 ↔ 팩토리 연결', () => {
     const after = kindsIn(f.match(/notification_outbox_kind_check CHECK \(([^;]+)\);/)[1]);
     // 뒤 번호 0067 이 점검 알림 하나를 더한다 (db-migration-0067 시험이 본다)
     // 0074 밴드 만들기 요청 · 0077 사업자등록증 · 첫 달 무료 셋도 뒤 번호다 (db-migration-0074 · 0077 시험이 본다)
-    const LATER = ['system_check_failed', 'stock_band_low', 'trial_ending', 'biz_cert_review', 'biz_cert_decided'];
+    const LATER = ['system_check_failed', 'stock_band_low', 'trial_ending', 'biz_cert_review', 'biz_cert_decided', 'as_factory', 'install_change'];
     const upTo0064 = listOf('NOTIFICATION_KINDS').filter((k) => !LATER.includes(k));
     expect(upTo0064.slice(-3)).toEqual(after.slice(-3));
     expect([...upTo0064].sort()).toEqual([...after].sort());

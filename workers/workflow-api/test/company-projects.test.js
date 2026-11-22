@@ -200,7 +200,7 @@ test('목록 — 내 업체 프로젝트만 최신 순, 고객 이름 · 전화 
       [PRJ_A1, '싱크대', 'active', 1],
     ]
   );
-  assert.deepEqual(d.items[0].customer, { id: CUS_A1, name: '김고객', phone: '010-1111-2222' });
+  assert.deepEqual(d.items[0].customer, { id: CUS_A1, name: '김고객', phone: '010-1111-2222', app: false });
   assert.equal(d.items[0].closed_at, at(25));
   const list = fake.calls.find((c) => c.method === 'GET' && c.table === 'projects');
   assert.equal(list.params.get('limit'), String(COMPANY_PROJECTS_LIMIT));
@@ -213,7 +213,7 @@ test('목록 — 내 업체 프로젝트만 최신 순, 고객 이름 · 전화 
     [[PRJ_F1, null]]
   );
   const b = await call(fake, '/company/projects', OWNER_B);
-  assert.deepEqual(b.json.data.items[0].customer, { id: CUS_B1, name: '이고객', phone: null });
+  assert.deepEqual(b.json.data.items[0].customer, { id: CUS_B1, name: '이고객', phone: null, app: false });
 });
 
 test('목록 — 프로젝트마다 단계(고객 「내 프로젝트」와 같은 계산) · 최신 수주 (취소 수주 · 거둔 확인서 · 다른 업체 수주는 빼고)', async () => {

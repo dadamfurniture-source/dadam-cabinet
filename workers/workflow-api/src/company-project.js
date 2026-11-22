@@ -15,8 +15,11 @@
  *                                                              (계약금 줄 · 잔금 줄이 입금됐나 — 줄이 없으면 null, 금액은 싣지 않는다)
  *       requests [{ id, status, status_at }]                     영업 사원 업체가 낸 제작 의뢰 (거둔 것 뺌)
  *       as       [{ id, state, created_at, received_at, done_at }]  팩토리의 A/S 접수
- *       history  [{ kind, at, label, go, who? }] }               일어난 일 — 오래된 것부터 (처음 → 지금).
+ *       history  [{ kind, at, label, go, who? }]                 일어난 일 — 오래된 것부터 (처음 → 지금).
  *                                                              who { kind, name } = 누가 했나 (일지 project_events 가 있는 일만 — DB 0078 뒤의 일)
+ *       stages   [{ key, label, state, from, to, days }] }       단계 띠 — 단계마다 들어간 때 · 나간 때 · 걸린 날 (company-project-stage.js timelineOf.
+ *                                                              state done | now | todo, 지금 단계의 days 는 오늘까지 머문 날). 단계의 사진 · 문서는
+ *                                                              GET /company/projects/:id/stages/:key 가 따로 준다
  *
  * 싣지 않는 것: 금액 · 주소 · A/S 글과 사진 · 견적 내용. 고객 이름 · 전화는 프로젝트 목록과 같다 (구성원이 이미 보는 값).
  * history 는 각 표의 시각 칸에서 뽑고, 프로젝트 일지(project_events — project-history.js)를 얹는다:
@@ -40,6 +43,7 @@ import { membersOf } from './company-assignee.js';
 import { isMissingRelation } from './work-order-data.js';
 import { NEWS_LABEL } from './company-inbox.js';
 import { EVENT_LABEL, mergeEvents } from './project-history.js';
+import { timelineOf } from './company-project-stage.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** 한 프로젝트에서 읽는 행 수 */
@@ -147,7 +151,7 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
   const orderIds = orderList.map((o) => o.id);
   const inOrders = `in.(${orderIds.join(',')})`;
 
-  const [stages, docs, payments, asRows, decided, events] = await Promise.all([
+  const [stages, docs, payments, asRows, decided, events, visits, starts] = await Promise.all([
     stagesOf(env, company.id, [project.id], designList),
     designIds.length
       ? selectMany(env, 'design_documents', {
@@ -201,6 +205,29 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
         limit: EVENT_LIMIT,
       })
     ),
+    // 단계 띠에 적을 때 — 실측을 잡은 때 · 끝낸 때 (DB 0079 전이면 없다), 생산을 시작한 때 (수주 상태 기록)
+    orEmpty(
+      selectMany(env, 'project_visits', {
+        project_id: pid,
+        company_id: co,
+        status: 'neq.cancelled',
+        select: 'status,done_at,created_at',
+        order: 'created_at.asc',
+        limit: '1',
+      })
+    ),
+    orderIds.length
+      ? selectMany(env, 'order_events', {
+          order_id: inOrders,
+          company_id: co,
+          kind: 'eq.status',
+          to_status: 'eq.in_production',
+          state: 'in.(done,approved)',
+          select: 'order_id,state,created_at,decided_at',
+          order: 'created_at.asc',
+          limit: ROW_LIMIT,
+        }).catch(() => [])
+      : [],
   ]);
 
   // 지금 단계 · 다음 할 일 — 덧붙이는 값이라, 못 모아도 나머지는 그대로 준다 (목록과 같다)
@@ -288,6 +315,27 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
         { live: liveOrders.length, deposit: liveOrders.some((o) => !!depositOf.get(o.id)) }
       )
     : { hold: false, cancel: false, resume: false, blocked: null };
+  // 단계 띠 — 단계마다 들어간 때 · 나간 때 · 걸린 날. 때는 각 표의 시각 칸에서 뽑는다 (가장 이른 것)
+  const first = (list, at) => list.map(at).filter(Boolean).sort()[0] || null;
+  const firstOrder = liveOrders.slice().sort((a, b) => String(a.ordered_at || '').localeCompare(String(b.ordered_at || '')))[0] || null;
+  const nowFlow = flow.get(project.id) || {};
+  const timeline = timelineOf(
+    {
+      step: nowFlow.step,
+      visit_ready: nowFlow.visit !== undefined,
+      created_at: project.created_at,
+      closed_at: project.closed_at || null,
+      since: (nowFlow.next && nowFlow.next.since) || null,
+      visit: (visits || [])[0] || null,
+      design_at: first(designList, (d) => d.created_at),
+      quote_at: first(docs || [], (d) => d.created_at),
+      order: firstOrder,
+      make_at: firstOrder
+        ? first((starts || []).filter((e) => e.order_id === firstOrder.id), (e) => (e.state === 'approved' ? e.decided_at || e.created_at : e.created_at))
+        : null,
+    },
+    nowMs
+  );
   return {
     role,
     can_manage: canAct,
@@ -337,5 +385,6 @@ export async function getCompanyProject(env, { user, projectId, nowMs = Date.now
       done_at: a.done_at || null,
     })),
     history,
+    stages: timeline,
   };
 }

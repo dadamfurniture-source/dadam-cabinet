@@ -158,7 +158,11 @@ describe('0077 — 서버가 넣는 알림 종류', () => {
 
   test('코드 목록 = 0077 목록 (차례만 다름) · 맨 끝 셋이 이 차례', () => {
     const after = kindsIn(/notification_outbox_kind_check CHECK \(([^;]+)\);/.exec(f)[1]);
-    const inCode = listOf(messages, 'NOTIFICATION_KINDS');
+    // 뒤 번호 0082 가 A/S 팩토리 · 설치 날 변경 요청 둘을 맨 끝에 더한다 (db-migration-0082 시험이 본다)
+    const LATER = ['as_factory', 'install_change'];
+    const all = listOf(messages, 'NOTIFICATION_KINDS');
+    expect(all.slice(-2)).toEqual(LATER);
+    const inCode = all.filter((k) => !LATER.includes(k));
     expect(inCode).toHaveLength(28);
     expect([...inCode].sort()).toEqual([...after].sort());
     expect(inCode.slice(-3)).toEqual(['trial_ending', 'biz_cert_review', 'biz_cert_decided']);

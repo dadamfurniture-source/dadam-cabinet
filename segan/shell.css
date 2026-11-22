@@ -5455,43 +5455,318 @@ button.sm-num[aria-pressed='true'] {
   font-variant-numeric: tabular-nums;
 }
 
-/* 프로젝트 관리 대시보드 › 우리 팩토리 숫자 (#meNumbers — segan/company-summary.js) — 달 고르기 · 숫자 칸 · 한 줄 글.
-   숫자 칸 · 묶음은 A/S 현황(.od-kpi · .as-kpi · .as-sec), 단추 줄은 완료 보고(.dr-bar)와 같은 것을 쓴다 */
-.cs {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--v5-line-12);
-}
-
 .cs-bar {
   align-items: center;
 }
 
-.cs-month {
-  min-width: 7.5em;
-  font-size: 15px;
-  font-weight: 400;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
+/* 작은 그래프 (segan/charts.js) — 가로 막대 · 쌓은 가로 막대 · 기둥 · 작은 선. 각진 모서리 · 그림자 없음.
+   크기는 width · height 로 정해 두고 움직임은 transform 만 (segan/motion.js grow). 색은 쓰는 화면이 class 로 준다 */
+.ch-rows {
+  --ch-label: 2.8em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.cs-line {
-  margin: 10px 0 0;
+.ch-row {
+  display: grid;
+  grid-template-columns: var(--ch-label) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 24px;
   font-size: 13px;
-  font-weight: 300;
-  line-height: 1.6;
-  color: var(--v5-ink-60);
-  overflow-wrap: anywhere;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.ch-row:hover .ch-label,
+a.ch-row:focus-visible .ch-label {
+  text-decoration: underline;
+}
+
+.ch-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ch-track {
+  display: block;
+  min-width: 0;
+  height: 20px;
+}
+
+.ch-stack {
+  display: flex;
+  height: 100%;
+  transform-origin: left center;
+}
+
+.ch-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4em;
+  overflow: hidden;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.ch-bar {
+  display: block;
+  height: 100%;
+  background: var(--v5-ink-32);
+  transform-origin: left center;
+}
+
+.ch-value {
+  min-width: 3.2em;
+  text-align: right;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-/* 묶음 안 둘째 제목(설치 납기) — 윗줄과 띄운다 */
-.cs .as-sec .cs-sub {
-  margin-top: 22px;
+.ch-value small {
+  font-size: 12px;
+  color: var(--v5-ink-60);
 }
 
-.cs .as-sec .od-h + .od-kpi {
-  margin-top: 6px;
+.ch-cols {
+  display: grid;
+  gap: 4px;
+}
+
+.ch-col {
+  min-width: 0;
+}
+
+.ch-colbars {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  justify-content: center;
+  height: 116px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.ch-colitem {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 30px;
+  height: 100%;
+}
+
+.ch-colitem em {
+  font-size: 11px;
+  font-style: normal;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-colbar {
+  display: block;
+  flex: none;
+  width: 100%;
+  transform-origin: center bottom;
+}
+
+.ch-col small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.ch-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.ch-spark {
+  display: block;
+  width: 100%;
+  height: 36px;
+}
+
+/* 프로젝트 관리 대시보드 › 진행 현황 (#meNumbers — segan/company-dashboard.js, 2026-11-23) — 큰 숫자 넷 · 그래프 넷 · 아래 한 줄.
+   머문 날 색 셋(여유 · 느림 · 멈춤)은 설치 지도의 상태 색, 제작 · 설치는 업무 달력의 종류 색과 같은 값이다.
+   색만으로 알리지 않는다 — 조각 · 기둥마다 수가 적혀 있고 범례에 이름이 있다 */
+.cd {
+  --cd-fresh: #b4bfcb;
+  --cd-slow: #fab219;
+  --cd-stuck: #d03b3b;
+  --cd-make: #c96a2b;
+  --cd-install: #1f9a86;
+  --cd-cash: #2f6fb0;
+  margin-bottom: 32px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 20px;
+  margin: 12px 0 0;
+  border-top: 1px solid var(--v5-line);
+}
+
+.cd-kpis > div {
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.cd-kpis dt {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.cd-kpis dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.cd-kpis .cd-sub {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+/* 멈춘 것 · 지난 미수금 — 굵은 글로도 알린다 */
+.cd-kpis .cd-warn {
+  font-weight: 500;
+  color: #b62f2f;
+}
+
+.cd-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+}
+
+.cd-chart {
+  min-width: 0;
+  margin-top: 24px;
+  border-top: 1px solid var(--v5-ink);
+}
+
+.cd-chart .od-h {
+  margin: 10px 0 2px;
+  font-weight: 500;
+}
+
+.cd-say {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cd-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--v5-ink-60);
+}
+
+.cd-two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 20px;
+  align-items: end;
+}
+
+.cd-two .ch-rows {
+  --ch-label: 5.6em;
+}
+
+.cd-trio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0 20px;
+  margin-top: 28px;
+  border-top: 1px solid var(--v5-line);
+}
+
+.cd-trio > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.cd-trio b {
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.cd-cap {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.cd-fresh {
+  background: var(--cd-fresh);
+  color: var(--v5-ink);
+}
+
+.cd-slow {
+  background: var(--cd-slow);
+  color: var(--v5-ink);
+}
+
+.cd-stuck {
+  background: var(--cd-stuck);
+  color: #fff;
+}
+
+.cd-hot,
+.cd-make {
+  background: var(--cd-make);
+}
+
+.cd-install {
+  background: var(--cd-install);
+}
+
+.cd-cash {
+  background: var(--cd-cash);
+}
+
+.cd .ch-spark {
+  color: var(--cd-cash);
+}
+
+@media (max-width: 760px) {
+  .cd-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cd-charts,
+  .cd-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */

@@ -359,7 +359,7 @@ test('project 는 목록의 그 줄과 같다 — 단계 · 다음 할 일 · �
     assert.equal(d.can_manage, list.json.data.can_manage);
   }
   const d = await dataOf(fake, P1, OWNER_A);
-  assert.deepEqual(d.project.customer, { id: CUS, name: '김고객', phone: '010-1111-2222' });
+  assert.deepEqual(d.project.customer, { id: CUS, name: '김고객', phone: '010-1111-2222', app: false });
   assert.deepEqual(d.project.assignee, { user_id: STAFF_A, name: '나직원', role: 'staff' });
   // 끝난 수주에 답을 기다리는 요청이 걸려 있다 — 대표에게는 승인이 먼저다 (pipeline.js 판정 차례)
   assert.deepEqual(
@@ -390,6 +390,7 @@ test('팩토리 — 설계 · 견적 · 수주 · A/S: 이 프로젝트의 것�
     'requests',
     'as',
     'history',
+    'stages',
   ]);
   // 최근 고친 설계부터
   assert.deepEqual(d.designs, [

@@ -448,9 +448,9 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
       const r = before(method, table, params, body);
       if (r) return r;
     }
-    // 실측 일정(DB 0079) — 시험이 표를 넣지 않았으면 「없는 표」로 답한다 (적용 전과 같다)
-    if (!db[table] && table === 'project_visits')
-      return json({ code: '42P01', message: 'relation "public.project_visits" does not exist' }, 404);
+    // 실측 일정(DB 0079) · 고객 초대(DB 0082) — 시험이 표를 넣지 않았으면 「없는 표」로 답한다 (적용 전과 같다)
+    if (!db[table] && (table === 'project_visits' || table === 'customer_invites'))
+      return json({ code: '42P01', message: `relation "public.${table}" does not exist` }, 404);
     if (!db[table]) throw new Error(`fake: 모르는 표 ${table}`);
     const reply = (rows, status) =>
       prefer.includes('return=minimal') ? new Response(null, { status: 201 }) : json(rows, status);

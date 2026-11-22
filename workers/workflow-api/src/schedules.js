@@ -309,6 +309,16 @@ export async function updateSchedule(env, { scheduleId, user, patch, ctx }) {
     allowed.customer_confirmed_at = null;
     allowed.customer_confirmed_by = null;
   }
+  // 고객의 「바꿔 주세요」 (DB 0082) — 업체가 날짜를 바꾸거나 고객 확인을 표시하면 들어준 것이라 지운다
+  const clearChange =
+    !!row.customer_change_requested_at &&
+    (confirmed === true ||
+      (allowed.scheduled_at !== undefined && Date.parse(allowed.scheduled_at) !== Date.parse(row.scheduled_at)));
+  if (clearChange) {
+    allowed.customer_change_requested_at = null;
+    allowed.customer_change_by = null;
+    allowed.customer_change_note = null;
+  }
 
   if (Object.keys(allowed).length === 0) {
     throw new ValidationError('변경할 필드가 없습니다');

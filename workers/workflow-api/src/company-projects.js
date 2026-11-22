@@ -49,6 +49,7 @@ import { projectStage } from './projects.js';
 import { pipelineOf } from './company-pipeline.js';
 import { visitOf } from './company-project-visits.js';
 import { logProject } from './project-log.js';
+import { invitesReady } from './customer-invites.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -172,7 +173,8 @@ export function projectRow(p, { customer, designCount, stage, flow, memberOf }) 
     status: p.status,
     created_at: p.created_at,
     closed_at: p.closed_at || null,
-    customer: c ? { id: c.id, name: c.name || null, phone: c.phone || null } : null,
+    // app — 고객이 앱 계정과 이어졌나 (고객 초대 링크로 · 앱 상담으로)
+    customer: c ? { id: c.id, name: c.name || null, phone: c.phone || null, app: !!c.user_id } : null,
     design_count: designCount || 0,
     stage: stage.stage,
     order: stage.order,
@@ -223,7 +225,7 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
     ? (await selectMany(env, 'customers', {
         id: `in.(${customerIds.join(',')})`,
         company_id: `eq.${company.id}`,
-        select: 'id,name,phone',
+        select: 'id,name,phone,user_id',
       })) || []
     : [];
   const designs = ids.length
@@ -253,11 +255,17 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
   } catch (e) {
     console.error('company projects: pipeline failed —', e && e.message);
   }
+  // 고객 초대 링크를 쓸 수 있나 (DB 0082 의 표가 있다) — 화면이 그때만 「고객 초대」를 낸다
+  const inviteReady = await invitesReady(env, company.id).catch((e) => {
+    console.error('company projects: invites check failed —', e && e.message);
+    return false;
+  });
   return {
     company: { id: company.id, name: company.name, kind: company.kind, plan: company.plan || null },
     can_manage: canAct,
     role,
     assignee_ready: assigneeReady,
+    invite_ready: inviteReady,
     // 보류 · 그만둠을 쓸 수 있나 (DB 0078 의 칸이 있다) — 화면이 그때만 단추를 낸다
     hold_ready: holdReady,
     // 실측 단계를 쓸 수 있나 (DB 0079 의 표가 있다) — 화면이 그때만 「실측」 줄 · 칸을 낸다

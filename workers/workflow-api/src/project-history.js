@@ -55,6 +55,10 @@ export const EVENT_LABEL = Object.freeze({
   as_cancelled: 'A/S 접수를 거뒀습니다',
   report_install_done: '설치 완료 보고를 올렸습니다',
   report_as_done: 'A/S 완료 보고를 올렸습니다',
+  // 셋째 묶음 (2026-11-23 뒤 공정 3차, DB 0082) — 고객 초대 · 고객의 설치 날 변경 요청
+  customer_invited: '고객을 앱에 초대했습니다',
+  customer_joined: '고객이 앱에서 프로젝트를 이었습니다',
+  install_change_requested: '고객이 설치 날을 바꿔 달라고 했습니다',
   ...scheduleLabels(),
 });
 
@@ -132,6 +136,11 @@ export function eventKind(ev) {
       };
     case 'design_started':
       return { kind: 'design_started', ref: subject, go: null };
+    case 'customer_invited':
+    case 'customer_joined':
+      return { kind: e.type, ref: subject, go: null };
+    case 'install_change_requested':
+      return { kind: e.type, ref: subject, go: 'p-install' };
     case 'measure_done':
       return { kind: 'measure_done', ref: subject, go: null };
     case 'schedule_confirmed':
