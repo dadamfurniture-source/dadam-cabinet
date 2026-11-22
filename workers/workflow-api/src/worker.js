@@ -50,6 +50,7 @@
  *   POST /company/inbox/seen — 소식을 본 때를 계정마다 적는다 (src/company-inbox.js, DB 0078)
  *   GET /company/projects/:id — 프로젝트 하나: 목록 줄 + 설계 · 견적 · 수주 · 의뢰 · A/S · 일어난 일 · 단계 띠, 읽기만 (src/company-project.js)
  *   GET /company/projects/:id/stages/:key — 그 프로젝트 한 단계의 자료: 정보 · 일정 · 문서 · 사진(서명 주소), 읽기만 (src/company-project-stage.js)
+ *   POST /company/projects/:id/stages/:key/photos · DELETE /company/projects/:id/photos/:fileId — 단계 칸에 사진 올리기 · 지우기 (src/company-project-files.js, DB 0083)
  *   PATCH /company/projects/:id/status — 보류 · 그만둠 · 다시 진행. 계약금을 받은 프로젝트는 보류 · 그만둠 불가 (src/company-project-status.js, DB 0078)
  *   PUT · PATCH /company/projects/:id/visit — 실측 일정 잡기 · 고치기 / 완료 처리 · 취소. 대표 · 실장 · 담당자 (src/company-project-visits.js, DB 0079)
  *   GET /company/customers · PATCH /company/customers/:id — 업체 고객 목록 · 이름 · 전화 고치기 (src/company-customers.js)
@@ -304,6 +305,7 @@ import { listCompanyCustomers, updateCompanyCustomer } from './company-customers
 import { getCompanySummary } from './company-summary.js';
 import { getCompanyDashboard } from './company-dashboard.js';
 import { getCompanyProjectStage } from './company-project-stage.js';
+import { addProjectPhoto, removeProjectPhoto } from './company-project-files.js';
 import { listShifts, putShift } from './work-shifts.js';
 import { listStockItems, createStockItem, updateStockItem, addStockMove, listStockMoves } from './stock.js';
 import { listOffcuts, createOffcut, updateOffcut, listOffcutEvents, makeOffcutLabels, getStockSummary } from './stock-offcuts.js';
@@ -1802,6 +1804,8 @@ const router = createRouter([
   { method: 'GET',  path: '/company/projects/:id',                auth: 'jwt', handler: workRoute((env, a) => getCompanyProject(env, { user: a.user, projectId: a.params.id })) },
   // 프로젝트 한 단계의 자료 — 정보 · 일정 · 문서 · 사진 (src/company-project-stage.js)
   { method: 'GET',  path: '/company/projects/:id/stages/:key',    auth: 'jwt', handler: workRoute((env, a) => getCompanyProjectStage(env, a)) },
+  { method: 'POST', path: '/company/projects/:id/stages/:key/photos', auth: 'jwt', handler: rawRoute(addProjectPhoto, 201) },
+  { method: 'DELETE', path: '/company/projects/:id/photos/:fileId', auth: 'jwt', handler: rawRoute(removeProjectPhoto) },
   // 프로젝트 상태 — 보류 · 그만둠 · 다시 진행 (src/company-project-status.js, DB 0078)
   { method: 'PATCH', path: '/company/projects/:id/status',        auth: 'jwt', handler: workRoute((env, a) => setProjectStatus(env, a)) },
   { method: 'PUT',   path: '/company/projects/:id/visit',         auth: 'jwt', handler: workRoute((env, a) => setProjectVisit(env, a)) },
