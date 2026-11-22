@@ -1885,6 +1885,21 @@ describe('설치 날 고객 확인 (2026-11-21 뒤 공정 2차 — DB 0079)', ()
   const pickFirst = () => click('siteInstall', '.sm-row[data-key="' + INSTALL[0].key + '"] td');
   const confirmBtn = () => $('siteInstall').querySelector('[data-act="confirm"]');
 
+  test('고객 변경 요청 — 서버가 쓸 수 있다고 할 때만(change_ready) 설치 줄 꼬리표 「고객 변경 요청」, 줄을 누르면 「고객 요청」에 바라는 것 (2026-11-23 뒤 공정 3차)', async () => {
+    const items = INSTALL.map((x, i) =>
+      i === 0 ? { ...x, customer_confirmed_at: null, customer_change_requested_at: '2026-11-08T01:00:00Z', customer_change_note: '오후로' } : x
+    );
+    await load({ install: () => ok(sites('install', { confirm_ready: true, items })) });
+    expect($('siteInstall').querySelector('[data-sm="change"]')).toBeNull();
+    await load({ install: () => ok(sites('install', { confirm_ready: true, change_ready: true, items })) });
+    const tag = $('siteInstall').querySelector('[data-sm="change"]');
+    expect(tag.textContent).toBe('고객 변경 요청');
+    // 변경 요청이 있는 줄에는 「고객 확인 전」 대신 이것 하나
+    expect(tag.closest('tr').querySelector('[data-sm="confirm"]')).toBeNull();
+    await pickFirst();
+    expect(detail('siteInstall')['고객 요청']).toBe('「오후로」');
+  });
+
   test('서버가 쓸 수 있다고 할 때만(confirm_ready) — 확인 전인 설치 줄에 「고객 확인 전」 꼬리표, 줄을 누르면 「고객 확인 표시」. 누르면 PATCH · 다시 읽기, 그 뒤 확인한 날과 「확인 지우기」', async () => {
     // 쓰지 않는 서버(DB 0079 전 · 옛 서버) — 꼬리표도 단추도 칸도 없다
     await load();
