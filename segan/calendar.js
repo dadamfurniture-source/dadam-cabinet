@@ -1084,11 +1084,19 @@
     // 납품 · 설치 · A/S 방문 일정이 바뀌었을 수 있다 — 설치 · A/S 지도 + 표도 다시 읽는다 (segan/site-map.js)
     var sites = window.SeganSiteMap;
     if (sites && sites.reload) sites.reload();
+    inboxAgain();
+  }
+
+  /** 새로 생긴 일의 오늘 · 주간 · 월간 목록도 일정을 따로 읽는다 — 일정이 바뀌면 같이 다시 읽게 (segan/inbox.js, 2026-11-23) */
+  function inboxAgain() {
+    var ib = window.SeganInbox;
+    if (ib && typeof ib.refresh === 'function') ib.refresh();
   }
 
   /** 다른 화면(설치 · A/S 표)이 일정을 고친 뒤 — 읽어 둔 기간을 버리고 지금 보는 기간을 다시 읽는다 */
   function reload() {
     C.cache = {};
+    if (C.data) inboxAgain();
     return C.data ? refresh() : Promise.resolve(false);
   }
 

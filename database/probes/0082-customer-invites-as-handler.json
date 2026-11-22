@@ -1,0 +1,279 @@
+{
+  "title": "0082 고객 초대 링크 · 고객의 설치 날 변경 요청 · A/S 를 만든 팩토리가 받는다 — 초대는 서버만(토큰 해시 · 한 번 · 같은 업체만), 요청 칸은 구성원이 읽기만, A/S 처리 업체 칸 · 읽기 정책 · 알림 종류",
+  "ids": [
+    "company_x",
+    "company_y",
+    "customer_x",
+    "customer_y",
+    "project_x",
+    "project_y",
+    "invite_x",
+    "invite_used",
+    "design_x",
+    "sched_x"
+  ],
+  "users": [
+    "x_owner_user",
+    "y_owner_user"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "y_owner": {
+      "role": "authenticated",
+      "user": "y_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'manager', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{customer_x}}, {{company_x}}, 'probe'), ({{customer_y}}, {{company_y}}, 'probe')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_x}}, {{company_x}}, {{customer_x}}, 'probe X'), ({{project_y}}, {{company_y}}, {{customer_y}}, 'probe Y')",
+    "INSERT INTO public.customer_invites (id, company_id, customer_id, project_id, token_hash, expires_at, created_by) VALUES ({{invite_x}}, {{company_x}}, {{customer_x}}, {{project_x}}, repeat('a', 64), now() + interval '7 days', {{x_owner_user}})",
+    "INSERT INTO public.customer_invites (id, company_id, customer_id, project_id, token_hash, expires_at) VALUES ({{invite_used}}, {{company_x}}, {{customer_x}}, {{project_x}}, repeat('b', 64), now() + interval '7 days')",
+    "UPDATE public.customer_invites SET used_at = now(), used_by = {{y_owner_user}} WHERE id = {{invite_used}}",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_schedules (id, design_id, batch_id, type, title, scheduled_at) VALUES ({{sched_x}}, {{design_x}}, gen_random_uuid(), 'installation', '설치', timestamptz '2026-12-03 09:00+09')",
+    "UPDATE public.design_schedules SET customer_change_requested_at = now(), customer_change_by = {{y_owner_user}}, customer_change_note = '오후로 바꿔 주세요' WHERE id = {{sched_x}}"
+  ],
+  "checks": [
+    {
+      "name": "초대 읽기 — 서버만 (구성원 · 익명 deny)",
+      "sql": "select count(*) from public.customer_invites where project_id = {{project_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "y_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "쓴 초대 — 쓴 때와 사람이 적혔다 (준비 단계에서 썼다)",
+      "sql": "select count(*) from public.customer_invites where id = {{invite_used}} and used_at is not null and used_by = {{y_owner_user}} and revoked_at is null",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "초대 만들기 — 서버가 한 줄 넣는다",
+      "sql": "insert into public.customer_invites (company_id, customer_id, project_id, token_hash, expires_at) values ({{company_x}}, {{customer_x}}, {{project_x}}, repeat('c', 64), now() + interval '3 days')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "구성원은 초대를 직접 넣지 못한다",
+      "sql": "insert into public.customer_invites (company_id, customer_id, project_id, token_hash, expires_at) values ({{company_x}}, {{customer_x}}, {{project_x}}, repeat('d', 64), now() + interval '3 days')",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "같은 토큰은 하나",
+      "sql": "insert into public.customer_invites (company_id, customer_id, project_id, token_hash, expires_at) values ({{company_x}}, {{customer_x}}, {{project_x}}, repeat('a', 64), now() + interval '3 days')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "토큰 해시가 너무 짧으면 거절",
+      "sql": "insert into public.customer_invites (company_id, customer_id, project_id, token_hash, expires_at) values ({{company_x}}, {{customer_x}}, {{project_x}}, 'short', now() + interval '3 days')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "만료는 만든 때보다 뒤",
+      "sql": "insert into public.customer_invites (company_id, customer_id, project_id, token_hash, expires_at) values ({{company_x}}, {{customer_x}}, {{project_x}}, repeat('e', 64), now() - interval '1 day')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "같은 업체 고객에게만 (남의 업체 고객 id 로는 거절)",
+      "sql": "insert into public.customer_invites (company_id, customer_id, project_id, token_hash, expires_at) values ({{company_x}}, {{customer_y}}, {{project_x}}, repeat('f', 64), now() + interval '3 days')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "같은 업체 프로젝트에만",
+      "sql": "insert into public.customer_invites (company_id, customer_id, project_id, token_hash, expires_at) values ({{company_x}}, {{customer_x}}, {{project_y}}, repeat('g', 64), now() + interval '3 days')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "쓴 사람만 있고 쓴 때가 없으면 거절",
+      "sql": "update public.customer_invites set used_by = {{x_owner_user}} where id = {{invite_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "쓴 초대는 거둘 수 없다",
+      "sql": "update public.customer_invites set revoked_at = now() where id = {{invite_used}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "초대 쓰기 — 서버가 쓴 때 · 사람을 적는다",
+      "sql": "update public.customer_invites set used_at = now(), used_by = {{y_owner_user}} where id = {{invite_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "설치 날 변경 요청 — 요청이 적혔다 (그 업체 구성원만 읽는다 · 남의 업체 0 · 익명 deny)",
+      "sql": "select count(*) from public.design_schedules where id = {{sched_x}} and customer_change_requested_at is not null and customer_change_by = {{y_owner_user}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "1",
+        "y_owner": "0",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "구성원은 요청 칸을 직접 고치지 못한다 (쓰는 정책이 없다)",
+      "sql": "update public.design_schedules set customer_change_requested_at = null, customer_change_by = null, customer_change_note = null where id = {{sched_x}}",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "rows:0"
+      }
+    },
+    {
+      "name": "요청한 사람만 있고 때가 없으면 거절",
+      "sql": "update public.design_schedules set customer_change_requested_at = null where id = {{sched_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "바라는 것은 200자까지",
+      "sql": "update public.design_schedules set customer_change_note = repeat('가', 201) where id = {{sched_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "요청 지우기 — 서버가 셋 다 비운다",
+      "sql": "update public.design_schedules set customer_change_requested_at = null, customer_change_by = null, customer_change_note = null where id = {{sched_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "A/S — 처리하는 업체 칸 둘이 있다",
+      "sql": "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'as_requests' and column_name in ('handler_company_id', 'handler_project_id')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "A/S — 처리하는 업체는 수주 업체와 달라야 한다 (제약)",
+      "sql": "select count(*) from pg_constraint where conname = 'as_requests_handler_check' and pg_get_constraintdef(oid) like '%handler_company_id <> company_id%'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "A/S — 처리하는 팩토리 쪽 프로젝트는 그 팩토리 것만 (복합 FK)",
+      "sql": "select count(*) from pg_constraint where conname = 'as_requests_handler_project_fkey' and contype = 'f'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "A/S 지킴이 — 처리하는 업체도 바꾸지 못하게",
+      "sql": "select count(*) from pg_proc where proname = 'as_requests_guard' and prosrc like '%OLD.handler_company_id, OLD.handler_project_id%'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "A/S — 처리하는 팩토리 구성원 읽기 정책",
+      "sql": "select count(*) from pg_policies where schemaname = 'public' and tablename = 'as_requests' and policyname = 'as_requests_handler_read' and cmd = 'SELECT'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "알림 종류 — as_factory · install_change 가 더해졌다 (옛 종류도 그대로)",
+      "sql": "select count(*) from pg_constraint where conname = 'notification_outbox_kind_check' and pg_get_constraintdef(oid) like '%as_factory%' and pg_get_constraintdef(oid) like '%install_change%' and pg_get_constraintdef(oid) like '%biz_cert_decided%' and pg_get_constraintdef(oid) like '%''as_request''%'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    }
+  ]
+}

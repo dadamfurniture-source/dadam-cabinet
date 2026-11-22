@@ -19,6 +19,9 @@
  *   (대체된 superseded 는 새 문서가 있다는 뜻이라 센다).
  *   수금 일정: id · 결제할 수 있나(payable — 다담 공장 수주의 안 받은 줄, 결제창은 payments-api) ·
  *   온라인 결제(online — 가상계좌 입금 기다림이면 입금 안내, 받은 금액이 달라 확인 중이면 그 상태만. DB 0025).
+ *   설치 날 install { id, scheduled_at, confirmed_at, change_requested_at } | null — 가장 이른 설치 일정 하나
+ *   (2026-11-23 뒤 공정 3차). 고객이 「이 날 좋아요」(POST /me/schedules/:id/confirm) · 「바꿔 주세요」(…/change) 를 누른다
+ *   (src/my-schedules.js). 확인 칸(0079) · 요청 칸(0082)이 없으면 그 값은 null. install_at 은 예전 그대로 둔다.
  */
 
 import {
@@ -240,14 +243,7 @@ export async function listMyProjects(env, { user }) {
       'designs.project_id': inProjects,
       limit: LINKED_ROW_LIMIT,
     }),
-    selectMany(env, 'design_schedules', {
-      type: 'eq.installation',
-      status: 'neq.cancelled',
-      select: 'scheduled_at,designs!inner(project_id)',
-      'designs.project_id': inProjects,
-      order: 'scheduled_at.asc',
-      limit: LINKED_ROW_LIMIT,
-    }),
+    installsOf(env, inProjects),
     selectMany(env, 'generations', { project_id: inProjects, select: 'project_id', limit: LINKED_ROW_LIMIT }),
   ]);
 
@@ -257,9 +253,19 @@ export async function listMyProjects(env, { user }) {
   const quoteSet = new Set((quotes || []).map((d) => d.designs && d.designs.project_id));
   const renderSet = new Set((renders || []).map((g) => g.project_id));
   const installAt = new Map();
+  const installOf = new Map();
   for (const s of installs || []) {
     const pid = s.designs && s.designs.project_id;
-    if (pid && !installAt.has(pid)) installAt.set(pid, s.scheduled_at); // 이른 일정이 앞
+    if (pid && !installAt.has(pid)) {
+      installAt.set(pid, s.scheduled_at); // 이른 일정이 앞
+      installOf.set(pid, {
+        id: s.id,
+        scheduled_at: s.scheduled_at,
+        status: s.status || null,
+        confirmed_at: s.customer_confirmed_at || null,
+        change_requested_at: s.customer_change_requested_at || null,
+      });
+    }
   }
 
   const latestOrders = projects.map((p) => (ordersBy.get(p.id) || [])[0]).filter(Boolean);
@@ -315,6 +321,29 @@ export async function listMyProjects(env, { user }) {
           }))
         : [],
       install_at: installAt.get(p.id) || null,
+      install: installOf.get(p.id) || null,
     };
   });
+}
+
+/** 프로젝트들의 설치 일정 (취소 뺌, 이른 것부터) — 고객 확인(0079) · 변경 요청(0082) 칸까지, 없으면 그 칸 없이 */
+async function installsOf(env, inProjects) {
+  const read = (cols) =>
+    selectMany(env, 'design_schedules', {
+      type: 'eq.installation',
+      status: 'neq.cancelled',
+      select: `${cols},designs!inner(project_id)`,
+      'designs.project_id': inProjects,
+      order: 'scheduled_at.asc',
+      limit: LINKED_ROW_LIMIT,
+    });
+  const base = 'id,scheduled_at,status';
+  for (const cols of [`${base},customer_confirmed_at,customer_change_requested_at`, `${base},customer_confirmed_at`]) {
+    try {
+      return await read(cols);
+    } catch (e) {
+      if (!isMissingRelation(e)) throw e;
+    }
+  }
+  return read(base);
 }
