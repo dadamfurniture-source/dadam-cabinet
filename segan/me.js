@@ -34,7 +34,7 @@
                         생산 설정 = 표준시간 · 인력 · 외주 업체 · 상판 · 납기 · 견적 원가 (#productionSettings —
                         segan/production-settings.js, 다담 공장 · 협력업체의 대표 · 실장)
                         단계 = 프로젝트 단계 + 최신 수주 상태 (menuStage — segan/partner-projects.js 와 같다).
-                        대시보드(#dash-project) = 우리 팩토리 숫자(#meNumbers — 대표 · 실장, segan/company-summary.js) + 프로젝트 목록. 단계 칸은 없다 (수는 왼쪽 줄에).
+                        대시보드(#dash-project) = 진행 현황(#meNumbers — 대표 · 실장, 큰 숫자 · 그래프, segan/company-dashboard.js) + 프로젝트 목록. 단계 칸은 없다 (수는 왼쪽 줄에).
                         다담 본사 구성원은 업체 프로젝트가 없다 — 플래너(셸 판정 roles.planner)를 쓰면 설계 = 플래너 페이지
        관리
          구매 · 재고   팩토리 — 기본 자재 · 철물 (#stock-board · #stock-hardware — segan/stock.js, 다담 공장 · Expert · Agent 구성원.
@@ -1357,7 +1357,7 @@
     var today = open && s.dash === 'today';
     off('meCalendar', !today); // 업무 달력 — TODAY WORK 대시보드 맨 위에서만 (segan/calendar.js)
     off('meInbox', !today); // 새로 생긴 일 — TODAY WORK 대시보드 달력 아래에서만 (segan/inbox.js)
-    off('meNumbers', !(open && s.dash === 'project')); // 우리 팩토리 숫자 — 프로젝트 관리 대시보드에서만 (segan/company-summary.js)
+    off('meNumbers', !(open && s.dash === 'project')); // 진행 현황 — 프로젝트 관리 대시보드에서만 (segan/company-dashboard.js)
     off('meStockNumbers', !(open && s.dash === 'stock')); // 재고 한눈에 — 구매 · 재고 대시보드에서만 (segan/stock-moves.js)
     off('meStockNeedsNumbers', !(open && s.dash === 'stock')); // 진행 중 작업 자재 — 구매 · 재고 대시보드에서만 (segan/stock-needs.js)
     renderParts(name);
@@ -1963,7 +1963,7 @@
     var Parts = window.SeganPartCatalog;
     var Quotes = window.SeganQuotes;
     var Customers = window.SeganCustomers;
-    var Numbers = window.SeganCompanySummary;
+    var Numbers = window.SeganCompanyDashboard;
     var Inbox = window.SeganInbox;
     await Promise.all([
       synced(loadProjects(auth.session)),
@@ -1987,7 +1987,7 @@
           synced(Quotes && Quotes.load ? Quotes.load(auth.sb, auth.session, me) : null),
           // 고객 = 프로젝트를 가지는 업체 구성원, 고치기는 대표 · 실장 (segan/customers.js — 영업 › 고객 화면)
           synced(Customers && Customers.load ? Customers.load(auth.sb, auth.session, me) : null),
-          // 우리 팩토리 숫자 = 프로젝트를 가지는 업체의 대표 · 실장 (segan/company-summary.js — 프로젝트 관리 대시보드)
+          // 진행 현황 = 프로젝트를 가지는 업체의 대표 · 실장 (segan/company-dashboard.js — 프로젝트 관리 대시보드)
           synced(Numbers && Numbers.load ? Numbers.load(auth.sb, auth.session, me) : null),
           // 새로 생긴 일 = 프로젝트를 가지는 업체 구성원 (segan/inbox.js — TODAY WORK: 할 일 · 소식)
           synced(Inbox && Inbox.load ? Inbox.load(auth.sb, auth.session, me) : null),
