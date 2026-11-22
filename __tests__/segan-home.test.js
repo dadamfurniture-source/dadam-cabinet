@@ -239,3 +239,69 @@ describe('홈 화면 (segan/index.html)', () => {
     expect(sw).toContain("versioned(SCOPE + 'forward.js')");
   });
 });
+
+describe('같은 주방, 다른 색 — 견본 (2026-11-23 「사이트 새는 곳 막기」 묶음 6)', () => {
+  const TONES = [
+    '매트 라이트그레이 · 카카오월넛',
+    '매트 미스트그린 · 매트 아이보리',
+    '매트 블랙 · 세이오크',
+    '아크 마멀레이드 · 매트 아이보리',
+    '매트 화이트 · 매트 샌드그레이',
+  ];
+
+  test('세 걸음과 연출 사례 사이 — 같은 방 다섯 장 · 고르는 줄 다섯 · 첫 장이 골라져 있다 · 만들기로', () => {
+    const sec = doc.getElementById('hmToneTitle').closest('section');
+    expect(doc.getElementById('hmToneTitle').textContent).toBe('같은 주방, 다른 색');
+    expect(sec.previousElementSibling.querySelector('ol.hm-steps')).not.toBeNull();
+    expect(sec.nextElementSibling.querySelector('#hmWorksTitle')).not.toBeNull();
+    const radios = [...sec.querySelectorAll('input[type="radio"][name="hmTone"]')];
+    expect(radios.map((r) => r.id)).toEqual([
+      'hmTone1',
+      'hmTone2',
+      'hmTone3',
+      'hmTone4',
+      'hmTone5',
+    ]);
+    expect(radios.map((r) => r.checked)).toEqual([true, false, false, false, false]);
+    // 라디오 → 사진 · 고르는 줄은 형제 (~) 여야 한다
+    for (const r of radios) expect(r.parentElement).toBe(sec.querySelector('.hm-tone'));
+    expect(sec.querySelector('.hm-tone-shot').parentElement).toBe(sec.querySelector('.hm-tone'));
+    expect(sec.querySelector('.hm-tone-picks').parentElement).toBe(sec.querySelector('.hm-tone'));
+    const imgs = [...sec.querySelectorAll('.hm-tone-shot img')];
+    expect(imgs.map((i) => i.getAttribute('src'))).toEqual(
+      TONES.map((_, n) => `../app/portfolio/display/tone-0${n + 1}.jpg`)
+    );
+    expect(imgs.map((i) => i.getAttribute('alt'))).toEqual(TONES);
+    for (const n of [1, 2, 3, 4, 5])
+      for (const ext of ['jpg', 'avif'])
+        expect(fs.existsSync(path.join(ROOT, `app/portfolio/display/tone-0${n}.${ext}`))).toBe(
+          true
+        );
+    expect(
+      [...sec.querySelectorAll('.hm-tone-picks label')].map((l) => [
+        l.getAttribute('for'),
+        l.textContent.replace(/^\d/, ''),
+      ])
+    ).toEqual(TONES.map((t, n) => [`hmTone${n + 1}`, t]));
+    expect(sec.querySelector('.hm-tone-note').textContent).toMatch(/^AI 로 연출한 이미지입니다\./);
+    expect(sec.querySelector('a.hm-tone-cta').getAttribute('href')).toBe('make.html');
+    expect(sec.querySelectorAll('script')).toHaveLength(0);
+  });
+
+  test('스타일 — 고른 사진만 보인다(opacity 만), 고른 줄 · 초점 표시, 동작 줄이기는 0.2초', () => {
+    const shown = CSS.match(/(#hmTone1:checked[^{]*)\{\s*opacity: 1;\s*\}/);
+    expect(shown).not.toBeNull();
+    for (const n of [1, 2, 3, 4, 5])
+      expect(shown[1]).toContain(`#hmTone${n}:checked ~ .hm-tone-shot .hm-tone-p${n} img`);
+    expect(CSS).toMatch(
+      /\.hm-tone-shot img \{[^}]*opacity: 0;[^}]*transition: opacity 0\.35s ease;/
+    );
+    for (const n of [1, 2, 3, 4, 5]) {
+      expect(CSS).toContain(`#hmTone${n}:checked ~ .hm-tone-picks label[for='hmTone${n}']`);
+      expect(CSS).toContain(`#hmTone${n}:focus-visible ~ .hm-tone-picks label[for='hmTone${n}']`);
+    }
+    expect(CSS).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\.hm-tone-shot img \{\s*transition-duration: 0\.2s;/
+    );
+  });
+});
