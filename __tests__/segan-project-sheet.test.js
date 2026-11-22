@@ -538,3 +538,522 @@ describe('못 읽을 때', () => {
     expect(await window.SeganProjectSheet.open('')).toBe(false);
   });
 });
+
+// ── 단계 띠 · 단계 칸 (2026-11-23 대표님 「선형 단계를 찍으면 … 사진 및 도면, 정보들이 한눈에」) ──────────────
+const stage = (key, label, state, from, to, days) => ({ key, label, state, from, to, days });
+const STAGES = () => [
+  stage('consult', '상담', 'done', '2026-11-01T00:30:00Z', '2026-11-02T00:00:00Z', 1),
+  stage('measure', '실측', 'done', '2026-11-02T00:00:00Z', '2026-11-03T00:00:00Z', 1),
+  stage('design', '설계', 'done', '2026-11-03T00:00:00Z', '2026-11-05T03:00:00Z', 2),
+  stage('quote', '견적', 'now', '2026-11-05T03:00:00Z', null, 16),
+  stage('contract', '계약', 'todo', null, null, null),
+  stage('make', '생산', 'todo', null, null, null),
+  stage('install', '설치', 'todo', null, null, null),
+  stage('done', '끝', 'todo', null, null, null),
+];
+const STAGE_DATA = {
+  consult: {
+    consults: [
+      {
+        id: 'c-1',
+        created_at: '2026-11-01T00:30:00Z',
+        sido: '경기',
+        gugun: '성남시',
+        categories: ['sink', 'fridge'],
+        door_finish: 'pet',
+        demolition_needed: true,
+        price_tier: 'mid',
+        preferred_date: '2026-11-05',
+        preferred_time: '15:00-18:00',
+        wanted_done_date: '2026-12-10',
+        description: 'ㄱ자 <b>주방</b>',
+        has_image: true,
+      },
+    ],
+  },
+  measure: {
+    ready: true,
+    visit: {
+      id: 'v1',
+      status: 'done',
+      scheduled_at: '2026-11-02T05:00:00Z',
+      assignee_name: '나직원',
+      note: '가스 배관 왼쪽',
+      done_at: '2026-11-03T00:00:00Z',
+    },
+    photos: [
+      {
+        url: 'https://img.example/site-1.jpg',
+        kind: 'site',
+        label: '현장사진',
+        at: '2026-11-02T06:00:00Z',
+        note: '배관',
+      },
+      {
+        url: 'http://img.example/plain.jpg',
+        kind: 'site',
+        label: '안 그리는 주소',
+        at: null,
+        note: null,
+      },
+    ],
+  },
+  design: {
+    designs: [
+      {
+        id: 'd1',
+        name: '주방 1안',
+        created_at: '2026-11-03T03:00:00Z',
+        updated_at: '2026-11-04T03:00:00Z',
+      },
+    ],
+    drafts: [
+      {
+        id: 'draft-1',
+        name: '주방 ㄱ자',
+        updated_at: '2026-11-04T03:00:00Z',
+        walls: 2,
+        modules: 14,
+      },
+    ],
+    renders: [
+      {
+        design_id: 'd1',
+        kind: 'front',
+        label: '정면도',
+        url: 'https://img.example/front.png',
+        at: '2026-11-04T03:00:00Z',
+      },
+    ],
+    photos: [],
+  },
+  quote: {
+    quotes: [
+      {
+        id: 'q2',
+        rev: 2,
+        current: true,
+        created_at: '2026-11-05T03:00:00Z',
+        expires_at: '2099-01-01T00:00:00Z',
+        view_count: 3,
+        decision: 'approved',
+        decided_at: '2026-11-07T03:00:00Z',
+        total: 8420000,
+        reasons: [],
+      },
+      {
+        id: 'q1',
+        rev: 1,
+        current: false,
+        created_at: '2026-11-04T03:00:00Z',
+        expires_at: '2099-01-01T00:00:00Z',
+        view_count: 1,
+        decision: 'rejected',
+        decided_at: '2026-11-04T09:00:00Z',
+        total: null,
+        reasons: ['price'],
+      },
+    ],
+  },
+  contract: {
+    orders: [
+      {
+        id: O2,
+        order_no: 'A-002',
+        status: 'in_production',
+        ordered_at: '2026-11-08T00:00:00Z',
+        amount: 8420000,
+        payments: [
+          { stage: 'deposit', due_on: '2026-11-09', paid_on: '2026-11-09', amount: 2000000 },
+          { stage: 'balance', due_on: '2026-12-05', paid_on: null, amount: null },
+        ],
+      },
+    ],
+    approvals: [],
+  },
+  make: {
+    schedules: [
+      {
+        id: 's1',
+        type: 'manufacturing_start',
+        label: '제작 착수',
+        status: 'completed',
+        scheduled_at: '2026-11-10T00:00:00Z',
+        completed_at: '2026-11-10T02:00:00Z',
+        assignee_name: '김재단',
+      },
+    ],
+    documents: [
+      {
+        id: 'doc-9',
+        doc_type: 'work_order',
+        label: '작업지시서',
+        doc_no: 'WO-1',
+        rev: 1,
+        status: 'issued',
+        created_at: '2026-11-09T00:00:00Z',
+      },
+    ],
+    photos: [
+      {
+        url: 'https://img.example/cut.jpg',
+        kind: 'check',
+        label: '재단 확인',
+        at: '2026-11-11T00:00:00Z',
+        note: null,
+      },
+    ],
+    requests: [],
+  },
+  install: {
+    schedules: [
+      {
+        id: 's2',
+        type: 'installation',
+        label: '설치',
+        status: 'scheduled',
+        scheduled_at: '2026-12-02T01:00:00Z',
+        completed_at: null,
+        assignee_name: null,
+        customer_confirmed_at: null,
+      },
+    ],
+    documents: [],
+    reports: [
+      {
+        id: 'r1',
+        kind: 'install_done',
+        label: '설치 완료',
+        note: '실리콘 마감',
+        created_at: '2026-12-02T08:00:00Z',
+        photo_urls: ['https://img.example/r1.jpg', 'https://img.example/r2.jpg'],
+      },
+    ],
+    photos: [],
+  },
+  done: {
+    as: [
+      {
+        id: 'a1',
+        state: 'received',
+        label: '받음',
+        body: '도어가 처집니다',
+        created_at: '2026-12-20T00:00:00Z',
+        received_at: '2026-12-20T03:00:00Z',
+        done_at: null,
+        photo_urls: ['https://img.example/as.jpg'],
+      },
+    ],
+    reports: [],
+    schedules: [],
+  },
+};
+
+/** 단계 띠를 주는 서버로 띄운다 — readStage · fetchRaw · canVisit · openWork · openVisit 흉내 */
+function loadStages(options = {}) {
+  const opts = {
+    stage: (key) => ({ ok: true, status: 200, data: STAGE_DATA[key] }),
+    raw: null,
+    ...options,
+  };
+  const got = load({
+    project: () => ({ ok: true, status: 200, data: { ...DATA(), stages: STAGES() } }),
+    ...options,
+  });
+  const pp = window.SeganPartnerProjects;
+  pp.readStage = jest.fn(async (id, key) => opts.stage(key, id));
+  pp.fetchRaw = jest.fn(async (p) => (opts.raw ? opts.raw(p) : null));
+  pp.canVisit = () => true;
+  pp.openWork = jest.fn();
+  pp.openVisit = jest.fn();
+  window.SeganPartnerConsults = {
+    ITEMS: { sink: '싱크대', fridge: '냉장고장' },
+    DOOR_FINISH: { pet: 'PET' },
+    PRICE_TIER: { mid: '중급' },
+    TIME_LABELS: { '15:00-18:00': '오후 (15:00~18:00)' },
+  };
+  return { ...got, pp };
+}
+const steps = () => [...node().querySelectorAll('[data-act="stage"]')];
+const stepOf = (key) => node().querySelector(`[data-act="stage"][data-key="${key}"]`);
+const panel = () => node().querySelector('[data-ps="stage"]');
+const pick = async (key) => {
+  stepOf(key).click();
+  await flush();
+  await flush();
+};
+
+describe('단계 띠 · 단계 칸', () => {
+  afterEach(() => {
+    delete window.SeganPartnerConsults;
+  });
+
+  test('띠 — 끝난 단계 ✓ · 지금 ● · 아직 ○, 날짜와 걸린 날. 마지막 칸은 「A/S」. 지금 단계가 펼쳐진다', async () => {
+    const { pp } = loadStages();
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    expect(steps().map(text)).toEqual([
+      '✓ 끝상담11.01 · 1일',
+      '✓ 끝실측11.02 · 1일',
+      '✓ 끝설계11.03 · 2일',
+      '● 지금견적11.05 · 16일째',
+      '○ 아직계약',
+      '○ 아직생산',
+      '○ 아직설치',
+      '○ 아직A/S',
+    ]);
+    expect(steps().map((b) => b.getAttribute('aria-pressed'))).toEqual([
+      'false',
+      'false',
+      'false',
+      'true',
+      'false',
+      'false',
+      'false',
+      'false',
+    ]);
+    // 프로젝트 줄의 띠 · 옛 묶음(설계 · 견적 · 계약 …)은 그리지 않는다 — 단계 칸이 대신한다
+    expect(node().querySelector('.pj-strip')).toBeNull();
+    for (const key of ['designs', 'quotes', 'orders', 'requests', 'as'])
+      expect(node().querySelector(`section[data-ps="${key}"]`)).toBeNull();
+    // 다음 할 일은 그대로
+    expect(text(node().querySelector('[data-act="next-order"]'))).toBe('계약 만들기');
+    // 지금 단계의 자료를 한 번 읽는다
+    expect(pp.readStage.mock.calls).toEqual([[P1, 'quote']]);
+    expect(panel().getAttribute('data-key')).toBe('quote');
+    expect(rows('quotes')).toEqual([
+      '2판 · 지금 판 · 8,420,000원2026.11.05 보냄 · 고객 승인 · 3번 열어 봄 · 2026.11.07보기',
+      '1판2026.11.04 보냄 · 고객 수정 요청 · 1번 열어 봄 · 2026.11.04보기',
+    ]);
+    // 이 단계에 일어난 일 + 맨 아래 모두
+    expect(text(panel())).toContain('이 단계에 일어난 일');
+    expect([...panel().querySelectorAll('.ps-history li')].map(text)).toEqual([
+      '2026.11.05 12:00견적서를 <i>보냈습니다</i>',
+    ]);
+    expect(text(sec('history').querySelector('summary'))).toBe('일어난 일 모두 3');
+  });
+
+  test('칸을 누르면 그 단계를 읽어 그린다 — 한 번 읽은 단계는 다시 읽지 않고, 못 읽은 단계는 다시 누르면 읽는다', async () => {
+    let fail = true;
+    const { pp } = loadStages({
+      stage: (key) =>
+        key === 'make' && fail
+          ? { ok: false, status: 500, data: null }
+          : { ok: true, status: 200, data: STAGE_DATA[key] },
+    });
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('measure');
+    expect(stepOf('measure').getAttribute('aria-pressed')).toBe('true');
+    expect(text(panel())).toContain('실측 날2026.11.02 14:00');
+    expect(text(panel())).toContain('끝낸 때2026.11.03 09:00');
+    expect(text(panel())).toContain('갈 사람나직원');
+    // 사진은 https 주소만
+    expect(
+      [...panel().querySelectorAll('.pg-photos img')].map((i) => i.getAttribute('src'))
+    ).toEqual(['https://img.example/site-1.jpg']);
+    expect(text(panel().querySelector('.pg-photos small'))).toBe('현장사진 · 11.02 · 배관');
+    await pick('quote');
+    await pick('measure');
+    expect(pp.readStage.mock.calls.map((c) => c[1])).toEqual(['quote', 'measure']);
+    // 못 읽은 단계
+    await pick('make');
+    expect(text(panel())).toBe('이 단계의 자료를 불러오지 못했습니다. 단계 칸을 다시 눌러 주세요.');
+    fail = false;
+    await pick('make');
+    expect(pp.readStage.mock.calls.map((c) => c[1])).toEqual(['quote', 'measure', 'make', 'make']);
+    expect(text(panel())).toContain('제작 착수 · 2026.11.10 09:00김재단 · 끝 11.10');
+  });
+
+  test('아직 안 온 단계 · 자료가 없는 단계는 그 사정을 적는다', async () => {
+    loadStages({ stage: () => ({ ok: true, status: 200, data: { orders: [], approvals: [] } }) });
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('contract');
+    expect(text(panel())).toContain('아직 이 단계에 오지 않았습니다.');
+    const S = window.SeganProjectSheet;
+    expect(S.panelHtml(stage('design', '설계', 'done'), { data: {} }, ROW(), [], NOW)).toContain(
+      '이 단계에 남은 자료가 없습니다.'
+    );
+    expect(
+      S.panelHtml(stage('design', '설계', 'now'), { loading: true }, ROW(), [], NOW)
+    ).toContain('불러오는 중…');
+  });
+
+  test('단계마다의 칸 — 상담 · 설계 · 계약 · 생산 · 설치 · A/S', () => {
+    loadStages();
+    const S = window.SeganProjectSheet;
+    const html = (key, state = 'done') => {
+      document.body.innerHTML = S.panelHtml(
+        stage(key, key, state),
+        { data: STAGE_DATA[key] },
+        ROW(),
+        [],
+        NOW
+      );
+      return document.body;
+    };
+    const kv = (root) =>
+      Object.fromEntries(
+        [...root.querySelectorAll('.pg-kv dt')].map((dt) => [text(dt), text(dt.nextElementSibling)])
+      );
+
+    const consult = html('consult');
+    expect(kv(consult)).toEqual({
+      요청: 'ㄱ자 <b>주방</b>',
+      품목: '싱크대 · 냉장고장',
+      지역: '경기 성남시',
+      '방문 희망': '2026-11-05 오후 (15:00~18:00)',
+      '완료 희망': '2026-12-10',
+      '도어 마감': 'PET',
+      가격대: '중급',
+      철거: '필요',
+      '받은 날': '2026.11.01',
+    });
+    expect(consult.querySelector('b')).toBeNull(); // 요청 글은 글자 그대로
+    expect(consult.querySelector('a[data-shot="c-1"]').hidden).toBe(true); // 그림은 받아 온 뒤에 보인다
+
+    const design = html('design');
+    expect([...design.querySelectorAll('.ps-list li')].map(text)).toEqual([
+      '주방 ㄱ자모듈 14 · 벽 2 · 2026.11.04 고침',
+    ]);
+    expect(text(design.querySelector('.pg-photos small'))).toBe('정면도 · 11.04');
+
+    const contract = html('contract');
+    expect(kv(contract)).toEqual({
+      '수주 번호': 'A-002',
+      상태: '생산 중',
+      '계약한 날': '2026.11.08',
+      '계약 금액': '8,420,000원',
+    });
+    expect([...contract.querySelectorAll('[data-ps="payments"] li')].map(text)).toEqual([
+      '계약금 · 2,000,000원2026.11.09 받음',
+      '잔금받을 날 2026.12.05', // 금액을 못 받은 사람(직원)에게는 금액 없이
+    ]);
+    expect(contract.querySelector('[data-act="order"]').getAttribute('data-id')).toBe(O2);
+
+    const make = html('make', 'now');
+    expect([...make.querySelectorAll('[data-ps="documents"] li')].map(text)).toEqual([
+      '작업지시서 WO-11판 · 2026.11.09보기',
+    ]);
+    expect(make.querySelector('[data-act="print"]').getAttribute('data-id')).toBe('doc-9');
+    expect(make.querySelector('[data-act="work"]').getAttribute('data-for')).toBe(P1);
+    expect(text(make.querySelector('.pg-photos small'))).toBe('재단 확인 · 11.11');
+
+    const install = html('install', 'todo');
+    expect([...install.querySelectorAll('[data-ps="schedules"] li')].map(text)).toEqual([
+      '설치 · 2026.12.02 10:00고객 확인 전',
+    ]);
+    expect(text(install.querySelector('[data-ps="report"] .ps-who'))).toBe(
+      '설치 완료 · 2026.12.02 · 실리콘 마감'
+    );
+    expect(install.querySelectorAll('[data-ps="report"] img')).toHaveLength(2);
+
+    const done = html('done', 'todo');
+    expect(text(done.querySelector('[data-ps="as-item"] .ps-who'))).toBe('받음 · 2026.12.20');
+    expect(kv(done)).toEqual({ '접수 글': '도어가 처집니다', '받은 날': '2026.12.20' });
+    expect(done.querySelector('img').getAttribute('src')).toBe('https://img.example/as.jpg');
+  });
+
+  test('일어난 일이 어느 단계 것인가', () => {
+    loadStages();
+    const of = window.SeganProjectSheet.historyStage;
+    expect(of({ kind: 'project_created', go: null })).toBe('consult');
+    expect(of({ kind: 'measure_done', go: null })).toBe('measure');
+    expect(of({ kind: 'design_linked', go: null })).toBe('design');
+    expect(of({ kind: 'quote_sent', go: 'p-quote' })).toBe('quote');
+    expect(of({ kind: 'deposit_paid', go: 'p-contract' })).toBe('contract');
+    expect(of({ kind: 'request_accepted', go: 'p-make' })).toBe('make');
+    expect(of({ kind: 'order_completed', go: 'p-install' })).toBe('install');
+    expect(of({ kind: 'as_requested', go: 'p-as' })).toBe('done');
+    expect(of(null)).toBe('consult');
+  });
+
+  test('문서 「보기」 — 본인 토큰으로 받아 새 창에 쓴다. 새 창이 막히면 알린다', async () => {
+    const win = {
+      document: { open: jest.fn(), write: jest.fn(), close: jest.fn() },
+      close: jest.fn(),
+    };
+    const openSpy = jest.spyOn(window, 'open').mockReturnValue(win);
+    const { pp } = loadStages({
+      raw: () => ({ ok: true, text: async () => '<html>지시서</html>' }),
+    });
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('make');
+    panel().querySelector('[data-act="print"]').click();
+    await flush();
+    await flush();
+    expect(pp.fetchRaw).toHaveBeenCalledWith('/documents/doc-9/print');
+    expect(win.document.write).toHaveBeenCalledWith('<html>지시서</html>');
+    openSpy.mockReturnValue(null);
+    panel().querySelector('[data-act="print"]').click();
+    await flush();
+    expect(text(node().querySelector('[data-ps="note"]'))).toBe(
+      '새 창이 막혀 문서를 열지 못했습니다. 팝업을 허용해 주세요.'
+    );
+  });
+
+  test('상담의 연출컷 — 받아 오면 보이고, 못 받으면 칸을 뺀다', async () => {
+    const created = jest.fn(() => 'blob:shot-1');
+    const had = window.URL.createObjectURL;
+    window.URL.createObjectURL = created;
+    try {
+      const { pp } = loadStages({ raw: () => ({ ok: true, blob: async () => ({}) }) });
+      await window.SeganProjectSheet.open(P1);
+      await flush();
+      await pick('consult');
+      await flush();
+      expect(pp.fetchRaw).toHaveBeenCalledWith('/company/consults/c-1/image');
+      const a = panel().querySelector('a[data-shot="c-1"]');
+      expect(a.hidden).toBe(false);
+      expect(a.querySelector('img').getAttribute('src')).toBe('blob:shot-1');
+      window.SeganProjectSheet.state.open.handle.close();
+
+      loadStages({ raw: () => ({ ok: false }) });
+      await window.SeganProjectSheet.open(P1);
+      await flush();
+      await pick('consult');
+      await flush();
+      expect(panel().querySelector('a[data-shot]')).toBeNull();
+    } finally {
+      window.URL.createObjectURL = had;
+    }
+  });
+
+  test('실측 일정 · 작업 배정 — 창을 닫고 프로젝트 줄에서 한다', async () => {
+    const { pp, sheets } = loadStages();
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('measure');
+    panel().querySelector('[data-act="visit"]').click();
+    await flush();
+    expect(sheets[0].closed).toEqual(['nav']);
+    expect(pp.openVisit).toHaveBeenCalledWith(P1);
+
+    document.body.innerHTML = ''; // 흉내 시트는 닫아도 몸을 치우지 않는다
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('make');
+    panel().querySelector('[data-act="work"]').click();
+    await flush();
+    expect(pp.openWork).toHaveBeenCalledWith(P1);
+  });
+
+  test('프로젝트 줄 — 이름을 누르면 한 건 화면이 열린다 (한 건 화면을 실은 화면에서만 단추)', () => {
+    const rowsJs = read('segan/partner-projects.js');
+    expect(rowsJs).toContain('data-act="page"');
+    expect(rowsJs).toMatch(
+      /window\.SeganProjectSheet\.open\(el\.getAttribute\('data-for'\) \|\| ''\)/
+    );
+    expect(rowsJs).toMatch(/call\('GET', '\/company\/projects\/' \+ id \+ '\/stages\/' \+ key\)/);
+    expect(read('workers/workflow-api/src/worker.js')).toContain(
+      "path: '/company/projects/:id/stages/:key'"
+    );
+    // 띠는 일곱 칸으로 못 박지 않는다 — 실측이 들어가면 여덟
+    const css = read('segan/shell.css');
+    expect(css).not.toMatch(/\.pj-strip \{[^}]*repeat\(7,/);
+    // 한 건 화면의 띠는 네 칸씩 — 좁은 창에서도 모든 단계가 한 번에 보인다
+    expect(css).toMatch(/\.pg-strip \{[^}]*repeat\(4,/);
+  });
+});
