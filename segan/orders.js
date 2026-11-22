@@ -161,6 +161,8 @@
     movesFail: '바꿀 수 있는 상태를 불러오지 못했습니다. 닫았다가 다시 열어 주세요.',
     moveRequest: '대표가 승인하면 바뀝니다. 그 전까지 수주는 그대로입니다.',
     moveReason: '사유를 적어야 바꿀 수 있습니다.',
+    // 계약금을 받기 전에는 접수에서 앞으로 못 간다 (대표님 2026-11-23 · 서버 409 deposit_required)
+    moveDeposit: '계약금 입금을 적어야 생산 · 배송 · 완료로 넘어갑니다 — 아래 수금에서 계약금 받은 날을 적어 주세요.',
     movePick: '바꿀 상태를 골라 주세요.',
     moveReasonEmpty: '사유를 적어 주세요.',
     payTitle: '수금 일정',
@@ -792,7 +794,11 @@
       return x.to === O.to;
     })[0];
     var hint = '';
+    var waitDeposit = moves.some(function (x) {
+      return x.needs_deposit === true;
+    });
     if (O.eventsFailed) hint = TEXT.movesFail;
+    else if (m && m.needs_deposit === true) hint = TEXT.moveDeposit;
     else if (m && m.request) hint = TEXT.moveRequest;
     else if (m && m.reason_required) hint = TEXT.moveReason;
     var pending = ev && ev.pending;
@@ -825,8 +831,12 @@
                 esc(x.to) +
                 '"' +
                 (x.to === O.to ? ' selected' : '') +
+                (x.needs_deposit === true ? ' data-wait="deposit"' : '') +
                 '>' +
-                esc((str(x.label) || STATUS[x.to]) + (x.request ? ' — 대표 승인 요청' : '')) +
+                esc(
+                  (str(x.label) || STATUS[x.to]) +
+                    (x.needs_deposit === true ? ' — 계약금 입금 뒤' : x.request ? ' — 대표 승인 요청' : '')
+                ) +
                 '</option>'
               );
             })
@@ -839,8 +849,11 @@
           '" autocomplete="off" /></label>'
         : '') +
       (hint ? '<p class="mk-note">' + esc(hint) + '</p>' : '') +
+      (waitDeposit && !(m && m.needs_deposit === true)
+        ? '<p class="mk-note" data-od="deposit-wait">' + esc(TEXT.moveDeposit) + '</p>'
+        : '') +
       '<div class="rd-acts"><button type="submit" class="mk-btn mk-btn--solid"' +
-      (moves.length ? '' : ' disabled') +
+      (moves.length && !(m && m.needs_deposit === true) ? '' : ' disabled') +
       '>' +
       (m && m.request ? '대표 승인 요청' : '상태 바꾸기') +
       '</button></div></form>'
@@ -1791,6 +1804,7 @@
         return x.to === O.to;
       })[0];
       if (!m) return fail(TEXT.movePick);
+      if (m.needs_deposit === true) return fail(TEXT.moveDeposit);
       var reason = form.elements.reason ? String(form.elements.reason.value || '').trim() : '';
       if (m.reason_required && !reason) return fail(TEXT.moveReasonEmpty);
       act(O, async function () {

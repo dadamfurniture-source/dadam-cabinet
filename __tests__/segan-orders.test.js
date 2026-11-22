@@ -966,6 +966,31 @@ describe('상세 — 상태 바꾸기', () => {
     expect(note()).toBe('대표 승인 요청을 보냈습니다. 승인되면 완료(으)로 바뀝니다.');
   });
 
+  test('계약금 입금 전 — 앞으로 가는 상태는 「계약금 입금 뒤」, 고르면 단추가 잠기고 보내지 않는다 (대표님 2026-11-23)', async () => {
+    const move = jest.fn(() => ok({ id: O1, status: 'in_production', state: 'done' }));
+    const waiting = events1();
+    waiting.moves = waiting.moves.map((m) =>
+      m.to === 'in_production' || m.to === 'completed' ? { ...m, needs_deposit: true } : m
+    );
+    await load({ move, events: () => ok(waiting) });
+    await open(O1);
+    const box = () => part('status');
+    expect(box().querySelector('[data-od="deposit-wait"]')).not.toBeNull();
+    const opt = box().querySelector('option[value="in_production"]');
+    expect(text(opt)).toBe('생산 중 — 계약금 입금 뒤');
+    expect(opt.getAttribute('data-wait')).toBe('deposit');
+    expect(text(box().querySelector('option[value="cancelled"]'))).toBe('취소');
+    await pick('in_production');
+    expect(box().querySelector('button[type="submit"]').disabled).toBe(true);
+    expect(text(box())).toContain('계약금 입금을 적어야 생산 · 배송 · 완료로 넘어갑니다');
+    expect(box().querySelector('[data-od="deposit-wait"]')).toBeNull();
+    await submit(box().querySelector('form'));
+    expect(move).not.toHaveBeenCalled();
+    // 취소는 그대로 된다
+    await pick('cancelled');
+    expect(box().querySelector('button[type="submit"]').disabled).toBe(false);
+  });
+
   test('서버가 막으면 그 글을 그 자리에', async () => {
     await load({ move: () => fail(409, 'conflict', '수금이 남아 완료할 수 없습니다.') });
     await open(O1);
