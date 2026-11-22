@@ -1,0 +1,234 @@
+{
+  "title": "0083 프로젝트 단계 사진 — 서버만 쓰고 읽는다(구성원 · 익명 deny) · 그 업체 그 프로젝트의 자리에만 · 올린 내용은 못 바꾸고 지운 줄은 못 되살린다 · 버킷 비공개 5MB",
+  "ids": [
+    "company_x",
+    "company_y",
+    "customer_x",
+    "customer_y",
+    "project_x",
+    "project_y",
+    "file_live",
+    "file_gone"
+  ],
+  "users": [
+    "x_owner_user",
+    "y_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{customer_x}}, {{company_x}}, 'probe'), ({{customer_y}}, {{company_y}}, 'probe')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_x}}, {{company_x}}, {{customer_x}}, 'probe X'), ({{project_y}}, {{company_y}}, {{customer_y}}, 'probe Y')",
+    "INSERT INTO public.project_files (id, company_id, project_id, stage, path, note, created_by) VALUES ({{file_live}}, {{company_x}}, {{project_x}}, 'measure', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.jpg'), 'probe', {{x_owner_user}})",
+    "INSERT INTO public.project_files (id, company_id, project_id, stage, path, created_by) VALUES ({{file_gone}}, {{company_x}}, {{project_x}}, 'install', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.png'), {{x_owner_user}})",
+    "UPDATE public.project_files SET deleted_at = now(), deleted_by = {{x_owner_user}} WHERE id = {{file_gone}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "y_owner": {
+      "role": "authenticated",
+      "user": "y_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "사진 읽기 — 서버만 (구성원 · 익명 deny)",
+      "sql": "select count(*) from public.project_files where project_id = {{project_x}}",
+      "expect": {
+        "x_owner": "deny",
+        "y_owner": "deny",
+        "anon": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "지운 사진 — 줄은 남고 지운 때 · 사람이 찍혔다 (준비 단계에서 지웠다)",
+      "sql": "select count(*) from public.project_files where id = {{file_gone}} and deleted_at is not null and deleted_by = {{x_owner_user}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "올리기 — 서버가 한 줄 넣는다 (단계 · 자리 · 메모)",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path, note, created_by) values ({{company_x}}, {{project_x}}, 'consult', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.jpg'), 'probe', {{x_owner_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "단계 이름은 여덟 가지뿐",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path) values ({{company_x}}, {{project_x}}, 'party', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.jpg'))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "자리는 그 업체 · 그 프로젝트 것만 (남의 프로젝트 자리로는 거절)",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path) values ({{company_x}}, {{project_x}}, 'measure', ({{company_y}}::text || '/' || {{project_y}}::text || '/' || gen_random_uuid()::text || '.jpg'))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "파일은 jpg · png 만",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path) values ({{company_x}}, {{project_x}}, 'measure', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.gif'))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "메모는 200자까지",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path, note) values ({{company_x}}, {{project_x}}, 'measure', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.jpg'), repeat('가', 201))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "같은 자리를 두 번 넣지 못한다",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path) values ({{company_x}}, {{project_x}}, 'measure', (select path from public.project_files where id = {{file_live}}))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "같은 업체 프로젝트에만 (남의 업체 id 로는 거절 — 자리 글은 맞춰도)",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path) values ({{company_y}}, {{project_x}}, 'measure', ({{company_y}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.jpg'))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "새 사진은 지운 것으로 넣지 못한다",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path, deleted_at) values ({{company_x}}, {{project_x}}, 'measure', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.jpg'), now())",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "구성원은 사진 줄을 직접 넣지 못한다",
+      "sql": "insert into public.project_files (company_id, project_id, stage, path) values ({{company_x}}, {{project_x}}, 'measure', ({{company_x}}::text || '/' || {{project_x}}::text || '/' || gen_random_uuid()::text || '.jpg'))",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "지우기 — 서버가 표시한다 (줄은 남는다)",
+      "sql": "update public.project_files set deleted_at = now(), deleted_by = {{x_owner_user}} where id = {{file_live}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "올린 메모는 바꾸지 못한다",
+      "sql": "update public.project_files set note = '바꿈' where id = {{file_live}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "어느 단계의 사진인지는 바꾸지 못한다",
+      "sql": "update public.project_files set stage = 'design' where id = {{file_live}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "지운 사진은 되살리지 못한다",
+      "sql": "update public.project_files set deleted_at = null, deleted_by = null where id = {{file_gone}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "지운 사람만 있고 때가 없으면 거절",
+      "sql": "update public.project_files set deleted_by = {{x_owner_user}} where id = {{file_live}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "줄 지우기는 서버도 못 한다 (표시로 남긴다)",
+      "sql": "delete from public.project_files where id = {{file_live}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "구성원은 지우는 표시도 직접 못 한다",
+      "sql": "update public.project_files set deleted_at = now() where id = {{file_live}}",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "사진 버킷 — 비공개 · 5MB · JPEG · PNG",
+      "sql": "select public || '/' || file_size_limit || '/' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'project-files'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/5242880/image/jpeg,image/png"
+      }
+    }
+  ]
+}
