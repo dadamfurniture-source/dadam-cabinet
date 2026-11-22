@@ -1051,6 +1051,40 @@
     return { ok: r.ok, status: r.status, data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null };
   }
 
+  /** POST /company/projects/:id/stages/:key/photos (본문 = 사진) → { ok, status, data, message } — 한 건 화면의 단계 칸이 올린다 (DB 0083) */
+  async function sendPhoto(id, key, blob) {
+    var none = { ok: false, status: 0, data: null, message: '' };
+    if (!J.base || typeof id !== 'string' || !UUID_RE.test(id) || !/^[a-z]{1,20}$/.test(String(key || '')) || !blob) return none;
+    var res;
+    try {
+      res = await fetch(J.base + '/company/projects/' + id + '/stages/' + key + '/photos', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + (await token()), 'Content-Type': blob.type || 'image/jpeg' },
+        body: blob,
+        cache: 'no-store',
+      });
+    } catch {
+      return none;
+    }
+    var b = null;
+    try {
+      b = await res.json();
+    } catch {
+      b = null;
+    }
+    b = b && typeof b === 'object' ? b : {};
+    var ok = res.ok && b.success === true && !!b.data && typeof b.data === 'object';
+    return { ok: ok, status: res.status, data: ok ? b.data : null, message: ok ? '' : errText({ body: b }) };
+  }
+
+  /** DELETE /company/projects/:id/photos/:fileId → { ok, status, message } */
+  async function removePhoto(id, fileId) {
+    if (!J.base || !UUID_RE.test(String(id || '')) || !UUID_RE.test(String(fileId || '')))
+      return { ok: false, status: 0, message: '' };
+    var r = await call('DELETE', '/company/projects/' + id + '/photos/' + fileId);
+    return { ok: r.ok, status: r.status, message: r.ok ? '' : errText(r) };
+  }
+
   /** 본인 토큰으로 그대로 받는다 (그림 · 인쇄 화면) → Response | null. path 는 '/' 로 시작하는 서버 길 */
   async function fetchRaw(path) {
     if (!J.base || typeof path !== 'string' || path.charAt(0) !== '/') return null;
@@ -1988,6 +2022,8 @@
     runNext: runNext,
     readProject: readProject,
     readStage: readStage,
+    sendPhoto: sendPhoto,
+    removePhoto: removePhoto,
     fetchRaw: fetchRaw,
     isStuck: isStuck,
     inView: inView,
