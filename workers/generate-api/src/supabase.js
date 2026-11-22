@@ -121,6 +121,18 @@ export async function insertIgnoreDuplicate(env, table, row, onConflict) {
   return rows && rows.length ? rows[0] : null;
 }
 
+/**
+ * 한 행 넣기 — 충돌 열(onConflict)이 같은 행이 있으면 그 행을 새 값으로 고친다 (ON CONFLICT DO UPDATE).
+ * 돌려주는 것 없음 (return=minimal).
+ */
+export async function upsertOne(env, table, row, onConflict) {
+  await restRequest(env, `/${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
+    method: 'POST',
+    headers: restHeaders(env, 'resolution=merge-duplicates,return=minimal'),
+    body: JSON.stringify(row),
+  });
+}
+
 /** 조건에 맞는 행을 지우고, 지운 행의 select 열을 돌려준다. */
 export async function deleteWhere(env, table, query, select = 'id') {
   const qs = new URLSearchParams({ ...query, select }).toString();

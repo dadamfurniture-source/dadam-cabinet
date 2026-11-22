@@ -116,8 +116,8 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
   },
   {
-    // Cloudflare Workers (+ 워커 시험은 node:test)
-    files: ['workers/**'],
+    // Cloudflare Workers (+ 워커 시험은 node:test) · Cloudflare Pages Functions (functions/ — 사진 주소 미리보기)
+    files: ['workers/**', 'functions/**'],
     languageOptions: { globals: { ...globals.serviceworker, ...globals.node } },
   },
   {

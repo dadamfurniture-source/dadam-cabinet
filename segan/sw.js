@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026112304';
+const ASSET_VERSION = '2026112305';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -251,6 +251,8 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === SCOPE + 'sw.js') return;
   // 간편 플래너(/segan/planner/ — 다른 Worker, 출입증 쿠키 · 큰 라이브러리)는 담지 않는다
   if (url.pathname.startsWith(SCOPE + 'planner/') || url.pathname === SCOPE + 'planner') return;
+  // 시공사례 사진 주소(/segan/p/<id> — Pages Function, 미리보기 HTML 뒤 시공사례로 넘긴다)는 담지 않는다
+  if (url.pathname.startsWith(SCOPE + 'p/')) return;
 
   if (req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
     event.respondWith(pageNetworkFirst(event, url));
