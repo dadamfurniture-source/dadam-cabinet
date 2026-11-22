@@ -585,17 +585,20 @@ describe('화면', () => {
       ['생산', '3건'],
       ['설치', '2건'],
     ]);
+    // 단계 줄은 링크다 — 누르면 아래 프로젝트 목록을 그 단계로 고른다 (주소는 그대로)
     expect(
-      [...part('steps').querySelectorAll('a.ch-row')].map((a) => a.getAttribute('data-me-go'))
-    ).toEqual([
-      'p-consult',
-      'p-measure',
-      'p-design',
-      'p-quote',
-      'p-contract',
-      'p-make',
-      'p-install',
-    ]);
+      [...part('steps').querySelectorAll('a.ch-row')].map((a) => a.getAttribute('data-ch-key'))
+    ).toEqual(['consult', 'measure', 'design', 'quote', 'contract', 'make', 'install']);
+    const PP = window.SeganPartnerProjects;
+    const before = window.location.hash;
+    part('steps').querySelector('a.ch-row[data-ch-key="quote"]').click();
+    expect(PP.state.view).toEqual({ stage: 'quote', pick: '' });
+    expect(window.location.hash).toBe(before);
+    expect(
+      [...$('partnerProjects').querySelectorAll('.pj-chip[aria-pressed="true"]')].map((b) =>
+        b.getAttribute('data-stage')
+      )
+    ).toEqual(['quote']);
     const quote = part('steps').querySelector('[data-ch-key="quote"]');
     expect([...quote.querySelectorAll('.ch-seg')].map((s) => s.title)).toEqual([
       '여유 1',

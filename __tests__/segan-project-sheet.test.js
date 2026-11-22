@@ -1021,7 +1021,56 @@ describe('단계 띠 · 단계 칸', () => {
     }
   });
 
-  test('실측 일정 · 작업 배정 — 창을 닫고 프로젝트 줄에서 한다', async () => {
+  test('「관리」 칸 — 프로젝트 칸이 그리는 자리를 준다. 다시 그려도 같은 마디라 적던 값이 남고, 그 안의 누름은 창이 듣지 않는다', async () => {
+    const { pp, sheets } = loadStages();
+    const mounts = [];
+    pp.mountDetail = jest.fn((el, id, opts) => {
+      mounts.push({ el, id, opts });
+      if (!el.firstChild)
+        el.innerHTML =
+          '<input name="note" /><button type="button" data-act="visit" data-for="' +
+          id +
+          '">실측 일정</button>';
+    });
+    pp.unmountDetail = jest.fn();
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    const slot = () => node().querySelector('[data-ps="manage"]');
+    expect(slot().firstChild).toBe(mounts[0].el);
+    expect(mounts.every((m) => m.el === mounts[0].el && m.id === P1)).toBe(true);
+    // 다음 할 일 아래 · 단계 칸 위
+    expect(slot().compareDocumentPosition(panel()) & 4).toBe(4);
+    // 적던 값 — 단계 칸을 바꿔 다시 그려도 남는다
+    slot().querySelector('input').value = '적던 글';
+    await pick('measure');
+    expect(slot().querySelector('input').value).toBe('적던 글');
+    // 「관리」 칸 안의 단추는 프로젝트 칸이 듣는다 — 창이 또 실측 칸을 열지 않는다
+    slot().querySelector('[data-act="visit"]').click();
+    expect(pp.openVisit).not.toHaveBeenCalled();
+    // 단계 칸의 「실측 일정」 · 「작업 배정」은 창을 닫지 않고 「관리」 칸을 펼친다
+    panel().querySelector('[data-act="visit"]').click();
+    expect(pp.openVisit).toHaveBeenCalledWith(P1);
+    await pick('make');
+    panel().querySelector('[data-act="work"]').click();
+    expect(pp.openWork).toHaveBeenCalledWith(P1);
+    expect(sheets[0].closed).toEqual([]);
+
+    // 「관리」 칸에서 한 일로 프로젝트가 바뀌었다 — 프로젝트 · 단계 칸을 다시 읽는다
+    const before = pp.readProject.mock.calls.length;
+    const stageReads = pp.readStage.mock.calls.length;
+    mounts[0].opts.onChange();
+    await flush();
+    await flush();
+    expect(pp.readProject.mock.calls.length).toBe(before + 1);
+    expect(pp.readStage.mock.calls.length).toBe(stageReads + 1); // 읽어 둔 단계 칸을 버리고 지금 칸을 다시 읽었다
+    expect(slot().querySelector('input').value).toBe('적던 글');
+
+    // 닫으면 자리를 돌려준다
+    sheets[0].close('button');
+    expect(pp.unmountDetail).toHaveBeenCalledWith(mounts[0].el);
+  });
+
+  test('실측 일정 · 작업 배정 — 「관리」 칸을 못 쓰는 프로젝트 칸이면(옛 판) 창을 닫고 프로젝트 줄에서 한다', async () => {
     const { pp, sheets } = loadStages();
     await window.SeganProjectSheet.open(P1);
     await flush();
@@ -1055,5 +1104,175 @@ describe('단계 띠 · 단계 칸', () => {
     expect(css).not.toMatch(/\.pj-strip \{[^}]*repeat\(7,/);
     // 한 건 화면의 띠는 네 칸씩 — 좁은 창에서도 모든 단계가 한 번에 보인다
     expect(css).toMatch(/\.pg-strip \{[^}]*repeat\(4,/);
+  });
+});
+
+// ── 단계 칸에 사진 올리기 · 지우기 (2026-11-23 대표님 답 5번 ① — 서버 POST …/stages/:key/photos · DELETE …/photos/:id, DB 0083) ──
+describe('단계 칸 — 올린 사진', () => {
+  const F1 = 'f0000000-0000-4000-8000-000000000001';
+  const F2 = 'f0000000-0000-4000-8000-000000000002';
+  const shot = (id, extra = {}) => ({
+    id,
+    url: 'https://sb.example/storage/v1/object/sign/project-files/' + id + '.jpg?token=t',
+    kind: 'upload',
+    label: '올린 사진',
+    at: '2026-11-22T03:00:00.000Z',
+    note: null,
+    mine: true,
+    ...extra,
+  });
+  /** 실측 칸의 자료에 올린 사진 · 올리기 자리를 얹는다 */
+  const measure = (ups = [], uploads = { ready: true, max: 30, count: ups.length }) => ({
+    ...STAGE_DATA.measure,
+    uploads,
+    photos: [...ups, ...(STAGE_DATA.measure.photos || [])],
+  });
+  const withUploads = (data, extra = {}) => {
+    const got = loadStages({
+      stage: (key) => ({ ok: true, status: 200, data: key === 'measure' ? data : { ...STAGE_DATA[key] } }),
+    });
+    got.pp.sendPhoto = jest.fn(async () => ({ ok: true, status: 201, data: shot(F2), message: '' }));
+    got.pp.removePhoto = jest.fn(async () => ({ ok: true, status: 200, message: '' }));
+    Object.assign(got.pp, extra);
+    return got;
+  };
+  const up = () => node().querySelector('[data-ps="upload"]');
+  const tiles = () => [...up().querySelectorAll('[data-ps="uploads"] li')];
+  const file = (name = 'a.jpg', type = 'image/jpeg') => new File(['x'], name, { type });
+  /** 파일을 고른 것처럼 — jsdom 은 files 를 못 넣어 속성을 갈아 끼운다 */
+  const choose = async (files) => {
+    const input = up().querySelector('input[type="file"]');
+    Object.defineProperty(input, 'files', { value: files, configurable: true });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
+    await flush();
+    await flush();
+  };
+
+  afterEach(() => {
+    delete window.SeganPartnerConsults;
+  });
+
+  test('올린 사진은 「올린 사진」 칸에 따로 — 내가 지울 수 있는 것에만 「지우기」, 아래에 「사진 올리기」', async () => {
+    withUploads(measure([shot(F1), shot(F2, { mine: false })]));
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('measure');
+    expect(text(up().querySelector('.od-h'))).toBe('올린 사진 2');
+    expect(tiles().map((li) => !!li.querySelector('[data-act="photo-del"]'))).toEqual([true, false]);
+    expect(tiles()[0].querySelector('img').getAttribute('src')).toContain(F1);
+    const input = up().querySelector('input[type="file"]');
+    expect([input.accept, input.multiple, input.getAttribute('data-key')]).toEqual(['image/jpeg,image/png', true, 'measure']);
+    expect(text(input.closest('label'))).toBe('사진 올리기');
+    // 단계가 원래 주던 사진(플래너 현장사진) 칸에는 올린 사진이 섞이지 않는다
+    const own = [...panel().querySelectorAll('[data-ps="photos"] img')].map((i) => i.getAttribute('src'));
+    expect(own.some((u) => u.includes('project-files'))).toBe(false);
+  });
+
+  test('올리기 — 고른 사진을 차례로 보내고, 그 칸 맨 앞에 끼운다 (단계를 다시 읽지 않는다)', async () => {
+    const { pp } = withUploads(measure([shot(F1)]));
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('measure');
+    const reads = pp.readStage.mock.calls.length;
+    const a = file('a.jpg');
+    await choose([a]);
+    expect(pp.sendPhoto.mock.calls).toEqual([[P1, 'measure', a]]);
+    expect(tiles().map((li) => li.querySelector('img').getAttribute('src').includes(F2))).toEqual([true, false]);
+    expect(text(up().querySelector('.od-h'))).toBe('올린 사진 2');
+    expect(text(up().querySelector('[data-ps="up-msg"]'))).toBe('1장을 올렸습니다.');
+    expect(pp.readStage.mock.calls.length).toBe(reads);
+  });
+
+  test('올리기 — 서버가 막으면 그 글을 적고 멈춘다. JPEG · PNG 가 아니면 보내지 않는다', async () => {
+    const { pp } = withUploads(measure(), {
+      sendPhoto: jest.fn(async () => ({ ok: false, status: 409, data: null, message: 'DB 0083 적용 전입니다' })),
+    });
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('measure');
+    await choose([file('a.jpg'), file('b.jpg')]);
+    expect(pp.sendPhoto).toHaveBeenCalledTimes(1);
+    const msg = up().querySelector('[data-ps="up-msg"]');
+    expect([text(msg), msg.classList.contains('is-err')]).toEqual(['DB 0083 적용 전입니다', true]);
+    expect(up().querySelector('[data-ps="uploads"]')).toBeNull();
+    pp.sendPhoto.mockClear();
+    await choose([file('a.gif', 'image/gif')]);
+    expect(pp.sendPhoto).not.toHaveBeenCalled();
+    expect(text(up().querySelector('[data-ps="up-msg"]'))).toBe('JPEG · PNG 사진만 올립니다.');
+  });
+
+  test('올리기 — 남은 자리만큼만 보낸다. 다 차면 단추 대신 안내', async () => {
+    const { pp } = withUploads(measure([shot(F1)], { ready: true, max: 2, count: 1 }));
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('measure');
+    await choose([file('a.jpg'), file('b.jpg')]);
+    expect(pp.sendPhoto).toHaveBeenCalledTimes(1);
+    expect(text(up().querySelector('[data-ps="up-msg"]'))).toBe('1장을 올렸습니다. 자리가 모자라 앞의 몇 장만 올립니다.');
+    expect(up().querySelector('input[type="file"]')).toBeNull();
+    expect(text(up().querySelector('[data-ps="up-full"]'))).toBe('한 단계에 올리는 사진이 다 찼습니다.');
+  });
+
+  test('지우기 — 두 번 눌러서. 「그만」이면 그대로, 지우면 그 칸에서 빠진다. 못 지우면 그 글', async () => {
+    const { pp } = withUploads(measure([shot(F1), shot(F2)]));
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    await pick('measure');
+    tiles()[0].querySelector('[data-act="photo-del"]').click();
+    await flush();
+    expect(text(tiles()[0].querySelector('small'))).toContain('지울까요?');
+    expect(pp.removePhoto).not.toHaveBeenCalled();
+    tiles()[0].querySelector('[data-act="photo-del-no"]').click();
+    await flush();
+    expect(tiles()[0].querySelector('[data-act="photo-del-yes"]')).toBeNull();
+    tiles()[0].querySelector('[data-act="photo-del"]').click();
+    await flush();
+    tiles()[0].querySelector('[data-act="photo-del-yes"]').click();
+    await flush();
+    await flush();
+    expect(pp.removePhoto.mock.calls).toEqual([[P1, F1]]);
+    expect(tiles().length).toBe(1);
+    expect(text(up().querySelector('.od-h'))).toBe('올린 사진 1');
+    // 못 지우면 사진은 그대로 두고 알린다
+    pp.removePhoto.mockImplementation(async () => ({ ok: false, status: 403, message: '사진은 올린 사람이나 대표 · 실장이 지웁니다' }));
+    tiles()[0].querySelector('[data-act="photo-del"]').click();
+    await flush();
+    tiles()[0].querySelector('[data-act="photo-del-yes"]').click();
+    await flush();
+    await flush();
+    expect(tiles().length).toBe(1);
+    expect(text(up().querySelector('[data-ps="up-msg"]'))).toBe('사진은 올린 사람이나 대표 · 실장이 지웁니다');
+  });
+
+  test('올릴 수 없는 때 — 서버가 준비되지 않았으면(DB 전 · 옛 서버) 칸이 없다. 자료 없는 단계에는 안내 아래에 올리기만', () => {
+    loadStages();
+    const S = window.SeganProjectSheet;
+    const pp = window.SeganPartnerProjects;
+    pp.sendPhoto = jest.fn();
+    pp.removePhoto = jest.fn();
+    const html = (data, state = 'done') => {
+      document.body.innerHTML = S.panelHtml(stage('quote', '견적', state), { data }, ROW(), [], NOW);
+      return document.body;
+    };
+    expect(html({ quotes: [] }).querySelector('[data-ps="upload"]')).toBeNull();
+    expect(html({ quotes: [], uploads: { ready: false, max: 30, count: 0 }, photos: [] }).querySelector('[data-ps="upload"]')).toBeNull();
+    const ready = html({ quotes: [], uploads: { ready: true, max: 30, count: 0 }, photos: [] }, 'todo');
+    expect(text(ready.querySelector('.pg-empty'))).toBe('아직 이 단계에 오지 않았습니다.');
+    expect(ready.querySelector('[data-ps="upload"] input[type="file"]')).not.toBeNull();
+    // 올리는 길이 없는 프로젝트 칸(옛 파일)이면 사진은 보이되 단추가 없다
+    delete pp.sendPhoto;
+    const old = html({ quotes: [], uploads: { ready: true, max: 30, count: 1 }, photos: [shot(F1)] });
+    expect(old.querySelectorAll('[data-ps="uploads"] li').length).toBe(1);
+    expect(old.querySelector('input[type="file"], [data-act="photo-del"]')).toBeNull();
+  });
+
+  test('길 — 프로젝트 칸이 사진을 본문 그대로 보내고, 지우기는 DELETE', () => {
+    const rowsJs = read('segan/partner-projects.js');
+    expect(rowsJs).toMatch(/'\/company\/projects\/' \+ id \+ '\/stages\/' \+ key \+ '\/photos'/);
+    expect(rowsJs).toMatch(/call\('DELETE', '\/company\/projects\/' \+ id \+ '\/photos\/' \+ fileId\)/);
+    const w = read('workers/workflow-api/src/worker.js');
+    expect(w).toContain("path: '/company/projects/:id/stages/:key/photos'");
+    expect(w).toContain("path: '/company/projects/:id/photos/:fileId'");
   });
 });

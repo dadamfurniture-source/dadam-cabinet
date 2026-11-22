@@ -123,6 +123,18 @@
     asReceived: '받은 날',
     asDone: '끝낸 날',
     asPhoto: '고객 사진',
+    uploads: '올린 사진',
+    upload: '사진 올리기',
+    uploading: '올리는 중',
+    uploaded: '장을 올렸습니다.',
+    uploadFail: '사진을 올리지 못했습니다.',
+    uploadType: 'JPEG · PNG 사진만 올립니다.',
+    uploadFull: '한 단계에 올리는 사진이 다 찼습니다.',
+    uploadSome: '자리가 모자라 앞의 몇 장만 올립니다.',
+    photoDel: '지우기',
+    photoDelAsk: '지울까요?',
+    photoDelNo: '그만',
+    photoDelFail: '사진을 지우지 못했습니다.',
     popup: '새 창이 막혀 문서를 열지 못했습니다. 팝업을 허용해 주세요.',
     printFailed: '문서를 열지 못했습니다.',
   };
@@ -435,6 +447,93 @@
         })
         .join('') +
       '</ul>'
+    );
+  }
+  /** 올린 사진인가 — 서버가 단계 사진 맨 앞에 싣는다 (kind 'upload' · DB 0083) */
+  function isUpload(p) {
+    return !!p && p.kind === 'upload';
+  }
+  /**
+   * 단계 칸의 「올린 사진」 — 격자(내가 지울 수 있는 것에는 지우기) + 「사진 올리기」.
+   * info = 서버의 uploads { ready, max, count } · up = 이 창의 올리기 상태 { key, busy, msg, err, ask } · can = 올리는 길이 있다
+   */
+  function uploadsHtml(key, list, info, up, can) {
+    var ups = arr(list).filter(function (p) {
+      return isUpload(p) && typeof p.url === 'string' && /^https:\/\//.test(p.url);
+    });
+    var u = obj(info);
+    var st = obj(up).key === key ? obj(up) : {};
+    var canAdd = can && u.ready === true;
+    if (!ups.length && !canAdd) return '';
+    var full = canAdd && Number(u.max) > 0 && Number(u.count) >= Number(u.max);
+    var grid = ups.length
+      ? '<ul class="pg-photos" data-ps="uploads">' +
+        ups
+          .map(function (p) {
+            var asking = st.ask === p.id;
+            var tail =
+              !p.mine || !can
+                ? ''
+                : asking
+                  ? ' <span class="pg-ask">' +
+                    esc(TEXT.photoDelAsk) +
+                    '</span> <button type="button" class="pg-x" data-act="photo-del-yes" data-id="' +
+                    esc(p.id) +
+                    '"' +
+                    (st.busy ? ' disabled' : '') +
+                    '>' +
+                    esc(TEXT.photoDel) +
+                    '</button> <button type="button" class="pg-x" data-act="photo-del-no">' +
+                    esc(TEXT.photoDelNo) +
+                    '</button>'
+                  : ' <button type="button" class="pg-x" data-act="photo-del" data-id="' +
+                    esc(p.id) +
+                    '">' +
+                    esc(TEXT.photoDel) +
+                    '</button>';
+            return (
+              '<li><a href="' +
+              esc(p.url) +
+              '" target="_blank" rel="noopener"><img src="' +
+              esc(p.url) +
+              '" alt="' +
+              esc(TEXT.uploads) +
+              '" loading="lazy" /></a><small>' +
+              esc(shortDay(p.at)) +
+              tail +
+              '</small></li>'
+            );
+          })
+          .join('') +
+        '</ul>'
+      : '';
+    var add = !canAdd
+      ? ''
+      : full
+        ? '<p class="pg-up-note" data-ps="up-full">' + esc(TEXT.uploadFull) + '</p>'
+        : '<div class="rd-acts"><label class="mk-btn pg-file' +
+          (st.busy ? ' is-busy' : '') +
+          '"><input type="file" accept="image/jpeg,image/png" multiple data-ps="file" data-key="' +
+          esc(key) +
+          '"' +
+          (st.busy ? ' disabled' : '') +
+          ' />' +
+          esc(TEXT.upload) +
+          '</label></div>';
+    var say = st.err || st.msg;
+    return (
+      '<div data-ps="upload">' +
+      headHtml(TEXT.uploads, ups.length) +
+      grid +
+      add +
+      (say
+        ? '<p class="pg-up-note' +
+          (st.err ? ' is-err' : '') +
+          '" role="status" data-ps="up-msg">' +
+          esc(say) +
+          '</p>'
+        : '') +
+      '</div>'
     );
   }
   function schedulesHtml(list) {
@@ -756,20 +855,36 @@
   /**
    * 누른 단계의 칸 — stage = 띠의 그 칸, got = { loading } | { failed } | { data }, history = 일어난 일 전부
    */
-  function panelHtml(stage, got, p, history, now) {
+  function panelHtml(stage, got, p, history, now, up) {
     var g = obj(got);
     var inner;
     if (g.loading || (!g.failed && !g.data))
       inner = '<p class="pg-empty">' + esc(TEXT.loading) + '</p>';
     else if (g.failed) inner = '<p class="pg-empty">' + esc(TEXT.stageFailed) + '</p>';
     else {
+      var data = obj(g.data);
+      // 올린 사진은 아래 「올린 사진」 칸이 그린다 — 단계의 원래 칸에는 그 밖의 사진만
+      var own = Object.assign({}, data, {
+        photos: arr(data.photos).filter(function (x) {
+          return !isUpload(x);
+        }),
+      });
       var make = PANELS[stage.key];
-      inner = make ? make(obj(g.data), obj(p), now) : '';
-      if (!inner)
+      inner = make ? make(own, obj(p), now) : '';
+      var pp = PP();
+      var ups = uploadsHtml(
+        stage.key,
+        data.photos,
+        data.uploads,
+        up,
+        !!pp && typeof pp.sendPhoto === 'function' && typeof pp.removePhoto === 'function'
+      );
+      if (!inner && !arr(data.photos).some(isUpload))
         inner =
           '<p class="pg-empty">' +
           esc(stage.state === 'todo' ? TEXT.stageTodo : TEXT.stageEmpty) +
           '</p>';
+      inner += ups;
     }
     var events = arr(history).filter(function (h) {
       return historyStage(h) === stage.key;
@@ -833,7 +948,9 @@
         html +=
           (flow.note || '') +
           (flow.act ? '<div class="rd-acts">' + flow.act + (flow.tail || '') + '</div>' : '');
-      html += panelHtml(picked, obj(v.got)[picked.key], p, history, now);
+      // 「관리」 칸 — 실측 일정 · 담당자 · 작업 배정 · 보류/그만둠. 프로젝트 칸(segan/partner-projects.js)이 그리고 듣는다
+      html += '<div data-ps="manage"></div>';
+      html += panelHtml(picked, obj(v.got)[picked.key], p, history, now, v.up);
       if (history.length)
         html +=
           '<details class="pg-all" data-ps="history"><summary>' +
@@ -973,16 +1090,46 @@
     note.hidden = !O.note;
     var stages = stagesOf(O.data);
     if (stages.length && !O.stage) O.stage = firstStage(stages);
-    body.innerHTML = O.data ? bodyHtml(O.data, Date.now(), { stage: O.stage, got: O.got }) : '';
+    body.innerHTML = O.data
+      ? bodyHtml(O.data, Date.now(), { stage: O.stage, got: O.got, up: O.up })
+      : '';
     var Shell = window.SeganShell || {};
     if (Shell.applyLinkTarget)
       body.querySelectorAll('a[data-desktop-tab]').forEach(function (a) {
         Shell.applyLinkTarget(a);
       });
     if (stages.length) {
+      mountManage(O, body);
       loadStage(O, O.stage);
       paintShots(O);
     }
+  }
+
+  /** 「관리」 칸을 제자리에 — 같은 마디를 다시 끼워 적던 값이 남게 한다 */
+  function mountManage(O, body) {
+    var pp = PP();
+    var slot = body.querySelector('[data-ps="manage"]');
+    if (!slot || !pp || typeof pp.mountDetail !== 'function') return;
+    slot.appendChild(O.manage);
+    pp.mountDetail(O.manage, O.id, {
+      onChange: function () {
+        refresh(O);
+      },
+    });
+  }
+
+  /** 「관리」 칸에서 한 일로 프로젝트가 바뀌었다 — 띠 · 다음 할 일 · 단계 칸을 다시 읽는다 */
+  async function refresh(O) {
+    var pp = PP();
+    if (S.open !== O || !pp) return;
+    var r = await pp.readProject(O.id);
+    if (S.open !== O) return;
+    if (r && r.ok && r.data && typeof r.data === 'object' && obj(r.data.project).id === O.id) {
+      O.data = r.data;
+      O.got = {};
+      O.note = '';
+    }
+    paint();
   }
 
   /** 그 단계의 자료를 읽는다 — 한 번 읽은 단계는 다시 읽지 않는다 (못 읽은 단계는 칸을 다시 누르면 읽는다) */
@@ -995,6 +1142,100 @@
     if (S.open !== O) return;
     O.got[key] = r && r.ok && r.data ? { data: r.data } : { failed: true };
     paint();
+  }
+
+  // ── 단계 칸에 사진 올리기 · 지우기 (DB 0083) ─────────────────
+  var UP_EDGE = 2048; // 긴 변 — 넘으면 줄여 올린다
+  var UP_PIXELS = 3600000; // 서버가 받는 화소 수(375만)보다 조금 작게
+  var UP_BYTES = 4 * 1024 * 1024;
+  /** 올릴 사진을 서버가 받는 크기로 — 줄일 길이 없으면 JPEG · PNG 만 그대로, 그 밖은 null */
+  async function shrinkPhoto(file) {
+    var plain = !!file && (file.type === 'image/jpeg' || file.type === 'image/png');
+    try {
+      if (typeof window.createImageBitmap !== 'function') return plain ? file : null;
+      var bmp = await window.createImageBitmap(file);
+      var k = Math.min(
+        1,
+        UP_EDGE / Math.max(bmp.width, bmp.height),
+        Math.sqrt(UP_PIXELS / (bmp.width * bmp.height))
+      );
+      if (k === 1 && file.size <= UP_BYTES && plain) return file;
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * k));
+      c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      var blob = await new Promise(function (ok) {
+        c.toBlob(ok, 'image/jpeg', 0.85);
+      });
+      return blob || (plain ? file : null);
+    } catch {
+      return plain ? file : null;
+    }
+  }
+  /** 고른 사진을 그 단계에 차례로 올린다 — 올린 것은 읽어 둔 단계 자료 맨 앞에 끼운다 (다시 읽지 않는다) */
+  async function uploadPhotos(O, key, files) {
+    var pp = PP();
+    var d = O.got[key] && O.got[key].data;
+    if (!pp || typeof pp.sendPhoto !== 'function' || !d || obj(O.up).busy) return;
+    var info = obj(d.uploads);
+    var room = Math.max(0, (Number(info.max) || 0) - (Number(info.count) || 0));
+    var all = Array.prototype.slice.call(files || []);
+    var list = all.slice(0, room);
+    if (!list.length) return;
+    var up = (O.up = { key: key, busy: true, msg: '', err: '', ask: '' });
+    var done = 0;
+    for (var i = 0; i < list.length; i++) {
+      up.msg = TEXT.uploading + ' (' + (i + 1) + '/' + list.length + ')';
+      paint();
+      var blob = await shrinkPhoto(list[i]);
+      var r = blob ? await pp.sendPhoto(O.id, key, blob) : { ok: false, message: TEXT.uploadType };
+      if (S.open !== O || O.up !== up) return;
+      if (!r.ok || !r.data) {
+        up.err = r.message || TEXT.uploadFail;
+        break;
+      }
+      d.photos = [r.data].concat(arr(d.photos));
+      d.uploads = Object.assign({}, info, { count: (Number(obj(d.uploads).count) || 0) + 1 });
+      done += 1;
+    }
+    up.busy = false;
+    up.msg = up.err
+      ? ''
+      : done + TEXT.uploaded + (all.length > list.length ? ' ' + TEXT.uploadSome : '');
+    paint();
+  }
+  /** 올린 사진 한 장을 지운다 (두 번 눌러서) */
+  async function removePhoto(O, fileId) {
+    var pp = PP();
+    var key = O.stage;
+    var d = O.got[key] && O.got[key].data;
+    if (!pp || typeof pp.removePhoto !== 'function' || !d || !fileId || obj(O.up).busy) return;
+    var up = (O.up = { key: key, busy: true, msg: '', err: '', ask: fileId });
+    paint();
+    var r = await pp.removePhoto(O.id, fileId);
+    if (S.open !== O || O.up !== up) return;
+    up.busy = false;
+    up.ask = '';
+    // 이미 지워진 것(404)도 화면에서 뺀다
+    if (r.ok || r.status === 404) {
+      var before = arr(d.photos).length;
+      d.photos = arr(d.photos).filter(function (x) {
+        return !(isUpload(x) && x.id === fileId);
+      });
+      if (d.photos.length < before)
+        d.uploads = Object.assign({}, obj(d.uploads), {
+          count: Math.max(0, (Number(obj(d.uploads).count) || 0) - 1),
+        });
+    } else up.err = r.message || TEXT.photoDelFail;
+    paint();
+  }
+  function onChange(e) {
+    var O = S.open;
+    var el = e.target;
+    if (!O || !el || !el.matches || !el.matches('input[type="file"][data-ps="file"]')) return;
+    if (O.manage && O.manage.contains(el)) return;
+    var files = el.files;
+    uploadPhotos(O, el.getAttribute('data-key') || O.stage, files);
   }
 
   /** 상담의 연출컷 — 본인 토큰으로 받아 그 칸에 채운다 (못 받으면 칸을 뺀다) */
@@ -1070,6 +1311,8 @@
   function onClick(e) {
     var O = S.open;
     if (!O || !e.target || !e.target.closest) return;
+    // 「관리」 칸 안의 누름은 프로젝트 칸이 듣는다 — 여기서 또 하지 않는다
+    if (O.manage && O.manage.contains(e.target)) return;
     var btn = e.target.closest('[data-act]');
     if (btn && !btn.disabled) {
       var act = btn.getAttribute('data-act');
@@ -1080,20 +1323,32 @@
         // 못 읽은 단계는 다시 누르면 다시 읽는다
         if (O.got[key] && O.got[key].failed) delete O.got[key];
         O.stage = key;
+        if (!obj(O.up).busy) O.up = null;
         paint();
         var again = O.node.querySelector('[data-act="stage"][data-key="' + key + '"]');
         if (again && again.focus) again.focus();
+      } else if (act === 'photo-del') {
+        if (!obj(O.up).busy) {
+          O.up = { key: O.stage, busy: false, msg: '', err: '', ask: id };
+          paint();
+          var yes = O.node.querySelector('[data-act="photo-del-yes"]');
+          if (yes && yes.focus) yes.focus();
+        }
+      } else if (act === 'photo-del-no') {
+        if (!obj(O.up).busy) {
+          O.up = null;
+          paint();
+        }
+      } else if (act === 'photo-del-yes') {
+        removePhoto(O, id);
       } else if (act === 'print') {
         openPrint(O, id);
       } else if (act === 'work' && pp && typeof pp.openWork === 'function') {
-        // 작업 배정 — 창을 닫고 프로젝트 줄에서 한다
-        var forId = btn.getAttribute('data-for') || '';
-        var shut = O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
-        var go = function () {
-          pp.openWork(forId);
-        };
-        if (shut && typeof shut.then === 'function') shut.then(go, go);
-        else go();
+        // 작업 배정 — 이 창의 「관리」 칸에서 펼친다
+        pp.openWork(btn.getAttribute('data-for') || '');
+      } else if (act === 'status' && pp && typeof pp.openStatus === 'function') {
+        // 보류를 다시 볼 날 — 「관리」 칸의 다시 진행 · 그만둠
+        pp.openStatus(btn.getAttribute('data-for') || '');
       } else if (act === 'order') {
         var Orders = window.SeganOrders;
         var opened = Orders && typeof Orders.open === 'function' ? Orders.open(id) : null;
@@ -1108,17 +1363,20 @@
       ) {
         pp.runNext(act, id);
       } else if ((act === 'visit' || act === 'next-visit-done') && pp) {
-        // 실측 — 창을 닫고 프로젝트 줄에서 한다 (실측 칸을 열거나, 그 자리에서 끝낸다)
+        // 실측 — 이 창의 「관리」 칸에서 한다 (실측 칸을 펼치거나, 그 자리에서 끝낸다). 관리 칸이 없으면(옛 프로젝트 칸) 닫고 줄에서
         var target = btn.getAttribute('data-for') || '';
         var after = function () {
           if (act === 'visit' && typeof pp.openVisit === 'function') pp.openVisit(target);
           else if (act === 'next-visit-done' && typeof pp.runNext === 'function')
             pp.runNext(act, target);
         };
-        var closing =
-          O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
-        if (closing && typeof closing.then === 'function') closing.then(after, after);
-        else after();
+        if (typeof pp.mountDetail === 'function') after();
+        else {
+          var closing =
+            O.handle && typeof O.handle.close === 'function' ? O.handle.close('nav') : null;
+          if (closing && typeof closing.then === 'function') closing.then(after, after);
+          else after();
+        }
       }
       return;
     }
@@ -1165,6 +1423,7 @@
     node.innerHTML =
       '<p class="me-pt-msg" role="status" data-ps="note"></p><div data-ps="body"></div>';
     node.addEventListener('click', onClick);
+    node.addEventListener('change', onChange);
     var O = {
       id: id,
       node: node,
@@ -1174,6 +1433,8 @@
       stage: '', // 펼친 단계
       got: {}, // 단계 → { loading | failed | data }
       shots: {}, // 상담 id → 연출컷 blob 주소 ('' = 못 받음)
+      up: null, // 사진 올리기 · 지우기 상태 { key, busy, msg, err, ask }
+      manage: document.createElement('div'), // 「관리」 칸 자리 — 다시 그려도 같은 마디를 끼운다
     };
     S.open = O;
     O.handle = window.SeganShell.sheet.open({
@@ -1182,6 +1443,8 @@
       kind: 'sheet',
       onClose: function () {
         if (S.open === O) S.open = null;
+        var pp2 = PP();
+        if (pp2 && typeof pp2.unmountDetail === 'function') pp2.unmountDetail(O.manage);
       },
     });
     paint();
@@ -1209,6 +1472,7 @@
     firstStage: firstStage,
     historyStage: historyStage,
     panelHtml: panelHtml,
+    uploadsHtml: uploadsHtml,
     bodyHtml: bodyHtml,
     canOpen: canOpen,
     open: open,

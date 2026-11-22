@@ -467,7 +467,8 @@
         label: s.label,
         value: s.count,
         text: s.count + TEXT.count,
-        go: 'p-' + s.key,
+        // 누르면 아래 프로젝트 목록을 그 단계로 고른다 (onStep). 주소는 지금 화면 그대로
+        go: 'dash-project',
         segs: [
           { cls: 'cd-fresh', n: s.fresh, label: TEXT.fresh },
           { cls: 'cd-slow', n: s.slow, label: TEXT.slow },
@@ -644,7 +645,23 @@
       '</div>' +
       trioHtml(v, C);
     b.hidden = false;
+    if (!b.getAttribute('data-bound')) {
+      b.setAttribute('data-bound', '1');
+      b.addEventListener('click', onStep);
+    }
     C.animate(b);
+  }
+
+  /** 그래프 ① 의 단계 줄을 눌렀다 — 아래 프로젝트 목록을 그 단계로 고르고 그리로 옮긴다 (segan/partner-projects.js) */
+  function onStep(e) {
+    var a = e.target && e.target.closest ? e.target.closest('[data-cd="steps"] a.ch-row') : null;
+    var PP = window.SeganPartnerProjects;
+    if (!a || !PP || typeof PP.setView !== 'function') return;
+    if (e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    PP.setView({ stage: a.getAttribute('data-ch-key') || '' });
+    if (typeof PP.focusList === 'function') PP.focusList();
   }
 
   function hide() {

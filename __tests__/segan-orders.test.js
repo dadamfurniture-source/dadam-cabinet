@@ -556,10 +556,10 @@ describe('순수 함수', () => {
 });
 
 describe('계약 화면 — 수주 표', () => {
-  test('대표 — 번호 · 고객 · 상태 · 수주일 · 계약금액 · 미수금, 계약 단계 프로젝트와 함께', async () => {
+  test('대표 — 번호 · 고객 · 상태 · 수주일 · 계약금액 · 미수금. 프로젝트 목록은 이 화면에 없다 (프로젝트 관리 한 곳에 — 2026-11-23)', async () => {
     const calls = await load();
     expect(seen('orders')).toBe(true);
-    expect(seen('partnerProjects')).toBe(true);
+    expect(seen('partnerProjects')).toBe(false);
     expect(seen('ordersCollect')).toBe(false);
     expect(text($('ordersTitle'))).toBe('수주');
     expect(heads('orders')).toEqual(['수주번호', '고객', '상태', '수주일', '계약금액', '미수금']);

@@ -187,6 +187,19 @@ const flush = async () => {
   for (let i = 0; i < 8; i++) await new Promise((r) => setTimeout(r, 0));
 };
 const projectCalls = (calls) => calls.fetch.filter((f) => f.url === WORK + '/company/projects');
+/** 한 건 화면의 「관리」 칸 — segan/project-sheet.js 가 주는 자리를 흉내 낸다 (같은 프로젝트면 그 자리 그대로) */
+const area = (id) => {
+  let host = $('pjHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'pjHost';
+    document.body.appendChild(host);
+  }
+  const PP = window.SeganPartnerProjects;
+  const d = PP.state.detail;
+  if (!d || d.el !== host || d.id !== id) PP.mountDetail(host, id);
+  return host;
+};
 // 줄마다 [이름, 고객 · 날 · 설계 수, 전화, 상태] 칸 글자 (없는 칸은 빠진다)
 const rows = () =>
   [...box().querySelectorAll('[data-project]')].map((li) =>
@@ -326,7 +339,7 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     window.SeganMe.apply();
     await flush();
   };
-  const titles = () => [...box().querySelectorAll('[data-project] b')].map((b) => b.textContent);
+  const titles = () => [...box().querySelectorAll('[data-project] .me-c-main > b')].map((b) => b.textContent);
 
   test('단계 — 연출컷 · 설계 = 설계, 수주는 상태로 계약 · 제작 · 설치 (segan/me.js menuStage 와 같다)', async () => {
     await load();
@@ -349,28 +362,55 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
       expect(window.SeganMe.menuStage(a, b)).toBe(menuStage(a, b));
   });
 
-  test('설계 · 제작 · 설치 화면 — 그 단계 줄만, 머리글 「… 단계 프로젝트」, 새 고객 단추는 상담에서만 (PC 안내 글은 없다 — 다음 할 일이 줄마다 있다)', async () => {
+  test('보기 고르기 — 전체 · 단계마다 · 담당자 없음(수와 함께). 누르면 그 줄만, 다시 누르면 전체. 새 고객 단추는 전체 · 상담에서만', async () => {
+    await load({ list: staged });
+    await flush();
+    await openScreen('partner-projects');
+    expect(box().querySelector('.me-pt-sub').textContent).toBe('프로젝트');
+    // 단계의 수는 진행 중인 것만 (끝난 붙박이장은 전체에만 있다). 머문 날을 안 주는 서버면 「멈춘 것」이 없다
+    expect(chips()).toEqual(['전체 3*', '상담 0', '설계 1', '견적 0', '계약 0', '생산 1', '설치 0', '담당자 없음 2']);
+    expect(titles()).toEqual(['붙박이장', '싱크대', '신발장']);
+    expect(box().querySelector('[data-act="open"]')).not.toBeNull();
+    chip('[data-stage="design"]').click();
+    expect(titles()).toEqual(['싱크대']);
+    expect(chips().filter((c) => c.endsWith('*'))).toEqual(['설계 1*']);
+    expect(box().querySelector('[data-act="open"]')).toBeNull();
+    expect(box().querySelector('.me-pt-sub').textContent).toBe('프로젝트');
+    chip('[data-stage="make"]').click();
+    expect(titles()).toEqual(['신발장']);
+    chip('[data-stage="quote"]').click();
+    expect(titles()).toEqual([]);
+    expect(box().querySelector('.me-empty').textContent).toBe('이 단계의 프로젝트가 없습니다.');
+    chip('[data-stage="consult"]').click();
+    expect(box().querySelector('[data-act="open"]')).not.toBeNull();
+    chip('[data-pick="unassigned"]').click();
+    expect(titles()).toEqual(['싱크대', '신발장']);
+    expect(box().querySelector('[data-act="open"]')).toBeNull();
+    // 켜진 것을 다시 누르면 전체로
+    chip('[data-pick="unassigned"]').click();
+    expect(chips()[0]).toBe('전체 3*');
+    expect(titles()).toEqual(['붙박이장', '싱크대', '신발장']);
+    // 줄 — 이름 · 고객 · 담당 (만든 날 · 설계 수 · 전화는 한 건 화면에)
+    expect(rows()[1]).toBe('싱크대 | 김고객 · 담당자 없음');
+    expect(box().textContent).not.toContain('PC 화면');
+  });
+
+  test('단계 화면 — 도구가 없는 단계(설계)는 그 단계로 고른 목록. 화면을 옮기면 보기를 다시 맞추고, 같은 화면에서 고른 것은 그대로 둔다', async () => {
     await load({ list: staged });
     await flush();
     await openScreen('p-design');
-    expect(box().querySelector('.me-pt-sub').textContent).toBe('설계 단계 프로젝트');
     expect(titles()).toEqual(['싱크대']);
-    expect(box().querySelector('[data-act="open"]')).toBeNull();
-    expect(box().textContent).not.toContain('PC 화면');
-    await openScreen('p-make');
+    expect(chips().filter((c) => c.endsWith('*'))).toEqual(['설계 1*']);
+    // 같은 화면에서 다른 보기를 골랐다 — 메뉴가 다시 맞춰도(apply) 그대로
+    chip('[data-stage="make"]').click();
+    window.SeganMe.apply();
+    await flush();
     expect(titles()).toEqual(['신발장']);
-    expect(box().textContent).not.toContain('PC 화면');
-    await openScreen('p-install');
-    expect(titles()).toEqual(['붙박이장']);
-    await openScreen('p-quote');
-    expect(titles()).toEqual([]);
-    expect(box().querySelector('.me-empty').textContent).toBe('이 단계의 프로젝트가 없습니다.');
-    await openScreen('p-consult');
-    expect(box().querySelector('.me-pt-sub').textContent).toBe('상담 단계 프로젝트');
-    expect(box().querySelector('[data-act="open"]')).not.toBeNull();
-    // 단계 보기에서는 줄에 단계를 다시 적지 않는다
+    // 다른 화면으로 옮기면 그 화면의 보기로
+    await openScreen('partner-projects');
+    expect(chips()[0]).toBe('전체 3*');
     await openScreen('p-design');
-    expect(rows()[0]).toBe('싱크대 | 김고객 · 2026.10.10 · 설계 0개 | 010-1111-2222 | 담당자 없음');
+    expect(titles()).toEqual(['싱크대']);
   });
 
   // ── 단계 띠 · 다음 할 일 (2026-11-21 대표님 「프로젝트 한 길」 — 서버가 준 step · next 를 그린다) ──
@@ -392,12 +432,29 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
   const next = (key, label, go, extra = {}) => ({ key, label, go, wait: false, since: null, allowed: true, ...extra });
   const flowed = (items) => () => ok(projects({ items }));
   const rowOf = (id) => box().querySelector(`[data-project="${id}"]`);
+  // 줄의 작은 단계 띠 — 칸마다 지난(✓) · 지금(●) · 남은(○), 이름은 옆의 한 줄에 적는다
   const stripOf = (id) =>
-    [...rowOf(id).querySelectorAll('.pj-strip li')].map(
-      (li) => (li.classList.contains('is-now') ? '●' : li.classList.contains('is-done') ? '✓' : '○') + li.textContent
+    [...rowOf(id).querySelectorAll('.pj-mini li')].map((li) =>
+      li.classList.contains('is-now') ? '●' : li.classList.contains('is-done') ? '✓' : '○'
     );
+  const stepOf = (id) => rowOf(id).querySelector('[data-pj="step"]').textContent;
+  /** 한 건 화면이 열리는 것을 흉내 낸다 — 열면 그 프로젝트의 「관리」 칸 자리를 준다 */
+  const withPage = () => {
+    window.SeganProjectSheet = { open: jest.fn((id) => (area(id), true)) };
+    return window.SeganProjectSheet.open;
+  };
+  const see = async (view) => {
+    window.SeganPartnerProjects.setView(view || {});
+    await flush();
+  };
+  // 보기 고르기 — 「이름 수」, 켜진 것은 끝에 *
+  const chips = () =>
+    [...box().querySelectorAll('.pj-chip')].map(
+      (b) => b.textContent.replace(/\s+/g, ' ').trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')
+    );
+  const chip = (attr) => box().querySelector('.pj-chip' + attr);
 
-  test('단계 띠 — 지난 단계 · 지금 단계 · 남은 단계 일곱 칸. 서버가 값을 안 주면(옛 서버) · 끝난 프로젝트는 띠가 없다', async () => {
+  test('작은 단계 띠 — 지난 단계 · 지금 단계 · 남은 단계 일곱 칸과 지금 단계 이름. 서버가 값을 안 주면(옛 서버) · 끝난 프로젝트는 띠가 없다', async () => {
     await load({
       list: flowed([
         item(P1, '싱크대', { step: 'quote', next: null }),
@@ -407,13 +464,61 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     });
     await flush();
     await openScreen('partner-projects');
-    expect(stripOf(P1)).toEqual(['✓상담', '✓설계', '●견적', '○계약', '○생산', '○설치', '○A/S']);
-    expect(rowOf(P1).querySelector('.is-now').getAttribute('aria-current')).toBe('step');
-    expect(rowOf(P3).querySelector('.pj-strip')).toBeNull();
-    expect(rowOf(P4).querySelector('.pj-strip')).toBeNull();
+    expect(stripOf(P1)).toEqual(['✓', '✓', '●', '○', '○', '○', '○']);
+    expect(stepOf(P1)).toBe('견적');
+    expect(rowOf(P1).querySelector('.pj-mini').getAttribute('aria-label')).toBe('단계 7 가운데 3번째');
+    expect(rowOf(P3).querySelector('.pj-mini')).toBeNull();
+    expect(rowOf(P4).querySelector('.pj-mini')).toBeNull();
   });
 
-  test('단계로 거르기 — 서버의 지금 단계(step)가 먼저다: 받은 제작 의뢰는 제작, 완료는 어느 단계 화면에도 없다', async () => {
+  test('머문 날 — 서버가 준 stay 대로 「n일째」 · 「느림」 · 「멈춤」(생산 · 설치는 「잡은 날 지남」), 「멈춘 것」으로 고른다', async () => {
+    await load({
+      list: flowed([
+        item(P1, '여유', { step: 'consult', next: null, stay: { days: 0, state: 'fresh' } }),
+        item(P3, '느림', { step: 'design', next: null, stay: { days: 4, state: 'slow' } }),
+        item(P4, '멈춤', { step: 'quote', next: null, stay: { days: 9, state: 'stuck' } }),
+        item(P5, '생산 멈춤', { step: 'make', next: null, stay: { days: null, state: 'stuck' } }),
+      ]),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    expect([stepOf(P1), stepOf(P3), stepOf(P4), stepOf(P5)]).toEqual([
+      '상담',
+      '설계 · 4일째 · 느림',
+      '견적 · 9일째 · 멈춤',
+      '생산 · 잡은 날 지남 · 멈춤',
+    ]);
+    // 색만으로 알리지 않는다 — 글이 있다
+    expect(rowOf(P4).querySelector('.pj-stuck').textContent).toBe('멈춤');
+    expect(rowOf(P3).querySelector('.pj-slow').textContent).toBe('느림');
+    expect(chips()).toContain('멈춘 것 2');
+    chip('[data-pick="stuck"]').click();
+    expect(chips().filter((c) => c.endsWith('*'))).toEqual(['멈춘 것 2*']);
+    expect(titles()).toEqual(['멈춤', '생산 멈춤']);
+    const PP = window.SeganPartnerProjects;
+    expect(PP.isStuck({ status: 'on_hold', stay: { state: 'stuck' } })).toBe(false);
+    expect(PP.isStuck({ status: 'active' })).toBe(false);
+  });
+
+  test('머문 날은 한 번만 적는다 — 서버가 날을 센 줄은 기다림 글 · 단추 옆의 「n일째」를 뺀다 (새로 생긴 일 · 한 건 화면의 글은 그대로)', async () => {
+    const waited = '2026-11-01T00:00:00Z';
+    jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-10T03:00:00Z'));
+    const items = [
+      item(P1, '센 줄', { step: 'quote', stay: { days: 9, state: 'stuck' }, next: next('customer', '고객 답 기다림', 'p-quote', { wait: true, since: waited, views: 2 }) }),
+      item(P3, '안 센 줄', { step: 'quote', next: next('customer', '고객 답 기다림', 'p-quote', { wait: true, since: waited, views: 2 }) }),
+      item(P4, '단추 줄', { step: 'contract', stay: { days: 4, state: 'slow' }, next: next('deposit', '계약금 입금 적기', 'order:' + ORD, { since: waited }) }),
+    ];
+    await load({ list: flowed(items) });
+    await flush();
+    await openScreen('partner-projects');
+    expect(stepOf(P1)).toBe('견적 · 9일째 · 멈춤');
+    expect(rowOf(P1).querySelector('.pj-wait').textContent).toBe('고객 답 기다림 · 2번 열어 봄');
+    expect(rowOf(P3).querySelector('.pj-wait').textContent).toBe('고객 답 기다림 · 9일째 · 2번 열어 봄');
+    expect(rowOf(P4).querySelector('.pj-since')).toBeNull();
+    expect(window.SeganPartnerProjects.nextOf(items[0]).note).toContain('9일째');
+  });
+
+  test('단계로 거르기 — 서버의 지금 단계(step)가 먼저다: 받은 제작 의뢰는 생산, 완료는 어느 단계에도 없고 전체에만', async () => {
     await load({
       list: flowed([
         item(P1, '의뢰 받은 주방', { stage: 'consult', step: 'make', next: null }),
@@ -421,15 +526,16 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
       ]),
     });
     await flush();
-    await openScreen('p-make');
-    expect(titles()).toEqual(['의뢰 받은 주방']);
-    await openScreen('p-install');
-    expect(titles()).toEqual([]);
-    await openScreen('p-consult');
-    expect(titles()).toEqual([]);
     await openScreen('partner-projects');
+    await see({ stage: 'make' });
+    expect(titles()).toEqual(['의뢰 받은 주방']);
+    await see({ stage: 'install' });
+    expect(titles()).toEqual([]);
+    await see({ stage: 'consult' });
+    expect(titles()).toEqual([]);
+    await see({});
     expect(titles()).toEqual(['의뢰 받은 주방', '끝난 신발장']);
-    expect(rows()[1]).toContain('완료');
+    expect(stepOf(P3)).toBe('A/S');
   });
 
   test('다음 할 일 — 플래너 링크(프로젝트 · 초안) · 화면 링크 · 기다림 글 · 못 하는 일 글', async () => {
@@ -545,10 +651,10 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
 
   // ── 보류 · 그만둠 (2026-11-21 대표님 뒤 공정 1차 — 「계약금을 받으면 보류 및 그만둠 기능은 작동하지 않아야함」) ──
   const held = (extra) => ({ hold_ready: true, ...extra });
-  const act = (id, sel) => rowOf(id).querySelector(sel);
+  const act = (id, sel) => area(id).querySelector(sel);
   const statusBtn = (id) => act(id, '[data-act="status"]:not([data-next])');
 
-  test('「보류 · 그만둠」 단추 — 서버가 쓸 수 있다고 할 때만(hold_ready), 대표 · 실장 · 담당자에게, 계약금을 받은 줄에는 없다', async () => {
+  test('「보류 · 그만둠」 단추(한 건 화면의 관리 칸) — 서버가 쓸 수 있다고 할 때만(hold_ready), 대표 · 실장 · 담당자에게, 계약금을 받은 프로젝트에는 없다. 보류한 줄은 「보류」 보기에', async () => {
     const items = [
       item(P1, '설계 전', { step: 'consult', next: next('design_start', '설계 시작', 'planner?project=' + P1) }),
       item(P3, '계약금 받음', { step: 'make', next: next('deliver', '배송으로 넘기기', 'order:' + ORD), deposit_paid: true }),
@@ -559,30 +665,32 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     await load({ list: () => ok(projects({ items })) });
     await flush();
     await openScreen('partner-projects');
+    expect(statusBtn(P1)).toBeNull();
+    // 줄에는 어느 때에도 그 단추가 없다
     expect(box().querySelector('[data-act="status"]')).toBeNull();
     // 쓸 수 있다
     await load({ list: () => ok(projects(held({ items }))) });
     await flush();
     await openScreen('partner-projects');
+    expect(box().querySelector('[data-act="status"]')).toBeNull();
     expect(statusBtn(P1).textContent).toBe('보류 · 그만둠');
     expect(statusBtn(P1).getAttribute('aria-expanded')).toBe('false');
     expect(statusBtn(P3)).toBeNull(); // 계약금을 받았다
     expect(statusBtn(P5).textContent).toBe('되살리기'); // 대표 · 실장
-    // 보류한 줄은 아래 묶음에 접혀 있다 — 펼치면 다시 볼 날 · 메모 · 단계 띠 · 「다시 진행 · 그만둠」(계약금을 받았어도)
+    // 보류한 줄은 전체에 없고 「보류」 보기에 있다 — 다시 볼 날 · 메모 · 지금 단계 · 「다시 진행 · 그만둠」(계약금을 받았어도)
     expect(rowOf(P4)).toBeNull();
-    const fold = box().querySelector('[data-act="held"]');
-    expect([fold.textContent, fold.getAttribute('aria-expanded')]).toEqual(['보류 1', 'false']);
-    fold.click();
-    expect(box().querySelector('[data-act="held"]').getAttribute('aria-expanded')).toBe('true');
+    expect(chips()).toContain('보류 1');
+    chip('[data-pick="held"]').click();
+    expect(titles()).toEqual(['보류한 것']);
     expect(rowOf(P4).querySelector('.pj-hold').textContent).toBe('다시 볼 날 2026.12.05 · 「이사 날짜 미정」');
     expect(rowOf(P4).querySelector('.me-pr-status').textContent).toBe('보류');
-    expect(rowOf(P4).querySelector('.pj-strip .is-now').textContent).toBe('견적');
+    expect(stepOf(P4)).toBe('견적');
     expect(statusBtn(P4).textContent).toBe('다시 진행 · 그만둠');
-    box().querySelector('[data-act="held"]').click();
+    chip('[data-pick="held"]').click();
     expect(rowOf(P4)).toBeNull();
     // 그만둔 줄 — 메모가 보인다
     expect(rowOf(P5).querySelector('.pj-hold').textContent).toBe('「고객 포기」');
-    // 직원 — 내가 담당인 줄에만
+    // 직원 — 내가 담당인 프로젝트에만
     const staff = partnerMe();
     staff.body.data.company.role = 'staff';
     const mine = items.map((p) => ({ ...p }));
@@ -610,12 +718,15 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     const onChange = jest.fn();
     window.SeganPartnerProjects.onChange = onChange;
     await openScreen('partner-projects');
+    // 한 건 화면이 바뀐 것을 듣는다 (띠 · 단계 칸을 다시 읽으려고)
+    const pageChanged = jest.fn();
+    window.SeganPartnerProjects.mountDetail(area(P1), P1, { onChange: pageChanged });
     statusBtn(P1).click();
     // 읽는 동안
-    expect(rowOf(P1).querySelector('.pj-status').textContent).toBe('불러오는 중…');
+    expect(area(P1).querySelector('.pj-status').textContent).toBe('불러오는 중…');
     expect(statusBtn(P1).getAttribute('aria-expanded')).toBe('true');
     await flush();
-    const panel = () => rowOf(P1).querySelector('.pj-status');
+    const panel = () => area(P1).querySelector('.pj-status');
     expect([...panel().querySelectorAll('[data-act="status-form"]')].map((b) => [b.textContent, b.getAttribute('data-kind')])).toEqual([
       ['보류', 'hold'],
       ['그만둠', 'cancel'],
@@ -636,12 +747,16 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     const patch = calls.fetch.find((c) => c.method === 'PATCH');
     expect([patch.url, patch.auth]).toEqual([WORK + '/company/projects/' + P1 + '/status', 'Bearer tok-1']);
     expect(projectCalls(calls).length).toBe(before + 1); // 목록을 다시 읽었다
-    expect(box().querySelector('.me-pt-msg').textContent).toBe('보류했습니다.');
+    // 알림은 한 건 화면의 관리 칸에 — 목록에는 적지 않는다
+    expect(area(P1).querySelector('.me-pt-msg').textContent).toBe('보류했습니다.');
+    expect(box().querySelector('.me-pt-msg')).toBeNull();
     expect(onChange).toHaveBeenCalled();
-    // 보류한 줄은 묶음으로 갔고, 묶음이 펼쳐져 있다
-    expect(box().querySelector('[data-act="held"]').getAttribute('aria-expanded')).toBe('true');
-    expect(rowOf(P1).querySelector('.me-pr-status').textContent).toBe('보류');
-    expect(rowOf(P1).querySelector('.pj-status')).toBeNull();
+    expect(pageChanged).toHaveBeenCalledTimes(1);
+    // 보류한 줄은 전체에서 빠져 「보류」 보기로 갔고, 칸은 접혔다
+    expect(rowOf(P1)).toBeNull();
+    expect(chips()).toContain('보류 1');
+    expect(area(P1).querySelector('.pj-status')).toBeNull();
+    expect(statusBtn(P1).textContent).toBe('다시 진행 · 그만둠');
   });
 
   test('계약금을 받은 프로젝트 — 서버가 못 한다고 하면 단추 없이 까닭만. 서버가 거절하면 그 글을 그 자리에, 적던 값은 남는다', async () => {
@@ -656,12 +771,12 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     await openScreen('partner-projects');
     statusBtn(P1).click();
     await flush();
-    const panel = () => rowOf(P1).querySelector('.pj-status');
+    const panel = () => area(P1).querySelector('.pj-status');
     expect(panel().querySelector('[data-act="status-form"]')).toBeNull();
     expect(panel().querySelector('[data-pj="blocked"]').textContent).toBe('계약금을 받은 프로젝트는 보류 · 그만둠을 할 수 없습니다.');
     // 접는다
     statusBtn(P1).click();
-    expect(rowOf(P1).querySelector('.pj-status')).toBeNull();
+    expect(area(P1).querySelector('.pj-status')).toBeNull();
     // 살아 있는 계약(계약금 전) — 보류는 되고 그만둠은 까닭만
     actions = { hold: true, cancel: false, resume: false, blocked: 'order' };
     statusBtn(P1).click();
@@ -677,7 +792,6 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect(panel().querySelector('[name="note"]').value).toBe('적던 메모');
     expect(calls.fetch.filter((c) => c.method === 'PATCH')).toHaveLength(1);
     // 못 읽으면 알린다
-    statusBtn(P1).click();
     await load({ list: () => ok(projects(held({ items }))), one: () => fail(500, 'x', 'x') });
     await flush();
     await openScreen('partner-projects');
@@ -686,7 +800,7 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect(panel().querySelector('.mk-error').textContent).toBe('불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
   });
 
-  test('보류를 다시 볼 날 — 줄에 「보류 — 다시 볼 날입니다」 단추(그 줄의 칸을 연다), 다시 진행은 바로 보낸다. 줄에 창 단추는 없다', async () => {
+  test('보류를 다시 볼 날 — 줄의 「보류 — 다시 볼 날입니다」 단추는 한 건 화면을 열고 관리 칸을 펼친다, 다시 진행은 바로 보낸다', async () => {
     let items = [
       item(P4, '보류한 것', {
         status: 'on_hold',
@@ -707,19 +821,26 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     });
     await flush();
     await openScreen('partner-projects');
-    // 다른 칸(새로 생긴 일 표)에서 연다 — 묶음을 펼치고 그 줄의 칸을 연다
-    expect(await window.SeganPartnerProjects.openStatus(P4)).toBe(true);
-    await flush();
-    const due = act(P4, '[data-act="status"][data-next="hold_due"]');
+    // 한 건 화면이 없으면 열 곳이 없다
+    expect(await window.SeganPartnerProjects.openStatus(P4)).toBe(false);
+    const opened = withPage();
+    await window.SeganPartnerProjects.reload();
+    await see({ pick: 'held' });
+    const due = rowOf(P4).querySelector('[data-act="status"][data-next="hold_due"]');
     expect(due.textContent).toBe('보류 — 다시 볼 날입니다');
     expect(rowOf(P4).querySelector('[data-act="sheet"]')).toBeNull();
-    const panel = rowOf(P4).querySelector('.pj-status');
+    due.click();
+    await flush();
+    expect(opened).toHaveBeenCalledWith(P4);
+    const panel = area(P4).querySelector('.pj-status');
     expect([...panel.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['다시 진행', '그만둠']);
     panel.querySelector('[data-act="status-resume"]').click();
     await flush();
     expect(sent).toEqual([{ expect_status: 'on_hold', status: 'active' }]);
-    expect(box().querySelector('.me-pt-msg').textContent).toBe('다시 진행합니다.');
-    expect(box().querySelector('[data-act="held"]')).toBeNull(); // 보류가 없다
+    expect(area(P4).querySelector('.me-pt-msg').textContent).toBe('다시 진행합니다.');
+    expect(chips().some((c) => c.startsWith('보류 0'))).toBe(true); // 「보류」 보기에 있는 동안은 0 으로 남는다
+    await see({});
+    expect(chips().some((c) => c.startsWith('보류'))).toBe(false); // 보류가 없다
     expect(rowOf(P4).querySelector('.me-pr-status')).toBeNull();
   });
 
@@ -738,8 +859,10 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     done_at: null,
     ...extra,
   });
-  const visitBtn = (id) => rowOf(id).querySelector('[data-act="visit"]');
-  const visitForm = (id) => rowOf(id).querySelector('form[data-form="visit"]');
+  const visitBtn = (id) => area(id).querySelector('[data-act="visit"]');
+  const visitForm = (id) => area(id).querySelector('form[data-form="visit"]');
+  // 목록 줄의 다음 할 일 단추 「실측 일정 잡기」 — 누르면 한 건 화면의 실측 칸이 열린다
+  const nextVisit = (id) => rowOf(id).querySelector('[data-act="visit"]');
 
   test('실측 단계 — 서버가 쓸 수 있다고 할 때만(visit_ready) 띠가 여덟 칸. 실측 일정 잡기 → 실측 예정(날짜) → 실측 완료 처리 → 설계 시작', async () => {
     // 옛 서버 · DB 0079 전 — 일곱 칸, 실측 단추 없음
@@ -748,7 +871,8 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     });
     await flush();
     await openScreen('partner-projects');
-    expect(stripOf(P1)).toEqual(['●상담', '○설계', '○견적', '○계약', '○생산', '○설치', '○A/S']);
+    expect(stripOf(P1)).toEqual(['●', '○', '○', '○', '○', '○', '○']);
+    expect(chips().some((c) => c.startsWith('실측'))).toBe(false);
     expect(visitBtn(P1)).toBeNull();
 
     const items = [
@@ -772,28 +896,33 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     await load({ list: () => ok(projects({ visit_ready: true, members: MEMBERS, items })) });
     await flush();
     await openScreen('partner-projects');
-    expect(stripOf(P1)).toEqual(['●상담', '○실측', '○설계', '○견적', '○계약', '○생산', '○설치', '○A/S']);
-    expect(stripOf(P3).slice(0, 3)).toEqual(['✓상담', '●실측', '○설계']);
-    // 실측 전 — 다음 할 일 단추가 곧 실측 칸을 여는 단추다 (「실측 일정」 단추를 따로 두지 않는다)
+    expect(stripOf(P1)).toEqual(['●', '○', '○', '○', '○', '○', '○', '○']);
+    expect(stripOf(P3).slice(0, 3)).toEqual(['✓', '●', '○']);
+    expect(stepOf(P3)).toBe('실측');
+    expect(chips().slice(0, 3)).toEqual(['전체 4*', '상담 1', '실측 3']);
+    // 실측 전 — 줄의 다음 할 일 단추가 실측 칸을 여는 단추다
     expect(
       [...rowOf(P1).querySelectorAll('[data-act="visit"]')].map((b) => [b.textContent, b.getAttribute('data-next'), b.getAttribute('aria-expanded')])
     ).toEqual([['실측 일정 잡기', 'measure_plan', 'false']]);
     expect(rowOf(P1).querySelector('[data-pj="visit"]')).toBeNull();
-    // 실측 예정 — 기다림 글에 날짜(한국 시각), 줄에 실측 한 줄, 「실측 일정」 단추
+    expect(visitBtn(P1)).toBeNull(); // 관리 칸의 「실측 일정」은 잡힌 실측이 있을 때만
+    // 실측 예정 — 기다림 글에 날짜(한국 시각), 줄에 실측 한 줄, 관리 칸에 「실측 일정」 단추
     expect(rowOf(P3).querySelector('.pj-wait').textContent).toBe('실측 11.25 (수) 14:00 예정');
     expect(rowOf(P3).querySelector('[data-pj="visit"]').textContent).toBe('실측 11.25 (수) 14:00 · 박실장 · 「현관 1층」');
+    expect(rowOf(P3).querySelectorAll('[data-act="visit"]')).toHaveLength(0);
     expect(visitBtn(P3).textContent).toBe('실측 일정');
-    // 실측 날 — 「실측 완료 처리」는 그 자리에서 누른다
+    // 실측 날 — 「실측 완료 처리」는 줄에서 바로 누른다
     const fin = rowOf(P4).querySelector('[data-act="next-visit-done"]');
     expect([fin.textContent, fin.getAttribute('data-for')]).toEqual(['실측 완료 처리', P4]);
     expect(rowOf(P4).querySelector('[data-pj="visit"]').textContent).toBe('실측 11.20 (금) 10:00 · 외부 기사');
     // 실측 끝 — 그제야 설계 시작, 줄에는 끝낸 날
     expect(rowOf(P5).querySelector('a[data-next="design_start"]').textContent).toBe('설계 시작');
     expect(rowOf(P5).querySelector('[data-pj="visit"]').textContent).toBe('실측 끝 11.19');
-    // 실측 화면(#p-measure) — 실측 단계 줄만
+    // 실측 화면(#p-measure) — 실측으로 고른 목록
     await openScreen('p-measure');
     expect(titles()).toEqual(['실측 예정', '실측 날', '실측 끝']);
-    expect($('partnerProjectsTitle').textContent).toBe('실측 단계 프로젝트');
+    expect($('partnerProjectsTitle').textContent).toBe('프로젝트');
+    expect(chips().filter((c) => c.endsWith('*'))).toEqual(['실측 3*']);
   });
 
   test('실측 일정 잡기 — 단추로 펼친 칸에 날짜 · 시각 · 갈 사람 · 메모, 한국 시각으로 보내고 목록을 다시 읽는다. 잡힌 뒤에는 고치기 · 완료 처리 · 취소 (같은 단추로 접는다)', async () => {
@@ -834,8 +963,12 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     const onChange = jest.fn();
     window.SeganPartnerProjects.onChange = onChange;
     await openScreen('partner-projects');
-    visitBtn(P1).click();
-    expect(visitBtn(P1).getAttribute('aria-expanded')).toBe('true');
+    const opened = withPage();
+    await window.SeganPartnerProjects.reload();
+    nextVisit(P1).click();
+    await flush();
+    expect(opened).toHaveBeenCalledWith(P1);
+    expect(nextVisit(P1).getAttribute('aria-expanded')).toBe('true');
     expect([...visitForm(P1).querySelectorAll('input, select')].map((el) => [el.name, el.type])).toEqual([
       ['day', 'date'],
       ['time', 'time'],
@@ -846,14 +979,14 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     // 갈 사람 — 그 프로젝트의 담당자가 골라져 있다. 「닫기」 단추는 없고, 완료 처리 · 취소는 잡힌 실측이 있을 때만
     expect(visitForm(P1).querySelector('select').value).toBe(M1);
     expect([...visitForm(P1).querySelectorAll('option')].map((o) => o.textContent)).toEqual(['정하지 않음', '박실장 (실장)', '최직원 (직원)']);
-    expect(rowOf(P1).querySelector('.pj-visit').textContent).not.toContain('닫기');
+    expect(area(P1).querySelector('.pj-visit').textContent).not.toContain('닫기');
     expect(visitForm(P1).querySelector('[data-act="visit-done"]')).toBeNull();
     expect(visitForm(P1).querySelector('[type="submit"]').textContent).toBe('실측 일정 잡기');
     // 날짜 없이 내면 그 자리에 알리고 보내지 않는다 — 적던 값은 남는다
     visitForm(P1).querySelector('[name="note"]').value = ' 현관 1층 ';
     visitForm(P1).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flush();
-    expect(rowOf(P1).querySelector('.pj-visit .mk-error').textContent).toBe('실측 날짜와 시각을 적어 주세요.');
+    expect(area(P1).querySelector('.pj-visit .mk-error').textContent).toBe('실측 날짜와 시각을 적어 주세요.');
     expect(sent).toEqual([]);
     expect(visitForm(P1).querySelector('[name="note"]').value).toBe('현관 1층');
     // 구성원을 고르면 이름 글은 보내지 않는다
@@ -868,9 +1001,9 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     const put = calls.fetch.find((c) => c.method === 'PUT' && c.url.endsWith('/visit'));
     expect([put.url, put.auth]).toEqual([WORK + '/company/projects/' + P1 + '/visit', 'Bearer tok-1']);
     expect(projectCalls(calls).length).toBe(before + 1); // 목록을 다시 읽었다
-    expect(box().querySelector('.me-pt-msg').textContent).toBe('실측 일정을 잡았습니다.');
+    expect(area(P1).querySelector('.me-pt-msg').textContent).toBe('실측 일정을 잡았습니다.');
     expect(onChange).toHaveBeenCalled();
-    expect(rowOf(P1).querySelector('.pj-visit')).toBeNull(); // 칸은 접혔다
+    expect(area(P1).querySelector('.pj-visit')).toBeNull(); // 칸은 접혔다
     expect(rowOf(P1).querySelector('.pj-wait').textContent).toBe('실측 11.25 (수) 14:00 예정');
 
     // 잡힌 뒤 — 「실측 일정」 단추로 다시 펼치면 그 값으로 열리고 완료 처리 · 취소 단추가 있다
@@ -885,12 +1018,12 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     ]).toEqual(['2026-11-25', '14:00', M2, '현관 1층', '일정 고치기']);
     expect([...visitForm(P1).querySelectorAll('button[data-act]')].map((b) => b.textContent)).toEqual(['실측 완료 처리', '실측 취소']);
     visitBtn(P1).click(); // 같은 단추로 접는다
-    expect(rowOf(P1).querySelector('.pj-visit')).toBeNull();
+    expect(area(P1).querySelector('.pj-visit')).toBeNull();
     visitBtn(P1).click();
     visitForm(P1).querySelector('[data-act="visit-done"]').click();
     await flush();
     expect(sent[1]).toEqual(['PATCH', { status: 'done' }]);
-    expect(box().querySelector('.me-pt-msg').textContent).toBe('실측을 끝냈습니다. 이제 설계를 시작할 수 있습니다.');
+    expect(area(P1).querySelector('.me-pt-msg').textContent).toBe('실측을 끝냈습니다. 이제 설계를 시작할 수 있습니다.');
     expect(rowOf(P1).querySelector('a[data-next="design_start"]').textContent).toBe('설계 시작');
   });
 
@@ -918,7 +1051,9 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect(sent).toEqual([['PATCH', '/company/projects/' + P1 + '/visit', { status: 'done' }]]);
     expect(box().querySelector('.me-pt-msg').textContent).toBe('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
     // 펼친 칸에서 거절되면 그 칸에 — 적던 값은 남는다
-    visitBtn(P3).click();
+    withPage();
+    nextVisit(P3).click();
+    await flush();
     visitForm(P3).querySelector('[name="day"]').value = '2026-12-01';
     visitForm(P3).querySelector('[name="time"]').value = '09:30';
     visitForm(P3).querySelector('[name="assignee_name"]').value = '외부 기사';
@@ -929,7 +1064,7 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
       '/company/projects/' + P3 + '/visit',
       { scheduled_at: '2026-12-01T09:30:00+09:00', assignee_id: null, assignee_name: '외부 기사', note: null },
     ]);
-    expect(rowOf(P3).querySelector('.pj-visit .mk-error').textContent).toBe('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
+    expect(area(P3).querySelector('.pj-visit .mk-error').textContent).toBe('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
     expect(visitForm(P3).querySelector('[name="assignee_name"]').value).toBe('외부 기사');
 
     // 직원 — 내가 담당자인 줄에만 실측 칸이 있다. 서버가 못 한다고 한 줄(allowed false)은 글만
@@ -964,21 +1099,22 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect([PP.kstParts('x'), PP.kstParts(null)]).toEqual([null, null]);
   });
 
-  test('작업 분배 — 진행 중 프로젝트 모두 (끝난 것 빼고), 머리글 「작업 분배」, 새 고객 단추 없음 · 옛 주소 #partner-projects 는 모두', async () => {
+  test('작업 분배 화면은 뺐다 (2026-11-23 대표님) — 옛 주소 #assign 은 프로젝트 목록을 열고, 담당자는 「담당자 없음」으로 고른다', async () => {
     await load({ list: staged });
     await flush();
     await openScreen('assign');
-    expect(box().querySelector('.me-pt-sub').textContent).toBe('작업 분배');
-    expect(titles()).toEqual(['싱크대', '신발장']);
-    expect(box().querySelector('[data-act="open"]')).toBeNull();
-    expect(window.SeganPartnerProjects.canAssign()).toBe(true);
-    await openScreen('partner-projects');
     expect(box().querySelector('.me-pt-sub').textContent).toBe('프로젝트');
+    expect(titles()).toEqual(['붙박이장', '싱크대', '신발장']);
+    expect(window.SeganPartnerProjects.canAssign()).toBe(true);
+    expect(chips()).toContain('담당자 없음 2');
+    expect(document.querySelector('[data-me-item="assign"]')).toBeNull();
+    await openScreen('partner-projects');
     expect(titles()).toEqual(['붙박이장', '싱크대', '신발장']);
   });
 
   // ── 고객 초대 (2026-11-23 대표님 뒤 공정 3차 — 서버 invite_ready · POST /company/projects/:id/customer-invite, DB 0082) ──
-  test('고객 초대 — 서버가 쓸 수 있다고 할 때만(invite_ready), 앱과 이어지지 않은 고객의 진행 중 줄에. 이어졌으면 「고객 앱 연결」', async () => {
+  // 2026-11-23 「프로젝트 관리 새 틀」 — 「고객 초대」 단추 · 칸도 줄이 아니라 한 건 화면의 「관리」 칸에 있다 (꼬리표 「고객 앱 연결」은 줄에)
+  test('고객 초대 — 서버가 쓸 수 있다고 할 때만(invite_ready), 앱과 이어지지 않은 고객의 진행 중 프로젝트에. 이어졌으면 줄에 「고객 앱 연결」', async () => {
     const items = [
       item(P1, '안 이어짐', { customer: { id: C1, name: '김고객', phone: null, app: false } }),
       item(P3, '이어짐', { customer: { id: C2, name: '이고객', phone: null, app: true } }),
@@ -987,15 +1123,16 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     await load({ list: () => ok(projects({ items })) });
     await flush();
     await openScreen('partner-projects');
-    expect(box().querySelector('[data-act="invite"]')).toBeNull();
+    expect(area(P1).querySelector('[data-act="invite"]')).toBeNull();
     expect(box().querySelector('[data-pj="app"]')).toBeNull();
     document.body.innerHTML = '';
     await load({ list: () => ok(projects({ invite_ready: true, items })) });
     await flush();
     await openScreen('partner-projects');
-    const btn = rowOf(P1).querySelector('[data-act="invite"]');
+    expect(box().querySelector('[data-act="invite"]')).toBeNull(); // 줄에는 없다
+    const btn = area(P1).querySelector('[data-act="invite"]');
     expect([btn.textContent, btn.getAttribute('aria-expanded')]).toEqual(['고객 초대', 'false']);
-    expect(rowOf(P3).querySelector('[data-act="invite"]')).toBeNull();
+    expect(area(P3).querySelector('[data-act="invite"]')).toBeNull();
     expect(rowOf(P3).querySelector('[data-pj="app"]').textContent).toBe('고객 앱 연결');
   });
 
@@ -1012,10 +1149,10 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     });
     await flush();
     await openScreen('partner-projects');
-    const btn = () => rowOf(P1).querySelector('[data-act="invite"]');
+    const btn = () => area(P1).querySelector('[data-act="invite"]');
     btn().click();
     await flush();
-    const panel = () => rowOf(P1).querySelector('[data-pj="invite"]');
+    const panel = () => area(P1).querySelector('[data-pj="invite"]');
     expect(panel().textContent).toContain('14일');
     expect(btn().getAttribute('aria-expanded')).toBe('true');
     expect(panel().querySelector('[data-pj="invite-url"]')).toBeNull();
@@ -1056,28 +1193,26 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     });
     await flush();
     await openScreen('partner-projects');
-    rowOf(P1).querySelector('[data-act="invite"]').click();
+    area(P1).querySelector('[data-act="invite"]').click();
     await flush();
-    rowOf(P1).querySelector('[data-act="invite-make"]').click();
+    area(P1).querySelector('[data-act="invite-make"]').click();
     await flush();
-    expect(rowOf(P1).querySelector('[data-act="invite"]')).toBeNull();
+    expect(area(P1).querySelector('[data-act="invite"]')).toBeNull();
     expect(rowOf(P1).querySelector('[data-pj="app"]').textContent).toBe('고객 앱 연결');
   });
 });
 
 describe('목록', () => {
-  test('최신 순 그대로, 이름 · 상태(진행 중은 안 적음) · 고객 · 만든 날(한국 시간) · 설계 수 · 전화 링크', async () => {
+  test('최신 순 그대로, 이름 · 고객 · 상태(진행 중은 안 적음). 만든 날 · 설계 수 · 전화는 줄에 적지 않는다 (한 건 화면에)', async () => {
     const calls = await load();
     await flush();
     expect(projectCalls(calls)[0].auth).toBe('Bearer tok-1');
     expect(box().hidden).toBe(false);
     expect(box().querySelector('.me-pt-sub').textContent).toBe('프로젝트');
-    // 모두 보기(옛 주소 #partner-projects · 처음)면 줄마다 단계 — 단계를 안 주는 옛 서버면 상담
-    expect(rows()).toEqual([
-      '붙박이장 | 상담 · 김고객 · 2026.10.21 · 설계 2개 | 010-1111-2222 | 끝남',
-      '싱크대 | 상담 · 김고객 · 2026.10.10 · 설계 0개 | 010-1111-2222',
-    ]);
-    expect(box().querySelector('a[href="tel:01011112222"]')).not.toBeNull();
+    expect(rows()).toEqual(['붙박이장 | 김고객 | 끝남', '싱크대 | 김고객']);
+    expect(box().querySelector('a[href^="tel:"]')).toBeNull();
+    // 줄의 단추는 다음 할 일 하나뿐 — 담당자 · 작업 배정 · 보류 · 실측 일정 단추는 줄에 없다
+    expect(box().querySelector('[data-act="assign"], [data-act="work"], [data-act="status"]:not([data-next])')).toBeNull();
   });
 
   test('비면 안내, 직원(can_manage 거짓)은 만들기 단추가 없다', async () => {
@@ -1260,27 +1395,32 @@ describe('담당자 (DB 0042 · 2026-11-06 작업 분배)', () => {
     expect(P.assignBodyOf(C1, members).error).toBeTruthy();
   });
 
-  test('줄마다 「담당 이름 (역할)」 · 없으면 「담당자 없음」, 대표 · 실장은 「담당자」 단추, 직원은 없다', async () => {
+  test('줄마다 「담당 이름 (역할)」 · 없으면 「담당자 없음」, 「담당자」 단추는 한 건 화면의 관리 칸에 (대표 · 실장만)', async () => {
     await load({ list: () => ok(withAssignee()) });
     expect(owners()).toEqual(['담당자 없음', '담당 나직원 (직원)']);
-    expect(box().querySelectorAll('[data-act="assign"]').length).toBe(2);
+    expect(box().querySelector('[data-act="assign"]')).toBeNull();
+    expect(area(P1).querySelector('[data-act="assign"]').textContent).toBe('담당자');
+    expect(area(P2).querySelector('[data-act="assign"]')).not.toBeNull();
     await load({ list: () => ok(withAssignee({ can_manage: false })) });
     expect(owners()).toEqual(['담당자 없음', '담당 나직원 (직원)']);
-    expect(box().querySelector('[data-act="assign"]')).toBeNull();
+    expect(area(P1).querySelector('[data-act="assign"]')).toBeNull();
   });
 
   test('서버가 담당자 칸을 못 받으면(assignee_ready 아님) 적지도 고르지도 않는다', async () => {
     await load({ list: () => ok(projects({ assignee_ready: false, members })) });
     expect(owners()).toEqual([]);
-    expect(box().querySelector('[data-act="assign"]')).toBeNull();
+    expect(area(P1).querySelector('[data-act="assign"]')).toBeNull();
+    expect(box().querySelector('.pj-chip[data-pick="unassigned"]')).toBeNull();
   });
 
   test('고르기 — 지금 담당자가 골라진 채 열고, 다른 사람으로 저장하면 PUT · 목록 다시 읽기 · 알림, 비우기는 null', async () => {
     let list = withAssignee();
     const calls = await load({ list: () => ok(list) });
-    box().querySelector('[data-act="assign"][data-for="' + P1 + '"]').click();
+    const pageChanged = jest.fn();
+    window.SeganPartnerProjects.mountDetail(area(P1), P1, { onChange: pageChanged });
+    area(P1).querySelector('[data-act="assign"]').click();
     await flush();
-    const form = () => box().querySelector('form[data-form="assign"]');
+    const form = () => area(P1).querySelector('form[data-form="assign"]');
     const sel = () => form().querySelector('[name="assignee_id"]');
     expect([...sel().options].map((o) => o.textContent)).toEqual(['담당자 없음', '나직원 (직원)', '다실장 (실장)']);
     expect(sel().value).toBe(M1);
@@ -1292,35 +1432,43 @@ describe('담당자 (DB 0042 · 2026-11-06 작업 분배)', () => {
     const put = calls.fetch.filter((c) => c.method === 'PUT');
     expect(put.map((c) => [c.url, c.body])).toEqual([[WORK + '/company/projects/' + P1 + '/assignee', { assignee_id: M2 }]]);
     expect(put[0].auth).toBe('Bearer tok-1');
-    expect(box().textContent).toContain('담당자를 정했습니다.');
+    expect(area(P1).textContent).toContain('담당자를 정했습니다.');
     expect(owners()).toEqual(['담당자 없음', '담당 다실장 (실장)']);
     expect(form()).toBeNull();
+    expect(pageChanged).toHaveBeenCalledTimes(1); // 한 건 화면의 머리(담당)가 다시 읽힌다
 
-    box().querySelector('[data-act="assign"][data-for="' + P1 + '"]').click();
+    area(P1).querySelector('[data-act="assign"]').click();
     await flush();
     sel().value = '';
     form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flush();
     expect(calls.fetch.filter((c) => c.method === 'PUT').at(-1).body).toEqual({ assignee_id: null });
-    expect(box().textContent).toContain('담당자를 비웠습니다.');
+    expect(area(P1).textContent).toContain('담당자를 비웠습니다.');
   });
 
-  test('서버가 못 정하면 서버 글을 그 자리에 · 칸은 열어 둔다, 담당자 단추를 다시 누르면 접힘', async () => {
+  test('서버가 못 정하면 서버 글을 그 자리에 · 칸은 열어 둔다, 담당자 단추를 다시 누르면 접힘. 한 건 화면을 닫으면 펼친 칸도 접힌다', async () => {
     await load({
       list: () => ok(withAssignee()),
       assign: () => fail(409, 'stale', '그 사이 담당자가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요'),
     });
-    box().querySelector('[data-act="assign"][data-for="' + P2 + '"]').click();
+    const host = area(P2);
+    host.querySelector('[data-act="assign"]').click();
     await flush();
-    box().querySelector('form[data-form="assign"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    host.querySelector('form[data-form="assign"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flush();
-    expect(box().querySelector('form[data-form="assign"] [data-err]').textContent).toBe('그 사이 담당자가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
+    expect(host.querySelector('form[data-form="assign"] [data-err]').textContent).toBe('그 사이 담당자가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
     // 닫기 단추는 없다 — 같은 「담당자」 단추를 다시 누르면 접힌다
-    expect(box().querySelector('[data-act="assign-close"]')).toBeNull();
-    const again = box().querySelector('[data-act="assign"][data-for="' + P2 + '"]');
+    expect(host.querySelector('[data-act="assign-close"]')).toBeNull();
+    const again = host.querySelector('[data-act="assign"]');
     expect([again.className, again.getAttribute('aria-expanded')]).toEqual(['mk-btn mk-btn--solid', 'true']);
     again.click();
     await flush();
-    expect(box().querySelector('form[data-form="assign"]')).toBeNull();
+    expect(host.querySelector('form[data-form="assign"]')).toBeNull();
+    // 펼친 채 한 건 화면을 닫았다 — 다음에 열면 접혀 있다
+    host.querySelector('[data-act="assign"]').click();
+    const PP = window.SeganPartnerProjects;
+    PP.unmountDetail(host);
+    expect([PP.state.detail, PP.state.assignFor]).toEqual([null, '']);
+    expect(area(P2).querySelector('form[data-form="assign"]')).toBeNull();
   });
 });

@@ -400,11 +400,12 @@ describe('메뉴 — B안 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () =
     expect(menus()[1]).toEqual(['내 계정', basic('팩토리 신청')]);
   });
 
-  test('Manager 업체 대표 — 업무: 프로젝트 관리(영업 ~ A/S), 관리 묶음 없음, 플래너 줄은 따로 없다, 내 정보에 업체 · 역할', async () => {
+  test('Manager 업체 대표 — 업무: 프로젝트 관리(상담 ~ 설치 — A/S 줄은 준비될 때까지 없다), 관리 묶음 없음, 플래너 줄은 따로 없다, 내 정보에 업체 · 역할', async () => {
     await load({ partner: member({ plan: 'manager' }), planner: PLANNER });
     expect(groups()).toEqual(['업무', '']);
     expect(menus()).toEqual([
-      ['프로젝트 관리', PJ],
+      // 영업 사원 업체의 A/S 는 아직 「준비 중」 글뿐이라 줄을 내지 않는다 (2026-11-23 대표님)
+      ['프로젝트 관리', PJ.filter((label) => label !== 'A/S')],
       ['내 계정', basic('내 영업 공간다담 협력 주방')],
     ]);
     expect(row('설계').getAttribute('href')).toBe('#p-design'); // 플래너는 설계 화면 위 단추
@@ -451,7 +452,7 @@ describe('메뉴 — B안 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () =
     expect(row('비서')).toBeUndefined();
   });
 
-  test('인사 › 작업 분배 — 담당자를 고를 수 있을 때 (대표 · 실장, 서버 assignee_ready)', async () => {
+  test('인사 › 작업 분배 줄은 없다 (2026-11-23 대표님 「뺌」) — 담당자를 고를 수 있어도. 담당자는 프로젝트 한 건 화면에서', async () => {
     const assignable = ok({
       company: { id: CO },
       can_manage: true,
@@ -462,11 +463,12 @@ describe('메뉴 — B안 큰 메뉴 · 하위 줄, 쓸 수 있는 줄만', () =
     await load({ partner: member(), companyProjects: assignable });
     expect(menus().find((m) => m[0] === '인사')).toEqual([
       '인사',
-      ['직원', '작업 분배', '근무 일정', '작업자'],
+      ['직원', '근무 일정', '작업자'],
     ]);
     // Agent 실장 — 직원 · 초대는 대표만 (업체 칸이 그리지 않는다)
     await load({ partner: member({ role: 'manager' }), companyProjects: assignable });
-    expect(menus().find((m) => m[0] === '인사')[1]).toEqual(['작업 분배', '근무 일정', '작업자']);
+    expect(menus().find((m) => m[0] === '인사')[1]).toEqual(['근무 일정', '작업자']);
+    expect(document.querySelector('[data-me-item="assign"]')).toBeNull();
   });
 
   test('회계 — 장부를 보기만(read) 해도 여섯 줄, 사진만 올리면 「영수증 올리기」, 못 열면 없다', async () => {
@@ -901,7 +903,8 @@ describe('하위 화면 — 주소 #이름', () => {
     ['#partner-consults', 'partner-consults', ['partner-consults'], '상담', '상담'],
     ['#partner-projects', 'partner-projects', ['partnerProjects'], '프로젝트', null],
     ['#as', 'as', ['as'], 'A/S함', 'A/S'],
-    ['#p-consult', 'p-consult', ['partner-consults', 'partnerProjects'], '상담', '상담'],
+    // 단계 화면은 그 단계의 도구만 — 프로젝트 목록은 프로젝트 관리 한 곳에 (2026-11-23 대표님 「반복 목록 뺌」)
+    ['#p-consult', 'p-consult', ['partner-consults'], '상담', '상담'],
     ['#p-design', 'p-design', ['partnerProjects'], '설계', '설계'],
     ['#p-make', 'p-make', ['partnerProjects'], '제작', '생산'],
     ['#p-as', 'p-as', ['as'], 'A/S', 'A/S'],
@@ -921,9 +924,12 @@ describe('하위 화면 — 주소 #이름', () => {
     }
   );
 
-  test('설계 화면 — 업체 프로젝트를 그 단계로 거른다 (머리글 「설계 단계 프로젝트」)', async () => {
+  test('설계 화면 — 도구가 없는 단계는 프로젝트 목록을 그 단계로 고른다 (머리글은 「프로젝트」, 보기 고르기에 「설계」가 켜진다)', async () => {
     await load({ url: '/segan/me.html#p-design', partner: member({ plan: 'expert' }) });
-    expect($('partnerProjects').querySelector('.me-pt-sub').textContent).toBe('설계 단계 프로젝트');
+    const list = $('partnerProjects');
+    expect(list.querySelector('.me-pt-sub').textContent).toBe('프로젝트');
+    const on = [...list.querySelectorAll('.pj-chip[aria-pressed="true"]')].map((b) => b.getAttribute('data-stage'));
+    expect(on).toEqual(['design']);
   });
 
   test('준비 중 — 구매 · 재고 · 근무 일정 · Manager 의 A/S: 칸 없이 안내 한 줄', async () => {

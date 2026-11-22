@@ -15,6 +15,12 @@
                POST /company/projects   { title, customer: { name, phone } } | { title, customer_id }
                                         → 201 { project_id, customer_id }
                PUT  /company/projects/:id/assignee  { assignee_id | null } (대표 · 실장 — DB 0042)
+   2026-11-23 대표님 승인 「프로젝트 관리 새 틀」 (답: 반복 목록 뺌 · 줄을 누르면 한 건 화면 · 작업 분배 뺌):
+             줄 = 이름 · 고객 · 담당 · 작은 단계 띠 · 지금 단계와 머문 날(느림 · 멈춤) · 다음 할 일 단추 하나.
+             목록 위에 보기 고르기 — 전체 · 단계마다 · 멈춘 것 · 보류 · 담당자 없음 (수와 함께).
+             실측 일정 · 담당자 · 작업 배정 · 보류/그만둠은 줄이 아니라 프로젝트 한 건 화면(segan/project-sheet.js) 안의
+             「관리」 칸에서 한다 — 그 화면이 mountDetail(el, id) 로 자리를 주면 여기서 그 칸을 그리고 듣는다.
+             아래의 「작업 분배」 보기 · 줄의 단추 설명은 그 전 모습이다 (기록으로 둔다).
    화면      마이페이지 메뉴가 고른 보기 (segan/me.js 가 setView 로 넘긴다):
                프로젝트 관리 › 상담 ~ 설치 = 그 단계 프로젝트만 (단계 = menuStage — segan/me.js 와 같다),
                인력 관리 › 작업 분배 = 진행 중 프로젝트 모두 (담당자 고르기), 옛 주소 #partner-projects = 모두.
@@ -73,6 +79,19 @@
     assignEmpty: '진행 중인 프로젝트가 없습니다.',
     assignLead: '진행 중인 프로젝트마다 담당자를 정합니다.',
     notMine: '대표 · 실장이 합니다',
+    // 보기 고르기 · 머문 날 (2026-11-23)
+    viewAll: '전체',
+    viewStuck: '멈춘 것',
+    viewHeld: '보류',
+    viewUnassigned: '담당자 없음',
+    viewLabel: '보기',
+    pickEmpty: '여기에 드는 프로젝트가 없습니다.',
+    stuck: '멈춤',
+    slow: '느림',
+    pastDue: '잡은 날 지남',
+    stripLabel: '단계 ',
+    manage: '관리',
+    assignee: '담당 ',
     // 실측 (2026-11-21 뒤 공정 2차 — 서버 PUT · PATCH /company/projects/:id/visit, DB 0079)
     visitMine: '대표 · 실장 · 담당자가 합니다',
     visitBtn: '실측 일정',
@@ -160,7 +179,8 @@
     err: '',
     msg: '',
     busy: false,
-    view: { stage: '', assign: false }, // 마이페이지 메뉴가 고른 보기 (setView)
+    view: { stage: '', pick: '' }, // 보기 — 단계 · 멈춘 것/보류/담당자 없음 (setView)
+    detail: null, // 한 건 화면이 준 「관리」 칸 자리 { el, id, onChange } (mountDetail)
   };
 
   var $ = function (id) {
@@ -181,17 +201,6 @@
   /** 한국 시간 날짜 (ISO UTC 로 온 시각) */
   function own(o, k) {
     return Object.prototype.hasOwnProperty.call(o, k);
-  }
-
-  function kstDay(iso) {
-    var t = Date.parse(iso);
-    if (isNaN(t)) return '';
-    var k = new Date(t + 9 * 3600 * 1000);
-    return k.getUTCFullYear() + '.' + pad(k.getUTCMonth() + 1) + '.' + pad(k.getUTCDate());
-  }
-
-  function telHref(tel) {
-    return 'tel:' + String(tel || '').replace(/[^0-9+]/g, '');
   }
 
   // ── 판정 · 본문 (순수 함수 — 시험이 직접 부른다) ─────────
@@ -217,10 +226,26 @@
     );
   }
 
-  /** 지금 보기에 들 프로젝트 — 단계 보기면 그 단계, 작업 분배면 진행 중(active), 아니면 모두 */
+  /** 진행 중인 프로젝트 (보류 · 끝남 · 취소가 아니다) */
+  function isLive(p) {
+    return !!p && (p.status === 'active' || !p.status);
+  }
+  /** 멈춘 프로젝트 — 서버가 줄에 실은 머문 날(stay)로 (workflow-api project-stay.js) */
+  function isStuck(p) {
+    return isLive(p) && !!p.stay && p.stay.state === 'stuck';
+  }
+  /**
+   * 지금 보기에 들 프로젝트.
+   *   보류는 「보류」 보기에서만 나온다 (왼쪽 수 · 할 일에서 빠져 있다).
+   *   멈춘 것 · 담당자 없음 · 단계 보기는 진행 중인 것만. 전체는 보류를 뺀 모두 (끝난 것 포함).
+   */
   function inView(p, view) {
-    if (view && view.assign) return p.status === 'active';
-    if (view && view.stage) return stageOf(p) === view.stage;
+    var v = view || {};
+    if (v.pick === 'held') return p.status === 'on_hold';
+    if (p.status === 'on_hold') return false;
+    if (v.pick === 'stuck') return isStuck(p);
+    if (v.pick === 'unassigned') return isLive(p) && !p.assignee;
+    if (v.stage) return isLive(p) && stageOf(p) === v.stage;
     return true;
   }
   /** 다담 공장 구성원 — /partner/me 가 company 없이 hq_member 로 준다 */
@@ -322,14 +347,6 @@
     var d = J.data || {};
     var c = p.customer && typeof p.customer === 'object' ? p.customer : null;
     var who = c && c.name ? String(c.name) : '';
-    var sub = [
-      J.view.stage ? '' : STAGE_LABEL[stageOf(p)] || '',
-      who,
-      kstDay(p.created_at),
-      '설계 ' + (Number(p.design_count) || 0) + '개',
-    ]
-      .filter(Boolean)
-      .join(' · ');
     var status = PROJECT_STATUS[p.status] || '';
     // 보류 · 그만둠 — 다시 볼 날 · 메모 (서버가 그 줄에만 싣는다)
     var holdNote = [
@@ -342,32 +359,105 @@
     ]
       .filter(Boolean)
       .join(' · ');
+    // 줄에는 다음 할 일 단추 하나만 — 실측 일정 · 담당자 · 작업 배정 · 보류/그만둠은 한 건 화면의 「관리」 칸 (detailHtml)
+    var visitNote = visitText(p);
+    // 고객 · 담당을 한 줄에
+    var owner = d.assignee
+      ? '<span data-assignee>' +
+        esc(p.assignee ? TEXT.assignee + personLabel(p.assignee) : TEXT.noAssignee) +
+        '</span>'
+      : '';
+    var sub = [who ? esc(who) : '', owner].filter(Boolean).join(' · ');
+    // 머문 날은 단계 한 줄에 한 번만 적는다 (서버가 센 날) — 기다림 글 · 단추 옆의 「n일째」는 그때 뺀다
+    var counted = !!p.stay && typeof p.stay.days === 'number' && isLive(p);
+    var flow = flowOf(p, counted);
+    var acts = flow.act + (flow.tail || '');
+    return (
+      '<li class="me-pt-row pj-row" data-project="' +
+      esc(p.id) +
+      '"><span class="me-pt-line"><span class="me-c-main"><b>' +
+      // 이름을 누르면 프로젝트 한 건 화면 (2026-11-23 대표님 「줄을 누르면 한 건 화면」 — segan/project-sheet.js 가 있을 때)
+      (canPage()
+        ? '<button type="button" class="pj-title" data-act="page" data-for="' +
+          esc(p.id) +
+          '">' +
+          esc(p.title || '프로젝트') +
+          '</button>'
+        : esc(p.title || '프로젝트')) +
+      '</b>' +
+      (sub ? '<small>' + sub + '</small>' : '') +
+      (holdNote ? '<small class="pj-hold">' + esc(holdNote) + '</small>' : '') +
+      (visitNote ? '<small class="pj-visit-line" data-pj="visit">' + esc(visitNote) + '</small>' : '') +
+      // 고객이 앱 계정과 이어졌다 (고객 초대 링크 · 앱 상담) — 초대 단추는 한 건 화면의 「관리」 칸에
+      (c && c.app === true && d.invite
+        ? '<small class="pj-visit-line pj-app" data-pj="app">' + esc(TEXT.customerApp) + '</small>'
+        : '') +
+      '</span>' +
+      (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
+      '</span>' +
+      miniHtml(p) +
+      flow.note +
+      (acts ? '<div class="rd-acts">' + acts + '</div>' : '') +
+      '</li>'
+    );
+  }
+
+  /** 작은 단계 띠와 지금 단계 한 줄 — 「견적 · 9일째 · 멈춤」. 단계를 모르면(옛 서버 · 끝난 프로젝트) 빈 글자 */
+  function miniHtml(p) {
+    if (p.status && p.status !== 'active' && p.status !== 'on_hold') return '';
+    if (typeof p.step !== 'string' || !own(STAGE_LABEL, p.step)) return '';
+    var cells = stripOf();
+    var at = -1;
+    cells.forEach(function (s, i) {
+      if (s[0] === p.step) at = i;
+    });
+    if (at < 0) return '';
+    var stay = p.stay && typeof p.stay === 'object' ? p.stay : null;
+    var days = stay && typeof stay.days === 'number' && stay.days > 0 ? stay.days + TEXT.days : '';
+    var mark =
+      !stay || !isLive(p)
+        ? ''
+        : stay.state === 'stuck'
+          ? '<span class="pj-stuck">' + esc((stay.days === null ? TEXT.pastDue + ' · ' : '') + TEXT.stuck) + '</span>'
+          : stay.state === 'slow'
+            ? '<span class="pj-slow">' + esc(TEXT.slow) + '</span>'
+            : '';
+    return (
+      '<div class="pj-now"><ol class="pj-mini" aria-label="' +
+      esc(TEXT.stripLabel + cells.length + ' 가운데 ' + (at + 1) + '번째') +
+      '">' +
+      cells
+        .map(function (s, i) {
+          return '<li' + (i < at ? ' class="is-done"' : i === at ? ' class="is-now"' : '') + '></li>';
+        })
+        .join('') +
+      '</ol><p class="pj-step" data-pj="step"><b>' +
+      esc(cells[at][1]) +
+      '</b>' +
+      (days ? ' · ' + esc(days) : '') +
+      (mark ? ' · ' + mark : '') +
+      '</p></div>'
+    );
+  }
+
+  /**
+   * 한 건 화면의 「관리」 칸 — 실측 일정 · 담당자 · 작업 배정 · 보류/그만둠 단추와 펼친 칸.
+   * 같은 단추를 다시 누르면 접힌다 (펼친 동안 단추 색이 바뀐다 — 따로 「닫기」를 두지 않는다, 대표님 2026-11-21).
+   */
+  function detailHtml(p) {
+    var d = J.data || {};
     var canHold = canStatus(p);
     var holding = canHold && J.statusFor === p.id;
-    // 실측 — 잡힌 실측 한 줄 · 실측 칸 (같은 단추로 펼치고 접는다). 실측이 아직 없으면 다음 할 일 단추 「실측 일정 잡기」가 그 단추다
-    var visitNote = visitText(p);
     var canMeasure = canVisit(p);
     var measuring = canMeasure && J.visitFor === p.id;
-    // 고객 초대 — 앱 계정과 이어지지 않은 고객의 진행 중 프로젝트 (대표 · 실장 · 담당자). 이어졌으면 꼬리표만
-    var appLinked = !!(c && c.app === true);
+    // 고객 초대 — 앱 계정과 이어지지 않은 고객의 진행 중 프로젝트 (대표 · 실장 · 담당자)
     var canInv = canInvite(p);
     var inviting = canInv && J.inviteFor === p.id;
-    var owner = d.assignee
-      ? '<small class="me-pt-owner" data-assignee>' +
-        esc(p.assignee ? '담당 ' + personLabel(p.assignee) : TEXT.noAssignee) +
-        '</small>'
-      : '';
     var canAssign = d.assignee && d.manage;
-    // 작업 배정 — 인사를 쓰는 팩토리의 진행 중 프로젝트 (담당자 고르는 보기에서는 뺀다)
     var canWork = canWorkOn(p);
     var working = canWork && J.workFor === p.id;
-    var flow = flowOf(p);
-    // 담당자 · 작업 배정 — 같은 단추를 다시 누르면 접힌다. 펼친 동안은 단추 색이 바뀐다(mk-btn--solid),
-    // 따로 「닫기」 단추를 두지 않는다 (대표님 2026-11-21). 줄의 「진행 보기」 단추도 뺐다(같은 날)
     var assigning = canAssign && J.assignFor === p.id;
     var acts =
-      flow.act +
-      (flow.tail || '') +
       (canMeasure && p.visit
         ? '<button type="button" class="mk-btn' +
           (measuring ? ' mk-btn--solid' : '') +
@@ -424,40 +514,21 @@
           esc(p.status === 'on_hold' ? TEXT.statusBtnHeld : p.status === 'cancelled' ? TEXT.statusBtnCancelled : TEXT.statusBtn) +
           '</button>'
         : '');
-    return (
-      '<li class="me-pt-row" data-project="' +
-      esc(p.id) +
-      '"><span class="me-pt-line"><span class="me-c-main"><b>' +
-      // 이름을 누르면 프로젝트 한 건 화면 (2026-11-23 대표님 「줄을 누르면 한 건 화면」 — segan/project-sheet.js 가 있을 때)
-      (canPage()
-        ? '<button type="button" class="pj-title" data-act="page" data-for="' +
-          esc(p.id) +
-          '">' +
-          esc(p.title || '프로젝트') +
-          '</button>'
-        : esc(p.title || '프로젝트')) +
-      '</b><small>' +
-      esc(sub) +
-      '</small>' +
-      (c && c.phone
-        ? '<small><a href="' + esc(telHref(c.phone)) + '">' + esc(c.phone) + '</a></small>'
-        : '') +
-      owner +
-      (holdNote ? '<small class="pj-hold">' + esc(holdNote) + '</small>' : '') +
-      (visitNote ? '<small class="pj-visit-line" data-pj="visit">' + esc(visitNote) + '</small>' : '') +
-      (appLinked && d.invite ? '<small class="pj-visit-line pj-app" data-pj="app">' + esc(TEXT.customerApp) + '</small>' : '') +
-      '</span>' +
-      (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
-      '</span>' +
-      flow.strip +
-      flow.note +
-      (acts ? '<div class="rd-acts">' + acts + '</div>' : '') +
-      (canAssign && J.assignFor === p.id ? assignHtml(p) : '') +
+    var panels =
+      (assigning ? assignHtml(p) : '') +
       (holding ? statusPanelHtml(p) : '') +
       (measuring ? visitPanelHtml(p) : '') +
       (inviting ? invitePanelHtml(p) : '') +
-      (working ? '<div class="pjw" data-pj-work="' + esc(p.id) + '"></div>' : '') +
-      '</li>'
+      (working ? '<div class="pjw" data-pj-work="' + esc(p.id) + '"></div>' : '');
+    if (!acts && !panels && !J.msg) return '';
+    return (
+      '<div class="pj-manage" data-project="' +
+      esc(p.id) +
+      '">' +
+      (J.msg ? '<p class="me-pt-msg" role="status">' + esc(J.msg) + '</p>' : '') +
+      (acts ? '<div class="rd-acts" data-pj="manage">' + acts + '</div>' : '') +
+      panels +
+      '</div>'
     );
   }
 
@@ -483,11 +554,11 @@
     return n < 1 ? TEXT.today : n + TEXT.days;
   }
 
-  /** 줄 하나의 { strip 단계 띠, note 기다림 · 못 하는 일 글, act 다음 단추 } — 진행 중 프로젝트만, 담당자 고르는 보기는 뺀다 */
-  function flowOf(p, anyView) {
+  /** 줄 하나의 { strip 단계 띠, note 기다림 · 못 하는 일 글, act 다음 단추 } — 진행 중 프로젝트만. quiet = 「n일째」를 적지 않는다 (줄이 머문 날을 따로 적을 때) */
+  function flowOf(p, quiet) {
     var none = { strip: '', note: '', act: '', tail: '' };
     // 보류는 단계 띠를 그대로 보인다 (어디서 멈췄는지) — 다음 할 일은 다시 볼 날이 됐을 때만 서버가 준다
-    if ((!anyView && J.view.assign) || (p.status && p.status !== 'active' && p.status !== 'on_hold')) return none;
+    if (p.status && p.status !== 'active' && p.status !== 'on_hold') return none;
     if (typeof p.step !== 'string' || !own(STAGE_LABEL, p.step)) return none;
     var at = -1;
     var cells = stripOf();
@@ -508,7 +579,7 @@
       '</ol>';
     var n = p.next && typeof p.next === 'object' ? p.next : null;
     if (!n || typeof n.label !== 'string' || !n.label) return { strip: strip, note: '', act: '' };
-    var since = sinceText(n.since);
+    var since = quiet ? '' : sinceText(n.since);
     // 남을 기다리는 중 — 단추 없이 글로 (고객 답 기다림 · 4일째 · 2번 열어 봄)
     if (n.wait === true) {
       // 실측 날 전 — 「실측 11.25 (화) 14:00 예정」
@@ -563,7 +634,7 @@
 
   /** 그 프로젝트의 다음 할 일 — 다른 칸이 같은 단추를 그린다 (새로 생긴 일 표 segan/inbox.js). 보기와 상관없이 */
   function nextOf(p) {
-    return flowOf(p, true);
+    return flowOf(p);
   }
 
   /** 다른 칸에서 다음 할 일 단추를 눌렀다 — 프로젝트 줄에서 누른 것과 같다 */
@@ -698,45 +769,23 @@
     var items = d.items.filter(function (p) {
       return inView(p, v);
     });
-    var held = items.filter(function (p) {
-      return p.status === 'on_hold';
-    });
-    var live = items.filter(function (p) {
-      return p.status !== 'on_hold';
-    });
-    var title = v.assign
-      ? '작업 분배'
-      : v.stage
-        ? STAGE_LABEL[v.stage] + ' 단계 프로젝트'
-        : '프로젝트';
-    var lead = v.assign ? TEXT.assignLead : v.stage ? '' : TEXT.lead;
-    var empty = v.assign ? TEXT.assignEmpty : v.stage ? TEXT.stageEmpty : TEXT.empty;
-    // 새 고객 · 프로젝트 — 모두 · 상담 보기에서만 (새 프로젝트는 상담 단계로 들어온다)
-    var canCreate = d.manage && !v.assign && (!v.stage || v.stage === 'consult');
+    var picked = !!(v.stage || v.pick);
+    var empty = !d.items.length ? TEXT.empty : v.pick ? TEXT.pickEmpty : v.stage ? TEXT.stageEmpty : TEXT.empty;
+    // 새 고객 · 프로젝트 — 전체 · 상담 보기에서만 (새 프로젝트는 상담 단계로 들어온다)
+    var canCreate = d.manage && !v.pick && (!v.stage || v.stage === 'consult');
+    // 한 건 화면 안에서 한 일의 알림은 그 화면의 「관리」 칸에 적는다 — 목록에는 목록에서 한 일만
+    var msgHere = J.msg && !detailLive();
     box.innerHTML =
-      '<h3 class="me-pt-sub" id="partnerProjectsTitle">' +
-      esc(title) +
-      '</h3>' +
-      (lead ? '<p class="mk-note">' + esc(lead) + '</p>' : '') +
-      (J.msg ? '<p class="me-pt-msg" role="status">' + esc(J.msg) + '</p>' : '') +
-      (live.length
-        ? '<ul class="me-pt-list me-pr-list">' + live.map(rowHtml).join('') + '</ul>'
+      '<h3 class="me-pt-sub" id="partnerProjectsTitle">프로젝트</h3>' +
+      (picked ? '' : '<p class="mk-note">' + esc(TEXT.lead) + '</p>') +
+      chipsHtml(d) +
+      (msgHere ? '<p class="me-pt-msg" role="status">' + esc(J.msg) + '</p>' : '') +
+      (items.length
+        ? '<ul class="me-pt-list me-pr-list">' + items.map(rowHtml).join('') + '</ul>'
         : '<p class="me-empty">' + esc(empty) + '</p>') +
-      // 보류 — 아래에 접어 둔다 (왼쪽 수 · 할 일에서는 빠져 있다). 같은 단추로 펼치고 접는다
-      (held.length
-        ? '<div class="pj-held"><button type="button" class="mk-btn' +
-          (J.heldOpen ? ' mk-btn--solid' : '') +
-          '" data-act="held" aria-expanded="' +
-          (J.heldOpen ? 'true' : 'false') +
-          '">' +
-          esc(TEXT.held + ' ' + held.length) +
-          '</button>' +
-          (J.heldOpen ? '<ul class="me-pt-list me-pr-list">' + held.map(rowHtml).join('') + '</ul>' : '') +
-          '</div>'
-        : '') +
       (canCreate
         ? J.open
-          ? formHtml(customersOf(items))
+          ? formHtml(customersOf(d.items))
           : '<div class="rd-acts"><button type="button" class="mk-btn" data-act="open">새 고객 · 프로젝트</button></div>'
         : '');
     box.hidden = false;
@@ -746,13 +795,140 @@
       box.querySelectorAll('a[data-desktop-tab]').forEach(function (a) {
         Shell.applyLinkTarget(a);
       });
-    mountWork(box);
+    renderDetail();
   }
 
-  /** 그 프로젝트에 「작업 배정」 단추가 있나 — 인사를 쓰는 팩토리의 진행 중 프로젝트 (담당자 고르는 보기에서는 뺀다) */
+  /**
+   * 보기 고르기 — 전체 · 단계마다 · 멈춘 것 · 보류 · 담당자 없음 (수와 함께). 누른 것이 켜진다 (aria-pressed).
+   * 단계의 수는 왼쪽 메뉴 줄의 수와 같다 (진행 중인 것만). 멈춘 것은 서버가 머문 날을 줄 때만, 담당자 없음은 대표 · 실장에게만.
+   */
+  function chipsHtml(d) {
+    var v = J.view;
+    var items = d.items;
+    var count = function (view) {
+      return items.filter(function (p) {
+        return inView(p, view);
+      }).length;
+    };
+    var chip = function (label, n, view) {
+      var on = (view.stage || '') === (v.stage || '') && (view.pick || '') === (v.pick || '');
+      return (
+        '<button type="button" class="pj-chip" data-act="view" data-stage="' +
+        esc(view.stage || '') +
+        '" data-pick="' +
+        esc(view.pick || '') +
+        '" aria-pressed="' +
+        on +
+        '">' +
+        esc(label) +
+        ' <span class="pj-chip-n">' +
+        n +
+        '</span></button>'
+      );
+    };
+    var out = chip(TEXT.viewAll, count({}), {});
+    stripOf().forEach(function (s) {
+      if (s[0] === 'done') return; // 끝난 것은 단계로 고르지 않는다 (전체에 있다)
+      out += chip(s[1], count({ stage: s[0] }), { stage: s[0] });
+    });
+    var hasStay = items.some(function (p) {
+      return !!p.stay;
+    });
+    if (hasStay) out += chip(TEXT.viewStuck, count({ pick: 'stuck' }), { pick: 'stuck' });
+    var held = count({ pick: 'held' });
+    if (held || v.pick === 'held') out += chip(TEXT.viewHeld, held, { pick: 'held' });
+    if (d.assignee && d.manage) out += chip(TEXT.viewUnassigned, count({ pick: 'unassigned' }), { pick: 'unassigned' });
+    return '<div class="pj-chips" role="group" aria-label="' + esc(TEXT.viewLabel) + '">' + out + '</div>';
+  }
+
+  // ── 한 건 화면의 「관리」 칸 (2026-11-23) ─────────────────────────
+  //   프로젝트 한 건 화면(segan/project-sheet.js)이 자리(el)를 주면 그 프로젝트의 단추 · 펼친 칸을 여기서 그리고 듣는다.
+  //   판정 · 서버 길 · 펼친 상태는 줄에 있던 때와 같다 — 자리만 옮겼다.
+
+  /** 지금 자리를 받은 한 건 화면이 살아 있나 */
+  function detailLive() {
+    var D = J.detail;
+    return !!(D && D.el && D.el.isConnected !== false && D.id);
+  }
+  function detailProject() {
+    if (!detailLive() || !J.data) return null;
+    return (
+      J.data.items.filter(function (p) {
+        return p.id === J.detail.id;
+      })[0] || null
+    );
+  }
+  /** 폼 · 단추를 찾을 곳 — 한 건 화면이 열려 있으면 그 칸, 아니면 목록 */
+  function scopeEl() {
+    return detailLive() ? J.detail.el : $('partnerProjects');
+  }
+  function renderDetail() {
+    if (!J.detail || !J.detail.el) return;
+    var el = J.detail.el;
+    var p = detailProject();
+    el.innerHTML = p ? detailHtml(p) : '';
+    var Shell = window.SeganShell || {};
+    if (Shell.applyLinkTarget)
+      el.querySelectorAll('a[data-desktop-tab]').forEach(function (a) {
+        Shell.applyLinkTarget(a);
+      });
+    mountWork(el);
+  }
+  /**
+   * 한 건 화면이 「관리」 칸 자리를 준다 — 같은 자리 · 같은 프로젝트면 다시 그리지 않는다 (적던 값이 남게).
+   * opts.onChange = 여기서 한 일로 프로젝트가 바뀌었을 때 부를 것 (그 화면이 다시 읽는다)
+   */
+  function mountDetail(el, id, opts) {
+    if (!el || typeof id !== 'string' || !id) return false;
+    var same = !!J.detail && J.detail.el === el && J.detail.id === id;
+    J.detail = { el: el, id: id, onChange: opts && typeof opts.onChange === 'function' ? opts.onChange : null };
+    if (!el.getAttribute('data-bound')) {
+      el.setAttribute('data-bound', '1');
+      el.addEventListener('click', onClick);
+      el.addEventListener('change', onChange);
+      el.addEventListener('submit', onSubmit);
+    }
+    if (!same || !el.firstChild) renderDetail();
+    return true;
+  }
+  /** 한 건 화면이 닫혔다 — 펼친 칸을 접는다 */
+  function unmountDetail(el) {
+    if (!J.detail || (el && J.detail.el !== el)) return;
+    var PW = window.SeganProjectWork;
+    if (J.workFor && PW) PW.unmount();
+    J.detail = null;
+    J.workFor = '';
+    J.assignFor = '';
+    J.statusFor = '';
+    J.statusUi = null;
+    J.visitFor = '';
+    J.visitUi = null;
+    J.inviteFor = '';
+    J.inviteUi = null;
+    J.err = '';
+  }
+  /** 한 건 화면에 알린다 — 여기서 한 일로 프로젝트가 바뀌었다 (그 화면이 띠 · 단계 칸을 다시 읽는다) */
+  function detailChanged() {
+    var fn = J.detail && J.detail.onChange;
+    if (typeof fn !== 'function') return;
+    try {
+      fn();
+    } catch {
+      // 다시 못 읽어도 여기 칸은 그대로 둔다
+    }
+  }
+  /** 그 프로젝트의 한 건 화면을 연다 (이미 그 프로젝트로 열려 있으면 그대로) → 열었나 */
+  function openPage(id) {
+    if (detailLive() && J.detail.id === id) return true;
+    if (!canPage()) return false;
+    window.SeganProjectSheet.open(id);
+    return true;
+  }
+
+  /** 그 프로젝트에 「작업 배정」 단추가 있나 — 인사를 쓰는 팩토리의 진행 중 프로젝트 */
   function canWorkOn(p) {
     var PW = window.SeganProjectWork;
-    return !!PW && PW.canSee(J.me) && !J.view.assign && (p.status === 'active' || !p.status);
+    return !!PW && PW.canSee(J.me) && (p.status === 'active' || !p.status);
   }
 
   /**
@@ -761,40 +937,50 @@
    * 그 줄로 옮기고(움직임 없이) 펼친 「작업 배정」 단추에 초점을 둔다.
    */
   function openWork(id) {
-    var box = $('partnerProjects');
-    if (!box || box.hidden || !J.data || !id) return false;
-    // 업무 달력은 TODAY WORK 화면에 있다 (2026-11-21) — 목록이 지금 화면에 없으면 프로젝트 관리 화면(모든 단계)으로 넘어가서 연다
-    var away = box.classList.contains('me-off');
+    if (!J.data || !id) return false;
     var p = J.data.items.filter(function (x) {
-      return x.id === id && (away || inView(x, J.view));
+      return x.id === id;
     })[0];
     if (!p || !canWorkOn(p)) return false;
-    if (away && !toList()) return false;
+    // 2026-11-23 — 줄이 아니라 그 프로젝트의 한 건 화면 「관리」 칸에서 연다 (업무 달력 · 새로 생긴 일 · 생산 칸의 단추)
     if (J.workFor !== id) {
       window.SeganProjectWork.unmount();
       J.workFor = id;
       J.open = false;
       J.assignFor = '';
+      J.statusFor = '';
+      J.statusUi = null;
+      J.visitFor = '';
+      J.visitUi = null;
       J.err = '';
       J.msg = '';
-      render();
     }
-    var row = Array.prototype.filter.call(box.querySelectorAll('[data-project]'), function (el) {
-      return el.getAttribute('data-project') === id;
-    })[0];
-    if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'start' });
-    var btn = row && row.querySelector('[data-act="work-close"]');
-    if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
+    if (!openPage(id)) {
+      J.workFor = '';
+      return false;
+    }
+    render();
+    focusManage('[data-act="work-close"]');
     return true;
   }
 
-  /** 펼쳐 둔 「작업 배정」 자리에 칸을 올린다 — 목록을 다시 그릴 때마다 (읽어 둔 것은 그 모듈이 기억한다) */
-  function mountWork(box) {
+  /** 「관리」 칸의 그 단추(없으면 칸)로 옮기고 초점을 둔다 */
+  function focusManage(selector) {
+    if (!detailLive()) return;
+    var el = J.detail.el;
+    var btn = selector ? el.querySelector(selector) : null;
+    var to = btn || el;
+    if (typeof to.scrollIntoView === 'function') to.scrollIntoView({ block: 'nearest' });
+    if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
+  }
+
+  /** 펼쳐 둔 「작업 배정」 자리에 칸을 올린다 — 「관리」 칸을 다시 그릴 때마다 (읽어 둔 것은 그 모듈이 기억한다) */
+  function mountWork(root) {
     var PW = window.SeganProjectWork;
     if (!PW) return;
-    var host = J.workFor ? box.querySelector('[data-pj-work]') : null;
+    var host = J.workFor && root ? root.querySelector('[data-pj-work]') : null;
     if (!host) {
-      // 그 프로젝트가 이 보기에 없다(다른 단계로 갔다) — 닫는다
+      // 그 프로젝트의 한 건 화면이 닫혔거나 단추가 없어졌다 — 닫는다
       if (J.workFor) PW.unmount();
       J.workFor = '';
       return;
@@ -865,6 +1051,40 @@
     return { ok: r.ok, status: r.status, data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null };
   }
 
+  /** POST /company/projects/:id/stages/:key/photos (본문 = 사진) → { ok, status, data, message } — 한 건 화면의 단계 칸이 올린다 (DB 0083) */
+  async function sendPhoto(id, key, blob) {
+    var none = { ok: false, status: 0, data: null, message: '' };
+    if (!J.base || typeof id !== 'string' || !UUID_RE.test(id) || !/^[a-z]{1,20}$/.test(String(key || '')) || !blob) return none;
+    var res;
+    try {
+      res = await fetch(J.base + '/company/projects/' + id + '/stages/' + key + '/photos', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + (await token()), 'Content-Type': blob.type || 'image/jpeg' },
+        body: blob,
+        cache: 'no-store',
+      });
+    } catch {
+      return none;
+    }
+    var b = null;
+    try {
+      b = await res.json();
+    } catch {
+      b = null;
+    }
+    b = b && typeof b === 'object' ? b : {};
+    var ok = res.ok && b.success === true && !!b.data && typeof b.data === 'object';
+    return { ok: ok, status: res.status, data: ok ? b.data : null, message: ok ? '' : errText({ body: b }) };
+  }
+
+  /** DELETE /company/projects/:id/photos/:fileId → { ok, status, message } */
+  async function removePhoto(id, fileId) {
+    if (!J.base || !UUID_RE.test(String(id || '')) || !UUID_RE.test(String(fileId || '')))
+      return { ok: false, status: 0, message: '' };
+    var r = await call('DELETE', '/company/projects/' + id + '/photos/' + fileId);
+    return { ok: r.ok, status: r.status, message: r.ok ? '' : errText(r) };
+  }
+
   /** 본인 토큰으로 그대로 받는다 (그림 · 인쇄 화면) → Response | null. path 는 '/' 로 시작하는 서버 길 */
   async function fetchRaw(path) {
     if (!J.base || typeof path !== 'string' || path.charAt(0) !== '/') return null;
@@ -902,7 +1122,7 @@
    */
   function canStatus(p) {
     var d = J.data || {};
-    if (!d.hold || J.view.assign) return false;
+    if (!d.hold) return false;
     var mine = !!myId() && !!p.assignee && p.assignee.user_id === myId();
     if (!d.manage && !mine) return false;
     if (p.status === 'on_hold') return true;
@@ -1006,7 +1226,7 @@
   /** 그 줄에 실측 칸이 있나 — 대표 · 실장 · 그 프로젝트의 담당자, 진행 중이고 아직 설계 전(상담 · 실측 단계)인 프로젝트 */
   function canVisit(p) {
     var d = J.data || {};
-    if (!d.visit || J.view.assign || !p) return false;
+    if (!d.visit || !p) return false;
     var mine = !!myId() && !!p.assignee && p.assignee.user_id === myId();
     if (!d.manage && !mine) return false;
     if (p.status && p.status !== 'active') return false;
@@ -1113,7 +1333,7 @@
   /** 그 줄에 「고객 초대」가 있나 — 서버가 invite_ready, 진행 중, 고객이 있고 아직 앱과 이어지지 않았다, 대표 · 실장 · 담당자 */
   function canInvite(p) {
     var d = J.data || {};
-    if (!d.invite || J.view.assign || !p) return false;
+    if (!d.invite || !p) return false;
     var c = p.customer && typeof p.customer === 'object' ? p.customer : null;
     if (!c || c.app === true) return false;
     if (p.status && p.status !== 'active') return false;
@@ -1156,6 +1376,7 @@
     J.inviteFor = open ? id : '';
     J.inviteUi = open ? { url: '', err: '', msg: '' } : null;
     J.open = false;
+    J.assignFor = '';
     J.visitFor = '';
     J.visitUi = null;
     J.statusFor = '';
@@ -1204,7 +1425,7 @@
       ok = false;
     }
     if (!ok) {
-      var el = $('partnerProjects') && $('partnerProjects').querySelector('[data-pj="invite-url"]');
+      var el = scopeEl() && scopeEl().querySelector('[data-pj="invite-url"]');
       if (el && el.select) el.select();
     }
     u.msg = ok ? TEXT.inviteCopied : TEXT.inviteCopyFail;
@@ -1227,7 +1448,7 @@
     J.msg = '';
     render();
     if (!open) return;
-    var first = $('partnerProjects').querySelector('form[data-form="visit"] input');
+    var first = scopeEl().querySelector('form[data-form="visit"] input');
     if (first && first.focus) first.focus();
   }
 
@@ -1291,16 +1512,31 @@
     if (list) J.data = list;
     render();
     if (list) changed();
+    detailChanged();
   }
 
   /** 다른 칸(새로 생긴 일 표 · 프로젝트 창)에서 그 프로젝트의 실측 칸을 연다 — 그 줄로 옮긴다 */
   function openVisit(id) {
     if (!J.data || !id) return false;
-    // 새로 생긴 일은 TODAY WORK 화면에 있다 — 목록이 지금 화면에 없으면 프로젝트 관리 화면으로 넘어가서 연다 (보류 칸과 같다)
-    var box = $('partnerProjects');
-    if (box && !box.hidden && box.classList.contains('me-off')) toList();
-    if (J.visitFor !== id) toggleVisit(id);
-    return focusProject(id);
+    // 2026-11-23 — 줄이 아니라 그 프로젝트의 한 건 화면 「관리」 칸에서 연다
+    if (J.visitFor !== id) {
+      J.visitFor = id;
+      J.visitUi = { err: '', values: null };
+      J.open = false;
+      J.assignFor = '';
+      J.statusFor = '';
+      J.statusUi = null;
+      J.err = '';
+      J.msg = '';
+    }
+    if (!openPage(id)) {
+      J.visitFor = '';
+      J.visitUi = null;
+      return false;
+    }
+    render();
+    focusManage('form[data-form="visit"] input');
+    return true;
   }
 
   /**
@@ -1374,10 +1610,9 @@
     J.statusUi = null;
     J.msg = done;
     if (list) J.data = list;
-    // 보류한 줄이 어디로 갔는지 보이게 묶음을 펼친다
-    if (body.status === 'on_hold') J.heldOpen = true;
     render();
     if (list) changed();
+    detailChanged();
   }
 
   /**
@@ -1386,13 +1621,12 @@
    */
   async function openStatus(id) {
     if (!J.data || !id) return false;
-    // 새로 생긴 일은 TODAY WORK 화면에 있다 — 목록이 지금 화면에 없으면 프로젝트 관리 화면으로 넘어가서 연다
-    var box = $('partnerProjects');
-    if (box && !box.hidden && box.classList.contains('me-off')) toList();
-    J.heldOpen = true;
+    // 2026-11-23 — 줄이 아니라 그 프로젝트의 한 건 화면 「관리」 칸에서 연다
+    if (!openPage(id)) return false;
     if (J.statusFor !== id) await toggleStatus(id);
     else render();
-    return focusProject(id);
+    focusManage('[data-act="status"]');
+    return true;
   }
 
   /**
@@ -1483,6 +1717,7 @@
     J.msg = got.body.assignee_id ? TEXT.assigned : TEXT.unassigned;
     if (list) J.data = list;
     render();
+    detailChanged();
   }
 
   async function submit(form) {
@@ -1548,17 +1783,6 @@
   }
 
   /** 그 프로젝트 줄로 옮기고 초점을 둔다 (받은 상담의 「프로젝트 열기」) — 지금 보기에 그 줄이 없으면 false */
-  /**
-   * 프로젝트 관리 화면(#dash-project — 모든 단계 목록)으로 넘어간다 (segan/me.js go — 기록 하나).
-   * TODAY WORK(새로 생긴 일 · 업무 달력)에서 목록의 칸을 열 때. 넘어갔으면 true
-   */
-  function toList() {
-    var Me = window.SeganMe;
-    if (!Me || typeof Me.go !== 'function') return false;
-    Me.go('dash-project');
-    return true;
-  }
-
   function focusProject(id) {
     var box = $('partnerProjects');
     if (!box || box.hidden || box.classList.contains('me-off') || !id) return false;
@@ -1580,6 +1804,14 @@
       if (canPage()) window.SeganProjectSheet.open(el.getAttribute('data-for') || '');
       return;
     }
+    if (nextAct === 'view') {
+      pickView({ stage: el.getAttribute('data-stage') || '', pick: el.getAttribute('data-pick') || '' });
+      return;
+    }
+    // 목록 줄의 다음 할 일 가운데 「실측 일정 잡기」 · 「보류 — 다시 볼 날」은 한 건 화면의 「관리」 칸을 연다
+    var inList = !(J.detail && J.detail.el && J.detail.el.contains(el));
+    if (inList && nextAct === 'visit') return openVisit(el.getAttribute('data-for') || '');
+    if (inList && nextAct === 'status') return openStatus(el.getAttribute('data-for') || '');
     if (nextAct === 'next-sheet') return nextSheet(el.getAttribute('data-id') || '');
     if (nextAct === 'next-order') return nextOrder(el.getAttribute('data-id') || '');
     if (nextAct === 'next-visit-done')
@@ -1597,9 +1829,6 @@
     } else if (act === 'close') {
       J.open = false;
       J.err = '';
-      render();
-    } else if (act === 'held') {
-      J.heldOpen = !J.heldOpen;
       render();
     } else if (act === 'invite') {
       toggleInvite(el.getAttribute('data-for') || '');
@@ -1622,7 +1851,7 @@
         J.statusUi.form = J.statusUi.form === kind ? '' : kind;
         J.statusUi.err = '';
         render();
-        var first = $('partnerProjects').querySelector('form[data-form="status"] input');
+        var first = scopeEl().querySelector('form[data-form="status"] input');
         if (first && first.focus) first.focus();
       }
     } else if (act === 'status-resume') {
@@ -1709,7 +1938,6 @@
     J.statusUi = null;
     J.visitFor = '';
     J.visitUi = null;
-    J.heldOpen = false;
     if (window.SeganProjectWork) window.SeganProjectWork.unmount();
     J.mode = 'new';
     J.err = '';
@@ -1735,20 +1963,34 @@
   }
 
   /**
-   * 마이페이지 메뉴가 고른 보기 — { stage: '' | 'consult' … 'install', assign: 작업 분배 }.
+   * 보기 — { stage: '' | 'consult' … 'install', pick: '' | 'stuck' | 'held' | 'unassigned' }.
+   * 마이페이지 메뉴(segan/me.js — 화면을 옮길 때) · 목록 위의 보기 고르기 · 대시보드의 단계 줄이 고른다.
    * 같은 보기면 그대로 (칸을 다시 그리면 메뉴가 다시 맞추므로 되풀이하지 않게)
    */
   function setView(v) {
-    var next = { stage: (v && v.stage) || '', assign: !!(v && v.assign) };
-    if (next.stage === J.view.stage && next.assign === J.view.assign) return;
+    var pick = v && typeof v.pick === 'string' ? v.pick : '';
+    var next = { stage: pick ? '' : (v && v.stage) || '', pick: pick };
+    if (next.stage === J.view.stage && next.pick === J.view.pick) return;
     J.view = next;
     J.open = false;
-    J.assignFor = '';
-    J.visitFor = '';
-    J.visitUi = null;
     J.err = '';
-    J.msg = '';
+    if (!detailLive()) J.msg = '';
     if (J.data) render();
+  }
+  /** 목록 위의 보기 고르기를 눌렀다 — 켜진 것을 다시 누르면 전체로 */
+  function pickView(v) {
+    var same = (v.stage || '') === J.view.stage && (v.pick || '') === J.view.pick;
+    setView(same ? {} : v);
+    var box = $('partnerProjects');
+    var on = box && box.querySelector('.pj-chip[aria-pressed="true"]');
+    if (on && on.focus) on.focus();
+  }
+  /** 목록으로 옮긴다 — 대시보드의 단계 줄을 눌렀을 때 (segan/company-dashboard.js) */
+  function focusList() {
+    var box = $('partnerProjects');
+    if (!box || box.hidden || box.classList.contains('me-off')) return false;
+    if (typeof box.scrollIntoView === 'function') box.scrollIntoView({ block: 'start' });
+    return true;
   }
 
   /** 담당자를 고를 수 있나 — 대표 · 실장이고 서버가 담당자 칸을 받을 때 (인력 관리 › 작업 분배) */
@@ -1780,7 +2022,14 @@
     runNext: runNext,
     readProject: readProject,
     readStage: readStage,
+    sendPhoto: sendPhoto,
+    removePhoto: removePhoto,
     fetchRaw: fetchRaw,
+    isStuck: isStuck,
+    inView: inView,
+    mountDetail: mountDetail,
+    unmountDetail: unmountDetail,
+    focusList: focusList,
     canStatus: canStatus,
     openStatus: openStatus,
     setStatus: setStatus,
