@@ -976,6 +976,93 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     expect(box().querySelector('.me-pt-sub').textContent).toBe('프로젝트');
     expect(titles()).toEqual(['붙박이장', '싱크대', '신발장']);
   });
+
+  // ── 고객 초대 (2026-11-23 대표님 뒤 공정 3차 — 서버 invite_ready · POST /company/projects/:id/customer-invite, DB 0082) ──
+  test('고객 초대 — 서버가 쓸 수 있다고 할 때만(invite_ready), 앱과 이어지지 않은 고객의 진행 중 줄에. 이어졌으면 「고객 앱 연결」', async () => {
+    const items = [
+      item(P1, '안 이어짐', { customer: { id: C1, name: '김고객', phone: null, app: false } }),
+      item(P3, '이어짐', { customer: { id: C2, name: '이고객', phone: null, app: true } }),
+    ];
+    // 옛 서버 · DB 0082 전 — 단추도 꼬리표도 없다
+    await load({ list: () => ok(projects({ items })) });
+    await flush();
+    await openScreen('partner-projects');
+    expect(box().querySelector('[data-act="invite"]')).toBeNull();
+    expect(box().querySelector('[data-pj="app"]')).toBeNull();
+    document.body.innerHTML = '';
+    await load({ list: () => ok(projects({ invite_ready: true, items })) });
+    await flush();
+    await openScreen('partner-projects');
+    const btn = rowOf(P1).querySelector('[data-act="invite"]');
+    expect([btn.textContent, btn.getAttribute('aria-expanded')]).toEqual(['고객 초대', 'false']);
+    expect(rowOf(P3).querySelector('[data-act="invite"]')).toBeNull();
+    expect(rowOf(P3).querySelector('[data-pj="app"]').textContent).toBe('고객 앱 연결');
+  });
+
+  test('고객 초대 — 같은 단추로 펼치고 접는다, 링크 만들기 → 그 칸에만 링크 · 복사 · 다시 만들기, 접으면 링크도 지운다', async () => {
+    const sent = [];
+    const items = [item(P1, '싱크대', { customer: { id: C1, name: '김고객', phone: null, app: false } })];
+    const URL1 = 'https://dadamfurniture.com/segan/me.html#customer-invite=' + 'a'.repeat(32);
+    const calls = await load({
+      list: () => ok(projects({ invite_ready: true, items })),
+      one: (url) => {
+        sent.push(url);
+        return ok({ id: 'i1', url: URL1, expires_at: '2026-12-07T00:00:00Z' }, 201);
+      },
+    });
+    await flush();
+    await openScreen('partner-projects');
+    const btn = () => rowOf(P1).querySelector('[data-act="invite"]');
+    btn().click();
+    await flush();
+    const panel = () => rowOf(P1).querySelector('[data-pj="invite"]');
+    expect(panel().textContent).toContain('14일');
+    expect(btn().getAttribute('aria-expanded')).toBe('true');
+    expect(panel().querySelector('[data-pj="invite-url"]')).toBeNull();
+    panel().querySelector('[data-act="invite-make"]').click();
+    await flush();
+    expect(sent).toEqual([WORK + '/company/projects/' + P1 + '/customer-invite']);
+    expect(calls.fetch.filter((f) => f.url.endsWith('/customer-invite')).map((f) => f.method)).toEqual(['POST']);
+    expect(panel().querySelector('[data-pj="invite-url"]').value).toBe(URL1);
+    expect(panel().querySelector('[data-act="invite-make"]').textContent).toBe('새 링크 만들기');
+    // 복사 — 클립보드에 링크
+    const writeText = jest.fn(async () => {});
+    Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
+    panel().querySelector('[data-act="invite-copy"]').click();
+    await flush();
+    expect(writeText).toHaveBeenCalledWith(URL1);
+    expect(panel().querySelector('[data-pj="invite-msg"]').textContent).toBe('링크를 복사했습니다. 문자 · 메신저로 고객에게 보내 주세요.');
+    // 링크는 저장소 어디에도 남기지 않는다
+    expect(JSON.stringify({ ...window.sessionStorage })).not.toContain('customer-invite=');
+    expect(JSON.stringify({ ...window.localStorage })).not.toContain('customer-invite=');
+    // 같은 단추로 접으면 링크도 화면에서 지운다
+    btn().click();
+    await flush();
+    expect(panel()).toBeNull();
+    btn().click();
+    await flush();
+    expect(panel().querySelector('[data-pj="invite-url"]')).toBeNull();
+  });
+
+  test('고객 초대 — 서버가 막으면 그 글을 칸에, 이미 이어진 고객이면 목록을 다시 읽어 단추를 뺀다', async () => {
+    let linked = false;
+    const items = () => [item(P1, '싱크대', { customer: { id: C1, name: '김고객', phone: null, app: linked } })];
+    await load({
+      list: () => ok(projects({ invite_ready: true, items: items() })),
+      one: () => {
+        linked = true;
+        return fail(409, 'already_linked', '이 고객은 이미 앱 계정과 이어져 있습니다');
+      },
+    });
+    await flush();
+    await openScreen('partner-projects');
+    rowOf(P1).querySelector('[data-act="invite"]').click();
+    await flush();
+    rowOf(P1).querySelector('[data-act="invite-make"]').click();
+    await flush();
+    expect(rowOf(P1).querySelector('[data-act="invite"]')).toBeNull();
+    expect(rowOf(P1).querySelector('[data-pj="app"]').textContent).toBe('고객 앱 연결');
+  });
 });
 
 describe('목록', () => {
