@@ -6025,6 +6025,170 @@ a.ch-row:focus-visible .ch-label {
   cursor: pointer;
 }
 
+/* 프로젝트 줄의 이름 — 누르면 한 건 화면 (글처럼 보이는 단추) */
+.pj-title {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.pj-title:hover,
+.pj-title:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 한 건 화면의 단계 띠 · 단계 칸 (2026-11-23 「프로젝트 관리 새 틀」) — 칸을 누르면 그 단계의 정보 · 사진 · 문서.
+   끝난 단계 ✓ · 지금 단계 ● · 아직 ○ 는 글로도 적는다 (색만으로 알리지 않는다) */
+/* 창(시트 · 옆 패널)이 좁아 한 줄에 여덟 칸이 안 들어간다 — 네 칸씩 두 줄로, 왼쪽 위에서 차례대로 */
+.pg-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 4px 0 0;
+  background: var(--v5-line);
+  border: 1px solid var(--v5-line);
+}
+
+.pg-step {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 8px 7px;
+  font: inherit;
+  color: var(--v5-ink);
+  text-align: left;
+  background: var(--v5-paper);
+  border: 0;
+  cursor: pointer;
+}
+
+.pg-step .pg-mark {
+  font-size: 11px;
+  color: var(--v5-ink-60);
+}
+
+.pg-step b {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pg-step small {
+  min-height: 1.3em;
+  font-size: 11px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pg-step.pg-todo b {
+  font-weight: 400;
+  color: var(--v5-ink-45);
+}
+
+.pg-step[aria-pressed='true'] {
+  color: var(--v5-invert);
+  background: var(--v5-ink);
+}
+
+.pg-step[aria-pressed='true'] .pg-mark,
+.pg-step[aria-pressed='true'] small,
+.pg-step[aria-pressed='true'].pg-todo b {
+  color: var(--v5-invert);
+}
+
+.pg-panel {
+  margin-top: 20px;
+}
+
+.pg-panel .od-h {
+  margin: 18px 0 6px;
+  padding-top: 8px;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  border-top: 1px solid var(--v5-ink);
+}
+
+.pg-panel > .od-h:first-child {
+  margin-top: 0;
+}
+
+.pg-kv {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.pg-kv dt {
+  color: var(--v5-ink-60);
+}
+
+.pg-kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pg-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.pg-photos a {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--v5-well);
+  border: 1px solid var(--v5-line);
+}
+
+.pg-photos img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pg-photos small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+.pg-empty {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+  border: 1px dashed var(--v5-line);
+}
+
+.pg-all {
+  margin-top: 24px;
+  font-size: 13px;
+}
+
+.pg-all summary {
+  color: var(--v5-ink-60);
+  cursor: pointer;
+}
+
+.pg-all .ps-history {
+  margin-top: 8px;
+}
+
 /* 프로젝트 한 건 창 (segan/project-sheet.js, 2026-11-21) — 수주 창(.od-detail)의 구역 · 제목 꼴을 같이 쓴다 */
 .ps-who {
   margin: 0 0 14px;
@@ -6152,7 +6316,9 @@ a.ch-row:focus-visible .ch-label {
    지난 단계는 채운 네모, 지금 단계는 진한 네모 + 굵은 글, 남은 단계는 빈 네모 — 색이 아니라 꼴로도 가른다 */
 .pj-strip {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  /* 칸 수는 띠가 정한다 — 일곱, 실측 단계가 있으면 여덟 */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   margin: 12px 0 0;
   padding: 0;
   list-style: none;
