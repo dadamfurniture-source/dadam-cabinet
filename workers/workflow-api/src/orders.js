@@ -26,6 +26,7 @@ import {
   DbError,
 } from './supabase.js';
 import { assertCounterparty, NEED_SQL as COUNTERPARTY_NEED_SQL } from './counterparties.js';
+import { assertDepositFor } from './order-events.js';
 import { isMissingRelation } from './work-order-data.js';
 import { EVIDENCE_TYPES, idempotencyKeyOf } from './ledger/checks.js';
 import { planStatusChange, requestStatusChange, applyStatusChange, statusPatch, statusClears, assertNoPendingEvent, staleError } from './order-events.js';
@@ -366,6 +367,7 @@ export async function updateOrder(env, { orderId, user, patch }) {
     }
     if (patch.status !== order.status) {
       await assertNoPendingEvent(env, order.id);
+      await assertDepositFor(env, order, patch.status);
       plan = await planStatusChange(env, { order, user, to: patch.status, reason: patch.reason });
       if (plan.pending) {
         return { pending: true, order: null, event: await requestStatusChange(env, { order, user, plan }) };

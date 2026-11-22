@@ -172,6 +172,8 @@ test('대표가 바로 되살리면 요청이 아니다 — 알리지 않는다.
   assert.equal(r.status, 200, r.json && r.json.message);
   assert.equal(outbox(fake).length, 0);
   fake = createFake({ tables: tables({ orderStatus: 'confirmed' }), users: USERS });
+  // 계약금이 들어와야 접수 → 생산 중 (대표님 2026-11-23)
+  fake.db.order_payments = [{ id: 'PAY-D', order_id: O1, stage: 'deposit', amount: 100000, paid_on: '2026-11-20' }];
   r = await call(fake, 'PATCH', `/orders/${O1}`, U.staff, { status: 'in_production' });
   assert.equal(r.status, 200, r.json && r.json.message);
   assert.equal(outbox(fake).length, 0);

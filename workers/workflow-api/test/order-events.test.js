@@ -116,12 +116,13 @@ function eventViolation(e) {
  * 가짜 DB — 수주 · 기록 · 설계 · 구성원 · 관리자.
  *   failEventInsert: 기록 쓰기가 실패한다 (수주를 되돌리는지 본다)
  */
-function fakeDb({ orders = [], events = [], failEventInsert = false } = {}) {
+function fakeDb({ orders = [], events = [], failEventInsert = false, deposit = true } = {}) {
   const db = {
     orders: new Map(orders.map((o) => [o.id, { note: null, delivered_at: null, completed_at: null, ...o }])),
     events: events.map((e) => ({ ...e })),
     violations: [],
     seq: 0,
+    deposit,
   };
   db.order = (id) => db.orders.get(id);
   db.route = (u, method, body) => {
@@ -143,6 +144,11 @@ function fakeDb({ orders = [], events = [], failEventInsert = false } = {}) {
         if (o.status === 'completed' && !o.completed_at) db.violations.push('orders_completed_chk');
       }
       return json(hit.map((o) => ({ ...o })));
+    }
+    // 계약금 줄 — deposit 이 true 면 모든 수주에 받은 날이 적힌 계약금 줄이 있다
+    if (table === 'order_payments' && method === 'GET') {
+      const ids = (q.get('order_id') || '').replace(/^eq\.|^in\.\(|\)$/g, '').split(',');
+      return json(db.deposit ? ids.map((id) => ({ order_id: id })) : []);
     }
     if (table === 'order_events' && method === 'GET') {
       let rows = db.events.filter((e) => matches(e, q));
@@ -975,4 +981,40 @@ test('POST /snapshots/:id/documents — 승인 전 사유가 없으면 422 와 c
     const body = await res.json();
     assert.equal(body.code, 'reason_required');
   });
+});
+
+// ── 계약금 (대표님 2026-11-23 「계약금을 받기 전까지 다음 단계로 못 넘어감」) ──
+test('계약금 입금 전에는 접수 → 생산 중 · 배송 · 완료 모두 409 deposit_required (대표도), 취소는 된다', async () => {
+  for (const to of ['in_production', 'delivered', 'completed']) {
+    for (const who of [P_STAFF, P_OWNER]) {
+      const db = fakeDb({ orders: [partnerOrder('confirmed')], deposit: false });
+      const r = await patchOrder(db, who, { status: to });
+      assert.equal(r.status, 409, `${who} → ${to}`);
+      assert.equal(r.body.code, 'deposit_required');
+      assert.match(r.body.message, /계약금/);
+      assert.equal(writes(r.calls).length, 0, '쓰기 없음');
+      assert.equal(db.order('O1').status, 'confirmed');
+      assert.equal(db.events.length, 0);
+    }
+  }
+  const db = fakeDb({ orders: [partnerOrder('confirmed')], deposit: false });
+  const cancel = await patchOrder(db, P_STAFF, { status: 'cancelled', reason: '고객 변심' });
+  assert.equal(cancel.status, 200, cancel.body.message);
+  // 계약금이 들어오면 넘어간다
+  const paid = fakeDb({ orders: [partnerOrder('confirmed')] });
+  assert.equal((await patchOrder(paid, P_STAFF, { status: 'in_production' })).status, 200);
+  // 생산 중에서 뒤 · 앞으로 가는 짝은 계약금을 묻지 않는다
+  const later = fakeDb({ orders: [partnerOrder('in_production')], deposit: false });
+  assert.equal((await patchOrder(later, P_STAFF, { status: 'delivered' })).status, 200);
+});
+
+test('GET /orders/:id/events — 접수 · 계약금 전이면 앞으로 가는 짝에 needs_deposit, 들어오면 없다', async () => {
+  const db = fakeDb({ orders: [partnerOrder('confirmed')], deposit: false });
+  const r = await call(db, '/orders/O1/events', P_STAFF);
+  assert.equal(r.status, 200);
+  const flag = Object.fromEntries(r.body.data.moves.map((m) => [m.to, m.needs_deposit === true]));
+  assert.deepEqual(flag, { in_production: true, delivered: true, completed: true, cancelled: false });
+  db.deposit = true;
+  const after = await call(db, '/orders/O1/events', P_STAFF);
+  assert.ok(after.body.data.moves.every((m) => m.needs_deposit === undefined));
 });
