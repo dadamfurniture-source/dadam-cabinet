@@ -85,6 +85,10 @@ const CURRENT = {
 /** 막대에서 뺀 탭 — 화면은 남는다 (마이페이지에서 간다) */
 const GONE = ['renders', 'assistant', 'admin', 'work'];
 const PUBLIC = ['index.html', 'make.html', 'collection.html', 'consult.html', 'about.html', 'plans.html'];
+/** 매거진 책장 · 글도 검색에 연다 (11-23) */
+const MAGAZINE = fs
+  .readdirSync(path.join(ROOT, 'segan'))
+  .filter((n) => n === 'blog.html' || /^blog-[a-z-]+\.html$/.test(n));
 const SESSION = { access_token: 'tok-1', user: { id: 'user-1', email: 'customer@example.com' } };
 const ASSISTANT_ME = 'https://dadam-assistant-api.dadamfurniture.workers.dev/assistant/me';
 const FULL = { company_id: 'c1', role: 'owner', money: true, level: 'full', can_chat: true };
@@ -661,10 +665,10 @@ describe('숨김 · 접근성 · 안전 영역', () => {
   const PAGES = fs.readdirSync(path.join(ROOT, 'segan')).filter((n) => n.endsWith('.html'));
 
   test.each(PAGES)(
-    '%s — 검색(공개 index · collection · consult · about · plans 만 연다) · 매니페스트 · 아이콘',
+    '%s — 검색(공개 화면 · 매거진만 연다) · 매니페스트 · 아이콘',
     (page) => {
       const html = read(`segan/${page}`);
-      if (PUBLIC.includes(page)) expect(html).not.toMatch(/name="robots"/);
+      if (PUBLIC.includes(page) || MAGAZINE.includes(page)) expect(html).not.toMatch(/name="robots"/);
       else expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
       expect(html).toMatch(/rel="manifest"/);
       expect(html).toMatch(/rel="apple-touch-icon"/);
