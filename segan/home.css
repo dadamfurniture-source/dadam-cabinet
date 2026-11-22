@@ -1,7 +1,7 @@
 /* ============================================================
    segan/home.css — SEGAN 홈 (segan/index.html)
 
-   첫 사진 한 장 + 세 걸음 + 시공사례 줄 + 매거진 줄 + 소개 · 구독 줄.
+   첫 사진 한 장 + 세 걸음 + 같은 주방, 다른 색(견본) + 시공사례 줄 + 매거진 줄 + 소개 · 구독 줄.
    읽기만 하는 화면이라 스크립트가 없다 (옛 만들기 주소 넘기기는 segan/forward.js).
    v5 규칙: 각진 모서리 · 그림자 없음 · 가는 선. 유리는 위 막대 · 아래 탭뿐 (shell.css).
    ============================================================ */
@@ -195,6 +195,134 @@
   color: var(--v5-ink-60);
 }
 
+/* ── 같은 주방, 다른 색 — 라디오(숨김) + 형제 선택자로 사진 다섯 장 중 하나만 보인다. 스크립트 없음 · opacity 만 ── */
+.hm-tone-in {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.hm-tone-shot {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--v5-photo);
+}
+
+.hm-tone-shot picture,
+.hm-tone-shot img {
+  display: block;
+}
+
+.hm-tone-shot img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+#hmTone1:checked ~ .hm-tone-shot .hm-tone-p1 img,
+#hmTone2:checked ~ .hm-tone-shot .hm-tone-p2 img,
+#hmTone3:checked ~ .hm-tone-shot .hm-tone-p3 img,
+#hmTone4:checked ~ .hm-tone-shot .hm-tone-p4 img,
+#hmTone5:checked ~ .hm-tone-shot .hm-tone-p5 img {
+  opacity: 1;
+}
+
+.hm-tone-picks {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+.hm-tone-picks label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 14px;
+  color: var(--v5-ink-60);
+  cursor: pointer;
+}
+
+.hm-tone-picks label i {
+  flex: none;
+  width: 18px;
+  font-family: var(--v5-display);
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 300;
+  color: var(--v5-tan);
+}
+
+#hmTone1:checked ~ .hm-tone-picks label[for='hmTone1'],
+#hmTone2:checked ~ .hm-tone-picks label[for='hmTone2'],
+#hmTone3:checked ~ .hm-tone-picks label[for='hmTone3'],
+#hmTone4:checked ~ .hm-tone-picks label[for='hmTone4'],
+#hmTone5:checked ~ .hm-tone-picks label[for='hmTone5'] {
+  color: var(--v5-ink);
+}
+
+#hmTone1:focus-visible ~ .hm-tone-picks label[for='hmTone1'],
+#hmTone2:focus-visible ~ .hm-tone-picks label[for='hmTone2'],
+#hmTone3:focus-visible ~ .hm-tone-picks label[for='hmTone3'],
+#hmTone4:focus-visible ~ .hm-tone-picks label[for='hmTone4'],
+#hmTone5:focus-visible ~ .hm-tone-picks label[for='hmTone5'] {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
+.hm-tone-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+}
+
+.hm-tone-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 0 24px;
+  border: 1px solid var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-paper);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  /* 누름 — 0.97배 · 0.1초, 떼면 스프링 (CLAUDE.md 「SEGAN 앱 모션 규칙」) */
+  transition: transform var(--sg-spring-ms) var(--sg-spring);
+}
+
+.hm-tone-cta:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+.hm-tone-cta:focus-visible {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: 3px;
+}
+
+/* 동작 줄이기 — 바꾸기는 0.2초 흐려지기 (CLAUDE.md 모션 규칙) */
+@media (prefers-reduced-motion: reduce) {
+  .hm-tone-shot img {
+    transition-duration: 0.2s;
+  }
+}
+
 /* ── 시공사례 — 폰은 옆으로 넘기는 줄, PC 는 3칸 ── */
 .hm-works {
   display: flex;
@@ -326,5 +454,21 @@
 
   .hm-work {
     max-width: none;
+  }
+
+  /* 견본 — 사진 왼쪽, 고르는 줄 오른쪽 */
+  .hm-tone {
+    display: grid;
+    grid-template-columns: 420px minmax(0, 420px);
+    column-gap: 48px;
+    align-items: end;
+  }
+
+  .hm-tone-picks {
+    margin-top: 0;
+  }
+
+  .hm-tone-cta {
+    align-self: flex-start;
   }
 }
