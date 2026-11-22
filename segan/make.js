@@ -2796,6 +2796,8 @@
       render();
     }
     await loadAccount();
+    // 가입 유입 — 로그인했으면 내 회원 줄에 한 번 (segan/source.js, 기다리지 않는다)
+    if (S.session && window.SeganSource) window.SeganSource.claim(S.sb, S.session);
     // 저장된 결과 (?g=<id>) — 생성 직후 새로 고쳤거나, 내 연출컷 목록 · 상담 신청에서 돌아왔을 때. 읽기만 한다
     var g = new URLSearchParams(location.search).get('g');
     if (g && UUID_RE.test(g)) {
