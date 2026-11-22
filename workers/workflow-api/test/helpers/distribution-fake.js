@@ -348,6 +348,9 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
 
   function defaults(table) {
     const base = { id: fakeId() };
+    // A/S 접수 (0045) — 새 접수는 requested, 때 칸은 비어 있다 (지킴이가 상태가 바뀔 때 찍는다 — 여기서는 서버가 보낸 값 그대로)
+    if (table === 'as_requests')
+      return { ...base, state: 'requested', received_at: null, done_at: null, cancelled_at: null, created_at: nowIso() };
     if (table === 'project_visits')
       return {
         ...base,
