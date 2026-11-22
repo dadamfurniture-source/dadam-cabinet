@@ -110,6 +110,7 @@
     edited: '일정을 고쳤습니다.',
     // 설치 날 고객 확인 (2026-11-21 뒤 공정 2차)
     confirmedOn: '고객 확인',
+    changeAsked: '고객 변경 요청',
     confirmOn: '고객 확인 표시',
     confirmOff: '확인 지우기',
     confirmDone: '고객 확인을 표시했습니다.',
@@ -314,6 +315,8 @@
       manage: d.can_manage === true,
       // 설치 날 고객 확인 — 서버가 confirm_ready true 로 답할 때만 (DB 0079 전 · 옛 서버면 표시도 단추도 없다)
       confirm: d.confirm_ready === true,
+      // 고객이 앱에서 설치 날을 바꿔 달라고 했나 — 서버가 change_ready true 로 답할 때만 (DB 0082 전이면 없다)
+      change: d.change_ready === true,
       today: isDay(d.today) ? d.today : '',
       truncated: d.truncated === true,
       items: d.items.filter(function (x) {
@@ -526,9 +529,21 @@
     return TEXT.confirmedOn + ' ' + two(d.getUTCMonth() + 1) + '.' + two(d.getUTCDate());
   }
 
+  /** 고객이 앱에서 바꿔 달라고 한 설치 일정인가 (2026-11-23 뒤 공정 3차) — 날짜를 고치면 서버가 지운다 */
+  function changeAsked(x) {
+    return (
+      !!(C.data && C.data.change) &&
+      confirmable(x) &&
+      typeof x.customer_change_requested_at === 'string' &&
+      !isNaN(Date.parse(x.customer_change_requested_at))
+    );
+  }
+
   function itemHtml(x) {
     var manage = !!(C.data && C.data.manage);
     var confirmed = confirmedText(x);
+    var asked = changeAsked(x);
+    var askNote = asked && typeof x.customer_change_note === 'string' ? x.customer_change_note.trim() : '';
     var workFor = canOpenWork() ? workProjectOf(x) : '';
     var status = statusOf(x);
     var time = timeText(x);
@@ -551,7 +566,9 @@
       '</small></div>' +
       (status ? '<span class="me-badge">' + esc(status) + '</span>' : '') +
       (confirmed ? '<span class="me-badge" data-cal="confirmed">' + esc(confirmed) + '</span>' : '') +
+      (asked ? '<span class="me-badge" data-cal="change">' + esc(TEXT.changeAsked) + '</span>' : '') +
       '</div>' +
+      (askNote ? '<p class="mk-note" data-cal="change-note">「' + esc(askNote) + '」</p>' : '') +
       '<div class="cal-item-acts">' +
       (canOpen(go)
         ? '<a class="cal-link" href="#' + go + '" data-me-go="' + go + '">열기</a>'

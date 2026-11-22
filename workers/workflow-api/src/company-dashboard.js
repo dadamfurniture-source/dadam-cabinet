@@ -34,21 +34,15 @@ import { isMissingRelation } from './work-order-data.js';
 import { projectCompanyOf, listCompanyProjects } from './company-projects.js';
 import { isFactory } from './company-pipeline.js';
 import { STEP_LABEL } from './pipeline.js';
+import { STAY_STEPS, STUCK_DAYS, lateProjects, stayOf } from './project-stay.js';
 import { kstDate } from './production/service.js';
 import { funnelOf, leadTimeOf, prevMonthOf, QUALITY_WINDOW_DAYS } from './management/summary.js';
 
 const DAY_MS = 86400000;
 
-/** 대시보드에 그리는 단계 — 끝난 것(done)은 세지 않는다 */
-export const DASH_STEPS = Object.freeze(['consult', 'measure', 'design', 'quote', 'contract', 'make', 'install']);
-/** 며칠을 머물면 느림 · 멈춤인가 (2026-11-23 대표님). 생산 · 설치는 잡은 날이 지났는지로 본다 */
-export const STUCK_DAYS = Object.freeze({
-  consult: Object.freeze({ slow: 2, stuck: 7 }),
-  measure: Object.freeze({ slow: 2, stuck: 7 }),
-  design: Object.freeze({ slow: 3, stuck: 7 }),
-  quote: Object.freeze({ slow: 3, stuck: 7 }),
-  contract: Object.freeze({ slow: 3, stuck: 7 }),
-});
+/** 대시보드에 그리는 단계 — 끝난 것(done)은 세지 않는다. 느림 · 멈춤 판정은 project-stay.js (목록 줄과 같은 함수) */
+export const DASH_STEPS = STAY_STEPS;
+export { STUCK_DAYS, stayOf };
 /** 걸린 날을 재는 창 — 지난 석 달과 그 앞 석 달 */
 export const DAYS_WINDOW = 90;
 /** 앞으로 몇 주 */
@@ -57,8 +51,6 @@ export const AHEAD_WEEKS = 8;
 export const CONVERSION_MONTHS = 6;
 /** 계약했고 설치 전인 수주 */
 const OPEN_ORDER = new Set(['confirmed', 'in_production', 'delivered']);
-/** 끝난 일정 */
-const SCHEDULE_OVER = new Set(['cancelled', 'completed', 'done']);
 /** 받을 날이 지난 돈을 묶는 칸 */
 const OVERDUE_BUCKETS = Object.freeze([
   { key: '1-30', label: '1 ~ 30일', max: 30 },
@@ -99,30 +91,6 @@ function earliest(rows, keyOf, timeOf) {
   return out;
 }
 
-/**
- * 한 프로젝트가 지금 단계에 머문 날과 상태 — { since, days, state: fresh | slow | stuck }.
- * item = 프로젝트 목록의 한 줄 (step · next · visit · created_at)
- */
-export function stayOf(item, { today, orderOf = new Map(), lateMake = new Set(), lateInstall = new Set() }) {
-  const step = item.step;
-  if (step === 'make' || step === 'install') {
-    const late = (step === 'make' ? lateMake : lateInstall).has(item.id);
-    return { since: null, days: null, state: late ? 'stuck' : 'fresh' };
-  }
-  const limit = STUCK_DAYS[step];
-  if (!limit) return { since: null, days: null, state: 'fresh' };
-  const visit = item.visit || null;
-  const next = item.next || null;
-  let since = null;
-  if (step === 'measure') since = visit ? (visit.status === 'done' ? visit.done_at : visit.scheduled_at) : null;
-  else if (step === 'design') since = visit && visit.status === 'done' ? visit.done_at : null;
-  else if (step === 'quote') since = next ? next.since : null;
-  else if (step === 'contract') since = (orderOf.get(item.id) || {}).ordered_at || (next ? next.since : null);
-  since = since || item.created_at || null;
-  const days = since ? Math.max(0, dayDiff(kstDate(since), today)) : 0;
-  return { since, days, state: days >= limit.stuck ? 'stuck' : days >= limit.slow ? 'slow' : 'fresh' };
-}
-
 /** 단계마다 쌓인 프로젝트 — 진행 중(active)인 것만 */
 function stepsOf(items, ctx) {
   const rows = new Map(DASH_STEPS.map((k) => [k, { key: k, label: STEP_LABEL[k], count: 0, fresh: 0, slow: 0, stuck: 0 }]));
@@ -133,7 +101,9 @@ function stepsOf(items, ctx) {
     const row = rows.get(p.step);
     if (!row) continue;
     row.count += 1;
-    row[stayOf(p, ctx).state] += 1;
+    // 목록이 이미 판정해 실은 값이 있으면 그것 — 줄의 「멈춤」과 막대가 같은 수가 된다
+    const state = p.stay && typeof p.stay.state === 'string' && p.stay.state in row ? p.stay.state : stayOf(p, ctx).state;
+    row[state] += 1;
   }
   const steps = [...rows.values()];
   return {
@@ -274,17 +244,6 @@ function loadOf(schedules, today) {
     if (w) w[key] += 1;
   }
   return { weeks };
-}
-
-/** 잡아 둔 날이 지났는데 끝내지 않은 일정이 있는 프로젝트 */
-function lateProjects(schedules, type, today) {
-  const out = new Set();
-  for (const s of schedules || []) {
-    if (s.type !== type || s.completed_at || SCHEDULE_OVER.has(s.status) || !s.scheduled_at) continue;
-    const pid = projectOf(s);
-    if (pid && kstDate(s.scheduled_at) < today) out.add(pid);
-  }
-  return out;
 }
 
 /** 견적 → 계약 — 그 달에 처음 견적이 나간 설계 가운데 계약(취소 아닌 수주)이 된 비율, 여섯 달 */

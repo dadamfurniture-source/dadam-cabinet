@@ -161,6 +161,9 @@
     confirmLabel: '고객 확인',
     confirmNone: '확인 전',
     confirmTag: '고객 확인 전',
+    changeTag: '고객 변경 요청',
+    changeLabel: '고객 요청',
+    changeNone: '날짜를 바꿔 달라고 했습니다',
     confirmOn: '고객 확인 표시',
     confirmOff: '확인 지우기',
     confirmDone: '고객 확인을 표시했습니다.',
@@ -407,6 +410,9 @@
       it.workers = workersOfRaw(raw.workers);
       // 설치 날 고객 확인 — 표시한 때 (없으면 빈 글자. 2026-11-21 뒤 공정 2차 · DB 0079)
       it.confirmed_at = str(raw.customer_confirmed_at);
+      // 고객의 날짜 변경 요청 — 요청한 때 · 바라는 것 (2026-11-23 뒤 공정 3차 · DB 0082)
+      it.change_at = str(raw.customer_change_requested_at);
+      it.change_note = str(raw.customer_change_note);
       return it;
     }
     if (!str(raw.as_id) || !AS_STATE[raw.state]) return null;
@@ -428,6 +434,8 @@
       manage: d.can_manage === true,
       // 설치 날 고객 확인 — 서버가 confirm_ready true 로 답할 때만 (DB 0079 전 · 옛 서버면 표시도 단추도 없다)
       confirm: d.confirm_ready === true,
+      // 고객이 앱에서 설치 날을 바꿔 달라고 했나 — 서버가 change_ready true 로 답할 때만 (DB 0082 전이면 없다)
+      change: d.change_ready === true,
       today: isDay(d.today) ? d.today : kstToday(),
       ready: d.ready !== false,
       truncated: d.truncated === true,
@@ -1128,6 +1136,7 @@
     };
     // 설치 날 고객 확인 — 아직 확인 전인 설치 일정에 꼬리표 (끝났거나 취소한 일정에는 붙이지 않는다)
     var confirmTag = function (it) {
+      if (changeAsked(v, it)) return ' <span class="sm-wait-tag" data-sm="change">' + esc(TEXT.changeTag) + '</span>';
       return confirmNeeded(v, it) ? ' <span class="sm-wait-tag" data-sm="confirm">' + esc(TEXT.confirmTag) + '</span>' : '';
     };
     var head = install
@@ -1314,6 +1323,7 @@
     // 설치 날 고객 확인 — 설치 일정에만 (서버가 그 칸을 줄 때)
     var confirmOn = confirmable(v, it);
     if (confirmOn) pairs.push([TEXT.confirmLabel, confirmedDay(it) || TEXT.confirmNone]);
+    if (changeAsked(v, it)) pairs.push([TEXT.changeLabel, it.change_note ? '「' + it.change_note + '」' : TEXT.changeNone]);
     var assigned = workersOn(v.kind, it);
     var sid = workScheduleOf(v.kind, it);
     if (assigned.length) pairs.push([TEXT.wkTitle, workersText(assigned)]);
@@ -2001,6 +2011,10 @@
   /** 그 줄에 고객 확인을 쓰나 — 설치 화면의 설치 일정이고 서버가 그 칸을 줄 때 */
   function confirmable(v, it) {
     return v.kind === 'install' && !!v.data && v.data.confirm === true && !!it && it.type === 'installation';
+  }
+  /** 고객이 앱에서 바꿔 달라고 한 설치 일정인가 (서버가 그 칸을 줄 때) — 날짜를 고치면 서버가 지운다 */
+  function changeAsked(v, it) {
+    return confirmable(v, it) && v.data.change === true && !!it.change_at;
   }
   /** 아직 확인 전이라 챙길 줄인가 — 예정 · 확정인 설치 일정 */
   function confirmNeeded(v, it) {
