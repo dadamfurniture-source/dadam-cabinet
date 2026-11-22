@@ -5794,6 +5794,33 @@ a.ch-row:focus-visible .ch-label {
   color: var(--v5-ink-60);
 }
 
+/* 기간 단추 — 오늘 · 주간 · 월간 (2026-11-23). 꼴은 달력의 보기 단추(.cal-btn)와 같다, 움직임 없음 (자주 누르는 곳) */
+.ib-ranges {
+  gap: 0;
+}
+
+.ib-range .ib-n {
+  margin-left: 4px;
+}
+
+.ib-range[aria-pressed='true'] .ib-n {
+  color: inherit;
+}
+
+/* 날 머리줄 — 「지금 할 일」 · 「11월 23일 (월) · 오늘」 */
+.ib-table tr.ib-day th {
+  padding-top: 14px;
+  padding-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--v5-ink-60);
+  background: none;
+}
+
+.ib-table th[scope='row'] .cal-sw {
+  margin-right: 4px;
+}
+
 .ib-table th[scope='row'] {
   font-weight: 400;
 }
@@ -5909,6 +5936,15 @@ a.ch-row:focus-visible .ch-label {
   .ib-table tbody .ib-act {
     grid-row: 1 / span 3;
     grid-column: 2;
+  }
+
+  .ib-table tbody tr.ib-day {
+    display: block;
+    padding: 14px 0 4px;
+  }
+
+  .ib-table tbody tr.ib-day th {
+    padding: 0;
   }
 }
 
