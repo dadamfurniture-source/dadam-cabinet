@@ -41,7 +41,7 @@ function rows(n) {
   }));
 }
 
-/** opts.db: DB 줄 · session · liked: 내가 좋아한 id · companies: id → 업체 · noSupabase · postsFail · insertError · deleteError */
+/** opts.db: DB 줄 · session · liked: 내가 좋아한 id · companies: id → 업체 · noSupabase · postsFail · insertError · deleteError · url: 들어온 주소 */
 async function load(options = {}) {
   const opts = {
     db: rows(30),
@@ -55,13 +55,14 @@ async function load(options = {}) {
     postsFail: false,
     insertError: null,
     deleteError: null,
+    url: '/segan/collection.html',
     ...options,
   };
   const doc = new DOMParser().parseFromString(read('segan/collection.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
-  window.history.replaceState(null, '', '/segan/collection.html');
+  window.history.replaceState(null, '', opts.url);
   for (const k of ['SeganShell', 'SeganCollection', 'SeganPostView']) delete window[k];
   window.DADAM_CONFIG = { supabase: { url: 'https://example.supabase.co', anonKey: 'anon' } };
   const liked = new Set(opts.liked);
@@ -72,8 +73,10 @@ async function load(options = {}) {
       if (opts.postsFail) return { data: null, error: { message: 'permission denied' } };
       const lt = q.filters.find((f) => f[0] === 'lt');
       const or = q.filters.find((f) => f[0] === 'or');
+      const eq = q.filters.find((f) => f[0] === 'eq');
       const list = opts.db
         .filter((r) => !lt || r.created_at < lt[2])
+        .filter((r) => !eq || r[eq[1]] === eq[2])
         // 공개 탭 조건 — 직접 올린 사진 또는 본사가 고른 연출컷 (DB 0075)
         .filter((r) => !or || r.source === 'upload' || !!r.hq_picked_at)
         .slice(0, q.limit);
@@ -1118,6 +1121,111 @@ describe('다운로드 없음 · 관리자 내리기 없음', () => {
       }
     }
     expect(calls.queries.filter((q) => q.op !== 'select')).toEqual([]);
+  });
+});
+
+describe('공유 — 사진 한 장 주소 /segan/p/<id> (2026-11-23 「사이트 새는 곳 막기」)', () => {
+  const shareBtn = () => sheet().querySelector('.pv-share');
+  const note = () => sheet().querySelector('.pv-note');
+  afterEach(() => {
+    delete window.navigator.share;
+    delete window.navigator.clipboard;
+  });
+
+  test('DB 사진 — 좋아요 옆 「공유」 단추 (a 가 아니라 button) · 공유 창에 그 사진 주소', async () => {
+    const share = jest.fn(async () => {});
+    window.navigator.share = share;
+    await load();
+    await openTile(0);
+    expect(shareBtn().tagName).toBe('BUTTON');
+    expect(shareBtn().textContent).toBe('공유');
+    expect(likeBtn().nextElementSibling).toBe(shareBtn());
+    shareBtn().click();
+    await flush();
+    expect(share).toHaveBeenCalledTimes(1);
+    expect(share.mock.calls[0][0].url).toBe(`${window.location.origin}/segan/p/${uid(0)}`);
+    expect(share.mock.calls[0][0].title).toMatch(/ · SEGAN$/);
+    expect(note().hidden).toBe(true);
+  });
+
+  test('공유 창이 없으면 주소를 복사하고 알린다 · 복사도 못 하면 그렇게 알린다', async () => {
+    const writeText = jest.fn(async () => {});
+    window.navigator.clipboard = { writeText };
+    await load();
+    await openTile(1);
+    shareBtn().click();
+    await flush();
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/segan/p/${uid(1)}`);
+    expect(note().hidden).toBe(false);
+    expect(note().textContent).toBe('주소를 복사했습니다');
+    window.navigator.clipboard = {
+      writeText: jest.fn(async () => Promise.reject(new Error('no'))),
+    };
+    shareBtn().click();
+    await flush();
+    expect(note().textContent).toBe('주소를 복사하지 못했습니다');
+  });
+
+  test('공유 창을 닫으면 아무것도 하지 않는다 (복사도 안 한다)', async () => {
+    const err = new Error('cancel');
+    err.name = 'AbortError';
+    window.navigator.share = jest.fn(async () => Promise.reject(err));
+    const writeText = jest.fn(async () => {});
+    window.navigator.clipboard = { writeText };
+    await load();
+    await openTile(0);
+    shareBtn().click();
+    await flush();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(note().hidden).toBe(true);
+  });
+
+  test('앱 안 AI 연출 사진(주소 없음)에는 공유 단추가 없다', async () => {
+    await load({ db: rows(2) });
+    await openTile(2);
+    expect(sheet()).not.toBeNull();
+    expect(sheet().querySelector('.pv-share')).toBeNull();
+  });
+
+  test('?p=<id> (목록에 있는 사진) — 그 사진 보기를 바로 연다, 닫은 뒤 주소에 ?p= 가 없다', async () => {
+    const calls = await load({ url: `/segan/collection.html?p=${uid(5)}` });
+    await flush();
+    expect(sheet()).not.toBeNull();
+    expect(sheet().querySelector('.pv-place').textContent).toBe('인천 연수구 · 주방 5');
+    expect(of(calls, 'collection_posts')).toHaveLength(1); // 따로 묻지 않는다
+    await closeAll();
+    expect(window.location.search).toBe('');
+  });
+
+  test('?p=<id> (첫 쪽 밖) — 같은 공개 조건으로 한 건 읽어 연다', async () => {
+    const calls = await load({ url: `/segan/collection.html?p=${uid(28)}` });
+    await flush();
+    const q = of(calls, 'collection_posts');
+    expect(q).toHaveLength(2);
+    expect(q[1].cols).toBe(COLS);
+    expect(q[1].filters).toEqual([
+      ['eq', 'id', uid(28)],
+      ['or', 'source.eq.upload,hq_picked_at.not.is.null'],
+    ]);
+    expect(sheet().querySelector('.pv-place').textContent).toBe('인천 연수구 · 주방 28');
+  });
+
+  test('?p= 가 없거나 숨은 사진 · 모양이 틀린 값 — 목록만, ?p= 를 지운다', async () => {
+    await load({ url: '/segan/collection.html?p=ffffffff-ffff-4fff-8fff-ffffffffffff' });
+    await flush();
+    expect(sheet()).toBeNull();
+    expect(window.location.search).toBe('');
+    const calls = await load({ url: '/segan/collection.html?p=../../etc' });
+    await flush();
+    expect(sheet()).toBeNull();
+    expect(of(calls, 'collection_posts')).toHaveLength(1);
+  });
+
+  test('공유 단추 — 누르는 곳 44px 이상', () => {
+    const css = read('segan/shell.css');
+    const block = css.match(/\.pv-share \{[^}]*\}/)[0];
+    expect(block).toMatch(/min-height: 44px/);
+    expect(block).toMatch(/min-width: 44px/);
   });
 });
 
