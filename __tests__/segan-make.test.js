@@ -10,7 +10,8 @@
  *   - 사진 찍기(카메라) · 앨범 → 미리보기(칸 안에 원본 전체 · 채워 보기) · 다시 선택, 다음 단계
  *   - 크레딧 안내 (credit_costs · 남은 횟수 = my_credit_wallet 잔액) 와 시공사례 안내 문장
  *   - 로그인 전 생성 → sessionStorage 에만 담고 login.html?redirect= 로. 돌아오면 같은 단계로 되살리고
- *     저절로 생성하지 않는다. 로그인 전에는 아무것도 올리지 않는다 (fetch 없음)
+ *     생성 버튼을 눌러 로그인하러 갔다 돌아온 것이면 그 생성을 한 번 이어 간다 (표지 segan.make.resume.v1 — 2026-11-23),
+ *     아니면 저절로 생성하지 않는다. 로그인 전에는 아무것도 올리지 않는다 (fetch 없음)
  */
 const fs = require('fs');
 const path = require('path');
@@ -21,6 +22,7 @@ const AuthRedirect = require('../js/auth-redirect.js');
 const AI = read('ai-design.html');
 const MAKE = read('segan/make.js');
 const KEY = 'segan.make.draft.v1';
+const RESUME = 'segan.make.resume.v1';
 const SESSION = { access_token: 'tok-1', user: { id: 'user-1', email: 'customer@example.com' } };
 const PHOTO = {
   base64: 'QUJD',
@@ -115,12 +117,13 @@ function fakeClient(opts, calls) {
 
 /** segan/make.html 을 올리고 make.js 를 돌린다 */
 async function load(options = {}) {
-  const opts = { session: null, draft: null, ...options };
+  const opts = { session: null, draft: null, resumeAt: null, ...options };
   const doc = new DOMParser().parseFromString(read('segan/make.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   window.history.replaceState(null, '', '/segan/' + (opts.hash || ''));
   sessionStorage.clear();
   if (opts.draft) sessionStorage.setItem(KEY, JSON.stringify(opts.draft));
+  if (opts.resumeAt != null) sessionStorage.setItem(RESUME, String(opts.resumeAt));
   delete window.SeganMake;
   window.scrollTo = () => {}; // jsdom 에 없다 (콘솔 오류만 낸다)
   window.DADAM_CONFIG = { supabase: { url: 'https://example.supabase.co', anonKey: 'anon' } };
@@ -134,6 +137,7 @@ async function load(options = {}) {
   const M = window.SeganMake;
   M.go = jest.fn();
   M.readImage = jest.fn(async (file) => ({ ...PHOTO, name: file.name }));
+  if (opts.stubStart) M.start = jest.fn(async () => {});
   await M.ready;
   return { M, calls };
 }
@@ -561,7 +565,56 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     expect(calls.writes).toEqual([]);
   });
 
-  test('로그인하고 돌아오면 같은 단계 · 사진 · 선택으로 되살린다 — 저절로 생성하지 않는다', async () => {
+  test('로그인 전 생성 → 이어 만들기 표지를 남긴다 (사진을 담았을 때만)', async () => {
+    const before = Date.now();
+    await load();
+    await choose('mkAlbumInput');
+    $('mkNext').click();
+    document.querySelector('[data-kind="fridge"]').click();
+    $('mkNext').click();
+    $('mkRun').click();
+    await flush();
+    const at = Number(sessionStorage.getItem(RESUME));
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now());
+  });
+
+  test('표지를 남기고 로그인해 돌아오면 그 생성을 한 번 이어 간다 · 표지는 지운다', async () => {
+    const { M } = await load({
+      session: SESSION,
+      balance: 1000,
+      draft: { v: 1, step: 'refs', photo: PHOTO, choices: { kind: 'fridge' } },
+      resumeAt: Date.now() - 60 * 1000,
+      stubStart: true,
+    });
+    await flush();
+    expect(M.start).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem(RESUME)).toBeNull();
+  });
+
+  test.each([
+    ['로그인하지 않고 돌아왔다', { session: null }],
+    ['30분이 지난 표지', { resumeAt: Date.now() - 31 * 60 * 1000 }],
+    [
+      '담아 둔 사진이 없다 (커서 못 담음)',
+      { draft: { v: 1, step: 'refs', photo: null, choices: { kind: 'fridge' } } },
+    ],
+    ['저장된 결과 주소(?g=)로 열었다', { hash: '?g=00000000-0000-4000-8000-000000000001' }],
+  ])('이어 가지 않는다 — %s (표지는 지운다)', async (_, patch) => {
+    const { M } = await load({
+      session: SESSION,
+      balance: 1000,
+      draft: { v: 1, step: 'refs', photo: PHOTO, choices: { kind: 'fridge' } },
+      resumeAt: Date.now() - 60 * 1000,
+      stubStart: true,
+      ...patch,
+    });
+    await flush();
+    expect(M.start).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(RESUME)).toBeNull();
+  });
+
+  test('로그인하고 돌아오면 같은 단계 · 사진 · 선택으로 되살린다 — 표지가 없으면 저절로 생성하지 않는다', async () => {
     const { M, calls } = await load({
       session: SESSION,
       balance: 1000,
