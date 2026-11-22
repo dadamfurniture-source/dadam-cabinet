@@ -428,7 +428,14 @@
       '<li class="me-pt-row" data-project="' +
       esc(p.id) +
       '"><span class="me-pt-line"><span class="me-c-main"><b>' +
-      esc(p.title || '프로젝트') +
+      // 이름을 누르면 프로젝트 한 건 화면 (2026-11-23 대표님 「줄을 누르면 한 건 화면」 — segan/project-sheet.js 가 있을 때)
+      (canPage()
+        ? '<button type="button" class="pj-title" data-act="page" data-for="' +
+          esc(p.id) +
+          '">' +
+          esc(p.title || '프로젝트') +
+          '</button>'
+        : esc(p.title || '프로젝트')) +
       '</b><small>' +
       esc(sub) +
       '</small>' +
@@ -842,6 +849,33 @@
   function errText(r) {
     var m = r && r.body && r.body.message;
     return typeof m === 'string' && m ? m : TEXT.generic;
+  }
+
+  /** 프로젝트 한 건 화면을 열 수 있나 (segan/project-sheet.js 를 실은 화면) */
+  function canPage() {
+    var Sheet = window.SeganProjectSheet;
+    return !!(Sheet && typeof Sheet.open === 'function');
+  }
+
+  /** GET /company/projects/:id/stages/:key → { ok, status, data } — 한 건 화면이 누른 단계의 자료를 읽는다 */
+  async function readStage(id, key) {
+    if (!J.base || typeof id !== 'string' || !UUID_RE.test(id) || !/^[a-z]{1,20}$/.test(String(key || '')))
+      return { ok: false, status: 0, data: null };
+    var r = await call('GET', '/company/projects/' + id + '/stages/' + key);
+    return { ok: r.ok, status: r.status, data: r.ok && r.body.data && typeof r.body.data === 'object' ? r.body.data : null };
+  }
+
+  /** 본인 토큰으로 그대로 받는다 (그림 · 인쇄 화면) → Response | null. path 는 '/' 로 시작하는 서버 길 */
+  async function fetchRaw(path) {
+    if (!J.base || typeof path !== 'string' || path.charAt(0) !== '/') return null;
+    try {
+      return await fetch(J.base + path, {
+        headers: { Authorization: 'Bearer ' + (await token()) },
+        cache: 'no-store',
+      });
+    } catch {
+      return null;
+    }
   }
 
   /** GET /company/projects/:id → { ok, status, data } — 프로젝트 한 건 창이 읽는다 (segan/project-sheet.js) */
@@ -1262,6 +1296,9 @@
   /** 다른 칸(새로 생긴 일 표 · 프로젝트 창)에서 그 프로젝트의 실측 칸을 연다 — 그 줄로 옮긴다 */
   function openVisit(id) {
     if (!J.data || !id) return false;
+    // 새로 생긴 일은 TODAY WORK 화면에 있다 — 목록이 지금 화면에 없으면 프로젝트 관리 화면으로 넘어가서 연다 (보류 칸과 같다)
+    var box = $('partnerProjects');
+    if (box && !box.hidden && box.classList.contains('me-off')) toList();
     if (J.visitFor !== id) toggleVisit(id);
     return focusProject(id);
   }
@@ -1539,6 +1576,10 @@
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el || el.disabled || J.busy) return;
     var nextAct = el.getAttribute('data-act');
+    if (nextAct === 'page') {
+      if (canPage()) window.SeganProjectSheet.open(el.getAttribute('data-for') || '');
+      return;
+    }
     if (nextAct === 'next-sheet') return nextSheet(el.getAttribute('data-id') || '');
     if (nextAct === 'next-order') return nextOrder(el.getAttribute('data-id') || '');
     if (nextAct === 'next-visit-done')
@@ -1738,6 +1779,8 @@
     nextOf: nextOf,
     runNext: runNext,
     readProject: readProject,
+    readStage: readStage,
+    fetchRaw: fetchRaw,
     canStatus: canStatus,
     openStatus: openStatus,
     setStatus: setStatus,
