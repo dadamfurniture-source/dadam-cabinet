@@ -390,6 +390,7 @@ test('팩토리 — 설계 · 견적 · 수주 · A/S: 이 프로젝트의 것�
     'requests',
     'as',
     'history',
+    'stages',
   ]);
   // 최근 고친 설계부터
   assert.deepEqual(d.designs, [
