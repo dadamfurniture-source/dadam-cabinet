@@ -1,0 +1,53 @@
+{
+  "title": "0081 연출컷 AI 상담 정리본 — 본인 줄만 읽고 지운다, 넣기 · 고치기는 서버만, 같은 상담은 한 줄",
+  "ids": ["note_x", "note_y", "key_x", "key_y", "key_new"],
+  "users": ["x_user", "y_user"],
+  "setup": [
+    "INSERT INTO public.make_consult_notes (id, user_id, note_key, category, brief) VALUES ({{note_x}}, {{x_user}}, {{key_x}}, 'sink', '월넛 도어 · 정수기'), ({{note_y}}, {{y_user}}, {{key_y}}, 'wardrobe', '화이트 도어')"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "x": { "role": "authenticated", "user": "x_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "읽기 — 본인 줄만 (남의 줄 0 · 익명 deny)",
+      "sql": "select count(*) from public.make_consult_notes where id in ({{note_x}}, {{note_y}})",
+      "expect": { "x": "1", "anon": "deny", "service_role": "2" }
+    },
+    {
+      "name": "넣기 — 고객은 못 넣는다 (서버만)",
+      "sql": "insert into public.make_consult_notes (user_id, note_key, category, brief) values ({{x_user}}, {{key_new}}, 'sink', 'probe')",
+      "expect": { "x": "deny", "anon": "deny", "service_role": "ok" }
+    },
+    {
+      "name": "고치기 — 고객은 못 고친다",
+      "sql": "update public.make_consult_notes set brief = 'probe' where id = {{note_x}}",
+      "expect": { "x": "deny", "anon": "deny", "service_role": "rows:1" }
+    },
+    {
+      "name": "지우기 — 본인 줄은 지운다",
+      "sql": "delete from public.make_consult_notes where id = {{note_x}}",
+      "expect": { "x": "rows:1", "anon": "deny", "service_role": "rows:1" }
+    },
+    {
+      "name": "지우기 — 남의 줄은 지워지지 않는다",
+      "sql": "delete from public.make_consult_notes where id = {{note_y}}",
+      "roles": ["x"],
+      "expect": { "x": "rows:0" }
+    },
+    {
+      "name": "같은 상담은 한 줄 (user_id, note_key 유니크)",
+      "sql": "insert into public.make_consult_notes (user_id, note_key, category, brief) values ({{x_user}}, {{key_x}}, 'sink', 'probe')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "정리본 600자 넘으면 막는다",
+      "sql": "insert into public.make_consult_notes (user_id, note_key, category, brief) values ({{x_user}}, {{key_new}}, 'sink', repeat('가', 601))",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    }
+  ]
+}
