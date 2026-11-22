@@ -46,8 +46,10 @@
 
    로그인 문 — 누구나 사진 · 품목 · 참고 사진을 고를 수 있다. 크레딧을 쓰는 버튼(연출컷 생성)을 누를 때
    로그인이 없으면, 사진과 고른 값을 이 기기(sessionStorage)에만 담고 기존 login.html 로 보낸다
-   (돌아올 곳 = 이 페이지). 돌아오면 같은 단계 · 같은 사진 · 같은 선택으로 되살린다 — 다시 한 번
-   누르기만 하면 된다. 저절로 생성하지 않는다. 로그인 전에는 아무것도 올리지 않는다.
+   (돌아올 곳 = 이 페이지). 돌아오면 같은 단계 · 같은 사진 · 같은 선택으로 되살리고, 그 생성을 바로 이어 간다
+   (2026-11-23 대표님 「견본 체험 + 바로 이어 만들기」 — 로그인하러 갈 때 표지 RESUME_KEY 를 남기고, 돌아오면
+   먼저 지운 뒤 세션 · 사진이 있고 ?g= 가 없을 때만 한 번. 30분이 지났거나 사진을 담지 못했거나 새 탭에서
+   로그인했으면 예전처럼 다시 한 번 누른다). 로그인 전에는 아무것도 올리지 않는다.
    담아 둔 사진은 생성이 시작되면, 또는 사진을 버리면(다시 선택) 지운다.
 
    쓰는 페이지: segan/make.html (data-tab="make")
@@ -298,6 +300,9 @@
   var MAX_BYTES = 20 * 1024 * 1024;
   var MAX_EDGE = 1600; // 업로드 전 축소 (ai-design.html 과 같다)
   var DRAFT_KEY = 'segan.make.draft.v1';
+  // 로그인하러 간 「연출컷 생성」 표지 — 돌아오면 한 번 쓰고 지운다 (새로 고침 · 뒤로 가기에 두 번 생성되지 않게)
+  var RESUME_KEY = 'segan.make.resume.v1';
+  var RESUME_MS = 30 * 60 * 1000;
   var LOGIN_PAGE = '../login.html';
   var RETURN_TARGET = 'segan/make.html'; // login.html ?redirect= — js/auth-redirect.js 가 받는 같은 사이트 *.html
   var STEPS = ['photo', 'kind', 'refs', 'result'];
@@ -622,6 +627,27 @@
       }
       return false;
     }
+  }
+
+  function markResume() {
+    try {
+      sessionStorage.setItem(RESUME_KEY, String(Date.now()));
+    } catch {
+      /* 저장소가 막힌 기기 — 돌아와서 다시 누른다 */
+    }
+  }
+
+  /** 표지를 읽고 바로 지운다 → 30분 안에 남긴 것이면 true */
+  function takeResume() {
+    var at = 0;
+    try {
+      at = Number(sessionStorage.getItem(RESUME_KEY)) || 0;
+      sessionStorage.removeItem(RESUME_KEY);
+    } catch {
+      return false;
+    }
+    var age = Date.now() - at;
+    return at > 0 && age >= 0 && age < RESUME_MS;
   }
 
   /** 담아 둔 사진만 지운다 (고른 값 · 참고 사진은 남긴다) */
@@ -1886,7 +1912,8 @@
     if (!S.session) {
       // 로그인 전: 이 기기에만 담고 로그인하러 간다. 돌아오면 같은 단계로 되살린다 (참고 사진은 id · 주소만).
       S.step = 'refs';
-      if (!saveDraft()) {
+      if (saveDraft()) markResume();
+      else {
         S.notice =
           '사진이 커서 이 기기에 잠시 담지 못했습니다. 로그인한 뒤 사진을 다시 골라 주세요.';
         renderBar();
@@ -2692,6 +2719,9 @@
       if (S.session) api.opening = openGeneration(g);
       else showSignin(g);
     }
+    // 로그인하러 갔다 돌아왔다 — 누른 「연출컷 생성」을 이어 간다 (표지는 먼저 지운다 · 한 번만)
+    if (takeResume() && S.session && S.photo && !g && S.phase !== 'loading')
+      api.resuming = api.start();
     window.dispatchEvent(new CustomEvent('segan:make-ready'));
   }
 
@@ -2702,6 +2732,8 @@
     FRIDGE_BRANDS: FRIDGE_BRANDS,
     FRIDGE_POS: FRIDGE_POS,
     DRAFT_KEY: DRAFT_KEY,
+    RESUME_KEY: RESUME_KEY,
+    RESUME_MS: RESUME_MS,
     STEPS: STEPS,
     MARKS: MARKS,
     MAX_REFS: MAX_REFS,
