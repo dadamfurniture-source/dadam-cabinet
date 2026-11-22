@@ -108,9 +108,11 @@ const CONSULT_COLUMNS = [
   ...COPY_FIELDS,
 ].join(',');
 
+// 유입 칸(DB 0080) — 본사 목록에만. 업체 사본(COPY_FIELDS)에는 넘기지 않는다 (처리방침 10항)
 const INBOX_COLUMNS =
   'id,created_at,status,name,phone,sido,gugun,furniture_categories,door_finish,demolition_needed,wanted_price_tier,' +
-  'preferred_date,preferred_time,wanted_done_date,request_detail_design,quote,generation_id,third_party_agreed_at';
+  'preferred_date,preferred_time,wanted_done_date,request_detail_design,quote,generation_id,third_party_agreed_at,' +
+  'inflow_source,inflow_medium,inflow_campaign,inflow_referrer';
 
 /** 업체 제공 동의가 있나 — 없으면 배정하지 않고 본사가 직접 상담한다 */
 export const hasConsent = (consult) => Boolean(consult && consult.third_party_agreed_at);
@@ -246,6 +248,10 @@ export async function consultInbox(env, { user, query = {} }) {
       quote_total: quoteTotal(r.quote),
       has_generation: Boolean(r.generation_id),
       consent: hasConsent(r),
+      inflow_source: r.inflow_source ?? null,
+      inflow_medium: r.inflow_medium ?? null,
+      inflow_campaign: r.inflow_campaign ?? null,
+      inflow_referrer: r.inflow_referrer ?? null,
       assignment: current
         ? {
             id: current.id,
