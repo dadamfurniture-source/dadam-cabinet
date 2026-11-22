@@ -30,7 +30,9 @@
   var HASH = '#as';
   var STATE_LABEL = { requested: '접수', received: '받음', done: '끝', cancelled: '거둠' }; // 워커 AS_STATE_LABEL
   var MEMBER_ROLES = ['owner', 'manager', 'staff'];
-  var PLANS = ['expert', 'agent']; // A/S함은 Expert 이상 (Manager 는 아직 — segan/partner-projects.js 는 Manager 부터)
+  // A/S함 — Expert · Agent 는 받아 처리하고, 영업 사원 업체(Manager)는 만든 팩토리가 처리하는 것을 본다
+  //   (2026-11-23 대표님 뒤 공정 3차 ① — 워커 handled_by 'factory' 줄은 단추가 없다. 접수가 없으면 칸도 없다 — showsEmpty)
+  var PLANS = ['expert', 'agent', 'manager'];
   var POOL_PLANS = ['expert', 'agent']; // 앱 상담을 나눠 받는 등급 — segan/partner-consults.js 와 같다
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,6 +45,8 @@
     badPhoto: 'JPEG · PNG 사진만 보낼 수 있습니다.',
     sent: 'A/S를 접수했습니다. 팩토리가 받으면 마이페이지 「A/S 접수」에서 「받음」으로 바뀝니다.',
     cancelAsk: '이 접수를 거둘까요?',
+    byFactory: '만든 팩토리가 처리',
+    fromManager: '영업 사원 업체 고객',
     boxLead:
       '고객이 앱에서 보낸 A/S입니다. 그 수주의 담당자(없으면 대표 · 실장)가 받습니다. 48시간 넘게 받지 않으면 본사에 알림이 갑니다.',
     boxEmpty: '아직 A/S 접수가 없습니다.',
@@ -446,7 +450,14 @@
     var photos = (Array.isArray(x.photo_urls) ? x.photo_urls : []).filter(function (u) {
       return typeof u === 'string' && /^https:\/\//.test(u);
     });
-    var sub = ['접수 ' + kstTime(x.created_at), x.mine === true ? '내 담당' : '']
+    // 처리하는 곳 (워커 handled_by) — factory: 만든 팩토리가 처리(보기만) · from_manager: 영업 사원 업체 고객의 접수를 우리가 받는다
+    var by =
+      x.handled_by === 'factory'
+        ? TEXT.byFactory + (typeof x.handler_name === 'string' && x.handler_name ? ' — ' + x.handler_name : '')
+        : x.handled_by === 'from_manager'
+          ? TEXT.fromManager
+          : '';
+    var sub = ['접수 ' + kstTime(x.created_at), x.mine === true ? '내 담당' : '', by]
       .filter(Boolean)
       .join(' · ');
     var act = '';

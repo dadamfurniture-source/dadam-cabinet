@@ -408,11 +408,26 @@ describe('팩토리 — A/S함', () => {
     }
   });
 
-  test('Manager 업체는 A/S함을 묻지 않는다 (Manager A/S 길은 아직 없다)', async () => {
+  test('영업 사원 업체(Manager) — A/S함을 묻고, 접수가 없으면 칸이 없다. 만든 팩토리가 처리하는 줄은 「만든 팩토리가 처리 — 이름」 · 단추 없음 (2026-11-23 ①)', async () => {
     const calls = await load({ partner: partnerMe({ plan: 'manager' }) });
-    expect(calls.fetch.filter((f) => f.url === WORK + '/company/as-requests')).toEqual([]);
+    expect(calls.fetch.filter((f) => f.url === WORK + '/company/as-requests')).toHaveLength(1);
     expect($('as').hidden).toBe(true);
-    expect(window.SeganAs.canSee({ company: { plan: 'manager', role: 'owner' } })).toBe(false);
+    expect(window.SeganAs.canSee({ company: { plan: 'manager', role: 'owner' } })).toBe(true);
+    await load({
+      partner: partnerMe({ plan: 'manager', role: 'owner' }),
+      box: () => ok({ ready: true, items: [boxItem({ handled_by: 'factory', handler_name: '다라 팩토리', can_handle: false, mine: false })] }),
+    });
+    expect($('as').hidden).toBe(false);
+    const row = $('as').querySelector('[data-as-item]');
+    expect(row.querySelector('small').textContent).toContain('만든 팩토리가 처리 — 다라 팩토리');
+    expect(row.querySelector('[data-as-act]')).toBeNull();
+  });
+
+  test('팩토리 — 영업 사원 업체 고객의 접수에는 「영업 사원 업체 고객」, 받기 단추는 그대로', async () => {
+    await load({ partner: partnerMe(), box: () => ok({ ready: true, items: [boxItem({ handled_by: 'from_manager' })] }) });
+    const row = $('as').querySelector('[data-as-item]');
+    expect(row.querySelector('small').textContent).toContain('영업 사원 업체 고객');
+    expect(row.querySelector('[data-as-act="receive"]').textContent).toBe('받기');
   });
 
   test('못 읽으면 · DB 전 · 업체 아님 → 감춘다 (업체가 아니면 묻지도 않는다)', async () => {

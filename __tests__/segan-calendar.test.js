@@ -1322,6 +1322,23 @@ describe('설치 날 고객 확인 · 프로젝트의 실측 (2026-11-21 뒤 공
     expect(btns()).toEqual([[S1, '고객 확인 표시', '1']]);
   });
 
+  test('고객 변경 요청 — 서버가 쓸 수 있다고 할 때만(change_ready) 설치 줄에 「고객 변경 요청」과 바라는 것 (2026-11-23 뒤 공정 3차)', async () => {
+    const asked = { ...install(null), customer_change_requested_at: '2026-11-08T01:00:00Z', customer_change_note: '오후로 바꿔 주세요' };
+    // 옛 서버 · DB 0082 전 — 없다
+    await load({ sched: () => ok(sched({ confirm_ready: true, items: [asked, delivery] })) });
+    await flush();
+    expect(box().querySelector('[data-cal="change"]')).toBeNull();
+    await load({ sched: () => ok(sched({ confirm_ready: true, change_ready: true, items: [asked, delivery] })) });
+    await flush();
+    expect(text(box().querySelector('[data-cal="change"]'))).toBe('고객 변경 요청');
+    expect(text(box().querySelector('[data-cal="change-note"]'))).toBe('「오후로 바꿔 주세요」');
+    expect(box().querySelectorAll('[data-cal="change"]')).toHaveLength(1); // 납품 줄에는 없다
+    // 요청이 없으면 없다
+    await load({ sched: () => ok(sched({ confirm_ready: true, change_ready: true, items: [install(null), delivery] })) });
+    await flush();
+    expect(box().querySelector('[data-cal="change"]')).toBeNull();
+  });
+
   test('설치 날 고객 확인 — 직원(can_manage 거짓)은 표시만 보고 단추가 없다, 취소한 설치 일정에는 아무것도 없다, 서버가 거절하면 그 글을 알린다', async () => {
     await load({
       sched: () => ok(sched({ can_manage: false, confirm_ready: true, items: [install('2026-11-09T05:00:00Z')] })),
