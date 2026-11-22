@@ -179,11 +179,17 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
     });
   const siteCols = 'id,type,status,scheduled_at,assignee_name,design_id';
   let confirmReady = true;
+  // 고객의 설치 날 변경 요청 칸(DB 0082) — 없으면 그 칸 없이 (change_ready false)
+  let changeReady = true;
   const rows =
-    (await readRows(`${siteCols},customer_confirmed_at`).catch((e) => {
-      if (!isMissingRelation(e)) throw e;
-      confirmReady = false;
-      return readRows(siteCols);
+    (await readRows(`${siteCols},customer_confirmed_at,customer_change_requested_at,customer_change_note`).catch((e0) => {
+      if (!isMissingRelation(e0)) throw e0;
+      changeReady = false;
+      return readRows(`${siteCols},customer_confirmed_at`).catch((e) => {
+        if (!isMissingRelation(e)) throw e;
+        confirmReady = false;
+        return readRows(siteCols);
+      });
     })) || [];
   const toIso = dayStartIso(range.to, 1);
   const live = rows.filter((s) => s.scheduled_at < toIso);
@@ -212,6 +218,8 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
     kind: 'install',
     // 설치 날 고객 확인을 쓸 수 있나 (DB 0079 의 칸이 있다) — 화면이 그때만 표시 · 단추를 낸다
     confirm_ready: confirmReady,
+    // 고객의 설치 날 변경 요청을 싣나 (DB 0082)
+    change_ready: changeReady,
     range,
     today: kstDateOf(nowMs),
     ready,
@@ -236,6 +244,10 @@ async function listInstallSites(env, { company, canAct, query }, nowMs) {
         order_no: orderNoOf.get(s.design_id) || null,
         // 설치 날 고객 확인 — 설치 일정에만 (업체가 표시한 때. 칸이 없으면 싣지 않는다)
         ...(s.type === 'installation' && confirmReady ? { customer_confirmed_at: s.customer_confirmed_at || null } : {}),
+        // 고객이 앱에서 바꿔 달라고 했다 — 설치 일정에만 (칸이 없으면 싣지 않는다)
+        ...(s.type === 'installation' && changeReady
+          ? { customer_change_requested_at: s.customer_change_requested_at || null, customer_change_note: s.customer_change_note || null }
+          : {}),
         ...(siteByDesign.get(s.design_id) || NO_SITE),
       };
     }),

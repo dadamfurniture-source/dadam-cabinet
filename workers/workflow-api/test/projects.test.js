@@ -547,17 +547,20 @@ test('me/projects — 수주는 최신 것 하나와 그 수금 일정, 설치�
     { id: 'pay1', stage: 'balance', amount: 600000, due_on: '2026-11-20', paid_on: null, payable: false, online: null },
   ]);
   assert.equal(p5.install_at, '2026-11-12T00:00:00Z');
+  // 설치 날 한 줄 (2026-11-23 뒤 공정 3차) — 고객이 확인 · 변경 요청을 누를 일정. 칸이 없는 가짜 DB 라 확인 · 요청은 null
+  assert.deepEqual(p5.install, { id: 's2', scheduled_at: '2026-11-12T00:00:00Z', status: 'scheduled', confirmed_at: null, change_requested_at: null });
   const p1 = r.json.data.find((p) => p.id === 'p-1');
   assert.equal(p1.order, null);
   assert.deepEqual(p1.payments, []);
   assert.equal(p1.install_at, null);
+  assert.equal(p1.install, null);
 });
 
 test('me/projects — 원가 · 마진 · 수금 합계 · 내부 메모 · 담당자는 싣지도 읽지도 않는다', async () => {
   const fake = myDb();
   const r = await call(fake, '/me/projects', MEMBER);
   for (const p of r.json.data) {
-    assert.deepEqual(Object.keys(p).sort(), ['company_name', 'created_at', 'id', 'install_at', 'order', 'payments', 'stage', 'status', 'title']);
+    assert.deepEqual(Object.keys(p).sort(), ['company_name', 'created_at', 'id', 'install', 'install_at', 'order', 'payments', 'stage', 'status', 'title']);
     if (p.order) assert.deepEqual(Object.keys(p.order).sort(), ['completed_at', 'contract_amount', 'id', 'order_no', 'ordered_at', 'status']);
     for (const x of p.payments) assert.deepEqual(Object.keys(x).sort(), ['amount', 'due_on', 'id', 'online', 'paid_on', 'payable', 'stage']);
   }

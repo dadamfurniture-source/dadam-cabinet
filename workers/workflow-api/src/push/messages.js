@@ -49,6 +49,9 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'trial_ending',
   'biz_cert_review',
   'biz_cert_decided',
+  // 0082 (2026-11-23 뒤 공정 3차) — 영업 사원 업체 수주의 A/S 를 만든 팩토리가 받는다 · 고객이 설치 날을 바꿔 달라고 했다
+  'as_factory',
+  'install_change',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -414,6 +417,16 @@ function asRequest({ orderNo } = {}) {
   return { title: 'A/S 접수', body: `${orderPart(orderNo)} A/S 접수가 들어왔습니다. A/S함에서 받아 주세요.`, url: AS_URL };
 }
 
+/** 영업 사원 업체에 — 고객 A/S 가 들어와 만든 팩토리가 받았다 (0082 · 대표님 2026-11-23 ①). { orderNo } — 팩토리 이름 · 내용은 싣지 않는다 */
+function asFactory({ orderNo } = {}) {
+  return { title: 'A/S 접수', body: `${orderPart(orderNo)} A/S 접수가 들어와 만든 팩토리가 처리합니다. A/S함에서 진행을 볼 수 있습니다.`, url: AS_URL };
+}
+
+/** 업체 대표 · 실장(과 담당자)에게 — 고객이 앱에서 설치 날을 바꿔 달라고 했다 (0082). 날짜 · 이름 · 글은 싣지 않는다 */
+function installChange() {
+  return { title: '설치 날 변경 요청', body: '고객이 설치 날을 바꿔 달라고 했습니다. 설치 일정을 확인해 주세요.', url: COMPANY_INSTALL_URL };
+}
+
 /** Manager 업체 › 제작 의뢰 (내 정보 — 2026-11-08 제작 의뢰) */
 export const PRODUCTION_REQUESTS_URL = '/segan/me.html#production-requests';
 /** 팩토리 › 제작 의뢰함 (내 정보 › 팩토리) */
@@ -553,6 +566,8 @@ const BUILDERS = Object.freeze({
   trial_ending: trialEnding,
   biz_cert_review: bizCertReview,
   biz_cert_decided: bizCertDecided,
+  as_factory: asFactory,
+  install_change: installChange,
 });
 
 /**
