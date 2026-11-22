@@ -130,6 +130,7 @@ async function load(options = {}) {
   const opts = {
     me: ME,
     inbox: () => ok(DATA()),
+    sched: () => fail(403), // 달력 일정 — 따로 주지 않으면 못 읽는다 (할 일만)
     items: ITEMS(),
     canSee: true,
     session: { access_token: 'tok-1' },
@@ -139,7 +140,10 @@ async function load(options = {}) {
   document.body.innerHTML =
     '<section id="meDash"><div class="ib" id="meInbox" hidden></div></section>';
   delete window.SeganInbox;
+  delete window.SeganCalendar;
   delete window.SeganProjectSheet;
+  if (opts.range === undefined) localStorage.removeItem('segan.inbox.range');
+  else localStorage.setItem('segan.inbox.range', opts.range);
   if (opts.sheet) window.SeganProjectSheet = opts.sheet;
   window.DADAM_CONFIG = { workflowApi: { url: opts.work === undefined ? WORK + '/' : opts.work } };
   const calls = [];
@@ -158,7 +162,7 @@ async function load(options = {}) {
         json: async () => ({ success: true, data: { seen_at: calls[calls.length - 1].body.at } }),
       };
     }
-    const r = await opts.inbox(url);
+    const r = await (String(url).includes('/company/schedules') ? opts.sched(url) : opts.inbox(url));
     if (r instanceof Error) throw r;
     return { ok: r.ok, status: r.status, json: async () => r.body };
   });
@@ -173,6 +177,7 @@ async function load(options = {}) {
     runNext,
   };
   window.SeganShell = { applyLinkTarget: jest.fn() };
+  if (opts.calendar !== false) (0, eval)(read('segan/calendar.js')); // 일정 줄의 색 · 열기 · 작업 배정은 달력의 것
   (0, eval)(read('segan/inbox.js'));
   await window.SeganInbox.load(
     { auth: { getSession: async () => ({ data: { session: opts.session } }) } },
@@ -185,7 +190,18 @@ async function load(options = {}) {
 const box = () => document.getElementById('meInbox');
 const text = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : null);
 const rows = () =>
-  [...box().querySelectorAll('.ib-table tbody tr')].map((tr) => [...tr.children].map(text));
+  [...box().querySelectorAll('.ib-table tbody tr:not(.ib-day)')].map((tr) =>
+    [...tr.children].map(text)
+  );
+// 머리줄과 줄을 차례대로 — 머리줄은 ['# 이름'], 줄은 첫 칸(할 일)
+const outline = () =>
+  [...box().querySelectorAll('.ib-table tbody tr')].map((tr) =>
+    tr.classList.contains('ib-day') ? '# ' + text(tr) : text(tr.children[0])
+  );
+const tabs = () => [...box().querySelectorAll('[data-act="range"]')].map(text);
+const pick = async (range) => {
+  box().querySelector(`[data-range="${range}"]`).click();
+};
 const news = () => [...box().querySelectorAll('.ib-news li')].map((li) => text(li));
 
 afterEach(() => {
@@ -299,23 +315,37 @@ describe('글 (순수)', () => {
 });
 
 describe('화면', () => {
-  test('할 일 표 — 서버 묶음(서버 차례 그대로) 다음에 프로젝트마다의 할 일, 수 · 기한 · 머문 날', async () => {
+  test('한 목록 — 「지금 할 일」(기한 없는 묶음 · 지난 것 · 프로젝트마다) 다음에 날마다(기한 남은 묶음은 그 기한 날). 오늘이 처음 칸', async () => {
     const { calls } = await load();
-    expect(calls).toEqual([
+    expect(calls.filter((c) => c.url === WORK + '/company/inbox')).toEqual([
       { url: WORK + '/company/inbox', method: 'GET', auth: 'Bearer tok-1', cache: 'no-store' },
     ]);
     expect(box().hidden).toBe(false);
     expect(text(box().querySelector('#meInboxTitle'))).toBe('새로 생긴 일');
-    expect(text(box().querySelector('.ib-head'))).toBe('할 일 7'); // 묶음 4 + 프로젝트 3
+    // 지금 11-21(토) 10:00 — 「제작 의뢰 답하기」 기한은 내일(11-22) 02:00 이라 오늘 칸에는 없다
+    expect(tabs()).toEqual(['오늘 6', '주간 7', '월간 7']);
+    expect(box().querySelector('[data-range="day"]').getAttribute('aria-pressed')).toBe('true');
+    expect(outline()).toEqual([
+      '# 지금 할 일',
+      '수주 요청 승인 · 반려',
+      '받을 돈 확인',
+      '설계 시작',
+      '계약 만들기',
+      '생산 시작',
+      '# 11월 21일 (토) · 오늘',
+      '새 상담 받기',
+    ]);
     expect(rows()).toEqual([
-      ['제작 의뢰 답하기', '1건', '16시간 남음', '열기'],
-      ['새 상담 받기', '2건', '40분 남음', '열기'],
       ['수주 요청 승인 · 반려', '1건', '', '열기'],
       ['받을 돈 확인', '3건', '지난 것 2건', '열기'],
       ['설계 시작', '설계 전', '3일째', '설계 시작'],
       ['계약 만들기', '예시 주방', '오늘', '계약 만들기'],
       ['생산 시작', '때 모름', '', '생산 시작'],
+      ['새 상담 받기', '2건', '40분 남음', '열기'],
     ]);
+    await pick('week');
+    expect(outline().slice(-2)).toEqual(['# 11월 22일 (일)', '제작 의뢰 답하기']);
+    expect(rows().slice(-1)).toEqual([['제작 의뢰 답하기', '1건', '16시간 남음', '열기']]);
     const open = box().querySelector('[data-ib-todo="consult"] a');
     expect([open.getAttribute('href'), open.getAttribute('data-me-go')]).toEqual([
       '#p-consult',
@@ -332,7 +362,7 @@ describe('화면', () => {
       .querySelector(`[data-ib-project="${P(2)}"] [data-act="next-sheet"]`)
       .click();
     expect(runNext).toHaveBeenCalledWith('next-sheet', P(2));
-    expect(calls.length).toBe(1); // 이 파일은 서버에 쓰지 않는다
+    expect(calls.filter((c) => c.method !== 'GET')).toEqual([]); // 이 파일은 서버에 쓰지 않는다
   });
 
   test('프로젝트 이름 — 프로젝트 한 건 창이 있으면 누르는 단추, 누르면 그 창 (없으면 글자만)', async () => {
@@ -350,7 +380,7 @@ describe('화면', () => {
     expect(sheet.open).toHaveBeenCalledWith(P(2));
     expect(runNext).not.toHaveBeenCalled();
     // 표의 글은 그대로다
-    expect(rows()[4]).toEqual(['설계 시작', '설계 전', '3일째', '설계 시작']);
+    expect(rows()[2]).toEqual(['설계 시작', '설계 전', '3일째', '설계 시작']);
     await load({ sheet: { canOpen: () => false, open: jest.fn() } });
     expect(box().querySelector('[data-act="project"]')).toBeNull();
   });
@@ -394,8 +424,8 @@ describe('화면', () => {
     expect(box().firstElementChild).toBe(before); // 글이 같다 — 다시 그리지 않았다
     window.SeganPartnerProjects.state.data.items = [ITEMS()[1]];
     window.SeganInbox.render();
-    expect(rows().slice(4)).toEqual([['설계 시작', '설계 전', '3일째', '설계 시작']]);
-    expect(text(box().querySelector('.ib-head'))).toBe('할 일 5');
+    expect(rows().slice(2, 3)).toEqual([['설계 시작', '설계 전', '3일째', '설계 시작']]);
+    expect(tabs()[0]).toBe('오늘 4');
   });
 
   test('프로젝트마다의 할 일은 20줄까지 — 넘으면 몇 건이 더 있는지 알린다', async () => {
@@ -412,13 +442,15 @@ describe('화면', () => {
     expect(rows()).toHaveLength(20);
     expect(rows()[0][1]).toBe('프로젝트 23'); // 가장 오래 머문 것부터
     expect(text(box().querySelector('.mk-note'))).toBe('3건 더 — 프로젝트 관리 목록에서');
-    expect(text(box().querySelector('.ib-head'))).toBe('할 일 23');
+    expect(tabs()[0]).toBe('오늘 20');
   });
 
   test('할 일도 소식도 없으면 — 안내 글', async () => {
     await load({ items: [], inbox: () => ok({ role: 'staff', todo: [], news: [] }) });
     expect(box().hidden).toBe(false);
-    expect(text(box().querySelector('[data-ib="none"]'))).toBe('지금 처리할 일이 없습니다.');
+    expect(text(box().querySelector('[data-ib="none"]'))).toBe('오늘 할 일이 없습니다.');
+    await pick('week');
+    expect(text(box().querySelector('[data-ib="none"]'))).toBe('이번 주 할 일이 없습니다.');
     expect(text(box().querySelector('[data-ib="no-news"]'))).toBe(
       '최근 14일 동안 새로 생긴 일이 없습니다.'
     );
@@ -565,6 +597,159 @@ describe('실측 (2026-11-21 뒤 공정 2차)', () => {
     expect(runNext).not.toHaveBeenCalled();
     box().querySelector('[data-act="next-visit-done"]').click();
     expect(runNext).toHaveBeenCalledWith('next-visit-done', P(2));
+  });
+});
+
+describe('오늘 · 주간 · 월간 — 할 일 + 달력 일정 한 목록 (2026-11-23 대표님 「추천대로 진행」)', () => {
+  const S = (key, extra) => ({ key, id: key, source: 'schedule', status: 'scheduled', ...extra });
+  const SCHED = () => [
+    S('s1', { kind: 'install', type: 'installation', label: '설치', day: '2026-11-21', time: '14:00', project: { id: P(1), title: '예시 주방' } }),
+    { key: 'c1', source: 'consult', id: 'c1', kind: 'sales', label: '상담 희망일', day: '2026-11-21', time: '09:30' },
+    { key: 'w1', source: 'work', id: 'w1', kind: 'make', label: '재단', day: '2026-11-22', time: null, status: 'unassigned', project: { id: P(2), title: '설계 전' } },
+    S('s3', { kind: 'install', label: '설치', day: '2026-11-25', time: '10:00', status: 'cancelled' }), // 취소 — 뺀다
+    S('s4', { kind: 'make', label: '제작 착수', day: '2026-11-28', time: '09:00', status: 'completed' }), // 끝남 — 뺀다
+    { key: 'd1', source: 'design_due', id: 'd1', kind: 'design', label: '설계 마감', day: '2026-11-27', time: null, status: 'deposit_paid' },
+    S('s6', { kind: 'as', label: 'A/S 방문', day: '2026-11-20', time: '10:00' }), // 어제 — 지난 날은 없다
+    S('s7', { kind: 'install', label: '설치', day: '2026-12-01', time: '10:00' }), // 다음 달 — 월간에도 없다
+  ];
+  const opts = (more = {}) => ({
+    items: [],
+    inbox: () => ok({ role: 'owner', todo: [], news: [] }),
+    sched: () => ok({ can_manage: true, today: '2026-11-21', items: SCHED() }),
+    ...more,
+  });
+
+  test('일정은 오늘부터 이번 주 · 이번 달 끝 가운데 늦은 날까지 한 번 읽는다 (본인 토큰)', async () => {
+    const { calls } = await load(opts());
+    expect(calls.filter((c) => String(c.url).includes('/company/schedules'))).toEqual([
+      {
+        url: WORK + '/company/schedules?from=2026-11-21&to=2026-11-30',
+        method: 'GET',
+        auth: 'Bearer tok-1',
+        cache: 'no-store',
+      },
+    ]);
+  });
+
+  test('기간마다 — 오늘 / 이번 주 일요일까지 / 이번 달 말일까지. 시각 차례 (시각 없는 줄은 그날 맨 아래), 끝남 · 취소 · 지난 날은 없다', async () => {
+    await load(opts());
+    expect(tabs()).toEqual(['오늘 2', '주간 3', '월간 4']);
+    expect(outline()).toEqual(['# 11월 21일 (토) · 오늘', '상담 희망일', '설치']);
+    expect(rows()).toEqual([
+      ['상담 희망일', '영업', '09:30', ''],
+      ['설치', '설치 · 예시 주방 · 예정', '14:00', ''],
+    ]);
+    // 종류 색은 달력과 같은 네모 (색만으로 가리지 않게 종류 이름도 적는다)
+    expect(box().querySelector('[data-ib-sched="s1"] .cal-sw--install')).not.toBeNull();
+    await pick('week');
+    expect(outline()).toEqual([
+      '# 11월 21일 (토) · 오늘',
+      '상담 희망일',
+      '설치',
+      '# 11월 22일 (일)',
+      '재단',
+    ]);
+    await pick('month');
+    expect(outline().slice(-2)).toEqual(['# 11월 27일 (금)', '설계 마감']);
+    expect(rows().slice(-1)).toEqual([['설계 마감', '설계 · 계약금 입금', '', '']]);
+    expect(box().textContent).not.toContain('A/S 방문');
+    expect(box().querySelector('[data-ib-sched="s3"], [data-ib-sched="s4"], [data-ib-sched="s7"]')).toBeNull();
+  });
+
+  test('할 일과 섞인다 — 「지금 할 일」이 맨 위, 기한 남은 묶음은 그 기한 시각 자리에', async () => {
+    await load(opts({ inbox: () => ok(DATA()), items: [ITEMS()[1]] }));
+    expect(outline()).toEqual([
+      '# 지금 할 일',
+      '수주 요청 승인 · 반려',
+      '받을 돈 확인',
+      '설계 시작',
+      '# 11월 21일 (토) · 오늘',
+      '상담 희망일', // 09:30
+      '새 상담 받기', // 기한 10:40
+      '설치', // 14:00
+    ]);
+    await pick('week');
+    // 「제작 의뢰 답하기」 기한 11-22 02:00 — 그날 시각 있는 줄이 먼저, 시각 없는 작업 줄이 뒤
+    expect(outline().slice(-3)).toEqual(['# 11월 22일 (일)', '제작 의뢰 답하기', '재단']);
+  });
+
+  test('고른 기간은 이 기기가 기억한다 — 처음은 오늘', async () => {
+    await load(opts());
+    await pick('month');
+    expect(localStorage.getItem('segan.inbox.range')).toBe('month');
+    await load(opts({ range: 'week' }));
+    expect(box().querySelector('[data-range="week"]').getAttribute('aria-pressed')).toBe('true');
+    await load(opts({ range: 'year' }));
+    expect(box().querySelector('[data-range="day"]').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  test('일정 줄의 단추 — 「열기」는 그 하위 화면(달력과 같은 곳), 작업 줄의 「작업 배정」은 프로젝트 목록의 그 칸 (못 열면 글)', async () => {
+    window.SeganMe = { defOf: () => ({}), available: () => true };
+    try {
+      await load(opts());
+      const open = box().querySelector('[data-ib-sched="c1"] a');
+      expect([open.getAttribute('href'), open.getAttribute('data-me-go')]).toEqual(['#p-consult', 'p-consult']);
+      const openWork = jest.fn(() => false);
+      window.SeganPartnerProjects.openWork = openWork;
+      window.SeganInbox.state.html = null;
+      await pick('week');
+      const btn = box().querySelector('[data-ib-sched="w1"] [data-act="work"]');
+      expect(text(btn)).toBe('작업 배정'); // 대표 · 실장 (직원은 「작업자 보기」)
+      btn.click();
+      expect(openWork).toHaveBeenCalledWith(P(2));
+      expect(text(box().querySelector('[data-ib="msg"]'))).toBe(
+        '프로젝트 목록에 이 프로젝트가 없습니다. 끝났거나 보관한 프로젝트일 수 있습니다.'
+      );
+    } finally {
+      delete window.SeganMe;
+    }
+  });
+
+  test('일정을 못 읽거나 달력 파일이 없으면 할 일만 — 달력 파일이 없으면 묻지도 않는다', async () => {
+    await load(opts({ inbox: () => ok(DATA()), items: [], sched: () => fail(403) }));
+    expect(box().querySelector('[data-ib-sched]')).toBeNull();
+    expect(rows().map((r) => r[0])).toContain('새 상담 받기');
+    const { calls } = await load(opts({ calendar: false }));
+    expect(calls.some((c) => String(c.url).includes('/company/schedules'))).toBe(false);
+    // 일정만 읽혀도(할 일 길이 끊겨도) 칸은 보인다
+    await load(opts({ inbox: () => fail(500) }));
+    expect(box().hidden).toBe(false);
+    expect(rows()).toHaveLength(2);
+  });
+
+  test('달력에서 일정을 넣거나 고치면 이 목록도 다시 읽는다 (segan/calendar.js afterWrite · reload)', () => {
+    const cal = read('segan/calendar.js');
+    expect(cal).toMatch(/sites\.reload\(\);\n\s+inboxAgain\(\);/);
+    expect(cal).toMatch(/function reload\(\) \{\n\s+C\.cache = \{\};\n\s+if \(C\.data\) inboxAgain\(\);/);
+  });
+
+  test('순수 — rangeEnd · schedulesFrom · groupRows', async () => {
+    await load(opts());
+    const I = window.SeganInbox;
+    expect(['day', 'week', 'month'].map((r) => I.rangeEnd(r, '2026-11-23'))).toEqual([
+      '2026-11-23',
+      '2026-11-29',
+      '2026-11-30',
+    ]);
+    expect(I.rangeEnd('week', '2026-11-29')).toBe('2026-11-29'); // 일요일이면 그날까지
+    expect(I.rangeEnd('month', '2026-02-10')).toBe('2026-02-28');
+    expect(I.schedulesFrom(SCHED(), '2026-11-21').map((x) => x.key)).toEqual(['s1', 'c1', 'w1', 'd1', 's7']);
+    expect(
+      I.groupRows(
+        [
+          { at: '2026-11-22', time: '' },
+          { at: 'now', time: '' },
+          { at: '2026-11-21', time: '' },
+          { at: '2026-11-21', time: '08:00' },
+        ],
+        'week',
+        '2026-11-21'
+      ).map((g) => [g.at, g.rows.map((r) => r.time)])
+    ).toEqual([
+      ['now', ['']],
+      ['2026-11-21', ['08:00', '']],
+      ['2026-11-22', ['']],
+    ]);
   });
 });
 
