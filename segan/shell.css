@@ -3031,6 +3031,13 @@ button.sm-num[aria-pressed='true'] {
   color: var(--v5-ink-60);
 }
 
+/* 수주 창 설치 일정 — 고객 확인됨 (2026-11-23) */
+.od-badge--ok {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+  white-space: nowrap;
+}
+
 .od-kpi {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
