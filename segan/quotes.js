@@ -304,8 +304,21 @@
     );
   }
 
+  /**
+   * 프로젝트 이름 뒤에 붙이는 품목 — 플래너가 붙인 설계 이름(「프로젝트 이름 · 붙박이장 안방」)의 끝 조각.
+   * 손으로 적은 옛 설계 이름(가운뎃점 조각이 없다)에는 붙이지 않는다 — 품목이 아니다.
+   */
+  function itemOf(r) {
+    var design = typeof r.design === 'string' ? r.design.trim() : '';
+    if (!r.project || !design) return '';
+    var cut = design.lastIndexOf(' · ');
+    return cut >= 0 ? design.slice(cut + 3).trim() : '';
+  }
+
   function rowHtml(r) {
-    var what = r.project || r.design || r.title || TEXT.noDesign;
+    // 한 프로젝트에 품목 견적이 여럿일 수 있다 (2026-11-23) — 프로젝트 이름만 적으면 서로 가릴 수 없다
+    var item = itemOf(r);
+    var what = (r.project || r.design || r.title || TEXT.noDesign) + (item ? ' — ' + item : '');
     var done = r.state === 'approved' || r.state === 'rejected';
     return (
       '<li class="me-cs-item dr-item qt-item' +
