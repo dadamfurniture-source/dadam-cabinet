@@ -423,7 +423,10 @@ test('projectStage — 걸린 행 중 가장 높은 단계', () => {
   assert.equal(projectStage({ hasRender: true, hasDesign: true }), 'design');
   assert.equal(projectStage({ hasDesign: true, hasQuote: true }), 'quote');
   assert.equal(projectStage({ orders: [{ status: 'confirmed' }], hasQuote: true }), 'order');
-  assert.equal(projectStage({ orders: [{ status: 'in_production' }, { status: 'completed' }] }), 'installed');
+  // 시공 완료 = 취소 아닌 수주가 모두 완료 (2026-11-23 — 한 프로젝트에 품목 수주가 여럿일 수 있다. 하나라도 남았으면 아직 수주 단계)
+  assert.equal(projectStage({ orders: [{ status: 'in_production' }, { status: 'completed' }] }), 'order');
+  assert.equal(projectStage({ orders: [{ status: 'completed' }, { status: 'completed' }] }), 'installed');
+  assert.equal(projectStage({ orders: [{ status: 'completed' }] }), 'installed');
 });
 
 /** 나(MEMBER)는 본사 · 협력업체 고객 행 둘. 다른 사람(OTHER)의 프로젝트 하나 */

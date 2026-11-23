@@ -161,11 +161,15 @@ export const MY_PROJECTS_LIMIT = 50;
 /** 프로젝트에 붙은 표를 읽을 때 한 번에 읽는 행 수 상한 */
 const LINKED_ROW_LIMIT = '500';
 
-/** 진행 단계 — 뒤로 갈수록 높다. 걸린 행 중 가장 높은 것 (orders 는 취소 수주를 뺀 것) */
+/**
+ * 진행 단계 — 뒤로 갈수록 높다. 걸린 행 중 가장 높은 것 (orders 는 취소 수주를 뺀 것).
+ * 시공 완료(installed)는 **취소 아닌 수주가 모두 완료**일 때다 (2026-11-23 — 한 프로젝트에 품목 수주가 여럿일 수 있다:
+ * 싱크대가 먼저 끝나도 붙박이장이 남았으면 아직 「수주」 단계다. 수주가 하나면 예전과 같다)
+ */
 export const PROJECT_STAGES = Object.freeze(['consult', 'render', 'design', 'quote', 'order', 'installed']);
 
 export function projectStage({ orders = [], hasQuote = false, hasDesign = false, hasRender = false }) {
-  if (orders.some((o) => o.status === 'completed')) return 'installed';
+  if (orders.length && orders.every((o) => o.status === 'completed')) return 'installed';
   if (orders.length) return 'order';
   if (hasQuote) return 'quote';
   if (hasDesign) return 'design';

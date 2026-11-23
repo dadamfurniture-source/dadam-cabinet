@@ -164,6 +164,8 @@ function textOf(value, field, max) {
 
 /**
  * 프로젝트 한 줄 — 목록(GET /company/projects)과 프로젝트 창(GET /company/projects/:id)이 같은 칸을 쓴다.
+ * flow 가 품목 줄을 주면 그대로 싣는다 — items [{ key, label, step, step_label, next, draft_id, design_id, order_id }] (company-pipeline.js · pipeline-items.js,
+ * 2026-11-23: 한 프로젝트에 품목 설계가 여럿이면 step · next 는 가장 늦은 품목 것이고 next.item 에 그 품목 이름이 온다)
  * @param {object} p        projects 행
  * @param {{ customer?: object|null, designCount?: number, stage?: { stage, order }, flow?: { step, next }, memberOf: Map,
  *           stay?: { today, orderOf, lateMake, lateInstall } }} parts   stay = 머문 날을 잴 값 (project-stay.js) — 주면 줄에 stay 를 싣는다
@@ -243,7 +245,7 @@ export async function listCompanyProjects(env, { user, nowMs = Date.now() }) {
     ? (await selectMany(env, 'designs', {
         project_id: `in.(${ids.join(',')})`,
         company_id: `eq.${company.id}`,
-        select: 'id,project_id,source,source_ref',
+        select: 'id,project_id,source,source_ref,name,created_at',
       })) || []
     : [];
   const customerOf = new Map(customers.map((c) => [c.id, c]));
