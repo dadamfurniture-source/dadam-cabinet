@@ -283,10 +283,11 @@ describe('신청서', () => {
     );
   });
 
-  test('시공 지역 목록 = signup.html 의 locationData', async () => {
+  test('시공 지역 목록 = 사이트 상담 신청(consultation.html)의 locationData', async () => {
     await load();
-    const signup = read('signup.html').match(/const locationData = (\{[\s\S]*?\n\s*\});/)[1];
-    const expected = Function(`return ${signup}`)();
+    // 가입 화면에는 지역 칸이 없다 (2026-11-23 카카오 · 구글 가입만)
+    const site = read('consultation.html').match(/const locationData = (\{[\s\S]*?\n\s*\});/)[1];
+    const expected = Function(`return ${site}`)();
     expect(JSON.parse(JSON.stringify(window.SeganRegions))).toEqual(expected);
     expect([...$('csSido').options].slice(1).map((o) => o.value)).toEqual(Object.keys(expected));
     $('csSido').value = '서울특별시';

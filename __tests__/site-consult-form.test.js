@@ -2,7 +2,7 @@
  * consultation.html — 사이트 상담 신청서.
  *
  * 상담은 다담 본사가 먼저 받아 업체(다담 협력업체 · 다담 공장)에 나눠 준다. 그래서 신청서는
- *   - 시공 지역(시/도 · 시/군/구, 필수 — signup.html 의 locationData 와 같은 목록)
+ *   - 시공 지역(시/도 · 시/군/구, 필수 — segan/regions.js 와 같은 목록)
  *   - 원하는 도어 마감 · 철거 필요 · 원하는 가격대(필수 — segan/consult.html 과 같은 값, 「모름」 있음)
  *   - 동의 둘: 개인정보 수집 · 이용(필수) → privacy_agreed_at
  *             다담 협력업체 목록 중 다담이 정한 업체에 제공(선택) → third_party_agreed_at · consent_version 'v2'
@@ -110,9 +110,12 @@ const radioValues = (name) =>
   ]);
 
 describe('시공 정보', () => {
-  test('시공 지역 목록 = signup.html 의 locationData', async () => {
+  test('시공 지역 목록 = segan/regions.js (앱 상담 신청과 같은 목록)', async () => {
     await load();
-    const expected = locationDataOf(read('signup.html'));
+    // 가입 화면에는 지역 칸이 없다 (2026-11-23 카카오 · 구글 가입만) — 목록 정본은 segan/regions.js
+    const box = {};
+    Function('window', read('segan/regions.js'))(box);
+    const expected = JSON.parse(JSON.stringify(box.SeganRegions));
     expect(locationDataOf(HTML)).toEqual(expected);
     expect([...$('sido').options].map((o) => o.value)).toEqual([''].concat(Object.keys(expected)));
     expect($('gugun').disabled).toBe(true);
