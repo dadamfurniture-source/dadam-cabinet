@@ -106,6 +106,7 @@
     inviteCopyFail: '복사하지 못했습니다. 칸의 링크를 길게 눌러 복사해 주세요.',
     inviteMade: '링크를 만들었습니다. 지금 복사해 고객에게 보내 주세요.',
     customerApp: '고객 앱 연결',
+    itemDone: '끝', // 품목 줄 — 그 품목의 수주가 완료됐다
     visitPlan: '실측 일정 잡기',
     visitEdit: '일정 고치기',
     visitDone: '실측 완료 처리',
@@ -396,10 +397,71 @@
       (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
       '</span>' +
       miniHtml(p) +
+      itemsLineHtml(p) +
       flow.note +
       (acts ? '<div class="rd-acts">' + acts + '</div>' : '') +
       '</li>'
     );
+  }
+
+  // ── 품목 줄 (2026-11-23 대표님 「워크플로우를 현재 변경된 프로젝트 지정에 맞게」 — 서버 items: workflow-api pipeline-items.js) ──
+  //   한 프로젝트에 품목 설계가 여럿이면 줄의 단계 · 다음 할 일은 가장 늦은 품목 것이다. 품목마다의 상태는 한 줄로 같이 적는다.
+
+  /** 그 프로젝트의 품목 줄 — 모양이 맞는 것만 */
+  function itemsOf(p) {
+    return (p && Array.isArray(p.items) ? p.items : []).filter(function (x) {
+      return x && typeof x === 'object' && typeof x.label === 'string' && x.label && typeof x.step === 'string' && own(STAGE_LABEL, x.step);
+    });
+  }
+  /** 품목 줄의 단계 이름 — 줄의 단계 띠와 같은 이름(생산 …), 끝난 품목은 「끝」 */
+  function itemStepLabel(step) {
+    if (step === 'done') return TEXT.itemDone;
+    var cells = stripOf();
+    for (var i = 0; i < cells.length; i++) if (cells[i][0] === step) return cells[i][1];
+    return STAGE_LABEL[step];
+  }
+  /** 「싱크대 생산 · 붙박이장 설계」 — 품목이 둘 이상인 진행 중 프로젝트에만 */
+  function itemsLineHtml(p) {
+    if (p.status && p.status !== 'active' && p.status !== 'on_hold') return '';
+    var items = itemsOf(p);
+    if (items.length < 2) return '';
+    return (
+      '<p class="pj-items" data-pj="items">' +
+      esc(
+        items
+          .map(function (x) {
+            return x.label + ' ' + itemStepLabel(x.step);
+          })
+          .join(' · ')
+      ) +
+      '</p>'
+    );
+  }
+  /**
+   * 품목마다 { key, label, step, stepLabel, flow(그 품목의 다음 할 일 — flowOf 와 같은 꼴), open(플래너에서 여는 주소 | '') } —
+   * 한 건 화면의 「품목」 칸이 그린다 (segan/project-sheet.js). 다음 할 일 단추는 프로젝트 줄의 것과 같은 길로 눌린다.
+   */
+  function itemFlowsOf(p) {
+    return itemsOf(p).map(function (x) {
+      var flow = flowOf({ id: p.id, status: p.status, step: x.step, next: x.next || null });
+      return {
+        key: String(x.key || ''),
+        label: x.label,
+        step: x.step,
+        stepLabel: itemStepLabel(x.step),
+        note: flow.note || '',
+        act: flow.act || '',
+        tail: flow.tail || '',
+        open: typeof x.draft_id === 'string' && x.draft_id ? plannerUrl('planner?draft=' + x.draft_id) : '',
+        draftId: typeof x.draft_id === 'string' ? x.draft_id : '',
+        designId: typeof x.design_id === 'string' ? x.design_id : '',
+        orderId: typeof x.order_id === 'string' ? x.order_id : '',
+      };
+    });
+  }
+  /** 그 프로젝트에 품목을 더하러 플래너로 — 플래너가 그 프로젝트의 설계를 열고 「+ 품목」을 누른다 */
+  function addItemUrl(p) {
+    return p && typeof p.id === 'string' && UUID_RE.test(p.id) ? plannerUrl('planner?project=' + p.id) : '';
   }
 
   /** 작은 단계 띠와 지금 단계 한 줄 — 「견적 · 9일째 · 멈춤」. 단계를 모르면(옛 서버 · 끝난 프로젝트) 빈 글자 */
@@ -579,12 +641,14 @@
       '</ol>';
     var n = p.next && typeof p.next === 'object' ? p.next : null;
     if (!n || typeof n.label !== 'string' || !n.label) return { strip: strip, note: '', act: '' };
+    // 품목이 여럿인 프로젝트 — 어느 품목의 일인지 앞에 적는다 (서버 next.item, 2026-11-23 품목 줄)
+    var label = (typeof n.item === 'string' && n.item ? n.item + ' ' : '') + n.label;
     var since = quiet ? '' : sinceText(n.since);
     // 남을 기다리는 중 — 단추 없이 글로 (고객 답 기다림 · 4일째 · 2번 열어 봄)
     if (n.wait === true) {
       // 실측 날 전 — 「실측 11.25 (화) 14:00 예정」
       var soon = n.key === 'measure_wait' ? kstParts(n.at) : null;
-      var bits = [soon ? TEXT.visitLine + soon.text + TEXT.visitSoon : n.label, since, n.views > 0 ? n.views + TEXT.views : ''].filter(Boolean);
+      var bits = [soon ? TEXT.visitLine + soon.text + TEXT.visitSoon : label, since, n.views > 0 ? n.views + TEXT.views : ''].filter(Boolean);
       return { strip: strip, note: '<p class="pj-wait" data-next="' + esc(n.key) + '">' + esc(bits.join(' · ')) + '</p>', act: '' };
     }
     // 내 직책으로는 못 하는 일 — 무엇이 남았는지만 알린다
@@ -595,7 +659,7 @@
           '<p class="pj-wait" data-next="' +
           esc(n.key) +
           '">' +
-          esc(n.label + ' — ' + (n.go === 'visit' ? TEXT.visitMine : TEXT.notMine)) +
+          esc(label + ' — ' + (n.go === 'visit' ? TEXT.visitMine : TEXT.notMine)) +
           '</p>',
         act: '',
       };
@@ -609,25 +673,25 @@
       // 실측 — 「실측 완료 처리」는 그 자리에서, 「실측 일정 잡기」는 그 줄의 실측 칸을 연다 (같은 단추로 펼치고 접는다)
       var finishing = n.act && typeof n.act === 'object' && n.act.kind === 'visit_done';
       act = finishing
-        ? '<button type="button" class="' + cls + '" data-act="next-visit-done" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</button>'
-        : '<button type="button" class="' + cls + '" data-act="visit" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '" aria-expanded="' + (J.visitFor === p.id) + '">' + esc(n.label) + '</button>';
+        ? '<button type="button" class="' + cls + '" data-act="next-visit-done" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '">' + esc(label) + '</button>'
+        : '<button type="button" class="' + cls + '" data-act="visit" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '" aria-expanded="' + (J.visitFor === p.id) + '">' + esc(label) + '</button>';
     } else if (go === 'sheet') {
       // 보류를 다시 볼 날 — 그 줄의 「다시 진행 · 그만둠」 칸을 연다 (서버 글표는 sheet 지만 줄에는 창 단추를 두지 않는다 — 대표님 11-21)
       act =
-        '<button type="button" class="' + cls + '" data-act="status" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</button>';
+        '<button type="button" class="' + cls + '" data-act="status" data-for="' + esc(p.id) + '" data-next="' + esc(n.key) + '">' + esc(label) + '</button>';
     } else if (doc && UUID_RE.test(doc)) {
       act =
-        '<button type="button" class="' + cls + '" data-act="next-order" data-id="' + esc(doc) + '">' + esc(n.label) + '</button>';
+        '<button type="button" class="' + cls + '" data-act="next-order" data-id="' + esc(doc) + '">' + esc(label) + '</button>';
     } else if (go.indexOf('order:') === 0 && UUID_RE.test(go.slice(6))) {
       act =
-        '<button type="button" class="' + cls + '" data-act="next-sheet" data-id="' + esc(go.slice(6)) + '">' + esc(n.label) + '</button>';
+        '<button type="button" class="' + cls + '" data-act="next-sheet" data-id="' + esc(go.slice(6)) + '">' + esc(label) + '</button>';
     } else if (go.indexOf('planner') === 0) {
       var href = plannerUrl(go);
       act = href
-        ? '<a class="' + cls + '" href="' + esc(href) + '" data-desktop-tab data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>'
-        : '<a class="' + cls + '" href="#p-design" data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>';
+        ? '<a class="' + cls + '" href="' + esc(href) + '" data-desktop-tab data-next="' + esc(n.key) + '">' + esc(label) + '</a>'
+        : '<a class="' + cls + '" href="#p-design" data-next="' + esc(n.key) + '">' + esc(label) + '</a>';
     } else if (/^p-[a-z]+$/.test(go)) {
-      act = '<a class="' + cls + '" href="#' + esc(go) + '" data-next="' + esc(n.key) + '">' + esc(n.label) + '</a>';
+      act = '<a class="' + cls + '" href="#' + esc(go) + '" data-next="' + esc(n.key) + '">' + esc(label) + '</a>';
     }
     return { strip: strip, note: '', act: act, tail: act ? tail : '' };
   }
@@ -2021,6 +2085,8 @@
     nextOf: nextOf,
     runNext: runNext,
     readProject: readProject,
+    itemFlowsOf: itemFlowsOf,
+    addItemUrl: addItemUrl,
     readStage: readStage,
     sendPhoto: sendPhoto,
     removePhoto: removePhoto,

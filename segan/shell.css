@@ -6272,6 +6272,49 @@ a.ch-row:focus-visible .ch-label {
   overflow-wrap: anywhere;
 }
 
+/* 품목 줄 (2026-11-23) — 프로젝트 줄의 「싱크대 제작 · 붙박이장 설계」 한 줄 · 한 건 화면의 「품목」 칸 */
+.pj-items {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+.pg-items {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pg-items li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.pg-item-main {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.pg-item-main b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pg-item-main small {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
 /* 단계 칸의 「올린 사진」 — 지우기는 글 단추, 올리기는 파일 고르기를 감싼 단추 (DB 0083) */
 .pg-x {
   padding: 0;
