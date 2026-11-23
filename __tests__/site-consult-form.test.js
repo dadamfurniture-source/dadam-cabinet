@@ -4,7 +4,7 @@
  * 상담은 다담 본사가 먼저 받아 업체(다담 협력업체 · 다담 공장)에 나눠 준다. 그래서 신청서는
  *   - 시공 지역(시/도 · 시/군/구, 필수 — segan/regions.js 와 같은 목록)
  *   - 원하는 도어 마감 · 철거 필요 · 원하는 가격대(필수 — segan/consult.html 과 같은 값, 「모름」 있음)
- *   - 동의 둘: 개인정보 수집 · 이용(필수) → privacy_agreed_at
+ *   - 수집 · 이용은 체크 칸 없이 안내 글 (2026-11-23 대표님) — 신청 시각 → privacy_agreed_at
  *             다담 협력업체 목록 중 다담이 정한 업체에 제공(선택) → third_party_agreed_at · consent_version 'v2'
  *   - 시공 완료 희망 날짜(선택) → wanted_done_date (업체 고르기에 쓴다 — 희망 상담 일시는 연락 일정)
  *     업체 제공에 동의하지 않아도 신청은 간다 (다담 본사가 직접 상담 — 두 칸은 비운다)
@@ -96,7 +96,6 @@ function fillRequired() {
   pick('doorFinish', 'paint');
   pick('demolition', 'yes');
   pick('priceTier', 'mid');
-  $('agreePrivacy').checked = true;
 }
 
 async function send() {
@@ -176,13 +175,14 @@ describe('시공 정보', () => {
 });
 
 describe('동의', () => {
-  test('개인정보 수집 · 이용은 필수, 업체 제공은 선택 — 문구는 앱 신청서와 같다', async () => {
+  test('수집 · 이용은 체크 칸 없이 안내 글(처리방침 링크), 업체 제공은 선택 — 문구는 앱 신청서와 같다', async () => {
     await load();
-    expect($('agreePrivacy').required).toBe(true);
-    expect($('agreeThirdParty').required).toBe(false);
-    expect(norm($('agreePrivacy').closest('label').textContent)).toBe(
-      '개인정보 수집·이용에 동의합니다 (필수)'
+    expect($('agreePrivacy')).toBeNull();
+    expect(norm($('privacyNotice').textContent)).toBe(
+      '신청하면 상담을 위해 아래 내용을 씁니다. 개인정보 처리방침'
     );
+    expect($('privacyNotice').querySelector('a').getAttribute('href')).toBe('privacy.html');
+    expect($('agreeThirdParty').required).toBe(false);
     expect(norm($('agreeThirdParty').closest('label').textContent)).toBe(
       '다담 협력업체 목록 중 다담이 정한 업체에 상담 정보를 제공하는 데 동의합니다 (선택)'
     );
@@ -278,7 +278,7 @@ describe('보내기 — consultations insert', () => {
   test('수집하는 내용에 시공 완료 희망 날짜(선택)', async () => {
     await load();
     const privacy = norm(
-      $('agreePrivacy').closest('.form-section').querySelector('.consent-detail').textContent
+      $('privacyNotice').closest('.form-section').querySelector('.consent-detail').textContent
     );
     expect(privacy).toContain('희망 날짜 · 시간대, 시공 완료 희망 날짜');
   });
@@ -304,11 +304,6 @@ describe('보내기 — consultations insert', () => {
     ['도어 마감 없음', () => unpick('doorFinish'), '원하는 도어 마감을 골라 주세요.'],
     ['철거 없음', () => unpick('demolition'), '철거가 필요한지 골라 주세요.'],
     ['가격대 없음', () => unpick('priceTier'), '원하는 가격대를 골라 주세요.'],
-    [
-      '개인정보 동의 안 함',
-      () => ($('agreePrivacy').checked = false),
-      '개인정보 수집·이용에 동의해 주세요.',
-    ],
   ])('%s → 보내지 않고 안내', async (_n, change, message) => {
     const calls = await load({ session: SESSION });
     fillRequired();

@@ -173,12 +173,11 @@ function pick(name, value) {
   el.checked = true;
   el.dispatchEvent(new window.Event('change'));
 }
-/** 필수로 고르는 칸 · 수집 동의 */
+/** 필수로 고르는 칸 (수집 · 이용은 체크 칸 없이 안내 글 — 2026-11-23) */
 function fillRequired() {
   pick('doorFinish', 'highgloss');
   pick('demolition', 'yes');
   pick('priceTier', 'mid');
-  $('csAgree').checked = true;
 }
 const radios = (name) =>
   [...document.querySelectorAll(`input[name="${name}"]`)].map((el) => [
@@ -336,14 +335,19 @@ describe('신청서', () => {
     }
   });
 
-  test('동의 셋 — 수집 · 이용(필수) · 다담이 정한 업체에 제공(선택) · 시공 사진 학습(선택), 제공 · 쓰는 내용', async () => {
+  test('수집 · 이용은 안내 글(체크 칸 없음) · 모두 동의 · 업체 제공(선택) · 시공 사진 학습(선택), 제공 · 쓰는 내용', async () => {
     await load();
+    expect($('csAgree')).toBeNull();
+    expect($('csPrivacyNote').textContent.replace(/\s+/g, ' ').trim()).toBe(
+      '신청하면 상담을 위해 아래 내용을 씁니다. 개인정보 처리방침'
+    );
+    expect($('csPrivacyNote').querySelector('a').getAttribute('href')).toBe('../privacy.html');
     const agrees = [...$('csFields').querySelectorAll('.cs-agree')].map((l) => [
       l.querySelector('input').id,
       l.textContent.trim(),
     ]);
     expect(agrees).toEqual([
-      ['csAgree', '개인정보 수집·이용에 동의합니다 (필수)'],
+      ['csAgreeAll', '모두 동의 (선택 · 안 해도 상담은 똑같이 받습니다)'],
       [
         'csAgreeThird',
         '다담 협력업체 목록 중 다담이 정한 업체에 상담 정보를 제공하는 데 동의합니다 (선택)',
@@ -382,6 +386,21 @@ describe('신청서', () => {
     expect($('csAttachNote').textContent).toBe('연출컷 · 올리신 현장 사진 · 예상 견적이 상담 내용에 함께 붙습니다.');
     expect(privacy).toContain('목적: 상담 신청 처리');
     expect(privacy).not.toContain('협력업체 연결');
+  });
+
+  test('모두 동의 — 켜면 선택 둘이 켜지고, 하나를 끄면 같이 꺼진다 (칸은 따로 남는다)', async () => {
+    await load();
+    const all = $('csAgreeAll');
+    all.checked = true;
+    all.dispatchEvent(new window.Event('change'));
+    expect([$('csAgreeThird').checked, $('csAgreePhoto').checked]).toEqual([true, true]);
+    $('csAgreePhoto').checked = false;
+    $('csAgreePhoto').dispatchEvent(new window.Event('change'));
+    expect(all.checked).toBe(false);
+    expect($('csAgreeThird').checked).toBe(true);
+    $('csAgreePhoto').checked = true;
+    $('csAgreePhoto').dispatchEvent(new window.Event('change'));
+    expect(all.checked).toBe(true);
   });
 
   test('품목 칩 — 여러 개, 값 · 이름 = consultation.html 가구 종류 = consult-notify.js FURNITURE_LABELS', async () => {
@@ -577,7 +596,6 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       () => ($('csWantDate').value = kstDay(-1)),
       '시공 완료 희망 날짜는 오늘이나 그 뒤로 골라 주세요.',
     ],
-    ['동의 안 함', () => ($('csAgree').checked = false), '개인정보 수집·이용에 동의해 주세요.'],
   ])('%s → 보내지 않고 안내', async (_n, change, message) => {
     const calls = await load();
     fillRequired();
@@ -665,7 +683,6 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     choose('csgDoor', 'paint');
     choose('csgDemolition', 'yes');
     choose('csgPrice', 'mid');
-    $('csgAgree').checked = true;
   };
 
   test('로그인 없이도 연다 — 연출컷 · 칸 확인을 묻지 않는다, 전화 한 줄', async () => {
@@ -727,7 +744,6 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
       ['csgGugun', 'gugun'],
       ['csgTitle', 'title'],
       ['csgDesc', 'description'],
-      ['csgAgree', 'agreePrivacy'],
       ['csgAgreeThird', 'agreeThirdParty'],
       ['csgWantDate', 'wantedDoneDate'],
       ['csgPrefDate', 'preferredDate'],
@@ -752,9 +768,10 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
 
   test('동의 셋 — 수집 · 업체 제공 = consultation.html, 시공 사진 학습 = 연출컷 신청서와 같은 글', async () => {
     await load({ url: GENERAL, session: null });
-    expect(norm($('csgAgree').closest('label').textContent)).toBe(
-      norm(SITE.getElementById('agreePrivacy').closest('label').textContent)
+    expect(norm($('csgPrivacyNote').textContent).replace('../', '')).toBe(
+      norm(SITE.getElementById('privacyNotice').textContent)
     );
+    expect($('csgAgree')).toBeNull();
     expect(norm($('csgAgreeThird').closest('label').textContent)).toBe(
       norm(SITE.getElementById('agreeThirdParty').closest('label').textContent)
     );
@@ -768,7 +785,7 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     // 시공 사진 학습 활용 동의 (선택) — 연출컷 신청서(csAgreePhoto · csPhotoDetail)와 같은 글 · 같은 내용
     expect(
       [...$('csgForm').querySelectorAll('.cs-agree')].map((l) => l.querySelector('input').id)
-    ).toEqual(['csgAgree', 'csgAgreeThird', 'csgAgreePhoto']);
+    ).toEqual(['csgAgreeAll', 'csgAgreeThird', 'csgAgreePhoto']);
     expect(norm($('csgAgreePhoto').closest('label').textContent)).toBe(
       norm($('csAgreePhoto').closest('label').textContent)
     );
@@ -934,7 +951,6 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     ['도어 마감 안 고름', uncheck('csgDoor'), 'door'],
     ['철거 안 고름', uncheck('csgDemolition'), 'demolition'],
     ['가격대 안 고름', uncheck('csgPrice'), 'price'],
-    ['동의 안 함', () => ($('csgAgree').checked = false), 'privacy'],
   ])('%s → 보내지 않고 consultation.html 과 같은 글', async (_n, change, key) => {
     const calls = await load({ url: GENERAL, session: null });
     fillGeneral();
@@ -954,7 +970,7 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     )[1];
     const order = [...fn.matchAll(/return '([^']+)'/g)].map((m) => m[1]);
     const E = window.SeganConsult.GENERAL_ERR;
-    expect(order).toEqual([E.required, E.region, E.door, E.demolition, E.price, E.privacy]);
+    expect(order).toEqual([E.required, E.region, E.door, E.demolition, E.price]);
     // 아무것도 안 적으면 첫 글
     await sendGeneral();
     expect($('csgError').textContent).toBe(E.required);

@@ -10,8 +10,10 @@
    같은 목록), 품목(여러 개, 필수 — consultation.html 가구 종류와 같은 키 → furniture_categories.
    연출컷 품목 키가 그 목록에 똑같이 있을 때만 미리 골라 둔다 — 다른 키를 바꾸는 규칙은 없다),
    원하는 도어 마감 · 철거 필요 · 원하는 가격대(필수, 「모름」 있음), 연락 받기 좋은 시간
-   (consultation.html 과 같은 값), 시공 완료 희망 날짜(예: 입주 날, 선택 → wanted_done_date), 요청 사항, 동의 둘:
-     개인정보 수집 · 이용 (필수) → privacy_agreed_at
+   (consultation.html 과 같은 값), 시공 완료 희망 날짜(예: 입주 날, 선택 → wanted_done_date), 요청 사항, 동의:
+     개인정보 수집 · 이용 — 체크 칸 없이 안내 글 (2026-11-23 대표님, 개인정보 보호법 15조 1항 4호 — 고객이 요청한 상담에
+       꼭 필요한 정보). privacy_agreed_at 에는 안내를 보고 신청한 시각을 그대로 남긴다
+     「모두 동의」 칸 하나가 아래 선택 둘을 같이 켜고 끈다 (bindAgreeAll — 칸은 따로 남는다, 법 22조 1항)
      다담 협력업체 목록 중 다담이 정한 업체에 제공 (선택) → third_party_agreed_at · consent_version 'v2'
      시공 사진 학습 활용 (선택, 2026-11-06 작업 분배 ⑥) → photo_learn_agreed_at (DB 0044) — 동의한 수주의 완료 사진만 학습에 쓴다
        (v2 = 제공 항목에 시공 완료 희망 날짜를 더한 판)
@@ -80,7 +82,6 @@
     door: '원하는 도어 마감을 골라 주세요.',
     demolition: '철거가 필요한지 골라 주세요.',
     price: '원하는 가격대를 골라 주세요.',
-    privacy: '개인정보 수집·이용에 동의해 주세요.',
     noTable: '상담 신청 기능을 이용하려면 관리자에게 문의하세요. (데이터베이스 설정 필요)',
     failed: '신청 중 오류가 발생했습니다: ',
     noClient: '서비스에 연결할 수 없습니다.',
@@ -377,9 +378,14 @@
     if (!row.wanted_price_tier) return '원하는 가격대를 골라 주세요.';
     if (row.wanted_done_date && row.wanted_done_date < kstToday())
       return '시공 완료 희망 날짜는 오늘이나 그 뒤로 골라 주세요.';
-    if (!$('csAgree').checked) return '개인정보 수집·이용에 동의해 주세요.';
     if (!row.email) return '로그인 계정의 이메일을 읽지 못했습니다. 다시 로그인해 주세요.';
     return '';
+  }
+
+  /** 가입 동의(segan/consent.js, 셸이 부른다) — 동의 전이면 창을 띄우고, 닫으면 false. 셸이 없거나 로그인 전이면 true */
+  function consentOk() {
+    var S = window.SeganShell;
+    return S && S.consent ? S.consent() : Promise.resolve(true);
   }
 
   async function submit(e) {
@@ -389,6 +395,7 @@
     var msg = check(row);
     if (msg) return error(msg);
     error('');
+    if (!(await consentOk())) return;
     C.sending = true;
     $('csSubmit').disabled = true;
     $('csSubmit').textContent = '보내는 중…';
@@ -494,7 +501,6 @@
     if (!row.door_finish) return GENERAL_ERR.door;
     if (!pickedIn('csgDemolition', ['yes', 'no'])) return GENERAL_ERR.demolition;
     if (!row.wanted_price_tier) return GENERAL_ERR.price;
-    if (!$('csgAgree').checked) return GENERAL_ERR.privacy;
     return '';
   }
 
@@ -511,6 +517,7 @@
     if (msg) return generalError(msg);
     if (!C.sb) return generalError(GENERAL_ERR.failed + GENERAL_ERR.noClient);
     generalError('');
+    if (!(await consentOk())) return;
     C.sending = true;
     $('csgSubmit').disabled = true;
     $('csgSubmit').textContent = '신청 중...';
@@ -554,8 +561,39 @@
     $('csgWantDate').min = kstToday();
     $('csgPrefDate').min = kstToday();
     $('csgForm').addEventListener('submit', submitGeneral);
+    bindAgreeAll('csgAgreeAll');
     prefillGeneral();
     show('general');
+  }
+
+  /**
+   * 「모두 동의」 — data-agree-all 에 적힌 선택 칸들을 한 번에 켜고 끈다.
+   * 칸 하나라도 꺼지면 「모두 동의」도 꺼지고, 다 켜지면 켜진다. 칸마다 따로 고를 수 있다
+   */
+  function bindAgreeAll(id) {
+    var all = $(id);
+    if (!all || all.dataset.bound) return;
+    all.dataset.bound = '1';
+    var kids = (all.getAttribute('data-agree-all') || '')
+      .split(/\s+/)
+      .map(function (k) {
+        return $(k);
+      })
+      .filter(Boolean);
+    var sync = function () {
+      all.checked = kids.length > 0 && kids.every(function (k) {
+        return k.checked;
+      });
+    };
+    all.addEventListener('change', function () {
+      kids.forEach(function (k) {
+        k.checked = all.checked;
+      });
+    });
+    kids.forEach(function (k) {
+      k.addEventListener('change', sync);
+    });
+    sync();
   }
 
   // ── 시작 ───────────────────────────────────────────────
@@ -580,6 +618,7 @@
       fillGugun('');
     });
     $('csForm').addEventListener('submit', submit);
+    bindAgreeAll('csAgreeAll');
     renderHow();
 
     C.sb = client();

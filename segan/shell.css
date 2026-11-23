@@ -8316,3 +8316,75 @@ html:active-view-transition-type(sg-back)::view-transition-new(root) {
     display: none !important;
   }
 }
+
+/* ── 가입 동의 창 (segan/consent.js) — 가운데 작은 창 안. 가는 선 · 각진 칸 ── */
+.sgc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+}
+
+.sgc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding-top: 10px;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.sgc-row input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--v5-ink);
+}
+
+.sgc-row--all {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--v5-line-18);
+  font-weight: 400;
+}
+
+.sgc-links,
+.sgc-note {
+  margin: 0 0 0 28px;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--v5-ink-62);
+}
+
+.sgc-link {
+  color: var(--v5-ink);
+}
+
+.sgc-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--v5-ink);
+}
+
+.sgc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sgc-bar .sg-btn {
+  margin-top: 16px;
+}
+
+.sgc-agree {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.sgc-agree:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

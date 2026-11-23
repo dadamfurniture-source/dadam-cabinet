@@ -236,7 +236,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026112317" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026112318" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +
@@ -1249,6 +1249,46 @@
     else run();
   });
 
+  // ── 가입 동의 창 (segan/consent.js, 2026-11-23) ───────────
+  // 로그인한 화면에서만 셸이 불러온다 (화면마다 스크립트 줄을 두지 않는다 — 셸 뒤에는 guide.js 만).
+  // 셸과 같은 ?v= 로 부르고, 서비스 워커가 미리 받는다. 하려는 일 앞에서는 SeganShell.consent() —
+  // 동의했거나(또는 로그인 전 · 그 파일을 못 불러오면) true, 아니면 창을 띄워 그 답.
+  var SHELL_SRC = (document.currentScript && document.currentScript.src) || '';
+  var consentLoad = null;
+
+  function loadConsent() {
+    if (window.SeganConsent) return Promise.resolve(window.SeganConsent);
+    if (consentLoad) return consentLoad;
+    consentLoad = new Promise(function (done) {
+      var s = document.createElement('script');
+      s.src = /shell\.js(\?[^#]*)?$/.test(SHELL_SRC)
+        ? SHELL_SRC.replace(/shell\.js(\?[^#]*)?$/, 'consent.js$1')
+        : 'consent.js';
+      s.async = true;
+      s.onload = function () {
+        done(window.SeganConsent || null);
+      };
+      s.onerror = function () {
+        done(null);
+      };
+      document.head.appendChild(s);
+    });
+    return consentLoad;
+  }
+
+  function consent() {
+    return ready.then(function (r) {
+      if (!r || !r.session) return true;
+      return loadConsent().then(function (C) {
+        return C && C.need ? C.need() : true;
+      });
+    });
+  }
+
+  ready.then(function (r) {
+    if (r && r.session) loadConsent();
+  });
+
   registerServiceWorker();
 
   window.SeganShell = {
@@ -1265,6 +1305,7 @@
     hasAssistant: hasAssistant,
     client: client,
     ready: ready,
+    consent: consent,
     sheet: {
       open: openSheet,
       isSheetState: isSheetState,

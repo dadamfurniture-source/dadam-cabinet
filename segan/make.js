@@ -1335,6 +1335,7 @@
       .trim()
       .slice(0, CHAT_TEXT_MAX);
     if (!t || S.chatBusy || !S.session || mineCount() >= CHAT_TURNS) return;
+    if (!(await consentOk())) return;
     var before = S.choices.chat;
     // 첫 답이면 화면이 띄운 첫 질문도 대화에 넣는다 (AI 가 무엇에 대한 답인지 알게)
     var asked = before.length ? before : [{ role: 'ai', text: chatOpener() }];
@@ -2223,8 +2224,15 @@
   }
 
   /** 크레딧을 쓰는 곳 — 로그인한 사람이 버튼을 눌렀을 때만 온다 */
+  /** 가입 동의(segan/consent.js, 셸이 부른다) — 동의 전이면 창을 띄우고, 닫으면 false. 셸이 없거나 로그인 전이면 true */
+  function consentOk() {
+    var S = window.SeganShell;
+    return S && S.consent ? S.consent() : Promise.resolve(true);
+  }
+
   async function start() {
     if (S.phase === 'loading' || !S.photo || !S.session) return;
+    if (!(await consentOk())) return;
     S.phase = 'loading';
     S.genId = null;
     resetResult();

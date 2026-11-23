@@ -596,12 +596,19 @@
   }
 
 
+  /** 가입 동의(segan/consent.js, 셸이 부른다) — 동의 전이면 창을 띄우고, 닫으면 false. 셸이 없거나 로그인 전이면 true */
+  function consentOk() {
+    var S = window.SeganShell;
+    return S && S.consent ? S.consent() : Promise.resolve(true);
+  }
+
   async function submitCase(e) {
     if (e) e.preventDefault();
     if (!A.caseFile) {
       say('acCaseStatus', TEXT.noFile);
       return;
     }
+    if (!(await consentOk())) return;
     var btn = $('acCaseSubmit');
     btn.disabled = true;
     say('acCaseStatus', TEXT.uploading);

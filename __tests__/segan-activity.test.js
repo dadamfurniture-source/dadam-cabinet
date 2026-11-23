@@ -107,7 +107,7 @@ async function load(options = {}) {
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
   window.history.replaceState(null, '', '/segan/activity.html' + (opts.hash || ''));
   sessionStorage.clear();
-  for (const k of ['AdminAccess', 'DadamMyPageWork', 'SeganShell', 'SeganRegions', 'SeganActivity'])
+  for (const k of ['AdminAccess', 'DadamMyPageWork', 'SeganShell', 'SeganRegions', 'SeganActivity', 'SeganConsent'])
     delete window[k];
   window.DADAM_CONFIG = { supabase: { url: 'https://example.supabase.co', anonKey: 'anon' } };
   // jsdom 의 crypto 에는 randomUUID 가 없다 — 브라우저처럼 쓰도록 Node 의 것을 단다 (사진 경로 'p/<UUID>')
@@ -216,6 +216,9 @@ async function load(options = {}) {
     if (!src.startsWith('../js/') || src.startsWith('../js/config.js')) continue;
     (0, eval)(read(src.slice(3).split('?')[0]));
   }
+  // 가입 동의 창(segan/consent.js)은 segan-consent.test.js 가 본다 — jsdom 은 셸이 부르는 그 파일을 싣지 않으니
+  // 「동의함」으로 둔다 (그러지 않으면 올리기가 그 파일을 기다린다)
+  window.SeganConsent = { need: async () => true };
   for (const f of ['segan/shell.js', 'segan/regions.js', 'segan/activity.js']) (0, eval)(read(f));
   // jsdom 에는 그림 읽기가 없다 — 줄이기는 받은 파일 그대로 돌려준다
   window.SeganActivity.shrinkImage = async (file) => file;

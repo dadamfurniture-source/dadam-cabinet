@@ -248,6 +248,12 @@
       }
 
       /* 동의 */
+      .consent-notice {
+        margin: 0 0 4px;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
       .consent-check {
         display: flex;
         align-items: flex-start;
@@ -729,14 +735,13 @@
             <div class="form-hint">선택하신 일정은 담당자 확인 후 확정됩니다.</div>
           </div>
 
-          <!-- 동의 — 개인정보 수집 · 이용(필수) → privacy_agreed_at.
+          <!-- 수집 · 이용 — 체크 칸 대신 안내 (2026-11-23 대표님, 개인정보 보호법 15조 1항 4호). 신청 시각 → privacy_agreed_at.
                업체 제공(선택) → third_party_agreed_at · consent_version. 동의하지 않아도 신청은 간다 (다담 본사가 직접 상담).
                업체 제공 문구 · 항목은 앱 상담 신청서와 같다 — 바꾸면 CONSENT_VERSION 을 올린다 -->
           <div class="form-section">
-            <label class="consent-check">
-              <input type="checkbox" id="agreePrivacy" required />
-              <span>개인정보 수집·이용에 동의합니다 <span class="required">(필수)</span></span>
-            </label>
+            <p class="consent-notice" id="privacyNotice">
+              신청하면 상담을 위해 아래 내용을 씁니다. <a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a>
+            </p>
             <details class="consent-detail">
               <summary>수집하는 내용 보기</summary>
               <ul>
@@ -1153,7 +1158,6 @@
         if (!f.doorFinish) return '원하는 도어 마감을 골라 주세요.';
         if (!f.demolition) return '철거가 필요한지 골라 주세요.';
         if (!f.priceTier) return '원하는 가격대를 골라 주세요.';
-        if (!f.agreePrivacy) return '개인정보 수집·이용에 동의해 주세요.';
         return '';
       }
 
@@ -1192,7 +1196,6 @@
         const doorFinish = pickedValue('doorFinish', DOOR_FINISHES);
         const demolition = pickedValue('demolition', ['yes', 'no']);
         const priceTier = pickedValue('priceTier', PRICE_TIERS);
-        const agreePrivacy = document.getElementById('agreePrivacy').checked;
         const agreeThirdParty = document.getElementById('agreeThirdParty').checked;
 
         const missing = missingMessage({
@@ -1205,7 +1208,6 @@
           doorFinish,
           demolition,
           priceTier,
-          agreePrivacy,
         });
         if (missing) {
           alert(missing);
