@@ -19,7 +19,8 @@
  *       make      { schedules[], documents[], photos[], requests[] }       일정 = 자재 발주 · 제작 착수 · 제작 완료 · 검수
  *       install   { schedules[], documents[], reports[], photos[] }        일정 = 납품 · 설치(+ 고객 확인)
  *       done      { as [{ id, state, label, body, created_at, received_at, done_at, photo_urls[] }], reports[], schedules[] }
- *     schedules [{ id, type, label, status, scheduled_at, started_at, completed_at, assignee_name, customer_confirmed_at? }]
+ *     schedules [{ id, design_id, type, label, status, scheduled_at, started_at, completed_at, assignee_name, customer_confirmed_at? }]
+ *     품목 — 수주 · 일정 · 문서 · 견적 줄의 design_id, 초안 줄의 id 로 화면이 프로젝트 줄의 items(품목 줄)에서 품목 이름을 찾는다 (2026-11-23)
  *     documents [{ id, design_id, doc_type, doc_no, rev, status, created_at }]   보기는 GET /documents/:id/print
  *     reports   [{ id, kind, label, note, created_at, photo_urls[] }]
  *     photos    [{ url, kind, label, at, note }]   사진 주소는 한 시간짜리 서명 주소다
@@ -161,7 +162,7 @@ function ordersOf(c, extra = '') {
   return selectMany(c.env, 'orders', {
     project_id: c.pid,
     company_id: c.co,
-    select: `id,order_no,status,ordered_at,delivered_at,completed_at${extra}`,
+    select: `id,design_id,order_no,status,ordered_at,delivered_at,completed_at${extra}`,
     order: 'ordered_at.desc,created_at.desc',
     limit: ROW_LIMIT,
   }).then((rows) => rows || []);
@@ -169,6 +170,8 @@ function ordersOf(c, extra = '') {
 
 const scheduleRow = (s, confirm) => ({
   id: s.id,
+  // 어느 설계(품목)의 일정인가 — 화면이 프로젝트 줄의 items 로 품목 이름을 찾는다 (2026-11-23 품목 줄)
+  design_id: s.design_id || null,
   type: s.type,
   label: SCHEDULE_LABELS[s.type] || s.type,
   status: s.status,
@@ -493,6 +496,7 @@ const LOADERS = {
     return {
       orders: orders.map((o) => ({
         id: o.id,
+        design_id: o.design_id || null,
         order_no: o.order_no || null,
         status: o.status,
         ordered_at: o.ordered_at || null,

@@ -347,6 +347,8 @@ test('계약 — 수주와 수금 줄. 금액은 대표 · 실장에게만, 직�
   assert.deepEqual(owner.orders, [
     {
       id: O1,
+      // 어느 설계(품목)의 수주인가 — 화면이 품목 이름을 찾는다 (2026-11-23 품목 줄)
+      design_id: D1,
       order_no: 'D-2611-014',
       status: 'completed',
       ordered_at: at(14),
@@ -373,7 +375,7 @@ test('계약 — 수주와 수금 줄. 금액은 대표 · 실장에게만, 직�
 test('생산 — 생산 일정 · 작업지시서 · 작업자 확인 사진(재단 · 엣지 · 조립, 사진이 있는 것만)', async () => {
   const d = await dataOf(P1, 'make', STAFF_A);
   assert.deepEqual(d.schedules, [
-    { id: rid(51), type: 'manufacturing_start', label: '제작 착수', status: 'completed', scheduled_at: at(17), started_at: at(17), completed_at: at(17), assignee_name: '김재단' },
+    { id: rid(51), design_id: D1, type: 'manufacturing_start', label: '제작 착수', status: 'completed', scheduled_at: at(17), started_at: at(17), completed_at: at(17), assignee_name: '김재단' },
   ]);
   assert.deepEqual(d.documents, [
     { id: rid(34), design_id: D1, doc_type: 'work_order', label: '작업지시서', doc_no: 'WO-1', rev: 1, status: 'issued', created_at: at(16) },
