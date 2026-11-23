@@ -8,7 +8,7 @@
  *   3) 생산 · 설치는 잡아 둔 제작 완료일 · 설치일이 지났는데 끝내지 않았을 때만 멈춤
  * 가짜 Supabase 는 test/helpers/distribution-fake.js. 시험 데이터는 모두 가짜다.
  */
-import { test, beforeEach } from 'node:test';
+import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
@@ -28,6 +28,16 @@ const rid = (n) => `a0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const at = (d, h = 0) => `2026-11-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:00:00.000Z`;
 const TODAY = '2026-11-23';
 const NOW = Date.parse(at(23, 3));
+
+// 워커는 「오늘」을 실제 시계(Date.now)로 잰다 — 시계를 NOW 에 세워 둔다. 세우지 않으면 날짜가 바뀌는 순간 날수가 달라져 시험이 틀린다
+// (2026-11-24 에 실제로 그랬다: 상담 0일이 1일로). 가짜 Supabase 의 nowMs 는 DB 의 now() 일 뿐이다.
+const realNow = Date.now;
+before(() => {
+  Date.now = () => NOW;
+});
+after(() => {
+  Date.now = realNow;
+});
 
 test('대시보드와 같은 값을 쓴다 — 단계 · 날수', () => {
   assert.equal(DASH_STEPS, STAY_STEPS);
