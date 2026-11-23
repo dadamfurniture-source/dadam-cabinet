@@ -81,7 +81,10 @@ async function load(page, options = {}) {
     return { ok: true, status: 200, json: async () => opts.plans };
   });
   (0, eval)(read('segan/shell.js'));
-  const scripts = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
+  // Cloudflare 웹 분석 표지는 segan-web-analytics.test.js 가 따로 본다 — 여기 목록(셸 · 화면 스크립트)에서는 뺀다
+  const scripts = [...doc.querySelectorAll('script[src]')]
+    .map((s) => s.getAttribute('src'))
+    .filter((s) => !s.includes('cloudflareinsights'));
   if (scripts.some((s) => s.startsWith('plans.js'))) (0, eval)(read('segan/plans.js'));
   await window.SeganShell.ready;
   const result = window.SeganPlans ? await window.SeganPlans.ready : null;
@@ -651,11 +654,15 @@ describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min, 
   test('검색에 연다 — noindex 없음 · canonical · 사이트맵 · 공유 사진 · 글 정보(제목 · 처음 올린 날)', () => {
     expectOpen(page);
     const html = read(`segan/${page}`);
-    const art = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+    const art = JSON.parse(
+      html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]
+    );
     expect(art['@type']).toBe('Article');
     expect(art.headline).toBe(title);
     expect(art.datePublished).toMatch(/^2026-11-\d{2}$/);
-    expect(html).toContain(`<meta property="article:published_time" content="${art.datePublished}" />`);
+    expect(html).toContain(
+      `<meta property="article:published_time" content="${art.datePublished}" />`
+    );
   });
 });
 
