@@ -123,6 +123,8 @@
     asReceived: '받은 날',
     asDone: '끝낸 날',
     asPhoto: '고객 사진',
+    itemOpen: '플래너에서 열기',
+    itemAdd: '+ 품목 — 플래너에서 더하기',
     uploads: '올린 사진',
     upload: '사진 올리기',
     uploading: '올리는 중',
@@ -288,6 +290,82 @@
       '</span>' +
       (act || '') +
       '</li>'
+    );
+  }
+
+  // ── 품목 (2026-11-23 — 서버 project.items: 한 프로젝트에 품목 설계가 여럿일 때 품목마다의 단계 · 다음 할 일) ──
+  /** 지금 그리는 프로젝트의 품목 이름표 — { design: { 설계 id: 이름 }, draft: { 초안 id: 이름 } }. 품목이 둘 이상일 때만 채운다 */
+  var TAGS = { design: {}, draft: {} };
+  function setTags(p) {
+    TAGS = { design: {}, draft: {} };
+    var items = arr(obj(p).items).filter(function (x) {
+      return x && typeof x.label === 'string' && x.label;
+    });
+    if (items.length < 2) return;
+    items.forEach(function (x) {
+      if (typeof x.design_id === 'string' && x.design_id) TAGS.design[x.design_id] = x.label;
+      if (typeof x.draft_id === 'string' && x.draft_id) TAGS.draft[x.draft_id] = x.label;
+    });
+  }
+  /** 글 앞에 품목 이름을 — 이미 그 이름이 들어 있으면 그대로 */
+  function tagged(kind, id, text) {
+    var label =
+      typeof id === 'string' && Object.prototype.hasOwnProperty.call(TAGS[kind], id)
+        ? TAGS[kind][id]
+        : '';
+    var t = String(text || '');
+    return label && t.indexOf(label) < 0 ? label + ' · ' + t : t;
+  }
+  /**
+   * 「품목」 칸 — 품목마다 이름 · 단계 · 그 품목의 다음 할 일 · 「플래너에서 열기」, 맨 아래 「+ 품목」.
+   * 값은 프로젝트 칸이 준다 (segan/partner-projects.js itemFlowsOf — 프로젝트 줄과 같은 단추 · 같은 길).
+   * 품목이 하나면 다음 할 일은 위의 것과 같아 다시 적지 않는다. 품목이 없으면 칸이 없다.
+   */
+  function itemsHtml(p) {
+    var pp = PP();
+    if (!pp || typeof pp.itemFlowsOf !== 'function' || !p.id) return '';
+    var items = arr(pp.itemFlowsOf(p));
+    if (!items.length) return '';
+    var live = !p.status || p.status === 'active';
+    var many = items.length > 1;
+    var add = live && typeof pp.addItemUrl === 'function' ? pp.addItemUrl(p) : '';
+    return (
+      '<section data-ps="items">' +
+      headHtml(TEXT.items, items.length) +
+      '<ul class="pg-items">' +
+      items
+        .map(function (x) {
+          return (
+            '<li data-item="' +
+            esc(x.key) +
+            '"><span class="pg-item-main"><b>' +
+            esc(x.label) +
+            '</b><small>' +
+            esc(x.stepLabel) +
+            '</small></span>' +
+            (many ? x.note : '') +
+            '<div class="rd-acts">' +
+            (many ? x.act + (x.tail || '') : '') +
+            (x.open
+              ? '<a class="mk-btn" href="' +
+                esc(x.open) +
+                '" data-desktop-tab data-ps="item-open">' +
+                esc(TEXT.itemOpen) +
+                '</a>'
+              : '') +
+            '</div></li>'
+          );
+        })
+        .join('') +
+      '</ul>' +
+      (add
+        ? '<div class="rd-acts"><a class="mk-btn" href="' +
+          esc(add) +
+          '" data-desktop-tab data-ps="item-add">' +
+          esc(TEXT.itemAdd) +
+          '</a></div>'
+        : '') +
+      '</section>'
     );
   }
 
@@ -552,7 +630,7 @@
             ? TEXT.confirmed
             : TEXT.notConfirmed;
       return rowHtml(
-        (s.label || '') + ' · ' + whenText(s.scheduled_at),
+        tagged('design', s.design_id, (s.label || '') + ' · ' + whenText(s.scheduled_at)),
         [s.assignee_name, state, confirm].filter(Boolean).join(' · ')
       );
     });
@@ -562,7 +640,7 @@
     var rows = arr(list).map(function (x) {
       var d = obj(x);
       return rowHtml(
-        (d.label || '') + (d.doc_no ? ' ' + d.doc_no : ''),
+        tagged('design', d.design_id, (d.label || '') + (d.doc_no ? ' ' + d.doc_no : '')),
         [d.rev ? d.rev + TEXT.rev : '', dayText(d.created_at)].filter(Boolean).join(' · '),
         printBtn(d.id)
       );
@@ -685,7 +763,7 @@
       var drafts = arr(d.drafts).map(function (x) {
         var r = obj(x);
         return rowHtml(
-          r.name || TEXT.noName,
+          tagged('draft', r.id, r.name || TEXT.noName),
           [
             r.modules ? TEXT.modules + ' ' + r.modules : '',
             r.walls ? TEXT.walls + ' ' + r.walls : '',
@@ -700,7 +778,7 @@
         : arr(d.designs).map(function (x) {
             var r = obj(x);
             return rowHtml(
-              r.name || TEXT.noName,
+              tagged('design', r.id, r.name || TEXT.noName),
               dayText(r.updated_at) ? dayText(r.updated_at) + TEXT.edited : ''
             );
           });
@@ -716,9 +794,13 @@
       var rows = arr(d.quotes).map(function (x) {
         var q = obj(x);
         return rowHtml(
-          (q.rev ? q.rev + TEXT.rev : TEXT.quotes) +
-            (q.current ? ' · ' + TEXT.current : '') +
-            (wonText(q.total) ? ' · ' + wonText(q.total) : ''),
+          tagged(
+            'design',
+            q.design_id,
+            (q.rev ? q.rev + TEXT.rev : TEXT.quotes) +
+              (q.current ? ' · ' + TEXT.current : '') +
+              (wonText(q.total) ? ' · ' + wonText(q.total) : '')
+          ),
           [
             dayText(q.created_at) + TEXT.sent,
             quoteText(q, now),
@@ -754,7 +836,7 @@
             );
           });
           return (
-            headHtml(TEXT.orders) +
+            headHtml(tagged('design', o.design_id, TEXT.orders)) +
             kvHtml([
               [TEXT.orderNo, o.order_no || TEXT.noOrderNo],
               [TEXT.state, status[o.status] || ORDER_STATUS[o.status] || ''],
@@ -863,6 +945,7 @@
     else if (g.failed) inner = '<p class="pg-empty">' + esc(TEXT.stageFailed) + '</p>';
     else {
       var data = obj(g.data);
+      setTags(p);
       // 올린 사진은 아래 「올린 사진」 칸이 그린다 — 단계의 원래 칸에는 그 밖의 사진만
       var own = Object.assign({}, data, {
         photos: arr(data.photos).filter(function (x) {
@@ -948,6 +1031,8 @@
         html +=
           (flow.note || '') +
           (flow.act ? '<div class="rd-acts">' + flow.act + (flow.tail || '') + '</div>' : '');
+      // 「품목」 칸 — 품목마다 단계 · 다음 할 일 · 플래너에서 열기 (품목이 있을 때만)
+      html += itemsHtml(p);
       // 「관리」 칸 — 실측 일정 · 담당자 · 작업 배정 · 보류/그만둠. 프로젝트 칸(segan/partner-projects.js)이 그리고 듣는다
       html += '<div data-ps="manage"></div>';
       html += panelHtml(picked, obj(v.got)[picked.key], p, history, now, v.up);
@@ -1472,6 +1557,7 @@
     firstStage: firstStage,
     historyStage: historyStage,
     panelHtml: panelHtml,
+    itemsHtml: itemsHtml,
     uploadsHtml: uploadsHtml,
     bodyHtml: bodyHtml,
     canOpen: canOpen,

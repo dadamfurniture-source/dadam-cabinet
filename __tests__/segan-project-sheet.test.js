@@ -1276,3 +1276,130 @@ describe('단계 칸 — 올린 사진', () => {
     expect(w).toContain("path: '/company/projects/:id/photos/:fileId'");
   });
 });
+
+// ── 품목 (2026-11-23 대표님 「워크플로우를 현재 변경된 프로젝트 지정에 맞게」 — 서버 project.items, 프로젝트 칸 itemFlowsOf) ──
+describe('품목 칸 · 단계 칸의 품목 이름', () => {
+  const ITEMS = () => [
+    { key: 'draft:d-s', label: '싱크대', step: 'make', draft_id: 'd-s', design_id: 'design-s', order_id: 'order-s' },
+    { key: 'draft:d-w', label: '붙박이장 <안방>', step: 'design', draft_id: 'd-w', design_id: null, order_id: null },
+  ];
+  /** 프로젝트 칸이 주는 값 흉내 — 품목마다 다음 할 일 단추 · 플래너 주소 */
+  const withItems = (items = ITEMS()) => {
+    const pp = window.SeganPartnerProjects;
+    pp.itemFlowsOf = jest.fn((p) =>
+      (p.items || []).map((x) => ({
+        key: x.key,
+        label: x.label,
+        step: x.step,
+        stepLabel: x.step === 'make' ? '제작' : '설계',
+        note: x.step === 'design' ? '' : '',
+        act: '<button type="button" class="mk-btn mk-btn--solid" data-act="next-sheet" data-id="' + (x.order_id || 'none') + '">' + (x.step === 'make' ? '배송으로 넘기기' : '설계 이어서') + '</button>',
+        tail: '',
+        open: x.draft_id ? 'https://app.example/planner/?draft=' + x.draft_id : '',
+        draftId: x.draft_id || '',
+        designId: x.design_id || '',
+        orderId: x.order_id || '',
+      }))
+    );
+    pp.addItemUrl = jest.fn((p) => 'https://app.example/planner/?project=' + p.id);
+    return items;
+  };
+  const section = () => node().querySelector('[data-ps="items"]');
+
+  afterEach(() => {
+    delete window.SeganPartnerConsults;
+  });
+
+  test('「품목」 칸 — 품목마다 이름 · 단계 · 그 품목의 다음 할 일 · 「플래너에서 열기」, 맨 아래 「+ 품목」. 「관리」 칸 위에 선다', async () => {
+    const got = loadStages({
+      project: () => ({ ok: true, status: 200, data: { ...DATA(), project: { ...ROW(), items: ITEMS() }, stages: STAGES() } }),
+    });
+    withItems();
+    await window.SeganProjectSheet.open(P1);
+    await flush();
+    const rows = [...section().querySelectorAll('.pg-items li')];
+    expect(text(section().querySelector('.od-h'))).toBe('품목 2');
+    expect(rows.map((li) => [text(li.querySelector('b')), text(li.querySelector('small'))])).toEqual([
+      ['싱크대', '제작'],
+      ['붙박이장 <안방>', '설계'],
+    ]);
+    // 이름은 글자 그대로
+    expect(section().querySelector('안방')).toBeNull();
+    // 품목의 다음 할 일 — 프로젝트 줄과 같은 길(runNext)
+    rows[0].querySelector('[data-act="next-sheet"]').click();
+    await flush();
+    expect(got.runNext).toHaveBeenCalledWith('next-sheet', 'order-s');
+    // 플래너에서 열기 — 그 품목의 초안으로, 새 탭
+    const open = rows[1].querySelector('[data-ps="item-open"]');
+    expect([open.getAttribute('href'), open.hasAttribute('data-desktop-tab'), text(open)]).toEqual(['https://app.example/planner/?draft=d-w', true, '플래너에서 열기']);
+    const add = section().querySelector('[data-ps="item-add"]');
+    expect([add.getAttribute('href'), text(add)]).toEqual(['https://app.example/planner/?project=' + P1, '+ 품목 — 플래너에서 더하기']);
+    // 「관리」 칸보다 앞
+    const manage = node().querySelector('[data-ps="manage"]');
+    expect(section().compareDocumentPosition(manage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test('「품목」 칸 — 품목이 하나면 다음 할 일은 위의 것과 같아 다시 적지 않는다. 품목이 없으면 · 옛 프로젝트 칸이면 칸이 없다', () => {
+    loadStages();
+    const S = window.SeganProjectSheet;
+    withItems();
+    document.body.innerHTML = S.itemsHtml({ ...ROW(), items: [ITEMS()[1]] });
+    expect(document.body.querySelectorAll('.pg-items li').length).toBe(1);
+    expect(document.body.querySelector('[data-act="next-sheet"]')).toBeNull();
+    expect(document.body.querySelector('[data-ps="item-open"]')).not.toBeNull();
+    expect(S.itemsHtml({ ...ROW(), items: [] })).toBe('');
+    expect(S.itemsHtml(ROW())).toBe('');
+    // 끝난 · 보류한 프로젝트에는 「+ 품목」이 없다
+    document.body.innerHTML = S.itemsHtml({ ...ROW(), status: 'on_hold', items: ITEMS() });
+    expect(document.body.querySelector('[data-ps="item-add"]')).toBeNull();
+    delete window.SeganPartnerProjects.itemFlowsOf;
+    expect(S.itemsHtml({ ...ROW(), items: ITEMS() })).toBe('');
+  });
+
+  test('단계 칸 — 품목이 둘 이상이면 견적 · 수주 · 일정 · 문서 줄 앞에 그 품목 이름 (초안 줄은 이름에 품목이 없을 때만)', () => {
+    loadStages();
+    const S = window.SeganProjectSheet;
+    const p = { ...ROW(), items: ITEMS() };
+    const html = (key, data) => {
+      document.body.innerHTML = S.panelHtml(stage(key, key, 'done'), { data }, p, [], NOW);
+      return document.body;
+    };
+    const mains = (root, sel) => [...root.querySelectorAll(sel + ' .ps-main')].map((el) => el.firstChild.textContent);
+    const quote = html('quote', {
+      quotes: [
+        { id: 'q1', design_id: 'design-s', rev: 1, current: true, created_at: '2026-11-10T00:00:00Z', expires_at: '2099-01-01T00:00:00Z', view_count: 0, decision: null, total: null },
+        { id: 'q2', design_id: 'design-x', rev: 1, current: true, created_at: '2026-11-11T00:00:00Z', expires_at: '2099-01-01T00:00:00Z', view_count: 0, decision: null, total: null },
+      ],
+    });
+    expect(mains(quote, '[data-ps="quotes"]')).toEqual(['싱크대 · 1판 · 지금 판', '1판 · 지금 판']);
+    const contract = html('contract', { orders: [{ id: 'order-s', design_id: 'design-s', order_no: 'SO-1', status: 'in_production', ordered_at: '2026-11-14T00:00:00Z', amount: null, payments: [] }], approvals: [] });
+    expect(text(contract.querySelector('.od-h'))).toBe('싱크대 · 계약');
+    const make = html('make', {
+      schedules: [{ id: 's1', design_id: 'design-s', label: '제작 착수', status: 'scheduled', scheduled_at: '2026-11-19T00:00:00Z', completed_at: null, assignee_name: null }],
+      documents: [{ id: 'd9', design_id: 'design-s', label: '작업지시서', doc_no: 'WO-1', rev: 1, created_at: '2026-11-16T02:00:00Z' }],
+      photos: [],
+      requests: [],
+    });
+    expect(mains(make, '[data-ps="schedules"]')[0]).toMatch(/^싱크대 · 제작 착수 · /);
+    expect(mains(make, '[data-ps="documents"]')).toEqual(['싱크대 · 작업지시서 WO-1']);
+    const design = html('design', {
+      designs: [],
+      drafts: [
+        { id: 'd-s', name: '예시 주방 · 싱크대', updated_at: '2026-11-10T00:00:00Z', walls: 1, modules: 4 },
+        { id: 'd-w', name: '손으로 적은 이름', updated_at: '2026-11-11T00:00:00Z', walls: 1, modules: 2 },
+      ],
+      renders: [],
+      photos: [],
+    });
+    expect([...design.querySelectorAll('.ps-list .ps-main')].map((el) => el.firstChild.textContent)).toEqual(['예시 주방 · 싱크대', '붙박이장 <안방> · 손으로 적은 이름']);
+    // 품목이 하나인 프로젝트 — 이름을 붙이지 않는다
+    document.body.innerHTML = S.panelHtml(
+      stage('contract', '계약', 'done'),
+      { data: { orders: [{ id: 'order-s', design_id: 'design-s', order_no: 'SO-1', status: 'confirmed', ordered_at: '2026-11-14T00:00:00Z', amount: null, payments: [] }], approvals: [] } },
+      { ...ROW(), items: [ITEMS()[0]] },
+      [],
+      NOW
+    );
+    expect(text(document.body.querySelector('.od-h'))).toBe('계약');
+  });
+});
