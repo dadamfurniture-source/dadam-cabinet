@@ -244,29 +244,27 @@ describe('나중에', () => {
 });
 
 describe('붙은 곳', () => {
-  test('셸을 싣는 앱 화면은 모두 consent.js 를 셸 바로 뒤에 싣고, 서비스 워커가 미리 받는다', () => {
+  test('화면마다 스크립트 줄을 두지 않는다 — 셸이 로그인한 화면에서만 같은 ?v= 로 부르고, 서비스 워커가 미리 받는다', () => {
     const pages = fs.readdirSync(path.join(ROOT, 'segan')).filter((f) => f.endsWith('.html'));
-    for (const f of pages) {
-      const html = read('segan/' + f);
-      if (!/src="shell\.js\?v=/.test(html)) continue;
-      expect([
-        f,
-        /<script src="shell\.js\?v=\d+"[^>]*><\/script>\s*<script src="consent\.js\?v=\d+" defer><\/script>/.test(
-          html
-        ),
-      ]).toEqual([f, true]);
-    }
+    for (const f of pages)
+      expect([f, /<script[^>]+consent\.js/.test(read('segan/' + f))]).toEqual([f, false]);
+    const shell = read('segan/shell.js');
+    expect(shell).toContain(String.raw`SHELL_SRC.replace(/shell\.js(\?[^#]*)?$/, 'consent.js$1')`);
+    expect(shell).toMatch(
+      /ready\.then\(function \(r\) \{\s*if \(r && r\.session\) loadConsent\(\);/
+    );
+    expect(shell).toContain('consent: consent,');
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'consent.js')");
   });
 
-  test('연출컷 만들기 · AI 상담 · 상담 신청 둘 · 시공사례 올리기가 하기 전에 묻는다', () => {
-    const make = read('segan/make.js');
-    expect(make.match(/if \(!\(await consentOk\(\)\)\) return;/g)).toHaveLength(2);
-    expect(read('segan/consult.js').match(/if \(!\(await consentOk\(\)\)\) return;/g)).toHaveLength(
-      2
-    );
-    expect(
-      read('segan/activity.js').match(/if \(!\(await consentOk\(\)\)\) return;/g)
-    ).toHaveLength(1);
+  test('연출컷 만들기 · AI 상담 · 상담 신청 둘 · 시공사례 올리기가 하기 전에 SeganShell.consent() 로 묻는다', () => {
+    const gate = /if \(!\(await consentOk\(\)\)\) return;/g;
+    expect(read('segan/make.js').match(gate)).toHaveLength(2);
+    expect(read('segan/consult.js').match(gate)).toHaveLength(2);
+    expect(read('segan/activity.js').match(gate)).toHaveLength(1);
+    for (const f of ['make.js', 'consult.js', 'activity.js'])
+      expect(read('segan/' + f)).toContain(
+        'return S && S.consent ? S.consent() : Promise.resolve(true);'
+      );
   });
 });

@@ -14,8 +14,9 @@
    「동의하지 않음」은 두지 않는다 — 「나중에」는 창만 닫는다 (2026-11-23 대표님 ①). 탈퇴는 마이페이지에서.
    동의 기록을 읽지 못하면(네트워크 · 권한 · 회원 줄 없음) 창을 띄우지 않고 막지도 않는다 — #1100 과 같다.
 
-   쓰는 법:  SeganConsent.need().then(function (ok) { if (ok) 하려던 일(); });
-            로그인 전이면 true (로그인 안내는 그 화면이 따로 한다)
+   싣는 곳:  셸(segan/shell.js)이 로그인한 화면에서만 같은 ?v= 로 부른다 — 화면마다 스크립트 줄을 두지 않는다.
+   쓰는 법:  SeganShell.consent().then(function (ok) { if (ok) 하려던 일(); });
+            (셸이 이 파일을 불러 SeganConsent.need() 를 부른다. 로그인 전이면 true — 로그인 안내는 그 화면이 따로 한다)
    ============================================================ */
 /* global window, document, sessionStorage */
 (function () {
@@ -72,7 +73,11 @@
       state.sb = sb;
       state.uid = session.user && session.user.id;
       try {
-        var q = await sb.from('profiles').select('terms_agreed_at').eq('id', state.uid).maybeSingle();
+        var q = await sb
+          .from('profiles')
+          .select('terms_agreed_at')
+          .eq('id', state.uid)
+          .maybeSingle();
         if (q.error) return (state.agreed = true);
         // 회원 줄이 있고 그 칸이 비었을(null) 때만 「아직」 — 줄이 없거나 칸을 못 읽으면 막지 않는다
         state.agreed = !(q.data && q.data.terms_agreed_at === null);
