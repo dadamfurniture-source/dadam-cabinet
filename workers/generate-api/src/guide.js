@@ -441,10 +441,16 @@ const PANEL = [236, 234, 229]; // 무광 오프화이트 — 마감색은 모델
  * 앞면 사각형을 채운 덩어리를 img(RGB) 위에 직접 그린다.
  * @param {object} img {width, height, rgb}
  * @param {object} front computeGuide().front — ob/ot(반대쪽), rb/rt(튀어나온 벽 쪽)
- * @param {{doors?:number, plinth?:number}} [o] 문짝 수, 걸레받이 높이(앞면 높이 대비 비율)
+ * @param {{doors?:number, plinth?:number, lines?:{vertical?:number[], horizontal?:{v:number,u0:number,u1:number}[]}}} [o]
+ *   문짝 수(같은 폭으로 나눔), 걸레받이 높이(앞면 높이 대비 비율),
+ *   lines — 2026-10-20 냉장고장: 같은 폭이 아닌 나눔선. vertical 은 앞면 폭의 0~1 (왼쪽부터), horizontal 은 높이 0~1 (위부터)에
+ *   u0~u1 구간만. 주면 doors 는 쓰지 않는다.
  */
 export function paintMassing(img, front, o = {}) {
-  const doors = Math.max(1, o.doors || 1);
+  const lines = o.lines && (Array.isArray(o.lines.vertical) || Array.isArray(o.lines.horizontal)) ? o.lines : null;
+  const vLines = lines ? (lines.vertical || []).filter((u) => u > 0 && u < 1) : [];
+  const hLines = lines ? (lines.horizontal || []).filter((h) => h && h.v > 0 && h.v < 1) : [];
+  const doors = lines ? 1 : Math.max(1, o.doors || 1);
   const plinth = o.plinth ?? 0.026; // 60mm / 2300mm 쯤
   const left = front.ob.x <= front.rb.x;
   const [tl, tr, br, bl] = left ? [front.ot, front.rt, front.rb, front.ob] : [front.rt, front.ot, front.ob, front.rb];
@@ -467,6 +473,10 @@ export function paintMassing(img, front, o = {}) {
       let k = 1.02 - 0.06 * v; // 위가 살짝 밝다 (천장 조명)
       const du = (u * doors) % 1;
       if (Math.min(du, 1 - du) * (1 / doors) < gapU && u > gapU && u < 1 - gapU) k *= 0.55; // 문짝 틈
+      if (lines) {
+        if (vLines.some((lu) => Math.abs(u - lu) < gapU)) k *= 0.55; // 자리·통 나눔선
+        if (hLines.some((h) => u >= h.u0 && u <= h.u1 && Math.abs(v - h.v) < edgeV)) k *= 0.55; // 단 나눔선
+      }
       if (v > 1 - plinth) k *= 0.72; // 걸레받이 (안으로 들어간 띠)
       else if (v > 1 - plinth - 2 * edgeV) k *= 0.55; // 문짝 아래 그림자선
       if (v < 2 * edgeV) k *= 0.8; // 천장 이음 그림자
