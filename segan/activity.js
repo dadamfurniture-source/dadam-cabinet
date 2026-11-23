@@ -596,12 +596,18 @@
   }
 
 
+  /** 가입 동의(segan/consent.js) — 동의 전이면 창을 띄우고, 닫으면 false. 그 파일이 없거나 로그인 전이면 true */
+  function consentOk() {
+    return window.SeganConsent && window.SeganConsent.need ? window.SeganConsent.need() : Promise.resolve(true);
+  }
+
   async function submitCase(e) {
     if (e) e.preventDefault();
     if (!A.caseFile) {
       say('acCaseStatus', TEXT.noFile);
       return;
     }
+    if (!(await consentOk())) return;
     var btn = $('acCaseSubmit');
     btn.disabled = true;
     say('acCaseStatus', TEXT.uploading);

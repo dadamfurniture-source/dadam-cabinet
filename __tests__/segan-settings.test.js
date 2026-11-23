@@ -270,8 +270,10 @@ describe('프로필 수정 — mypage.html submitEditProfile', () => {
     expect(calls.updateUser).toEqual([
       { data: { name: '새 이름', phone: '', sido: '경기도', gugun: '수원시' } },
     ]);
-    expect(calls.profiles).toHaveLength(1);
-    const p = calls.profiles[0];
+    // 앞의 한 줄은 화면을 열 때 읽는 혜택 · 새 소식 설정 — 고치기는 하나
+    const updates = calls.profiles.filter((q) => q.update);
+    expect(updates).toHaveLength(1);
+    const p = updates[0];
     expect(p.table).toBe('profiles');
     expect(p.eq).toEqual(['id', 'user-1']);
     expect(Object.keys(p.update).sort()).toEqual(['gugun', 'name', 'phone', 'sido', 'updated_at']);

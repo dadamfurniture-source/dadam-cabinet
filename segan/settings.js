@@ -28,6 +28,11 @@
   var ASSISTANT_MEMO = 'segan.assistant.on.'; // segan/shell.js 의 비서 탭 기억 — 로그아웃처럼 지운다
   var TEXT = {
     none: '미등록',
+    marketingOn: '{d} 받기로 했습니다.',
+    marketingOff: '{d} 받지 않기로 했습니다.',
+    marketingNever: '받지 않고 있습니다.',
+    marketingLoadFail: '설정을 불러오지 못했습니다.',
+    marketingSaveFail: '바꾸지 못했습니다. 잠시 뒤 다시 눌러 주세요.',
     nameRequired: '이름을 입력해주세요.',
     saved: '프로필이 수정되었습니다.',
     saveFail: '프로필 수정 중 오류가 발생했습니다: ',
@@ -205,6 +210,58 @@
     $('stEditSave').disabled = false;
   }
 
+  // ── 혜택 · 새 소식 받기 (마케팅 수신) ─────────────────────
+  function dayOf(iso) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return '';
+    return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '.';
+  }
+
+  function renderMarketing(row) {
+    var on = !!(row && row.marketing_agreed_at);
+    $('stMarketing').checked = on;
+    var day = on ? dayOf(row.marketing_agreed_at) : dayOf(row && row.marketing_withdrawn_at);
+    $('stMarketingState').textContent = on
+      ? TEXT.marketingOn.replace('{d}', day)
+      : day
+        ? TEXT.marketingOff.replace('{d}', day)
+        : TEXT.marketingNever;
+  }
+
+  async function loadMarketing() {
+    try {
+      var q = await S.sb
+        .from('profiles')
+        .select('marketing_agreed_at, marketing_withdrawn_at')
+        .eq('id', S.user.id)
+        .maybeSingle();
+      if (q.error) throw q.error;
+      S.marketing = q.data || {};
+      renderMarketing(S.marketing);
+      $('stMarketing').disabled = false;
+    } catch {
+      $('stMarketingState').textContent = TEXT.marketingLoadFail;
+    }
+  }
+
+  async function saveMarketing() {
+    var box = $('stMarketing');
+    var on = box.checked;
+    var now = new Date().toISOString();
+    var patch = on ? { marketing_agreed_at: now } : { marketing_agreed_at: null, marketing_withdrawn_at: now };
+    box.disabled = true;
+    try {
+      var r = await S.sb.from('profiles').update(patch).eq('id', S.user.id).select('id');
+      if (r.error || !r.data || !r.data.length) throw new Error('no row');
+      S.marketing = Object.assign({}, S.marketing, patch);
+      renderMarketing(S.marketing);
+    } catch {
+      box.checked = !on;
+      $('stMarketingState').textContent = TEXT.marketingSaveFail;
+    }
+    box.disabled = false;
+  }
+
   // ── 회원탈퇴 ───────────────────────────────────────────
   function withdrawStatus(msg) {
     $('stWithdrawStatus').textContent = msg || '';
@@ -294,6 +351,7 @@
       $('stWithdrawBtn').disabled = $('stWithdrawInput').value.trim() !== WITHDRAW_WORD;
     });
     $('stWithdrawBtn').addEventListener('click', submitWithdraw);
+    if ($('stMarketing')) $('stMarketing').addEventListener('change', saveMarketing);
   }
 
   function start(auth) {
@@ -309,6 +367,7 @@
     S.user = auth.session.user || {};
     renderInfo(S.user);
     bind();
+    if ($('stMarketing')) return loadMarketing();
   }
 
   var api = {
