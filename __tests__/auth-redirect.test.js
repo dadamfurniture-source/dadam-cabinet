@@ -5,9 +5,8 @@
  *                           인앱 브라우저 판별(inAppBrowser) · 외부 브라우저로 여는 주소(externalOpenUrl)
  *                           인증 메일 복귀 주소(emailRedirectTo) — 작업자 포털 1주차 후속 명세 E
  *   - login.html            검사한 값으로 이동 · OAuth redirectTo 가 돌아갈 곳을 유지 · 카카오 버튼 · 인앱 안내
- *                           · 인증 메일 다시 보내기에 emailRedirectTo
  *   - signup.html           OAuth redirectTo 가 돌아갈 곳을 유지 · 로그인 링크가 돌아갈 곳을 들고 감 · 인앱 안내
- *                           · 이메일 가입 signUp 에 emailRedirectTo
+ *   - 두 화면 · reset-password.html 에 이메일 · 비밀번호 길이 없다 (2026-11-23 대표님: 카카오 · 구글만)
  *
  * 페이지 스크립트는 jsdom 에 그대로 올리고 Supabase 는 가짜 클라이언트로 대신한다 (admin-work-reports.test.js 방식).
  */
@@ -639,50 +638,24 @@ describe('login.html', () => {
     expect(document.getElementById('inappNotice').hidden).toBe(true);
   });
 
-  test('인증 메일 다시 보내기에 emailRedirectTo — login.html?redirect=<원래 목적지>', async () => {
-    const calls = boot(LOGIN, {
-      url: '/login.html?redirect=' + encodeURIComponent('worker.html#invite=abc'),
-      auth: {
-        signInWithPassword: async () => ({ data: {}, error: { message: 'Email not confirmed' } }),
-      },
-    });
-    document.getElementById('email').value = 'worker@example.test';
-    document.getElementById('password').value = 'pw-test-1234';
-    document.getElementById('loginForm').dispatchEvent(new Event('submit', { cancelable: true }));
-    await flush();
-    const rb = document.getElementById('resendBtn');
-    expect(rb.hidden).toBe(false);
-    rb.click();
-    await flush();
-    expect(calls.resend).toEqual([
-      {
-        type: 'signup',
-        email: 'worker@example.test',
-        options: {
-          emailRedirectTo: 'http://localhost/login.html?redirect=worker.html%23invite%3Dabc',
-        },
-      },
-    ]);
+  test('이메일 · 비밀번호 로그인이 없다 — 칸 · 단추 · 비밀번호 찾기 · 인증 메일 다시 보내기', () => {
+    boot(LOGIN, { url: '/login.html' });
+    expect(document.querySelector('input[type="email"], input[type="password"], form')).toBeNull();
+    for (const id of ['loginForm', 'email', 'password', 'resendBtn', 'submitBtn', 'remember'])
+      expect(document.getElementById(id)).toBeNull();
+    expect(document.querySelector('a[href*="reset-password"]')).toBeNull();
+    expect(LOGIN.script).not.toMatch(/signInWithPassword|auth\.resend|emailRedirectTo|signUp/);
+    // 로그인 단추는 카카오 · 구글 둘뿐
+    expect(
+      [...document.querySelectorAll('button[onclick]')].map((b) => b.getAttribute('onclick'))
+    ).toEqual(['signInWithKakao()', 'signInWithGoogle()']);
   });
 
-  test('인증 메일 다시 보내기: 돌아갈 곳이 없으면 /index.html', async () => {
-    const calls = boot(LOGIN, {
-      url: '/login.html',
-      auth: {
-        signInWithPassword: async () => ({ data: {}, error: { message: 'Email not confirmed' } }),
-      },
-    });
-    document.getElementById('email').value = 'worker@example.test';
-    document.getElementById('password').value = 'pw-test-1234';
-    document.getElementById('loginForm').dispatchEvent(new Event('submit', { cancelable: true }));
-    await flush();
-    document.getElementById('resendBtn').click();
-    await flush();
-    expect(calls.resend[0].options.emailRedirectTo).toBe('http://localhost/index.html');
-  });
-
-  test('「인증 메일 다시 보내기」는 hidden 이면 감춰진다 (.resend-link 의 display: block 이 hidden 을 이기지 않게)', () => {
-    expect(LOGIN.html).toMatch(/\.resend-link\[hidden\]\s*\{\s*display:\s*none;\s*\}/);
+  test('이메일로 가입했던 분께 — 같은 이메일의 구글 · 카카오로 이어진다는 안내 한 줄', () => {
+    boot(LOGIN, { url: '/login.html' });
+    expect(document.getElementById('linkNote').textContent.replace(/\s+/g, ' ').trim()).toBe(
+      '이메일로 가입하셨던 분은 같은 이메일의 구글 · 카카오 계정으로 들어오시면 그 계정으로 이어집니다.'
+    );
   });
 
   test('OAuth 실패로 돌아오면 고정 문구만 보인다 (돌아온 글은 화면에 넣지 않는다)', () => {
@@ -695,54 +668,35 @@ describe('login.html', () => {
     expect(err.textContent).not.toContain('010');
   });
 
-  // 인증 메일 링크가 만료됐거나 이미 쓰였으면 GoTrue verify 가 돌아오는 주소 해시에
-  // error=access_denied&error_code=otp_expired&error_description=… 를 붙인다 (리뷰 #970).
-  const EMAIL_LINK_MSG =
-    "이메일 인증 링크가 만료되었거나 이미 사용되었습니다. 이메일과 비밀번호로 로그인해 주세요. 아직 인증 전이면 '인증 메일 다시 보내기'로 새 링크를 받을 수 있습니다.";
-
+  // 옛 인증 메일 링크가 만료돼 돌아와도(error_code=otp_expired) 같은 고정 문구 — 이메일 로그인 안내는 없다
   test.each([
     [
-      '해시 (인증 링크 기본 흐름)',
+      'otp_expired 해시',
       '/login.html?redirect=worker.html#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
     ],
     [
-      '쿼리',
-      '/login.html?redirect=worker.html&error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+      '그 밖 error_code',
+      '/login.html#error=server_error&error_code=bad_oauth_callback&error_description=OAuth+callback+failed',
     ],
-  ])('인증 메일 링크 만료(otp_expired, %s)는 소셜 로그인 실패와 다른 고정 문구', (_name, url) => {
+    [
+      '꾸민 글',
+      '/login.html#error=access_denied&error_code=otp_expired&error_description=%3Cimg+src%3Dx+onerror%3Dalert(1)%3E+CALL+010-0000-0000',
+    ],
+  ])('돌아온 오류(%s)는 고정 문구 하나, 원문은 콘솔에만', (_name, url) => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     boot(LOGIN, { url });
     const err = document.getElementById('errorMsg');
-    expect(err.classList.contains('show')).toBe(true);
-    expect(err.textContent).toBe(EMAIL_LINK_MSG);
-    expect(err.textContent).not.toContain('소셜 로그인');
-    // 돌아온 글은 화면에 넣지 않고 콘솔에만
-    expect(err.textContent).not.toContain('Email link');
-    expect(warn.mock.calls.flat().join(' ')).toContain('Email link is invalid or has expired');
-    // 돌아갈 곳은 그대로 — 다시 로그인하면 원래 목적지로 간다
-    expect(window.getRedirectUrl()).toBe('worker.html');
-  });
-
-  test('otp_expired 문구도 돌아온 글을 화면에 넣지 않는다', () => {
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
-    boot(LOGIN, {
-      url: '/login.html#error=access_denied&error_code=otp_expired&error_description=%3Cimg+src%3Dx+onerror%3Dalert(1)%3E+CALL+010-0000-0000',
-    });
-    const err = document.getElementById('errorMsg');
-    expect(err.textContent).toBe(EMAIL_LINK_MSG);
+    expect(err.textContent).toBe('소셜 로그인에 실패했습니다. 다시 시도해 주세요.');
     expect(err.querySelector('img')).toBeNull();
-    expect(err.textContent).not.toContain('010');
+    expect(warn).toHaveBeenCalled();
   });
 
-  test('otp_expired 가 아닌 error_code 는 지금처럼 소셜 로그인 실패 문구', () => {
+  test('오류로 돌아와도 돌아갈 곳은 그대로', () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     boot(LOGIN, {
-      url: '/login.html#error=server_error&error_code=bad_oauth_callback&error_description=OAuth+callback+failed',
+      url: '/login.html?redirect=worker.html#error=access_denied&error_code=otp_expired&error_description=x',
     });
-    const err = document.getElementById('errorMsg');
-    expect(err.textContent).toBe(
-      '소셜 로그인에 실패했습니다. 다시 시도하거나 다른 방법으로 로그인해주세요.'
-    );
+    expect(window.getRedirectUrl()).toBe('worker.html');
   });
 
   test('오류 없이 열면 오류 문구가 없다', () => {
@@ -798,42 +752,50 @@ describe('signup.html', () => {
     expect(document.getElementById('inappNotice').hidden).toBe(true);
   });
 
-  /** 이메일 가입 폼을 채워 제출한다 (가짜 값) */
-  async function submitEmailSignup() {
-    document.getElementById('name').value = '테스트';
-    document.getElementById('email').value = 'new@example.test';
-    document.getElementById('password').value = 'abcd1234';
-    document.getElementById('confirmPassword').value = 'abcd1234';
-    document.getElementById('agreeTerms').checked = true;
-    document.getElementById('signupForm').dispatchEvent(new Event('submit', { cancelable: true }));
-    await flush();
-  }
-
-  test('이메일 가입 signUp 에 emailRedirectTo — login.html?redirect=<원래 목적지>', async () => {
-    const calls = boot(SIGNUP, {
-      url: '/signup.html?redirect=' + encodeURIComponent('worker.html#invite=abc'),
-    });
-    await submitEmailSignup();
-    expect(calls.signUp).toHaveLength(1);
-    const args = calls.signUp[0];
-    expect(args.email).toBe('new@example.test');
-    expect(args.options.emailRedirectTo).toBe(
-      'http://localhost/login.html?redirect=worker.html%23invite%3Dabc'
+  test('이메일 가입 폼이 없다 — 이메일 · 비밀번호 · 이름 칸, signUp', () => {
+    boot(SIGNUP, { url: '/signup.html' });
+    expect(
+      document.querySelector('input[type="email"], input[type="password"], select, form')
+    ).toBeNull();
+    expect(document.getElementById('signupForm')).toBeNull();
+    expect(SIGNUP.script).not.toMatch(
+      /auth\.signUp|signInWithPassword|emailRedirectTo|locationData/
     );
-    // 가입 메타데이터는 예전 그대로 실린다
-    expect(args.options.data).toMatchObject({ name: '테스트', interest_tier: 'standard' });
-    expect(document.getElementById('successMsg').textContent).toContain('이메일 인증 후 로그인');
+    expect(document.querySelectorAll('.social-buttons .btn-social')).toHaveLength(2);
   });
 
-  test('이메일 가입: 돌아갈 곳이 없거나 나쁘면 /index.html (oauthRedirectTo 와 같은 규칙)', async () => {
-    let calls = boot(SIGNUP, { url: '/signup.html' });
-    await submitEmailSignup();
-    expect(calls.signUp[0].options.emailRedirectTo).toBe('http://localhost/index.html');
+  test('가입하면 약관 · 처리방침에 동의한다는 한 줄 · 이메일 가입자 안내', () => {
+    boot(SIGNUP, { url: '/signup.html' });
+    const terms = document.querySelector('.signup-terms');
+    expect([...terms.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
+      'terms.html',
+      'privacy.html',
+    ]);
+    expect(document.body.textContent).toContain(
+      '같은 이메일의 구글 · 카카오 계정으로 들어오시면 그 계정으로 이어집니다'
+    );
+  });
+});
 
-    calls = boot(SIGNUP, {
-      url: '/signup.html?redirect=' + encodeURIComponent('https://evil.example/a.html'),
-    });
-    await submitEmailSignup();
-    expect(calls.signUp[0].options.emailRedirectTo).toBe('http://localhost/index.html');
+describe('reset-password.html', () => {
+  const RP = read('reset-password.html');
+
+  test('비밀번호 재설정 · 바꾸기를 하지 않는다 — 안내와 로그인 단추만', () => {
+    expect(RP).not.toMatch(
+      /resetPasswordForEmail|updateUser|type="password"|type="email"|supabase-js/
+    );
+    document.body.innerHTML = RP.slice(RP.indexOf('<body'), RP.indexOf('</body>')).replace(
+      /^<body[^>]*>/,
+      ''
+    );
+    expect(document.getElementById('rpLogin').getAttribute('href')).toBe('login.html');
+    expect(document.getElementById('rpLede').textContent).toContain(
+      '카카오 · 구글 계정으로만 로그인합니다'
+    );
+  });
+
+  test('옛 메일 링크 주소(토큰)가 새지 않게 noindex · no-referrer 를 둔다', () => {
+    expect(RP).toMatch(/<meta name="robots" content="noindex, nofollow" \/>/);
+    expect(RP).toMatch(/<meta name="referrer" content="no-referrer" \/>/);
   });
 });

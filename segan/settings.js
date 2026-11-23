@@ -8,8 +8,8 @@
      프로필 수정 이름(필수) · 연락처 · 거주지역 시/도 · 시/군/구 (mypage.html submitEditProfile)
                  목록은 segan/regions.js — mypage.html gugunData 와 같은 목록이다 (시험이 본다)
                  auth.updateUser({ data }) 로 저장하고 profiles 도 같은 값으로 고친다 (profiles 실패는 넘긴다)
-     비밀번호    앱에서 바꾸지 않는다 — 안내 한 줄과 로그인 화면의 「비밀번호 찾기」(reset-password.html) 링크만
-                 (settings.html 에 적혀 있다, 여기서는 하는 일이 없다)
+     로그인      카카오 · 구글 — 계정의 app_metadata.providers(없으면 provider)를 「카카오 · 구글」로 적는다.
+                 2026-11-23 이메일 · 비밀번호 로그인을 없앴다 — 비밀번호 칸은 없다. 옛 이메일 가입이면 「이메일(예전 가입)」
      회원탈퇴    지우는 것 · 남는 것 안내 + 확인 문구 「탈퇴합니다」를 그대로 적어야 단추가 열린다 (mypage.html submitWithdraw)
                  account-api POST /delete (본인 토큰만 — 대상 id 를 보내지 않는다, 보내면 남의 계정을 지목할 수 있다).
                  되면 남은 세션을 지우고 앱 첫 화면으로 간다
@@ -37,6 +37,8 @@
     noApi: '탈퇴 기능을 사용할 수 없습니다.',
     withdrawFail: '탈퇴 처리에 실패했습니다.',
   };
+  // 로그인 수단 이름 — 고정 목록에서만 (모르는 값은 적지 않는다)
+  var PROVIDER_KO = { kakao: '카카오', google: '구글', email: '이메일(예전 가입)' };
 
   var S = { sb: null, session: null, user: null, saving: false };
 
@@ -67,10 +69,24 @@
     return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
+  /** 로그인 수단 — 「카카오 · 구글」, 모르면 「-」 */
+  function loginOf(user) {
+    var app = (user && user.app_metadata) || {};
+    var list =
+      Array.isArray(app.providers) && app.providers.length ? app.providers : [app.provider];
+    var names = [];
+    list.forEach(function (p) {
+      var ko = PROVIDER_KO[p];
+      if (ko && names.indexOf(ko) < 0) names.push(ko);
+    });
+    return names.join(' · ') || '-';
+  }
+
   function renderInfo(user, meta) {
     var m = meta || metaOf(user);
     $('stName').textContent = meta ? meta.name : nameOf(user);
     $('stEmail').textContent = (user && user.email) || '-';
+    $('stLogin').textContent = loginOf(user);
     $('stPhone').textContent = m.phone || TEXT.none;
     $('stPlace').textContent = placeOf(m);
     $('stJoined').textContent = joinedOf(user && user.created_at);
