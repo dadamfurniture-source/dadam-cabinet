@@ -23,6 +23,9 @@
  * 연출컷 — 사본에 연출컷을 잇지 않는다 (표 권한이 생기지 않게). 목록은 원래 상담 연출컷 첫 장이 있는지만
  *   (has_generation_image) 싣고, 그림은 GET /company/consults/:id/image 가 service_role 로 읽어 준다
  *   (돌려보낸 상담은 없다). 버킷 경로(<user_id>/<generation_id>/…)나 그 서명 주소는 업체에 내보내지 않는다.
+ * 현장 사진 (2026-11-23 대표님) — 고객이 연출컷을 만들 때 올린 방 사진(generations.inputs.room).
+ *   업체 제공 동의 문구가 「현장 사진」을 적은 판(ROOM_CONSENT_VERSIONS, 앱 consult.js 'v3')으로 동의한 상담만
+ *   has_room_image 를 싣고, 그림은 GET /company/consults/:id/image?kind=room. 옛 동의(v2)는 넘기지 않는다.
  */
 
 import {
@@ -46,6 +49,7 @@ import { companyMetrics } from './score.js';
 import { loadStats, SETTINGS_COLUMNS } from './data.js';
 import { emptySettings, parseServiceSettings } from './catalog.js';
 import { expiresAt, quoteTotal } from './admin.js';
+import { IMAGE_KINDS, imageKindOf, readStorageImage, renderRef, roomRef } from './consult-images.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -87,98 +91,79 @@ export async function companyOf(env, user, { manage = false } = {}) {
 
 // ── 목록 ──────────────────────────────────────────────────────
 
-/** 연출컷 첫 장 → { bucket, path } (path 가 없으면 저장된 Storage 주소에서 꺼낸다) */
-const OBJECT_URL_RE = /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/?#]+)\/([^?#]+)/;
-export function renderRef(images, defaultBucket) {
-  const first = Array.isArray(images) ? images[0] : null;
-  if (!first || typeof first !== 'object') return null;
-  if (
-    typeof first.path === 'string' &&
-    first.path &&
-    !first.path.startsWith('/') &&
-    !first.path.split('/').includes('..')
-  ) {
-    return { bucket: defaultBucket, path: first.path };
-  }
-  const m = typeof first.url === 'string' ? OBJECT_URL_RE.exec(first.url) : null;
-  if (!m) return null;
-  try {
-    return {
-      bucket: decodeURIComponent(m[1]),
-      path: m[2].split('/').map(decodeURIComponent).join('/'),
-    };
-  } catch {
-    return null;
-  }
-}
+// 연출컷 첫 장 · 현장 사진 찾기 · 읽기는 consult-images.js (본사 화면과 같이 쓴다)
+export { renderRef };
 
-/** 사본 id → { bucket, path } (원래 상담의 연출컷 첫 장). 돌려보낸 사본 · 연출컷 없는 상담은 빠진다 */
-async function renderRefs(env, copies) {
+/** 업체 제공 동의 문구 가운데 「현장 사진」을 제공 항목에 적은 판 — 이 판으로 동의한 상담만 업체에 현장 사진을 넘긴다 */
+export const ROOM_CONSENT_VERSIONS = Object.freeze(['v3']);
+export const roomConsented = (origin) =>
+  Boolean(origin && origin.third_party_agreed_at && ROOM_CONSENT_VERSIONS.includes(origin.consent_version));
+
+/**
+ * 사본 id → { render, room } (원래 상담의 연출컷 첫 장 · 현장 사진, 없으면 null).
+ * 돌려보낸 사본 · 연출컷 없는 상담은 빠진다. 현장 사진은 v3 동의일 때만.
+ */
+async function imageRefs(env, copies) {
   const out = new Map();
   const live = copies.filter((c) => c.status !== 'returned' && isUuid(c.origin_consultation_id));
   if (!live.length) return out;
   const origins =
     (await selectMany(env, 'consultations', {
       id: `in.(${[...new Set(live.map((c) => c.origin_consultation_id))].join(',')})`,
-      select: 'id,generation_id',
+      select: 'id,generation_id,third_party_agreed_at,consent_version',
     })) || [];
-  const genOf = new Map(origins.filter((o) => o.generation_id).map((o) => [o.id, o.generation_id]));
-  if (!genOf.size) return out;
+  const originOf = new Map(origins.filter((o) => o.generation_id).map((o) => [o.id, o]));
+  if (!originOf.size) return out;
   const gens =
     (await selectMany(env, 'generations', {
-      id: `in.(${[...new Set(genOf.values())].join(',')})`,
-      select: 'id,images',
+      id: `in.(${[...new Set([...originOf.values()].map((o) => o.generation_id))].join(',')})`,
+      select: 'id,images,inputs',
     })) || [];
   const bucketDefault = env.GENERATIONS_BUCKET || 'generations';
-  const refOf = new Map(
-    gens.map((g) => [g.id, renderRef(g.images, bucketDefault)]).filter(([, r]) => r)
-  );
+  const genOf = new Map(gens.map((g) => [g.id, g]));
   for (const c of live) {
-    const ref = refOf.get(genOf.get(c.origin_consultation_id));
-    if (ref) out.set(c.id, ref);
+    const o = originOf.get(c.origin_consultation_id);
+    const g = o && genOf.get(o.generation_id);
+    if (!g) continue;
+    const render = renderRef(g.images, bucketDefault);
+    const room = roomConsented(o) ? roomRef(g.inputs, bucketDefault) : null;
+    if (render || room) out.set(c.id, { render, room });
   }
   return out;
 }
 
-/** 목록용 — 연출컷이 있는 사본 id. 읽지 못하면 연출컷 없이 */
-async function renderIds(env, copies) {
+/** 목록용 — 사본 id → { render, room } 있음 표시. 읽지 못하면 그림 없이 */
+async function imageFlags(env, copies) {
   try {
-    return new Set((await renderRefs(env, copies)).keys());
+    return await imageRefs(env, copies);
   } catch (err) {
     console.warn(
       '[company-consults] 연출컷 확인 실패 — 연출컷 없이 보냅니다:',
       err && err.statusCode ? err.statusCode : 'error'
     );
-    return new Set();
+    return new Map();
   }
 }
 
+
 /**
- * GET /company/consults/:id/image → { bytes, mime } (라우트가 이미지로 돌려준다).
+ * GET /company/consults/:id/image?kind=render|room → { bytes, mime } (라우트가 이미지로 돌려준다).
  * 목록과 같은 검사 — 내 업체(active 구성원) 사본이고 돌려보내지 않은 상담. 그 밖은 404.
- * 앱은 본인 토큰으로 받아 blob 주소로 그린다 (<img src> 는 Authorization 을 싣지 못한다).
+ * room(현장 사진)은 v3 동의 상담만. 앱은 본인 토큰으로 받아 blob 주소로 그린다 (<img src> 는 Authorization 을 싣지 못한다).
  */
-export async function readCompanyConsultImage(env, { user, consultationId }) {
+export async function readCompanyConsultImage(env, { user, consultationId, kind = 'render' }) {
   const { companyId } = await companyOf(env, user);
-  if (!isUuid(consultationId)) throw new NotFoundError('연출컷이 없습니다');
+  const k = imageKindOf(kind);
+  if (!isUuid(consultationId)) throw new NotFoundError(IMAGE_KINDS[k]);
   const copy = await selectOne(env, 'consultations', {
     id: `eq.${consultationId}`,
     company_id: `eq.${companyId}`,
     select: 'id,status,origin_consultation_id',
   });
-  const ref = copy ? (await renderRefs(env, [copy])).get(copy.id) : null;
-  if (!ref) throw new NotFoundError('연출컷이 없습니다');
-  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${ref.bucket}/${ref.path}`, {
-    headers: {
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-  });
-  if (!res.ok) throw new NotFoundError('연출컷이 없습니다');
-  return {
-    bytes: new Uint8Array(await res.arrayBuffer()),
-    mime: res.headers.get('Content-Type') || 'application/octet-stream',
-  };
+  const refs = copy ? (await imageRefs(env, [copy])).get(copy.id) : null;
+  const ref = refs ? refs[k] : null;
+  if (!ref) throw new NotFoundError(IMAGE_KINDS[k]);
+  return readStorageImage(env, ref, IMAGE_KINDS[k]);
 }
 
 /** GET /company/consults — can_act: 받기 · 못 받음을 할 수 있나 (대표 · 실장) */
@@ -202,7 +187,7 @@ export async function listCompanyConsults(env, { user }) {
   const assignmentOf = new Map();
   for (const a of assignments)
     if (!assignmentOf.has(a.copy_consultation_id)) assignmentOf.set(a.copy_consultation_id, a);
-  const withImage = await renderIds(env, rows);
+  const images = await imageFlags(env, rows);
 
   return {
     can_act: canAct,
@@ -231,7 +216,9 @@ export async function listCompanyConsults(env, { user }) {
         quote_total: quoteTotal(r.quote),
         project_id: r.project_id ?? null,
         // 그림은 GET /company/consults/:id/image — 버킷 경로 · 서명 주소는 싣지 않는다
-        has_generation_image: withImage.has(r.id),
+        has_generation_image: Boolean(images.get(r.id) && images.get(r.id).render),
+        // 고객 현장 사진 — v3 동의 상담만 (GET /company/consults/:id/image?kind=room)
+        has_room_image: Boolean(images.get(r.id) && images.get(r.id).room),
         assignment: a
           ? {
               id: a.id,

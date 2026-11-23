@@ -259,7 +259,14 @@ function tables() {
       { id: 's-a1', design_payload: { items: [{ categoryId: 'sink', modules: [] }] } },
     ],
     install_feedback: [{ id: 'f-a1', order_id: 'o-a1', score: 8 }],
-    generations: [{ id: 'gen-1', category: 'sink' }],
+    generations: [
+      {
+        id: 'gen-1',
+        category: 'sink',
+        images: [{ slot: 'base', path: `${CUSTOMER}/gen-1/base.png` }],
+        inputs: { room: { path: `${CUSTOMER}/gen-1/room.jpg`, mime: 'image/jpeg' } },
+      },
+    ],
   };
 }
 
@@ -836,5 +843,39 @@ test('평가표 — 목록 밖 키는 422 (unknown_keys), 본사(platform) · �
       .status,
     404
   );
+  assert.equal(writesOf(fake).length, 0);
+});
+
+// ── 상담 그림 (2026-11-23) — 연출컷 첫 장 · 고객 현장 사진 ─────────
+
+test('상담 그림 — 관리자는 본사 상담의 연출컷 · 현장 사진을 그림 그대로 받는다 (동의 판과 상관없이), 그 밖은 403 · 404', async () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1]);
+  const JPG = new Uint8Array([0xff, 0xd8, 0xff, 2]);
+  const fake = fakeOf({
+    objects: {
+      [`generations/${CUSTOMER}/gen-1/base.png`]: { bytes: PNG, type: 'image/png' },
+      [`generations/${CUSTOMER}/gen-1/room.jpg`]: { bytes: JPG, type: 'image/jpeg' },
+    },
+  });
+  const render = await call(fake, `/admin/consultations/${P4}/image`);
+  assert.equal(render.status, 200);
+  assert.deepEqual(render.bytes, PNG);
+  assert.equal(render.headers.get('Cache-Control'), 'no-store, private');
+  const room = await call(fake, `/admin/consultations/${P4}/image?kind=room`);
+  assert.equal(room.status, 200);
+  assert.deepEqual(room.bytes, JPG);
+  assert.equal(room.headers.get('Content-Type'), 'image/jpeg');
+
+  assert.equal((await call(fake, `/admin/consultations/${P4}/image?kind=room`, OUTSIDER)).status, 403);
+  for (const path of [
+    `/admin/consultations/${P1}/image?kind=room`, // 연출컷 없는 상담
+    `/admin/consultations/${COPY_OLD}/image`, // 업체 사본 — 본사 상담이 아니다
+    `/admin/consultations/nope/image`,
+    `/admin/consultations/${P4}/image?kind=x`,
+  ]) {
+    const r = await call(fake, path);
+    assert.equal(r.status, 404, path);
+    assert.ok(!JSON.stringify(r.json).includes(CUSTOMER), '오류 글에 고객 회원 id 없음');
+  }
   assert.equal(writesOf(fake).length, 0);
 });
