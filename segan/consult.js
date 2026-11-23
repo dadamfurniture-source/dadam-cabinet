@@ -49,7 +49,11 @@
     'photo_learn_agreed_at';
   var LOGIN_PAGE = '../login.html';
   // 업체 제공 동의 문구 판 — consult.html 「제공하는 내용 보기」를 바꾸면 올린다
-  var CONSENT_VERSION = 'v2';
+  //   v3 (2026-11-23 대표님) = 연출컷 신청서 제공 항목에 「현장 사진」(연출컷을 만들 때 올린 방 사진)을 더한 판.
+  //   업체 서버(workflow-api distribution/company.js ROOM_CONSENT_VERSIONS)는 v3 상담에만 현장 사진을 넘긴다.
+  //   일반 상담(csgThirdDetail)은 연출컷 · 현장 사진이 없어 v2 그대로 — consultation.html 과 같은 글
+  var CONSENT_VERSION = 'v3';
+  var GENERAL_CONSENT_VERSION = 'v2';
   // 품목 — consultation.html 가구 종류 = workflow-api consult-notify.js FURNITURE_LABELS 키 (시험이 같은지 본다)
   var ITEM_KEYS = [
     'sink',
@@ -475,7 +479,7 @@
         privacy_agreed_at: now,
         // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
         third_party_agreed_at: third ? now : null,
-        consent_version: third ? CONSENT_VERSION : null,
+        consent_version: third ? GENERAL_CONSENT_VERSION : null,
         // 시공 사진 학습 활용 동의 — 연출컷 신청서와 같다. 안 하면 비운다 (상담 · 시공은 똑같다)
         photo_learn_agreed_at: photoLearn ? now : null,
       },

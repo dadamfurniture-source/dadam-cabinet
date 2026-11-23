@@ -148,6 +148,13 @@ async function load(options = {}) {
       r = await opts.candidates();
     else if (/\/admin\/consultations\/[^/]+\/assign$/.test(u.pathname) && method === 'POST')
       r = await opts.assign(decodeURIComponent(u.pathname.split('/')[3]), body);
+    else if (/\/admin\/consultations\/[^/]+\/image$/.test(u.pathname) && opts.pic) {
+      // 상담 그림 — 그림 그대로 (blob)
+      const kind = u.searchParams.get('kind');
+      calls.pics = (calls.pics || []).concat([{ id: u.pathname.split('/')[3], kind, auth: (init.headers || {}).Authorization }]);
+      const p = await opts.pic(kind);
+      return { ok: p.ok, status: p.status, blob: async () => new Blob([kind], { type: 'image/jpeg' }) };
+    }
     else if (url === WORK + '/reports/summary') r = ok({ pendingProposals: 0 });
     else if (url.startsWith(ACC)) r = ok([]);
     else r = fail(404, 'x', 'Not found');
@@ -282,6 +289,27 @@ describe('상담 열기', () => {
     // 다시 누르면 닫는다
     await pick(C2);
     expect(item(C2).querySelector('.ad-detail')).toBeNull();
+  });
+
+  test('연출컷 · 고객 현장 사진 — 고른 상담에서만 본인 토큰으로 받아 고객 칸 아래, 없는 그림은 칸 없이 · 다른 상담을 고르면 놓아준다 (2026-11-23)', async () => {
+    let n = 0;
+    window.URL.createObjectURL = jest.fn(() => 'blob:pic-' + ++n);
+    window.URL.revokeObjectURL = jest.fn();
+    const calls = await load({ pic: (kind) => (kind === 'room' ? { ok: true, status: 200 } : { ok: false, status: 404 }) });
+    expect(calls.pics).toBeUndefined(); // 고르기 전에는 묻지 않는다
+    await pick(C2);
+    expect(calls.pics.map((p) => [p.id, p.kind, p.auth])).toEqual([
+      [C2, 'render', 'Bearer tok-1'],
+      [C2, 'room', 'Bearer tok-1'],
+    ]);
+    const pics = [...item(C2).querySelectorAll('[data-pics] [data-pic]')];
+    expect(pics.map((a) => [a.getAttribute('data-pic'), a.querySelector('.me-cs-shotcap').textContent])).toEqual([
+      ['room', '현장 사진'],
+    ]);
+    expect(pics[0].querySelector('img').getAttribute('src')).toBe('blob:pic-1');
+    await pick(C2); // 접기
+    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:pic-1');
+    expect(item(C2).querySelector('[data-pics]')).toBeNull();
   });
 
   test('답 기다림 상담은 배정 단추가 없고 까닭을 적는다, 남는 업체가 없으면 안내', async () => {
