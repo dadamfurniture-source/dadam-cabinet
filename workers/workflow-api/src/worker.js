@@ -33,9 +33,9 @@
  *   PATCH /schedules/:scheduleId           — 일정 수정
  *   POST /schedules/batches/:batchId/notify — Slack 재전송 (멱등)
  *
- *   GET  /admin/consult-inbox · /admin/consultations/:id/candidates · POST /admin/consultations/:id/assign
+ *   GET  /admin/consult-inbox · /admin/consultations/:id/candidates · /admin/consultations/:id/image?kind= · POST /admin/consultations/:id/assign
  *   GET  /admin/companies · GET|PUT /admin/companies/:id/evaluation — 다담 본사 상담 분배 (src/distribution/)
- *   GET  /company/consults · GET /company/consults/:id/image · POST /company/consults/:id/accept|decline
+ *   GET  /company/consults · GET /company/consults/:id/image?kind=render|room · POST /company/consults/:id/accept|decline
  *   GET|PUT /company/service-settings
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
@@ -278,6 +278,7 @@ import { acceptConsultation, listMyProjects } from './projects.js';
 import {
   consultInbox,
   consultCandidates,
+  readAdminConsultImage,
   assignConsultation,
   notifyConsultAssigned,
   listCompaniesAdmin,
@@ -1414,13 +1415,22 @@ async function handleCompanyConsults(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
-/** 상담 연출컷 첫 장 — 이미지 그대로 (앱이 본인 토큰으로 받아 blob 주소로 그린다) */
-async function handleCompanyConsultImage(request, env, { params, user }) {
-  const { bytes, mime } = await readCompanyConsultImage(env, { user, consultationId: params.id });
+/** 상담 그림 — 이미지 그대로 (앱이 본인 토큰으로 받아 blob 주소로 그린다). ?kind=render(연출컷 첫 장) | room(고객 현장 사진) */
+function consultImageResponse(request, env, { bytes, mime }) {
   return new Response(bytes, {
     status: 200,
     headers: { ...corsHeaders(request, env), ...NO_STORE, 'Content-Type': mime, 'X-Content-Type-Options': 'nosniff' },
   });
+}
+
+async function handleCompanyConsultImage(request, env, { params, user }) {
+  const kind = queryOf(request).kind;
+  return consultImageResponse(request, env, await readCompanyConsultImage(env, { user, consultationId: params.id, kind }));
+}
+
+async function handleAdminConsultImage(request, env, { params, user }) {
+  const kind = queryOf(request).kind;
+  return consultImageResponse(request, env, await readAdminConsultImage(env, { user, consultationId: params.id, kind }));
 }
 
 async function handleAcceptCompanyConsult(request, env, { params, user, ctx }) {
@@ -1781,6 +1791,7 @@ const router = createRouter([
   // 다담 본사 상담 분배 · 업체 평가표 (관리자)
   { method: 'GET',  path: '/admin/consult-inbox',                 auth: 'jwt', handler: handleConsultInbox },
   { method: 'GET',  path: '/admin/consultations/:id/candidates',  auth: 'jwt', handler: handleConsultCandidates },
+  { method: 'GET',  path: '/admin/consultations/:id/image',       auth: 'jwt', handler: handleAdminConsultImage },
   { method: 'POST', path: '/admin/consultations/:id/assign',      auth: 'jwt', handler: handleAssignConsultation },
   { method: 'GET',  path: '/admin/companies',                     auth: 'jwt', handler: handleListCompaniesAdmin },
   { method: 'GET',  path: '/admin/companies/:id/evaluation',      auth: 'jwt', handler: handleGetCompanyEvaluation },
