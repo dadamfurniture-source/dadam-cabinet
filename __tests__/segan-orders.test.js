@@ -227,6 +227,7 @@ async function load(options = {}) {
     feedbackLink: () => ok({ url: 'https://dadam.example/f/abc' }),
     counterparties: () => ok({ items: [] }),
     makeOrder: () => fail(404, 'not_found', '문서를 찾을 수 없습니다'), // POST /documents/:id/order
+    designSchedules: () => fail(404, 'not_found', 'x'), // GET /designs/:id/schedules — 수주 창 설치 일정
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -310,6 +311,7 @@ async function load(options = {}) {
       return reply(await (body && 'status' in body ? opts.move(body, id) : opts.info(body, id)));
     }
     if (url.startsWith(WORK + '/documents/')) return reply(await opts.makeOrder(url, method));
+    if (url.startsWith(WORK + '/designs/')) return reply(await opts.designSchedules(url, method));
     if (url === WORK + '/counterparties') return reply(await opts.counterparties());
     if (url.startsWith(WORK + '/company/schedules')) return reply(await opts.schedules(url));
     if (url === WORK + '/company/projects') return reply(ok(PROJECTS));
@@ -395,6 +397,124 @@ const submit = async (form) => {
   await flush();
 };
 const sent = (calls, method) => calls.fetch.filter((c) => c.method === method);
+
+describe('수주 창 — 설치 일정 · 고객 확인 (2026-11-23)', () => {
+  const D1 = '99999999-9999-4999-8999-999999999991';
+  const inst = (extra) => ({
+    id: 'i-' + Math.random().toString(36).slice(2, 8),
+    type: 'installation',
+    status: 'scheduled',
+    scheduled_at: '2026-11-20T01:00:00Z',
+    customer_confirmed_at: null,
+    customer_change_requested_at: null,
+    ...extra,
+  });
+
+  test('설계의 설치 일정만 이른 차례로 — 고객 확인됨 · 확인 전 · 변경 요청 꼬리표, 취소 · 다른 일정은 뺀다', async () => {
+    const calls = await load({
+      detail: () => ok(detail1({ order: { ...detail1().order, design_id: D1 } })),
+      designSchedules: () =>
+        ok({
+          items: [
+            inst({
+              id: 'a',
+              scheduled_at: '2026-11-28T01:00:00Z',
+              customer_confirmed_at: '2026-11-21T02:00:00Z',
+            }),
+            inst({ id: 'b', scheduled_at: '2026-11-15T05:30:00Z' }),
+            inst({
+              id: 'c',
+              scheduled_at: '2026-12-02T01:00:00Z',
+              customer_confirmed_at: '2026-11-21T02:00:00Z',
+              customer_change_requested_at: '2026-11-22T02:00:00Z',
+            }),
+            inst({ id: 'd', status: 'cancelled' }),
+            inst({ id: 'e', type: 'delivery' }),
+            inst({ id: 'f', status: 'completed', scheduled_at: '2026-11-01T01:00:00Z' }),
+          ],
+        }),
+    });
+    await open(O1);
+    const got = calls.fetch.filter((c) => c.url.startsWith(WORK + '/designs/'));
+    expect(got).toEqual([
+      expect.objectContaining({
+        url: WORK + '/designs/' + D1 + '/schedules',
+        method: 'GET',
+        auth: 'Bearer tok-1',
+      }),
+    ]);
+    const box = part('install');
+    expect(box.hidden).toBe(false);
+    expect(text(box.querySelector('.me-pt-sub'))).toBe('설치 일정');
+    const ids = [...box.querySelectorAll('[data-install]')].map((li) =>
+      li.getAttribute('data-install')
+    );
+    expect(ids).toEqual(['f', 'b', 'a', 'c']);
+    const tag = (id) => {
+      const t = box.querySelector('[data-install="' + id + '"] [data-od-confirm]');
+      return t ? [t.getAttribute('data-od-confirm'), text(t)] : null;
+    };
+    expect(tag('a')).toEqual(['yes', '고객 확인됨']);
+    expect(text(box.querySelector('[data-install="a"]'))).toContain('2026.11.28 10:00');
+    expect(text(box.querySelector('[data-install="a"]'))).toContain('고객 확인 2026.11.21');
+    expect(tag('b')).toEqual(['no', '고객 확인 전']);
+    expect(tag('c')).toEqual(['change', '고객 변경 요청']);
+    expect(tag('f')).toBeNull(); // 끝난 설치는 확인 전 꼬리표를 달지 않는다
+    expect(text(box.querySelector('[data-install="f"]'))).toContain('설치 끝');
+    expect(text(box)).toContain('고객 확인 표시는 업무 달력 · 설치 표에서 합니다.');
+    // 상태 바로 아래 — 보기만 (단추 없음)
+    expect(part('status').nextElementSibling).toBe(box);
+    expect(box.querySelectorAll('button, form')).toHaveLength(0);
+  });
+
+  test('모두 확인됐으면 안내 글 없음 · 설치 일정이 없거나 못 읽거나 설계가 없으면 칸째 없다 · 옛 서버(칸 없음)는 꼬리표 없이', async () => {
+    let calls = await load({
+      detail: () => ok(detail1({ order: { ...detail1().order, design_id: D1 } })),
+      designSchedules: () =>
+        ok({ items: [inst({ id: 'a', customer_confirmed_at: '2026-11-19T02:00:00Z' })] }),
+    });
+    await open(O1);
+    expect(part('install').hidden).toBe(false);
+    expect(part('install').querySelector('.mk-note')).toBeNull();
+
+    await load({
+      detail: () => ok(detail1({ order: { ...detail1().order, design_id: D1 } })),
+      designSchedules: () =>
+        ok({
+          items: [
+            {
+              id: 'z',
+              type: 'installation',
+              status: 'scheduled',
+              scheduled_at: '2026-11-20T01:00:00Z',
+            },
+          ],
+        }),
+    });
+    await open(O1);
+    expect(part('install').hidden).toBe(false);
+    expect(part('install').querySelector('[data-od-confirm]')).toBeNull();
+    expect(part('install').querySelector('.mk-note')).toBeNull();
+
+    for (const designSchedules of [
+      () => ok({ items: [inst({ type: 'delivery' })] }),
+      () => fail(403, 'forbidden', 'x'),
+    ]) {
+      await load({
+        detail: () => ok(detail1({ order: { ...detail1().order, design_id: D1 } })),
+        designSchedules,
+      });
+      await open(O1);
+      expect(part('install').hidden).toBe(true);
+      expect(part('install').innerHTML).toBe('');
+    }
+
+    calls = await load(); // 설계 id 없는 수주 — 묻지 않는다
+    await open(O1);
+    expect(calls.fetch.some((c) => c.url.startsWith(WORK + '/designs/'))).toBe(false);
+    expect(part('install').hidden).toBe(true);
+  });
+});
 
 afterEach(() => {
   jest.restoreAllMocks();
