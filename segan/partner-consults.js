@@ -17,6 +17,7 @@
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET  /company/consults               { items[], can_act? } 내 업체에 배정된 상담 (본사 상담의 사본)
                GET  /company/consults/:id/image     연출컷 첫 장 (그림 그대로 — has_generation_image 인 상담만)
+               GET  …/image?kind=room               고객 현장 사진 (has_room_image 인 상담만 — 2026-11-23, 동의 v3)
                POST /company/consults/:id/accept    받기 → { customer_id, project_id } (업체 고객 · 프로젝트를 만든다)
                POST /company/consults/:id/decline   못 받음 { reason } → 204
                GET/PUT /company/service-settings    { regions[{sido,gugun}], items{품목: do|outsource|no},
@@ -444,19 +445,38 @@
     return f.length ? '<dl class="me-facts">' + f.join('') + '</dl>' : '';
   }
 
-  /** 연출컷 칸 — 받기 전에는 빈 칸, 받으면 paintShot 이 주소를 채운다. 못 받았으면 칸째 없다 */
+  // 그림 두 가지 — 연출컷 첫 장 · 고객 현장 사진(2026-11-23 대표님, 서버가 동의 v3 상담만 has_room_image).
+  //   받아 둔 주소는 P.shots[열쇠] — 연출컷은 상담 id, 현장 사진은 id + '#room'
+  var SHOTS = [
+    { kind: 'render', flag: 'has_generation_image', suffix: '', alt: '고객 연출컷', cap: '' },
+    { kind: 'room', flag: 'has_room_image', suffix: '#room', alt: '고객 현장 사진', cap: '현장 사진' },
+  ];
+  function shotKey(id, s) {
+    return id + s.suffix;
+  }
+
+  /** 그림 칸 — 받기 전에는 빈 칸, 받으면 paintShot 이 주소를 채운다. 못 받았으면 칸째 없다 */
   function shotHtml(x) {
-    if (x.has_generation_image !== true || P.shots[x.id] === false) return '';
-    var u = P.shots[x.id];
-    return (
-      '<a class="me-cs-shotlink" data-shot="' +
-      esc(x.id) +
-      '"' +
-      (u ? ' href="' + esc(u) + '"' : '') +
-      ' target="_blank" rel="noopener"><img class="me-cs-shot"' +
-      (u ? ' src="' + esc(u) + '"' : '') +
-      ' alt="고객 연출컷" /></a>'
-    );
+    return SHOTS.map(function (s) {
+      var key = shotKey(x.id, s);
+      if (x[s.flag] !== true || P.shots[key] === false) return '';
+      var u = P.shots[key];
+      return (
+        '<a class="me-cs-shotlink" data-shot="' +
+        esc(x.id) +
+        '" data-shot-key="' +
+        esc(key) +
+        '"' +
+        (u ? ' href="' + esc(u) + '"' : '') +
+        ' target="_blank" rel="noopener"><img class="me-cs-shot"' +
+        (u ? ' src="' + esc(u) + '"' : '') +
+        ' alt="' +
+        esc(s.alt) +
+        '" />' +
+        (s.cap ? '<span class="me-cs-shotcap">' + esc(s.cap) + '</span>' : '') +
+        '</a>'
+      );
+    }).join('');
   }
 
   function actsHtml(x) {
@@ -911,10 +931,12 @@
     return { ok: res.ok && b.success === true, status: res.status, body: b };
   }
 
-  /** GET /company/consults/:id/image → blob 주소 | '' (못 받음) */
-  async function fetchShot(id) {
+  /** GET /company/consults/:id/image(?kind=room) → blob 주소 | '' (못 받음) */
+  async function fetchShot(id, kind) {
     try {
-      var res = await fetch(P.base + '/company/consults/' + encodeURIComponent(id) + '/image', {
+      var url =
+        P.base + '/company/consults/' + encodeURIComponent(id) + '/image' + (kind === 'room' ? '?kind=room' : '');
+      var res = await fetch(url, {
         headers: { Authorization: 'Bearer ' + (await token()) },
         cache: 'no-store',
       });
@@ -925,12 +947,12 @@
     }
   }
 
-  /** 받은 연출컷을 그 상담 칸에 채운다 — 못 받았으면 칸째 뺀다 */
-  function paintShot(id) {
+  /** 받은 그림을 그 상담 칸에 채운다 — 못 받았으면 칸째 뺀다 */
+  function paintShot(key) {
     var box = $('partner-consults');
-    var a = box && box.querySelector('[data-shot="' + id + '"]');
+    var a = box && box.querySelector('[data-shot-key="' + key + '"]');
     if (!a) return;
-    var u = P.shots[id];
+    var u = P.shots[key];
     if (!u) {
       a.remove();
       return;
@@ -940,30 +962,34 @@
     if (img) img.src = u;
   }
 
-  /** 목록의 연출컷 중 아직 받지 않은 것을 받는다 (상담마다 한 번) */
+  /** 목록의 그림 중 아직 받지 않은 것을 받는다 (상담 · 그림마다 한 번) */
   function loadShots() {
     var gen = P.shotGen;
     (P.items || []).forEach(function (x) {
-      if (x.has_generation_image !== true || Object.prototype.hasOwnProperty.call(P.shots, x.id))
-        return;
-      P.shots[x.id] = null;
-      fetchShot(x.id).then(function (u) {
-        // 그사이 칸을 다시 채웠거나(load) 목록에서 빠졌으면 놓아준다
-        if (gen !== P.shotGen || P.shots[x.id] !== null) {
-          if (u) window.URL.revokeObjectURL(u);
-          return;
-        }
-        P.shots[x.id] = u || false;
-        paintShot(x.id);
+      SHOTS.forEach(function (s) {
+        var key = shotKey(x.id, s);
+        if (x[s.flag] !== true || Object.prototype.hasOwnProperty.call(P.shots, key)) return;
+        P.shots[key] = null;
+        fetchShot(x.id, s.kind).then(function (u) {
+          // 그사이 칸을 다시 채웠거나(load) 목록에서 빠졌으면 놓아준다
+          if (gen !== P.shotGen || P.shots[key] !== null) {
+            if (u) window.URL.revokeObjectURL(u);
+            return;
+          }
+          P.shots[key] = u || false;
+          paintShot(key);
+        });
       });
     });
   }
 
-  /** 목록에서 빠졌거나 연출컷이 없어진 상담의 blob 주소를 놓아준다 */
+  /** 목록에서 빠졌거나 그림이 없어진 상담의 blob 주소를 놓아준다 */
   function pruneShots() {
     var keep = {};
     (P.items || []).forEach(function (x) {
-      if (x.has_generation_image === true) keep[x.id] = true;
+      SHOTS.forEach(function (s) {
+        if (x[s.flag] === true) keep[shotKey(x.id, s)] = true;
+      });
     });
     Object.keys(P.shots).forEach(function (id) {
       if (keep[id]) return;

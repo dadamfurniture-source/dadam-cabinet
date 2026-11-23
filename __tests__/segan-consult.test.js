@@ -365,8 +365,9 @@ describe('신청서', () => {
     );
     expect(lis).toEqual([
       '받는 곳: 다담 협력업체(다담 공장 포함) 중 다담이 정한 한 곳 — 연결되면 업체 이름을 알려 드립니다',
-      // 업체 사본에 실제로 넘기는 칸과 같다 (서버는 이 항목만 넣는다)
-      '항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 시공 완료 희망 날짜 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계 요청 · 연출컷 · 예상 견적',
+      // 업체 사본에 실제로 넘기는 칸과 같다 (서버는 이 항목만 넣는다).
+      // 현장 사진 = 연출컷을 만들 때 올린 방 사진 — 서버는 이 글(v3)로 동의한 상담에만 넘긴다 (2026-11-23)
+      '항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 시공 완료 희망 날짜 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계 요청 · 연출컷 · 현장 사진 · 예상 견적',
       '목적: 상담 · 견적 · 시공',
       '보유: 상담 목적을 이룰 때까지',
       '동의하지 않으면 다담 본사가 직접 상담합니다',
@@ -377,6 +378,8 @@ describe('신청서', () => {
       '필수: 이름, 연락처, 이메일, 상담 제목, 시공 지역, 품목, 도어 마감, 철거, 가격대'
     );
     expect(privacy).toContain('선택: 연락 받기 좋은 시간, 시공 완료 희망 날짜, 요청 사항');
+    expect(privacy).toContain('함께 보내는 것: 이 연출컷, 연출컷을 만들 때 올린 현장 사진, 예상 견적');
+    expect($('csAttachNote').textContent).toBe('연출컷 · 올리신 현장 사진 · 예상 견적이 상담 내용에 함께 붙습니다.');
     expect(privacy).toContain('목적: 상담 신청 처리');
     expect(privacy).not.toContain('협력업체 연결');
   });
@@ -509,7 +512,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect(row.third_party_agreed_at).toBeNull();
   });
 
-  test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v2, 접수 화면은 「가까운 팩토리를 연결」', async () => {
+  test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v3(제공 항목에 현장 사진), 접수 화면은 「가까운 팩토리를 연결」', async () => {
     const calls = await load();
     fillRequired();
     $('csAgreeThird').checked = true;
@@ -517,7 +520,9 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     const { row } = calls.inserts[0];
     expect(row.third_party_agreed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(row.third_party_agreed_at).toBe(row.privacy_agreed_at);
-    expect(row.consent_version).toBe('v2');
+    // v3 — workflow-api distribution/company.js ROOM_CONSENT_VERSIONS 와 같다 (이 판일 때만 업체가 현장 사진을 받는다)
+    expect(row.consent_version).toBe('v3');
+    expect(read('workers/workflow-api/src/distribution/company.js')).toContain("ROOM_CONSENT_VERSIONS = Object.freeze(['v3'])");
     expect($('csDoneText').textContent).toBe(
       '다담 본사가 확인한 뒤 가까운 팩토리를 연결해 드립니다.'
     );

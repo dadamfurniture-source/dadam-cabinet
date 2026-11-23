@@ -498,6 +498,14 @@ a.sg-row.ad-row::after {
   gap: 10px;
 }
 
+/* 본사 상담 — 연출컷 · 고객 현장 사진 나란히 (좁으면 한 줄에 하나) */
+.ad-pics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  max-width: 480px;
+}
+
 .ad-assign {
   margin: 0;
   font-size: 13px;
@@ -6736,6 +6744,14 @@ a.ch-row:focus-visible .ch-label {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   background: var(--v5-photo);
+}
+
+/* 고객 현장 사진 — 연출컷 아래 같은 크기, 아래에 이름 한 줄 (2026-11-23) */
+.me-cs-shotcap {
+  display: block;
+  padding-top: 4px;
+  font-size: 12px;
+  color: var(--v5-tan);
 }
 
 .me-cs-item .mk-error,

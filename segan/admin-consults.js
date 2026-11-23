@@ -6,6 +6,8 @@
                GET  /admin/consult-inbox?state=pending|assigned        다담 본사 상담 (data.items)
                GET  /admin/consultations/:id/candidates                 1~3순위 · 점수 내역 · 걸러진 업체
                POST /admin/consultations/:id/assign { company_id }     배정 (업체가 24시간 안에 답한다)
+               GET  /admin/consultations/:id/image?kind=render|room     연출컷 첫 장 · 고객 현장 사진 (그림 그대로,
+                                                                        고른 상담에서만 본인 토큰 → blob 주소, 2026-11-23)
    화면      PC admin/consult-distribution.html 과 같은 일을 폰 한 줄로:
                대기 · 답 기다림 탭 → 상담 줄 → 누르면 그 자리에 고객 칸 · 지금 배정 · 거친 업체 · 순위(점수 내역) ·
                걸러진 업체 · 「이 업체에 배정」(되묻기는 화면 안에서). 거르기 · 점수는 서버가 한다 — 받은 대로 보인다.
@@ -133,6 +135,8 @@
     selectedId: null,
     cand: null, // { items, filtered } | 'loading' | null(못 읽음)
     confirm: null, // 배정 되묻기 { consultId, companyId, companyName }
+    // 고른 상담의 그림 — 값: blob 주소 | null(받는 중) | false(없음 · 못 받음). 다른 상담을 고르면 놓아준다
+    pics: { id: null, render: null, room: null },
     err: '',
     msg: '',
     busy: false,
@@ -341,7 +345,77 @@
         ) +
         '</p>'
       : '';
-    return '<div class="ad-detail">' + facts + now + triedHtml + candidatesHtml(c) + '</div>';
+    return '<div class="ad-detail">' + facts + picsHtml(c) + now + triedHtml + candidatesHtml(c) + '</div>';
+  }
+
+  // ── 그림 — 연출컷 첫 장 · 고객 현장 사진 ──────────────────
+  var PICS = [
+    ['render', '연출컷'],
+    ['room', '현장 사진'],
+  ];
+
+  /** 받은 그림만 (받는 중 · 없음은 칸 없이) */
+  function picsHtml(c) {
+    if (!c.has_generation || C.pics.id !== c.id) return '';
+    var html = PICS.map(function (p) {
+      var u = C.pics[p[0]];
+      if (!u) return '';
+      return (
+        '<a class="me-cs-shotlink" data-pic="' +
+        p[0] +
+        '" href="' +
+        esc(u) +
+        '" target="_blank" rel="noopener"><img class="me-cs-shot" src="' +
+        esc(u) +
+        '" alt="고객 ' +
+        esc(p[1]) +
+        '" /><span class="me-cs-shotcap">' +
+        esc(p[1]) +
+        '</span></a>'
+      );
+    }).join('');
+    return html ? '<div class="ad-pics" data-pics>' + html + '</div>' : '';
+  }
+
+  function freePics() {
+    PICS.forEach(function (p) {
+      var u = C.pics[p[0]];
+      if (u) window.URL.revokeObjectURL(u);
+    });
+    C.pics = { id: null, render: null, room: null };
+  }
+
+  /** GET /admin/consultations/:id/image?kind= → blob 주소 | '' (없음 · 못 받음) */
+  async function fetchPic(id, kind) {
+    if (!C.base) return '';
+    try {
+      var res = await fetch(
+        C.base + '/admin/consultations/' + encodeURIComponent(id) + '/image?kind=' + kind,
+        { headers: { Authorization: 'Bearer ' + (await token()) }, cache: 'no-store' }
+      );
+      if (!res.ok) return '';
+      return window.URL.createObjectURL(await res.blob());
+    } catch {
+      return '';
+    }
+  }
+
+  /** 고른 상담의 그림을 받는다 — 연출컷이 있는 상담만, 상담마다 한 번 */
+  function loadPics(c) {
+    if (!c || !c.has_generation || C.pics.id === c.id) return;
+    freePics();
+    var id = c.id;
+    C.pics.id = id;
+    PICS.forEach(function (p) {
+      fetchPic(id, p[0]).then(function (u) {
+        if (C.pics.id !== id || C.pics[p[0]] !== null) {
+          if (u) window.URL.revokeObjectURL(u);
+          return;
+        }
+        C.pics[p[0]] = u || false;
+        if (u) render();
+      });
+    });
   }
 
   function candidatesHtml(c) {
@@ -469,6 +543,8 @@
   function render() {
     var box = $('adConsultsBody');
     if (!box) return;
+    // 고른 상담이 바뀌었으면 받아 둔 그림을 놓아준다
+    if (C.pics.id && C.pics.id !== C.selectedId) freePics();
     var tabs =
       '<div class="cs-choices ad-tabs" role="tablist">' +
       TABS.map(function (t) {
@@ -573,6 +649,7 @@
   async function loadCandidates(id) {
     C.cand = 'loading';
     render();
+    loadPics(current());
     var got = await fetchCandidates(id);
     if (C.selectedId !== id) return; // 그새 다른 상담을 골랐다
     C.cand = got;

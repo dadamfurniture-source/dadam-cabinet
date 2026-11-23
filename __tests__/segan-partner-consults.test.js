@@ -168,7 +168,7 @@ async function load(options = {}) {
     paymentsApi: { url: PAY },
     accountApi: { url: ACC },
   };
-  const calls = { fetch: [], images: [] };
+  const calls = { fetch: [], images: [], rooms: [] };
   let blobs = 0;
   window.URL.createObjectURL = jest.fn(() => `blob:shot-${++blobs}`);
   window.URL.revokeObjectURL = jest.fn();
@@ -193,8 +193,15 @@ async function load(options = {}) {
   window.fetch = jest.fn(async (url, init = {}) => {
     const method = init.method || 'GET';
     // 연출컷 그림은 따로 센다 (목록 · 받기 · 설정 요청 수를 보는 시험이 많다)
-    const shot = /^\/company\/consults\/([^/]+)\/image$/.exec(url.slice(WORK.length));
+    const shot = /^\/company\/consults\/([^/?]+)\/image(\?kind=room)?$/.exec(url.slice(WORK.length));
     if (url.startsWith(WORK) && shot) {
+      if (shot[2]) {
+        // 고객 현장 사진 (?kind=room) — 따로 센다
+        calls.rooms.push({ id: shot[1], method, auth: (init.headers || {}).Authorization });
+        const rr = await (opts.room || (() => ({ ok: true, status: 200 })))(shot[1]);
+        if (rr instanceof Error) throw rr;
+        return { ok: rr.ok, status: rr.status, blob: async () => new Blob(['jpg'], { type: 'image/jpeg' }) };
+      }
       calls.images.push({ id: shot[1], method, auth: (init.headers || {}).Authorization });
       const r = await opts.image(shot[1]);
       if (r instanceof Error) throw r;
@@ -645,6 +652,32 @@ describe('상담 목록', () => {
     expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(item(C2).querySelector('.me-cs-shotlink')).toBeNull();
     expect(item(C3).querySelector('.me-cs-shotlink')).toBeNull();
+  });
+
+  test('고객 현장 사진 — 서버가 has_room_image 를 준 상담만 ?kind=room 으로 받아 연출컷 아래 「현장 사진」, 없으면 묻지 않는다 (2026-11-23)', async () => {
+    const calls = await load({ list: ok({ items: [waiting({ has_room_image: true })] }) });
+    await flush();
+    expect(calls.rooms).toEqual([{ id: C1, method: 'GET', auth: 'Bearer tok-1' }]);
+    expect(calls.images).toHaveLength(1);
+    const links = [...item(C1).querySelectorAll('.me-cs-shotlink')];
+    expect(links.map((a) => a.querySelector('img').getAttribute('alt'))).toEqual(['고객 연출컷', '고객 현장 사진']);
+    expect(links[1].querySelector('.me-cs-shotcap').textContent).toBe('현장 사진');
+    expect(links[1].getAttribute('href')).toMatch(/^blob:/);
+    expect(links[0].getAttribute('href')).not.toBe(links[1].getAttribute('href'));
+    // 다시 그려도 다시 묻지 않는다
+    await press(item(C1), '못 받음');
+    expect(calls.rooms).toHaveLength(1);
+    expect(item(C1).querySelectorAll('.me-cs-shotlink')).toHaveLength(2);
+  });
+
+  test('고객 현장 사진 — 못 받으면 그 칸만 빠지고 연출컷은 그대로, has_room_image 가 없으면 묻지 않는다', async () => {
+    let calls = await load({ list: ok({ items: [waiting({ has_room_image: true })] }), room: () => ({ ok: false, status: 404 }) });
+    await flush();
+    expect(calls.rooms).toHaveLength(1);
+    expect([...item(C1).querySelectorAll('.me-cs-shotlink img')].map((i) => i.alt)).toEqual(['고객 연출컷']);
+    calls = await load();
+    await flush();
+    expect(calls.rooms).toEqual([]);
   });
 
   test('연출컷 — 목록에 서명 주소(generation_image_url)가 와도 쓰지 않는다', async () => {
