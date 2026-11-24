@@ -11,6 +11,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { projectCover } from '../src/work/job-links.js';
 import worker from '../src/worker.js';
 import { ConflictError, clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
@@ -313,8 +314,113 @@ test('공장 일(재단) — 작업자가 수락하면 연결, 완료 보고로 
   assert.equal(done.status, 201, JSON.stringify(done.json));
   assert.deepEqual([asgOf(fake, W(2)).status, jobOf(fake, 'cutting').status], ['accepted', 'done'], '검수 없이 끝난다');
   assert.equal(outbox(fake, 'work_report')[0].body, '재단 작업 완료 보고가 왔습니다. 프로젝트에서 확인해 주세요.');
-  const row = rowOf(await view(fake, 't_staff'), 'kind:cutting');
+  // 끝난 작업의 줄 — 그 작업 것(job:<id>), 읽기만 (차수 — DB 0084). 그 뒤 온 설계가 없으니 새 줄(2차)은 없다
+  const v = await view(fake, 't_staff');
+  const row = rowOf(v, `job:${a.job_id}`);
+  assert.deepEqual([row.label, row.round, row.ended, row.job.status], ['재단', 1, true, 'done']);
   assert.deepEqual([row.workers[0].label, row.workers[0].reports.map((u) => u.body), row.can_assign], ['확인함', ['재단을 마쳤습니다'], false]);
+  assert.equal(rowOf(v, 'kind:cutting'), undefined);
+  // 끝날 때 맡은 설계를 적어 둔다 — 그때 프로젝트의 설계 둘
+  assert.deepEqual(jobOf(fake, 'cutting').design_ids, [D(1), D(2)]);
+});
+
+// ── 차수 (2026-11-24 대표님 「추천대로 진행」 — 작업 배정 ①, DB 0084) ──
+test('차수 — 재단 작업이 끝난 뒤 새 품목(설계)이 오면 「재단 2차」 줄이 생기고, 두 작업은 제 설계의 지시서만 연다', async () => {
+  const fake = world();
+  await assign(fake, 't_owner', { kind: 'cutting', link_ids: [L(2)] });
+  const first = asgOf(fake, W(2));
+  await post(fake, 't_w2', `/work/assignments/${first.id}/confirm`);
+  await post(fake, 't_w2', `/work/assignments/${first.id}/start`);
+  await post(fake, 't_w2', `/work/assignments/${first.id}/updates`, { kind: 'result', body: '재단을 마쳤습니다' });
+  assert.equal(fake.db.work_jobs.find((j) => j.id === first.job_id).status, 'done');
+
+  // 고객이 신발장을 더했다 — 프로젝트에 셋째 설계
+  fake.db.designs.push({ id: D(3), company_id: A, user_id: OWNER_A, name: '김고객 신발장', project_id: P(1) });
+  let v = await view(fake, 't_owner');
+  const done = rowOf(v, `job:${first.job_id}`);
+  const next = rowOf(v, 'kind:cutting');
+  assert.deepEqual([done.label, done.round, done.ended, done.can_assign, done.sheets.length], ['재단', 1, true, false, 2]);
+  assert.deepEqual([next.label, next.round, next.ended, next.job, next.can_assign, next.sheets.length], ['재단 2차', 2, undefined, null, true, 1]);
+  // 줄 차례 — 같은 종류는 차수대로 붙어 있다
+  const keys = v.json.data.rows.map((r) => r.key);
+  assert.equal(keys.indexOf('kind:cutting'), keys.indexOf(`job:${first.job_id}`) + 1);
+  // 다른 종류(철거 · 엣지 · 조립)는 작업이 없으니 지금처럼 한 줄 · 차수 표시 없이
+  assert.deepEqual(['demolition', 'edge', 'assembly'].map((k) => [rowOf(v, `kind:${k}`).label, rowOf(v, `kind:${k}`).sheets.length]), [['철거', 3], ['엣지', 3], ['조립', 3]]);
+
+  // 2차에 배정 — 새 작업이 생기고 셋째 설계에 잇는다 (첫 작업은 그대로)
+  const r = await assign(fake, 't_owner', { kind: 'cutting', link_ids: [L(2)] });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const cuts = fake.db.work_jobs.filter((j) => j.kind === 'cutting' && j.status !== 'cancelled');
+  assert.equal(cuts.length, 2);
+  const second = cuts.find((j) => j.id !== first.job_id);
+  assert.deepEqual([second.design_id, second.status, 'design_ids' in second ? second.design_ids : null], [D(3), second.status, null]);
+  v = await view(fake, 't_owner');
+  assert.equal(rowOf(v, 'kind:cutting').job.id, second.id);
+
+  // 작업자가 보는 지시서 — 1차는 앞의 두 설계, 2차는 신발장만
+  const a2 = asgOf(fake, W(2));
+  await post(fake, 't_w2', `/work/assignments/${a2.id}/confirm`);
+  const d1 = await call(fake, 't_w2', `/work/jobs/${first.job_id}`);
+  const d2 = await call(fake, 't_w2', `/work/jobs/${second.id}`);
+  assert.deepEqual(d1.json.data.sheets.map((s) => s.design), [D(1), D(2)]);
+  assert.deepEqual(d2.json.data.sheets.map((s) => s.design), [D(3)]);
+});
+
+test('차수 — 순수: 끝난 작업은 적어 둔 설계, 진행 중 · 새 작업은 그 밖의 설계. 0084 전(적어 둔 것 없음) 끝난 작업은 남은 설계 모두', () => {
+  const at = (d) => `2026-11-${String(d).padStart(2, '0')}T00:00:00.000Z`;
+  const ids = ['d1', 'd2', 'd3'];
+  assert.deepEqual(projectCover([], ids), { rounds: [], live: null, rest: ids });
+  // 끝난 1차(d1 · d2) + 진행 중 2차 → 2차는 d3
+  const j1 = { id: 'j1', status: 'done', created_at: at(1), design_ids: ['d1', 'd2'] };
+  const j2 = { id: 'j2', status: 'in_progress', created_at: at(5) };
+  const c = projectCover([j2, j1], ids);
+  assert.deepEqual(c.rounds.map((r) => [r.job.id, r.round, r.ended, r.cover]), [['j1', 1, true, ['d1', 'd2']], ['j2', 2, false, ['d3']]]);
+  assert.deepEqual([c.live.id, c.rest], ['j2', ['d3']]);
+  // 0084 전 끝난 작업 — 남은 설계 모두를 맡은 것으로 (새 작업이 생기지 않는다)
+  const old = projectCover([{ id: 'j1', status: 'closed', created_at: at(1) }], ids);
+  assert.deepEqual([old.rounds[0].cover, old.rest, old.live], [ids, [], null]);
+  // 취소한 작업은 세지 않는다 · 프로젝트에서 빠진 설계는 적어 둔 것에서도 뺀다
+  const x = projectCover([{ id: 'jx', status: 'cancelled', created_at: at(2) }, { id: 'j1', status: 'done', created_at: at(1), design_ids: ['d1', 'gone'] }], ids);
+  assert.deepEqual([x.rounds.length, x.rounds[0].cover, x.rest], [1, ['d1'], ['d2', 'd3']]);
+});
+
+test('차수 — DB 0084 전: 맡은 설계 칸이 없어도 작업은 예전처럼 끝난다 (적지 않을 뿐)', async () => {
+  const fake = world();
+  const inner = fake.fetch;
+  fake.fetch = async (input, init = {}) => {
+    const body = String(init.body || '');
+    if (body.includes('"design_ids"')) {
+      return new Response(JSON.stringify({ code: 'PGRST204', message: "Could not find the 'design_ids' column of 'work_jobs'" }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+    return inner(input, init);
+  };
+  await assign(fake, 't_owner', { kind: 'cutting', link_ids: [L(2)] });
+  const a = asgOf(fake, W(2));
+  await post(fake, 't_w2', `/work/assignments/${a.id}/confirm`);
+  await post(fake, 't_w2', `/work/assignments/${a.id}/start`);
+  const r = await post(fake, 't_w2', `/work/assignments/${a.id}/updates`, { kind: 'result', body: '끝' });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  const job = jobOf(fake, 'cutting');
+  assert.deepEqual([job.status, 'design_ids' in job], ['done', false]);
+});
+
+test('차수 — 진행 중인 작업이 있으면 새 설계도 그 작업이 함께 맡는다 (새 줄 없음) · 끝난 뒤 새 설계가 없으면 끝난 작업에 사람을 더 넣지 못한다', async () => {
+  const fake = world();
+  await assign(fake, 't_owner', { kind: 'assembly', link_ids: [L(2)] });
+  fake.db.designs.push({ id: D(3), company_id: A, user_id: OWNER_A, name: '김고객 신발장', project_id: P(1) });
+  const v = await view(fake, 't_owner');
+  const rows = v.json.data.rows.filter((r) => r.kind === 'assembly');
+  assert.deepEqual(rows.map((r) => [r.key, r.label, r.sheets.length]), [['kind:assembly', '조립', 3]]);
+  // 재단 — 끝났고 그 뒤 설계가 없다 → 끝난 작업에는 사람을 더 넣지 못한다 (새 작업도 만들지 않는다)
+  const f2 = world();
+  await assign(f2, 't_owner', { kind: 'cutting', link_ids: [L(2)] });
+  const a = asgOf(f2, W(2));
+  await post(f2, 't_w2', `/work/assignments/${a.id}/confirm`);
+  await post(f2, 't_w2', `/work/assignments/${a.id}/start`);
+  await post(f2, 't_w2', `/work/assignments/${a.id}/updates`, { kind: 'result', body: '끝' });
+  const again = await assign(f2, 't_owner', { kind: 'cutting', link_ids: [L(2)] });
+  assert.equal(again.status, 409, JSON.stringify(again.json));
+  assert.equal(f2.db.work_jobs.filter((j) => j.kind === 'cutting').length, 1);
 });
 
 test('현장 일(철거) — 수락하면 현장이 열리고, 완료 보고를 팩토리가 「확인」해야 끝난다', async () => {

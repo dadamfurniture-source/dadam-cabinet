@@ -14,7 +14,10 @@
  *       design_count, site { missing }
  *               can_assign, workers [{ assignment_id, name, status, label, reason, …, reports[] }], candidates [{ link_id, name, kinds, region }],
  *               recruit { on, state, slots, filled, deadline, applications [{ application_id, name, message, at }] } | null }] }
- *     줄: 철거 · 재단 · 엣지 · 조립은 늘 한 줄씩(프로젝트에 붙는 작업), 납품 · 설치 · A/S 방문은 그 프로젝트 설계의 일정마다 한 줄.
+ *     줄: 철거 · 재단 · 엣지 · 조립은 종류마다 한 줄(프로젝트에 붙는 작업), 납품 · 설치 · A/S 방문은 그 프로젝트 설계의 일정마다 한 줄.
+ *       차수 (2026-11-24 대표님 「추천대로 진행」 — 작업 배정 ①, DB 0084): 그 종류의 작업이 끝난 뒤 프로젝트에 새 설계(품목)가 오면
+ *       같은 종류의 새 작업을 만든다 — 줄은 「재단」(끝 — 맡은 설계만, 읽기만 · key job:<id> · ended) + 「재단 2차」(새 설계 — 배정).
+ *       줄마다 round(차수). 진행 중인 작업이 있으면 새 설계는 그 작업이 함께 맡는다 (지금처럼).
  *   POST  /company/projects/:id/work                 { kind, link_ids[], at? } — 철거 · 재단 · 엣지 · 조립 줄에 배정 (대표 · 실장)
  *     작업이 없으면 만들고(지정 방식 · 제목은 종류 이름뿐) 작업자마다 수락 대기로 넣는다. at = 작업 날짜 · 시각 (없어도 된다).
  *     납품 · 설치 · A/S 줄은 일정에 붙는다 → POST /company/schedules/:id/workers (work/schedule-link.js).
@@ -42,7 +45,7 @@ import { recordEvent } from './events.js';
 import { createInviteCore } from './invites.js';
 import { computeJobStatus, loadJobAssignments, lockJob } from './jobs.js';
 import { memoOf, orderSheetsOf, sheetMemoOf, sheetOf, sheetReader, writeSheetMemo } from './job-sheet.js';
-import { designLabels } from './job-links.js';
+import { JOB_DESIGN_MAX, designLabels, projectCover, projectDesignIds, projectJobsOfKind } from './job-links.js';
 import { closeRecruit, openRecruit, recruitOf } from './recruit.js';
 import { ACTIVE_STATUSES } from './reveal.js';
 import {
@@ -88,8 +91,8 @@ async function loadProject(env, company, rawId) {
   return row;
 }
 
-/** 그 프로젝트의 설계 id 들 · 가장 새 수주 (취소 뺌) */
-async function linksOfProject(env, company, project) {
+/** 그 프로젝트의 설계 id 들 · 가장 새 수주 (취소 뺌). only = 그 설계들 가운데서만 고른다 (차수 — 새 작업이 맡을 설계) */
+async function linksOfProject(env, company, project, only = null) {
   const co = `eq.${company.id}`;
   const [designs, orders] = await Promise.all([
     // 먼저 만든 설계부터 — 작업자의 지시서 목록(work/job-links.js)과 같은 차례
@@ -97,23 +100,37 @@ async function linksOfProject(env, company, project) {
     selectMany(env, 'orders', { project_id: `eq.${project.id}`, company_id: co, status: 'neq.cancelled', select: 'id,design_id', order: 'created_at.desc', limit: '20' }),
   ]);
   const designIds = (designs || []).map((d) => d.id);
-  const order = (orders || [])[0] || null;
+  const pool = Array.isArray(only) ? designIds.filter((id) => only.includes(id)) : designIds;
+  const order = (orders || []).find((o) => o.design_id && pool.includes(o.design_id)) || (only ? null : (orders || [])[0] || null);
   // 작업에 잇는 설계 — 가장 새 수주의 설계, 없으면 프로젝트의 설계 하나
-  const designId = order && order.design_id && designIds.includes(order.design_id) ? order.design_id : designIds[0] || null;
+  const designId = order && order.design_id && pool.includes(order.design_id) ? order.design_id : pool[0] || null;
   return { designIds, orderId: order ? order.id : null, designId };
 }
 
-/** 그 프로젝트 · 종류의 살아 있는 작업 (일정에서 생긴 작업은 아니다). 없으면 null */
+/**
+ * 그 프로젝트 · 종류의 작업 (일정에서 생긴 작업은 아니다) — 진행 중인 작업, 없으면:
+ *   끝난 작업들이 맡지 않은 설계가 있다 → null (새 작업 — 다음 차수를 만든다, DB 0084)
+ *   그런 설계가 없다 → 마지막 끝난 작업 (사람을 더 받지 않는다 — 부르는 쪽이 「끝난 작업」으로 막는다)
+ *   작업이 하나도 없다 → null
+ */
 async function projectJobOf(env, company, project, kind) {
-  return (await selectOne(env, 'work_jobs', {
-    project_id: `eq.${project.id}`, company_id: `eq.${company.id}`, kind: `eq.${kind}`, schedule_id: 'is.null', status: 'neq.cancelled',
-    select: '*', order: 'created_at.desc',
-  })) || null;
+  const [jobs, designIds] = await Promise.all([projectJobsOfKind(env, company.id, project.id, kind), projectDesignIds(env, company.id, project.id)]);
+  const { rounds, live, rest } = projectCover(jobs, designIds);
+  if (live) return live;
+  if (!rounds.length || rest.length) return null;
+  return rounds[rounds.length - 1].job;
+}
+
+/** 새 작업이 맡을 설계 — 같은 종류의 끝난 작업이 맡지 않은 설계 */
+async function restOf(env, company, project, kind) {
+  const [jobs, designIds] = await Promise.all([projectJobsOfKind(env, company.id, project.id, kind), projectDesignIds(env, company.id, project.id)]);
+  return projectCover(jobs, designIds).rest;
 }
 
 /** 프로젝트에 붙는 작업을 만든다 — 그 사이 다른 사람이 만들었으면 그 작업을 쓴다 */
 async function createProjectJob(env, { user, company, project, kind, at, slots }) {
-  const { orderId, designId } = await linksOfProject(env, company, project);
+  // 작업에 잇는 설계 · 수주 — 이 작업이 맡을 설계 가운데서 (2차부터는 끝난 작업 뒤에 온 설계)
+  const { orderId, designId } = await linksOfProject(env, company, project, await restOf(env, company, project, kind));
   const row = {
     kind,
     title: KIND_LABEL[kind] || kind,
@@ -177,8 +194,9 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
   const reader = sheetReader(env);
   // 줄이 여는 설계들 — 먼저 만든 것부터 (작업자의 지시서 목록과 같은 차례 · 같은 품목 이름, work/job-links.js)
   const shown = designIds.slice(0, SHEET_DESIGN_MAX);
-  const labels = shown.length ? await designLabels(env, shown) : [];
-  const labelOf = (designId) => (shown.indexOf(designId) >= 0 ? labels[shown.indexOf(designId)] : null);
+  const named = designIds.slice(0, JOB_DESIGN_MAX);
+  const labels = named.length ? await designLabels(env, named) : [];
+  const labelOf = (designId) => (named.indexOf(designId) >= 0 ? labels[named.indexOf(designId)] : null);
   const [links, projectJobs, schedules] = await Promise.all([
     selectMany(env, 'worker_companies', { company_id: co, status: 'eq.approved', select: 'id,worker_id,kinds,created_at', order: 'created_at.asc', limit: '500' }),
     selectMany(env, 'work_jobs', { project_id: `eq.${project.id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', select: '*', order: 'created_at.desc', limit: '50' }),
@@ -210,7 +228,8 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
         .map((u) => ({ kind: u.kind, by: u.author_role, body: u.body, issue_chips: Array.isArray(u.issue_chips) ? u.issue_chips : [], at: u.created_at || null }));
     const active = (a) => (ACTIVE_STATUSES.includes(a.status) ? 0 : 1);
     // 지시서 — 프로젝트 줄은 그 프로젝트에 이은 설계마다, 일정 줄은 그 일정의 설계. 첫 설계는 필수 확인 수까지. A/S 는 null
-    const sheetDesigns = base.source === 'project' ? shown : base.design_id ? [base.design_id] : [];
+    // 프로젝트 줄은 그 작업이 맡는 설계 (차수 — 끝난 작업은 맡았던 설계, 진행 중 · 새 작업은 그 뒤 설계)
+    const sheetDesigns = base.source === 'project' ? (base.designs || shown).slice(0, SHEET_DESIGN_MAX) : base.design_id ? [base.design_id] : [];
     const firstId = sheetDesigns[0] || null;
     const first = await sheetOf(reader, { kind: base.kind, designId: firstId });
     const sheets = first === null
@@ -239,9 +258,25 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
 
   const rows = [];
   for (const kind of PROJECT_KINDS) {
-    let job = (projectJobs || []).find((j) => j.kind === kind) || null;
-    if (job) job = await fillJobLinks(env, job, { designId: projectDesignId, orderId: projectOrderId });
-    rows.push(await rowOf({ key: `kind:${kind}`, kind, label: KIND_LABEL[kind], source: 'project', schedule_id: null, schedule_status: null, at: job ? job.starts_at || null : null, design_id: projectDesignId }, job, true));
+    const { rounds, live, rest } = projectCover((projectJobs || []).filter((j) => j.kind === kind), designIds);
+    // 끝난 작업만 있고 그 뒤 온 설계가 있으면 새 줄(다음 차수)
+    const next = !live && (!rounds.length || rest.length) ? rounds.length + 1 : 0;
+    const many = rounds.length + (next ? 1 : 0) > 1;
+    const labelAt = (round) => (many && round > 1 ? `${KIND_LABEL[kind]} ${round}차` : KIND_LABEL[kind]);
+    const base = (round, extra) => ({ kind, label: labelAt(round), round, source: 'project', schedule_id: null, schedule_status: null, ...extra });
+    for (const r of rounds) {
+      if (!r.ended) continue;
+      // 끝난 작업 — 맡았던 설계만, 읽기만 (사람 · 날짜 · 메모를 바꾸지 않는다)
+      rows.push(await rowOf(base(r.round, { key: `job:${r.job.id}`, ended: true, at: r.job.starts_at || null, design_id: r.cover[0] || null, designs: r.cover }), r.job, false));
+    }
+    if (live) {
+      const round = rounds.find((r) => r.job.id === live.id).round;
+      const links = await linksOfProject(env, company, project, rest);
+      const job = await fillJobLinks(env, live, { designId: links.designId || projectDesignId, orderId: links.orderId || projectOrderId });
+      rows.push(await rowOf(base(round, { key: `kind:${kind}`, at: job.starts_at || null, design_id: rest[0] || projectDesignId, designs: rest }), job, true));
+    } else if (next) {
+      rows.push(await rowOf(base(next, { key: `kind:${kind}`, at: null, design_id: rest[0] || projectDesignId, designs: rest }), null, true));
+    }
   }
   for (const s of schedules || []) {
     const kind = SCHEDULE_JOB_KIND[s.type];
@@ -263,7 +298,7 @@ async function viewOf(env, ctx, { company, canAct, holds, project }) {
     can_manage: canAct,
     can_assign: mayAssign,
     // 줄의 design_id 는 지시서를 찾는 데만 쓴다 — 응답에는 싣지 않는다
-    rows: rows.map(({ design_id, ...row }) => row),
+    rows: rows.map(({ design_id, designs: _designs, ...row }) => row),
     designs,
     design_count: designIds.length,
     site: { missing: !!projectDesignId && !(site && site.info && typeof site.info.address === 'string' && site.info.address.trim()) },
