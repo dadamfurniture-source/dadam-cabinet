@@ -1074,6 +1074,45 @@ describe('지시서 — 줄마다 그 작업의 지시서 · 철거 · 납품 �
     expect(workCalls(calls).filter((c) => c[0] !== 'GET').pop()).toEqual(['PUT', '/company/work/jobs/j-6/sheet-memo', { memo: '' }]);
   });
 
+  // 차수 (2026-11-24 대표님 「추천대로 진행」 — 작업 배정 ①): 끝난 작업의 줄(job:<id>)은 읽기만, 그 뒤 온 품목은 「철거 2차」 줄
+  test('차수 — 끝난 작업의 줄은 메모를 고치지 못한다(적힌 메모는 글로), 「2차」 줄은 지금처럼 고친다', async () => {
+    const rounds = VIEW();
+    rounds.rows.splice(
+      0,
+      1,
+      row('demolition', '철거', {
+        key: 'job:j-0',
+        round: 1,
+        ended: true,
+        can_assign: false,
+        job: { id: 'j-0', status: 'done' },
+        sheet: sheet('demolition_order', '철거 지시서', ['demolition'], issued(D1, 'DD-20261117-AAAA-DM-r1', { done: 1, total: 1, must_left: 0 })),
+        sheet_memo: '끝난 작업의 메모',
+      }),
+      row('demolition', '철거 2차', {
+        round: 2,
+        job: null,
+        sheet: sheet('demolition_order', '철거 지시서', ['demolition'], issued(D2, 'DD-20261124-BBBB-DM-r1', { done: 0, total: 1, must_left: 1 })),
+        sheet_memo: null,
+      })
+    );
+    const M = mod();
+    const d = M.dataOf(rounds);
+    expect(d.rows.filter((r) => r.kind === 'demolition').map((r) => [r.key, r.label, r.ended])).toEqual([
+      ['job:j-0', '철거', true],
+      ['kind:demolition', '철거 2차', false],
+    ]);
+    await openPanel({ work: () => ok(rounds) });
+    expect([...panel().querySelectorAll('[data-pjw-row] th')].slice(0, 2).map(text)).toEqual(['철거', '철거 2차']);
+    await openRow('job:j-0');
+    expect(panel().querySelector('[name="pw-memo"]')).toBeNull();
+    expect(text(panel().querySelector('.pjw-memo-text'))).toBe('끝난 작업의 메모');
+    expect(text(panel())).not.toContain('작업자를 배정한 뒤에');
+    await press(act('pw-fold'));
+    await openRow('kind:demolition');
+    expect(panel().querySelector('[name="pw-memo"]')).not.toBeNull();
+  });
+
   test('메모 — 납품 줄에 작업이 아직 없으면 적을 수 없다는 글, 서버가 막으면 그 글', async () => {
     const noJob = VIEW();
     noJob.rows[4].job = null;

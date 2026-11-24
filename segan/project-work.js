@@ -370,6 +370,8 @@
       sheet: first,
       sheets: sheetsOf(r.sheets, first),
       memo: str(r.sheet_memo),
+      // 끝난 작업의 줄 — 읽기만 (차수 2026-11-24: 그 뒤 온 품목은 다음 줄 「재단 2차」. 서버 key job:<id>)
+      ended: r.ended === true,
       assign: r.can_assign === true,
       recruit: recruitKit() ? recruitKit().recruitOf(r.recruit) : null,
       workers: (Array.isArray(r.workers) ? r.workers : []).map(workerOf).filter(Boolean),
@@ -810,8 +812,9 @@
     var open = '';
     var memo = '';
     if (MEMO_KINDS.indexOf(row.kind) >= 0) {
-      // 철거 줄은 작업이 없어도 적는다 (서버가 만든다), 납품 줄은 일정에서 생긴 작업이 있어야 한다
-      var can = d.manage && (!row.schedule || !!row.jobId);
+      // 철거 줄은 작업이 없어도 적는다 (서버가 만든다), 납품 줄은 일정에서 생긴 작업이 있어야 한다.
+      // 끝난 작업의 줄은 읽기만 — 메모를 고치면 같은 종류의 진행 중인 작업에 적힌다 (서버는 종류로 찾는다)
+      var can = d.manage && !row.ended && (!row.schedule || !!row.jobId);
       if (can)
         memo =
           '<label class="mk-input pjw-memo"><span>' +
@@ -834,7 +837,7 @@
           '</p><p class="pjw-memo-text">' +
           esc(row.memo) +
           '</p>';
-      else if (d.manage) memo = '<p class="mk-note">' + esc(TEXT.memoNeedJob) + '</p>';
+      else if (d.manage && !row.ended) memo = '<p class="mk-note">' + esc(TEXT.memoNeedJob) + '</p>';
     }
     return (
       '<div class="pjw-sheet" data-pjw="sheet"><p class="cw-label">' +
