@@ -1,0 +1,130 @@
+{
+  "title": "0084 프로젝트 작업의 차수 — 프로젝트 · 종류마다 진행 중인 작업 하나(완료 · 마감 · 취소는 세지 않는다), 끝난 작업이 맡은 설계(design_ids)는 프로젝트 작업에만 · 50개까지",
+  "ids": [
+    "company_x",
+    "customer_x",
+    "project_x",
+    "design_a",
+    "design_b",
+    "job_cut_done",
+    "job_asm_live",
+    "job_edge_closed"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{customer_x}}, {{company_x}}, 'probe')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_x}}, {{company_x}}, {{customer_x}}, 'probe X')",
+    "INSERT INTO public.designs (id, user_id, name, company_id, project_id) VALUES ({{design_a}}, {{x_owner_user}}, 'probe A', {{company_x}}, {{project_x}}), ({{design_b}}, {{x_owner_user}}, 'probe B', {{company_x}}, {{project_x}})",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id, design_ids) VALUES ({{job_cut_done}}, 'cutting', 'probe 재단', 'done', {{company_x}}, {{project_x}}, ARRAY[{{design_a}}])",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id) VALUES ({{job_asm_live}}, 'assembly', 'probe 조립', 'in_progress', {{company_x}}, {{project_x}})",
+    "INSERT INTO public.work_jobs (id, kind, title, status, company_id, project_id, design_ids) VALUES ({{job_edge_closed}}, 'edge', 'probe 엣지', 'closed', {{company_x}}, {{project_x}}, ARRAY[{{design_a}}])"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "끝난 재단 작업이 있어도 같은 종류의 새 작업(2차)을 넣는다",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('cutting', 'probe 재단 2차', 'open', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "마감한 작업도 세지 않는다",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('edge', 'probe 엣지 2차', 'open', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "진행 중인 작업이 있으면 같은 종류는 하나뿐",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, project_id) values ('assembly', 'probe 조립 겹침', 'draft', {{company_x}}, {{project_x}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "검수 중(review)도 진행 중이다",
+      "sql": "update public.work_jobs set status = 'review' where id = {{job_asm_live}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "끝난 작업이 맡은 설계 — 적혀 있다",
+      "sql": "select cardinality(design_ids)::text || '/' || (design_ids[1] = {{design_a}})::text from public.work_jobs where id = {{job_cut_done}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1/true"
+      }
+    },
+    {
+      "name": "끝날 때 맡은 설계를 적는다 (서버)",
+      "sql": "update public.work_jobs set status = 'done', design_ids = ARRAY[{{design_a}}, {{design_b}}] where id = {{job_asm_live}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "맡은 설계는 프로젝트 작업에만 (프로젝트 없는 작업에는 못 적는다)",
+      "sql": "insert into public.work_jobs (kind, title, status, company_id, design_ids) values ('install', 'probe 설치', 'open', {{company_x}}, ARRAY[{{design_a}}])",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "맡은 설계는 50개까지",
+      "sql": "update public.work_jobs set design_ids = (select array_agg(gen_random_uuid()) from generate_series(1, 51)) where id = {{job_cut_done}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "구성원은 작업의 맡은 설계를 직접 고치지 못한다",
+      "sql": "update public.work_jobs set design_ids = null where id = {{job_cut_done}}",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "rows:0"
+      }
+    }
+  ]
+}
