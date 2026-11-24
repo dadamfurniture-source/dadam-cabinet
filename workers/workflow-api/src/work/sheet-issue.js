@@ -28,6 +28,7 @@ import { currentDoc, ROLE_OF_JOB_KIND, DOC_TYPE_OF_ROLE } from './check-state.js
 import { officeNotesOfDoc } from './special-notes.js';
 import { siteChanged } from './job-sheet.js';
 import { assertUuid } from './validate.js';
+import { projectCover, projectDesignIds } from './job-links.js';
 
 /** 이 길로 내는 문서 — 작업마다의 지시서 넷 (고객 확인서는 발행 창에서) */
 export const SHEET_DOC_TYPES = Object.freeze(['work_order', 'installation_order', 'demolition_order', 'delivery_order']);
@@ -57,14 +58,21 @@ async function notifyReissued(env, { design, docType, document }) {
     const kinds = kindsOfDocType(docType);
     const co = `eq.${design.company_id}`;
     const cols = 'id,kind,starts_at,schedule_id,project_id,status';
-    const [byProject, byDesign] = await Promise.all([
+    const [byProject, byDesign, projectDesigns] = await Promise.all([
       design.project_id
-        ? selectMany(env, 'work_jobs', { project_id: `eq.${design.project_id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', kind: `in.(${kinds.join(',')})`, select: cols, limit: '20' })
+        ? selectMany(env, 'work_jobs', { project_id: `eq.${design.project_id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', kind: `in.(${kinds.join(',')})`, select: '*', limit: '20' })
         : [],
       selectMany(env, 'work_jobs', { design_id: `eq.${design.id}`, company_id: co, status: 'neq.cancelled', kind: `in.(${kinds.join(',')})`, select: cols, limit: '20' }),
+      design.project_id ? projectDesignIds(env, design.company_id, design.project_id) : [],
     ]);
+    // 프로젝트 작업은 이 설계를 맡는 것만 (차수 — 끝난 1차 작업 뒤에 온 설계는 2차 작업의 작업자에게)
+    const covering = [];
+    for (const kind of kinds) {
+      const { rounds } = projectCover((byProject || []).filter((j) => j.kind === kind), projectDesigns);
+      rounds.filter((r) => r.cover.includes(design.id)).forEach((r) => covering.push(r.job));
+    }
     const jobs = new Map();
-    [...(byProject || []), ...(byDesign || []).filter((j) => j.schedule_id)].forEach((j) => jobs.set(j.id, j));
+    [...covering, ...(byDesign || []).filter((j) => j.schedule_id)].forEach((j) => jobs.set(j.id, j));
     for (const job of jobs.values()) await notifyWorkSheet(env, { job, documentId: document.id });
   } catch (e) {
     if (!isMissingRelation(e)) console.warn('[sheet-issue] 작업자 알림 실패:', e && e.message);

@@ -21,6 +21,7 @@ import { completeScheduleOf } from './schedule-names.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment, siteOpenFor } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
 import { approvedLinkMap, companyNames, kindsFor } from './links.js';
+import { coverOfJob, isProjectJob, ENDED_JOB_STATUSES } from './job-links.js';
 import { workerSheetsOf } from './job-links.js';
 
 export const JOB_STATUSES = Object.freeze(['draft', 'open', 'filled', 'in_progress', 'review', 'done', 'closed', 'cancelled']);
@@ -87,14 +88,36 @@ export async function loadJobAssignments(env, jobId) {
 
 /** version 조건부 갱신 — 비면 409 */
 export async function lockJob(env, job, patch = {}) {
-  const rows = await updateBy(
+  const write = (body) => updateBy(
     env,
     'work_jobs',
     { id: `eq.${job.id}`, version: `eq.${job.version}` },
-    { ...patch, version: (Number(job.version) || 0) + 1, updated_at: nowIso() },
+    { ...body, version: (Number(job.version) || 0) + 1, updated_at: nowIso() },
   );
+  // 프로젝트 작업이 끝난다(완료 · 마감) — 그때 맡은 설계를 적어 둔다. 그 뒤 프로젝트에 온 설계는 같은 종류의 새 작업이 맡는다 (DB 0084)
+  const frozen = await freezeCover(env, job, patch);
+  let rows;
+  try {
+    rows = await write(frozen);
+  } catch (e) {
+    // 0084 전 — 칸이 없으면 적지 않고 예전처럼
+    if (frozen === patch || !/42703|PGRST204|design_ids/.test(String((e && e.message) || ''))) throw e;
+    rows = await write(patch);
+  }
   if (!rows || !rows.length) throw new ConflictError('다른 변경과 겹쳤습니다. 새로 고친 뒤 다시 시도하세요');
   return rows[0];
+}
+
+/** 끝나는 프로젝트 작업이면 patch 에 맡은 설계(design_ids)를 더한다 — 못 읽으면 그대로 (작업 상태 바꾸기를 막지 않는다) */
+async function freezeCover(env, job, patch) {
+  if (!patch || !ENDED_JOB_STATUSES.includes(patch.status) || !isProjectJob(job) || !job.company_id) return patch;
+  if (Array.isArray(job.design_ids)) return patch;
+  try {
+    return { ...patch, design_ids: await coverOfJob(env, job) };
+  } catch (e) {
+    console.warn('[work] 끝난 작업의 설계를 적지 못했습니다:', e && e.message);
+    return patch;
+  }
 }
 
 /**

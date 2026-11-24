@@ -41,6 +41,7 @@ import { workersCompanyOf } from './company.js';
 import { recordEvent } from './events.js';
 import { lockJob } from './jobs.js';
 import { KIND_LABEL, PROJECT_KINDS, assertUuid } from './validate.js';
+import { coverOfJob, projectCover, projectDesignIds } from './job-links.js';
 
 /** 사무실 메모 글자 수 — DB 0068 work_jobs_sheet_memo_chk 와 같다 */
 export const SHEET_MEMO_MAX = 2000;
@@ -253,11 +254,19 @@ async function jobStatesOf(env, reader, design) {
   let assignments = [];
   const names = new Map();
   try {
-    const [byProject, byDesign] = await Promise.all([
-      design.project_id ? selectMany(env, 'work_jobs', { project_id: `eq.${design.project_id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', select: cols, limit: '50' }) : [],
+    const [byProject, byDesign, projectDesigns] = await Promise.all([
+      // 프로젝트 작업 — 맡은 설계(design_ids, DB 0084)까지 읽는다 ('*': 칸이 없으면 없는 대로)
+      design.project_id ? selectMany(env, 'work_jobs', { project_id: `eq.${design.project_id}`, company_id: co, schedule_id: 'is.null', status: 'neq.cancelled', select: '*', limit: '50' }) : [],
       selectMany(env, 'work_jobs', { design_id: `eq.${design.id}`, company_id: co, status: 'neq.cancelled', select: cols, limit: '50' }),
+      design.project_id ? projectDesignIds(env, design.company_id, design.project_id) : [],
     ]);
-    jobs = [...(byProject || []), ...(byDesign || []).filter((j) => j.schedule_id)];
+    // 종류마다 이 설계를 맡는 작업만 — 같은 종류의 끝난 작업 뒤에 온 설계는 새 작업(2차) 것이다 (차수)
+    const mine = [];
+    for (const kind of PROJECT_KINDS) {
+      const { rounds } = projectCover((byProject || []).filter((j) => j.kind === kind), projectDesigns);
+      rounds.filter((r) => r.cover.includes(design.id)).forEach((r) => mine.push(r.job));
+    }
+    jobs = [...mine, ...(byDesign || []).filter((j) => j.schedule_id)];
     if (jobs.length) {
       assignments = (await selectMany(env, 'work_assignments', { job_id: `in.(${jobs.map((j) => j.id).join(',')})`, select: 'id,job_id,worker_id,status', limit: '500' })) || [];
       const workerIds = [...new Set(assignments.filter((a) => a.status === 'offered' || a.status === 'accepted' || LINKED_STATUSES.includes(a.status)).map((a) => a.worker_id))];
@@ -355,10 +364,9 @@ export async function memoForPrint(env, { doc, jobId }) {
   const k = job ? sheetKindOf(job.kind) : null;
   if (!k || k.doc_type !== doc.doc_type) return '';
   if (job.design_id !== doc.design_id) {
-    // 프로젝트 「작업 배정」의 작업은 그 프로젝트의 설계 모두의 것이다 (work/job-links.js) — 이 문서의 설계가 그 프로젝트 · 그 팩토리의 것이면 같은 메모
+    // 프로젝트 「작업 배정」의 작업은 그 작업이 맡는 설계들의 것이다 (work/job-links.js — 차수: 끝난 작업 뒤에 온 설계는 다음 작업 것)
     if (!job.project_id || job.schedule_id || !job.company_id) return '';
-    const design = await selectOne(env, 'designs', { id: `eq.${doc.design_id}`, company_id: `eq.${job.company_id}`, project_id: `eq.${job.project_id}`, select: 'id' });
-    if (!design) return '';
+    if (!(await coverOfJob(env, job)).includes(doc.design_id)) return '';
   }
   return sheetMemoOf(job) || '';
 }
