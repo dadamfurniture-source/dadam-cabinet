@@ -270,8 +270,10 @@ describe('프로필 수정 — mypage.html submitEditProfile', () => {
     expect(calls.updateUser).toEqual([
       { data: { name: '새 이름', phone: '', sido: '경기도', gugun: '수원시' } },
     ]);
-    expect(calls.profiles).toHaveLength(1);
-    const p = calls.profiles[0];
+    // 앞의 한 줄은 화면을 열 때 읽는 혜택 · 새 소식 설정 — 고치기는 하나
+    const updates = calls.profiles.filter((q) => q.update);
+    expect(updates).toHaveLength(1);
+    const p = updates[0];
     expect(p.table).toBe('profiles');
     expect(p.eq).toEqual(['id', 'user-1']);
     expect(Object.keys(p.update).sort()).toEqual(['gugun', 'name', 'phone', 'sido', 'updated_at']);
@@ -309,21 +311,25 @@ describe('프로필 수정 — mypage.html submitEditProfile', () => {
   });
 });
 
-describe('비밀번호 — 앱에서 바꾸지 않는다', () => {
-  test('안내 한 줄 + 로그인 화면 「비밀번호 찾기」와 같은 곳(reset-password.html)으로', async () => {
+describe('로그인 — 카카오 · 구글만 (2026-11-23 이메일 · 비밀번호 로그인 없앰)', () => {
+  test.each([
+    [{ provider: 'kakao', providers: ['kakao'] }, '카카오'],
+    [{ provider: 'google', providers: ['google'] }, '구글'],
+    [{ provider: 'email', providers: ['email', 'google'] }, '이메일(예전 가입) · 구글'],
+    [{ provider: 'kakao' }, '카카오'],
+    [{ provider: '<img src=x>', providers: ['<img src=x>'] }, '-'],
+    [undefined, '-'],
+  ])('계정 정보 「로그인」 줄: %j → %s (고정 이름만, textContent)', async (app, text) => {
+    await load({ session: session({ ...USER, app_metadata: app }) });
+    expect($('stLogin').textContent).toBe(text);
+    expect($('stLogin').querySelector('img')).toBeNull();
+  });
+
+  test('비밀번호 칸 · 비밀번호 찾기 링크가 없다', async () => {
     await load();
-    // login.html 의 「비밀번호 찾기」가 가리키는 곳 (정본)
-    const login = read('login.html').match(
-      /<a href="([^"]+)" class="forgot-link">비밀번호 찾기<\/a>/
-    );
-    expect(login).not.toBeNull();
-    const a = $('stPwLink');
-    expect(a.textContent).toBe('비밀번호 찾기');
-    expect(a.getAttribute('href')).toBe('../' + login[1]);
-    expect(fs.existsSync(path.join(ROOT, 'segan', a.getAttribute('href')))).toBe(true);
-    expect($('stPwNote').textContent.replace(/\s+/g, ' ').trim()).toBe(
-      '비밀번호는 앱에서 바꾸지 않습니다. 로그인 화면의 「비밀번호 찾기」에서 가입한 이메일로 재설정 링크를 받아 바꿀 수 있습니다.'
-    );
+    for (const id of ['stPwTitle', 'stPwNote', 'stPwLink']) expect($(id)).toBeNull();
+    expect(document.querySelector('a[href*="reset-password"]')).toBeNull();
+    expect(read('segan/settings.html')).not.toMatch(/비밀번호 찾기/);
   });
 
   test('비밀번호 칸 · 바꾸기 호출이 없다 (새 재설정 흐름을 만들지 않는다)', async () => {

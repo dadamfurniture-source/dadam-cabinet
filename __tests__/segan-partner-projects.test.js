@@ -454,6 +454,116 @@ describe('프로젝트 관리 — 단계로 거른 보기 (segan/me.js 가 setVi
     );
   const chip = (attr) => box().querySelector('.pj-chip' + attr);
 
+  // ── 품목 줄 (2026-11-23 대표님 「워크플로우를 현재 변경된 프로젝트 지정에 맞게」 — 서버 items · next.item: workflow-api pipeline-items.js) ──
+  const D_SINK = 'draft-sink-0001';
+  const D_WARD = 'draft-ward-0001';
+  const twoItems = () => [
+    {
+      key: 'draft:' + D_SINK,
+      label: '싱크대',
+      step: 'make',
+      step_label: '생산',
+      next: { key: 'deliver', label: '배송으로 넘기기', go: 'order:' + ORD, wait: false, since: null, allowed: true },
+      draft_id: D_SINK,
+      design_id: 'design-1',
+      order_id: ORD,
+    },
+    {
+      key: 'draft:' + D_WARD,
+      label: '붙박이장 <안방>',
+      step: 'design',
+      step_label: '설계',
+      next: { key: 'design', label: '설계 이어서', go: 'planner?draft=' + D_WARD, wait: false, since: null, allowed: true },
+      draft_id: D_WARD,
+      design_id: null,
+      order_id: null,
+    },
+  ];
+
+  test('품목 줄 — 품목이 둘 이상이면 줄에 품목별 단계 한 줄, 다음 할 일 앞에 그 품목 이름. 하나면 지금처럼', async () => {
+    const items = twoItems();
+    await load({
+      list: flowed([
+        item(P1, '예시 주방', {
+          step: 'design',
+          items,
+          next: { ...items[1].next, item: items[1].label },
+        }),
+        item(P3, '품목 하나', { step: 'design', items: [items[1]], next: items[1].next }),
+        item(P4, '옛 서버', { step: 'design', next: items[1].next }),
+      ]),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    // 글자 그대로 (품목 이름은 사람이 적은 글이다)
+    const line = rowOf(P1).querySelector('[data-pj="items"]');
+    expect(line.textContent).toBe('싱크대 생산 · 붙박이장 <안방> 설계');
+    expect(line.querySelector('안방')).toBeNull();
+    const btn = rowOf(P1).querySelector('[data-next="design"]');
+    expect(btn.textContent).toBe('붙박이장 <안방> 설계 이어서');
+    // 단계는 가장 늦은 품목 것 (서버가 준 step 그대로)
+    expect(stepOf(P1)).toContain('설계');
+    // 품목이 하나 · 옛 서버(items 없음) — 줄도 이름도 없다
+    for (const id of [P3, P4]) {
+      expect(rowOf(id).querySelector('[data-pj="items"]')).toBeNull();
+      expect(rowOf(id).querySelector('[data-next="design"]').textContent).toBe('설계 이어서');
+    }
+  });
+
+  test('품목 줄 — 기다림 · 내 직책으로 못 하는 일에도 품목 이름. 끝난 프로젝트에는 품목 줄이 없다', async () => {
+    const items = twoItems();
+    await load({
+      list: flowed([
+        item(P1, '답 기다림', {
+          step: 'quote',
+          items,
+          next: { key: 'customer', label: '고객 답 기다림', go: 'p-quote', wait: true, since: null, allowed: false, item: '싱크대' },
+        }),
+        item(P3, '대표 몫', {
+          step: 'contract',
+          items,
+          next: { key: 'deposit', label: '계약금 입금 적기', go: 'order:' + ORD, wait: false, since: null, allowed: false, item: '싱크대' },
+        }),
+        item(P4, '끝남', { step: 'done', status: 'closed', items }),
+      ]),
+    });
+    await flush();
+    await openScreen('partner-projects');
+    expect(rowOf(P1).querySelector('.pj-wait').textContent).toBe('싱크대 고객 답 기다림');
+    expect(rowOf(P3).querySelector('.pj-wait').textContent).toContain('싱크대 계약금 입금 적기 — ');
+    expect(rowOf(P4).querySelector('[data-pj="items"]')).toBeNull();
+  });
+
+  test('품목마다의 다음 할 일 — 한 건 화면의 「품목」 칸이 쓰는 값 (itemFlowsOf · addItemUrl)', async () => {
+    const items = twoItems();
+    await load({ list: flowed([item(P1, '예시 주방', { step: 'design', items, next: { ...items[1].next, item: items[1].label } })]) });
+    await flush();
+    const PP = window.SeganPartnerProjects;
+    const p = PP.state.data.items.find((x) => x.id === P1);
+    const flows = PP.itemFlowsOf(p);
+    expect(flows.map((x) => [x.key, x.label, x.step, x.stepLabel, x.draftId, x.designId, x.orderId])).toEqual([
+      ['draft:' + D_SINK, '싱크대', 'make', '생산', D_SINK, 'design-1', ORD],
+      ['draft:' + D_WARD, '붙박이장 <안방>', 'design', '설계', D_WARD, '', ''],
+    ]);
+    // 단추는 프로젝트 줄의 것과 같은 꼴 — 수주 창 · 플래너. 품목 이름은 단추에 다시 붙이지 않는다 (칸의 이름 옆에 선다)
+    document.body.insertAdjacentHTML('beforeend', '<div id="itemProbe">' + flows.map((x) => x.act).join('') + '</div>');
+    const probe = document.getElementById('itemProbe');
+    const [deliver, design] = [...probe.children];
+    expect([deliver.getAttribute('data-act'), deliver.getAttribute('data-id'), deliver.textContent]).toEqual(['next-sheet', ORD, '배송으로 넘기기']);
+    expect(design.textContent).toBe('설계 이어서');
+    // 플래너 주소 — 그 품목의 초안으로 / 프로젝트로 (앱의 플래너 링크가 있을 때만)
+    const links = (window.SeganShell && window.SeganShell.ROLE_LINKS) || [];
+    const base = (links.find((l) => l.key === 'planner') || {}).href || '';
+    expect(flows[1].open).toBe(base ? base + '?draft=' + D_WARD : '');
+    expect(PP.addItemUrl(p)).toBe(base ? base + '?project=' + P1 : '');
+    expect(PP.addItemUrl({ id: 'x' })).toBe('');
+    // 모양이 틀린 줄은 버린다 · 품목이 없으면 빈 목록
+    expect(PP.itemFlowsOf({ id: P1, items: [null, { label: '', step: 'make' }, { label: '이름', step: 'nope' }] })).toEqual([]);
+    expect(PP.itemFlowsOf({ id: P1 })).toEqual([]);
+    // 끝난 품목은 「끝」 (단계 띠의 마지막 칸 이름 A/S 가 아니다)
+    expect(PP.itemFlowsOf({ id: P1, status: 'active', items: [{ key: 'k', label: '싱크대', step: 'done', next: null }] })[0].stepLabel).toBe('끝');
+  });
+
   test('작은 단계 띠 — 지난 단계 · 지금 단계 · 남은 단계 일곱 칸과 지금 단계 이름. 서버가 값을 안 주면(옛 서버) · 끝난 프로젝트는 띠가 없다', async () => {
     await load({
       list: flowed([

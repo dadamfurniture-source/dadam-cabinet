@@ -1108,6 +1108,21 @@
   color: var(--v5-ink);
 }
 
+/* 모두 동의 — 아래 선택 칸들과 가는 선으로 나눈다 */
+.cs-agree--all {
+  font-weight: 400;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+/* 수집 · 이용 안내 — 체크 칸 대신 글 */
+.cs-notice {
+  margin: 0;
+  padding-top: 4px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
 .cs-agree-detail > summary {
   display: flex;
   align-items: center;

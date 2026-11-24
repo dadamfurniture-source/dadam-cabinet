@@ -621,7 +621,9 @@ test('목록 — 지금 단계 step · 다음 할 일 next · 내 직책 role: �
     source_ref: 'd-0',
   });
   f = await flowOf(fake, FACTORY_OWNER, PRJ_F1);
-  assert.deepEqual(f.brief, ['design', 'quote', 'planner?draft=d-1']);
+  // 품목이 둘이다 (2026-11-23 품목 줄) — d-0 은 보냈고 d-1 은 아직 그리는 중. 둘 다 「설계」 단계라 가장 최근에 만진 d-1 의 「설계 이어서」가 프로젝트의 다음 할 일이다
+  //   (예전에는 「견적 내기」가 엉뚱하게 d-1 을 열었다). d-0 의 「견적 내기」는 품목 줄에 있다
+  assert.deepEqual(f.brief, ['design', 'design', 'planner?draft=d-1']);
   // 요약에 프로젝트가 없어도 보낸 설계의 원본(source_ref)으로 초안을 찾는다 — 이 기능 전에 보낸 설계
   for (const d of fake.db.planner_drafts) d.summary = {};
   f = await flowOf(fake, FACTORY_OWNER, PRJ_F1);
@@ -629,6 +631,144 @@ test('목록 — 지금 단계 step · 다음 할 일 next · 내 직책 role: �
   // 끝난 프로젝트 — 끝, 할 일 없음
   const closed = await flowOf(fake, OWNER_A, PRJ_A2);
   assert.deepEqual(closed.brief, ['done', null, null]);
+});
+
+// ── 품목 줄 (2026-11-23 대표님 「워크플로우를 현재 변경된 프로젝트 지정에 맞게 변경」 — 단계 = 가장 늦은 품목, 견적 · 계약은 품목마다) ──
+/** 그 프로젝트의 줄 — 목록 응답 그대로 */
+async function rowOf(fake, token, id) {
+  const r = await call(fake, '/company/projects', token);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  return r.json.data.items.find((x) => x.id === id);
+}
+/** 고객 확인서(견적) 한 장 — 그 설계의 것 */
+const quoteDoc = (id, designId, extra = {}) => ({
+  id,
+  design_id: designId,
+  doc_type: 'customer_confirmation',
+  status: 'issued',
+  decision: null,
+  decided_at: null,
+  first_viewed_at: null,
+  view_count: 0,
+  expires_at: '2099-01-01T00:00:00Z',
+  superseded_by: null,
+  created_at: at(11),
+  ...extra,
+});
+const itemBrief = (p) => (p.items || []).map((x) => [x.label, x.step, x.next && x.next.key, x.next && x.next.go]);
+
+test('품목 줄 — 품목이 하나면 예전 그대로이고 items 에 한 줄, 품목이 없으면 items 칸이 없다', async () => {
+  const fake = fakeOf();
+  assert.equal('items' in (await rowOf(fake, FACTORY_OWNER, PRJ_F1)), false);
+  fake.db.planner_drafts.push(draftRow(FACTORY, 'd-sink', { item: 'sink', name: '예시 주방 · 싱크대', created_by: FACTORY_OWNER, created_at: at(10), summary: { projectId: PRJ_F1 } }));
+  const p = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([p.step, p.next.key, p.next.go], ['design', 'design', 'planner?draft=d-sink']);
+  assert.equal('item' in p.next, false, '품목이 하나면 다음 할 일에 품목 이름을 붙이지 않는다');
+  assert.deepEqual(p.items, [
+    { key: 'draft:d-sink', label: '싱크대', step: 'design', step_label: '설계', next: p.next, draft_id: 'd-sink', design_id: null, order_id: null },
+  ]);
+});
+
+test('품목 줄 — 싱크대는 생산 중 · 붙박이장은 아직 설계: 프로젝트는 「설계」, 다음 할 일은 붙박이장 것, 품목마다 제 다음 할 일', async () => {
+  const fake = fakeOf();
+  const D_SINK = rid(171);
+  const DOC = rid(172);
+  const O_SINK = rid(173);
+  fake.db.planner_drafts.push(
+    draftRow(FACTORY, 'd-sink', { item: 'sink', name: '예시 주방 · 싱크대', created_by: FACTORY_OWNER, created_at: at(10), updated_at: at(12), summary: { projectId: PRJ_F1 } }),
+    draftRow(FACTORY, 'd-ward', { item: 'wardrobe', name: '예시 주방 · 붙박이장 안방', created_by: FACTORY_OWNER, created_at: at(15), updated_at: at(16), summary: { projectId: PRJ_F1 } })
+  );
+  fake.db.designs.push({ id: D_SINK, company_id: FACTORY, user_id: FACTORY_OWNER, project_id: PRJ_F1, name: '예시 주방 · 싱크대', source: 'planner-lite', source_ref: 'd-sink', created_at: at(12) });
+  fake.db.design_documents.push(quoteDoc(DOC, D_SINK, { created_at: at(13), decision: 'approved', decided_at: at(14) }));
+  fake.db.orders.push({ id: O_SINK, company_id: FACTORY, project_id: PRJ_F1, design_id: D_SINK, document_id: DOC, order_no: 'SO-1', status: 'in_production', ordered_at: at(14), created_at: at(14) });
+
+  const p = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  // 가장 늦은 품목 = 붙박이장(설계). 예전에는 수주 하나만 따라가 「생산 · 배송으로 넘기기」였고 붙박이장은 보이지 않았다
+  assert.deepEqual([p.step, p.next.key, p.next.go, p.next.item], ['design', 'design', 'planner?draft=d-ward', '붙박이장 안방']);
+  assert.deepEqual(itemBrief(p), [
+    ['싱크대', 'make', 'deliver', `order:${O_SINK}`],
+    ['붙박이장 안방', 'design', 'design', 'planner?draft=d-ward'],
+  ]);
+  assert.deepEqual(p.items.map((x) => [x.draft_id, x.design_id, x.order_id]), [
+    ['d-sink', D_SINK, O_SINK],
+    ['d-ward', null, null],
+  ]);
+
+  // 붙박이장도 보내고 견적을 냈다 (답 기다림) — 프로젝트는 「견적」, 싱크대는 그대로 생산
+  const D_WARD = rid(174);
+  const DOC_W = rid(175);
+  fake.db.designs.push({ id: D_WARD, company_id: FACTORY, user_id: FACTORY_OWNER, project_id: PRJ_F1, name: '예시 주방 · 붙박이장 안방', source: 'planner-lite', source_ref: 'd-ward', created_at: at(17) });
+  fake.db.design_documents.push(quoteDoc(DOC_W, D_WARD, { created_at: at(18) }));
+  let q = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([q.step, q.next.key, q.next.wait, q.next.item], ['quote', 'customer', true, '붙박이장 안방']);
+  // 승인 — 붙박이장의 「계약 만들기」가 그 견적으로 뜬다 (예전에는 수주가 하나라도 있으면 줄에서 사라졌다)
+  fake.db.design_documents.find((d) => d.id === DOC_W).decision = 'approved';
+  fake.db.design_documents.find((d) => d.id === DOC_W).decided_at = at(19);
+  q = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([q.step, q.next.key, q.next.act], ['quote', 'order', { kind: 'order', document_id: DOC_W }]);
+
+  // 붙박이장 수주가 생겼다(접수) — 단계가 뒤로 가지 않는다: 프로젝트는 더 늦은 붙박이장의 「계약」, 싱크대의 배송은 품목 줄에 그대로
+  const O_WARD = rid(176);
+  fake.db.orders.push({ id: O_WARD, company_id: FACTORY, project_id: PRJ_F1, design_id: D_WARD, document_id: DOC_W, order_no: 'SO-2', status: 'confirmed', ordered_at: at(20), created_at: at(20) });
+  q = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([q.step, q.next.key, q.next.go], ['contract', 'deposit', `order:${O_WARD}`]);
+  assert.deepEqual(itemBrief(q), [
+    ['싱크대', 'make', 'deliver', `order:${O_SINK}`],
+    ['붙박이장 안방', 'contract', 'deposit', `order:${O_WARD}`],
+  ]);
+  // 계약금은 수주마다 묻는다 — 품목마다의 수주를 한 번에
+  const asked = fake.calls.filter((c) => c.table === 'order_payments' && c.method === 'GET').map((c) => c.params.get('order_id'));
+  assert.ok(asked.some((v) => v.includes(O_WARD)), JSON.stringify(asked));
+
+  // 싱크대가 먼저 끝났다 — 프로젝트는 끝나지 않는다 (붙박이장이 남았다). 예전에는 프로젝트 전체가 「끝」이 되고 다음 할 일이 사라졌다
+  Object.assign(fake.db.orders.find((o) => o.id === O_SINK), { status: 'completed', delivered_at: at(21), completed_at: at(22) });
+  q = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([q.step, q.next.key, q.next.go], ['contract', 'deposit', `order:${O_WARD}`]);
+  assert.deepEqual(itemBrief(q)[0], ['싱크대', 'done', null, null]);
+  // 끝난 싱크대에 안 받은 잔금 줄 — 그 품목 줄에 「잔금 입금 적기」
+  fake.db.order_payments.push({ id: rid(177), order_id: O_SINK, stage: 'balance', paid_on: null });
+  q = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual(itemBrief(q)[0], ['싱크대', 'done', 'balance', `order:${O_SINK}`]);
+  assert.equal(q.next.key, 'deposit', '프로젝트의 다음 할 일은 늦은 품목 것 그대로');
+
+  // 붙박이장까지 끝나면 프로젝트가 끝 — 남은 잔금이 다음 할 일
+  Object.assign(fake.db.orders.find((o) => o.id === O_WARD), { status: 'completed', delivered_at: at(23), completed_at: at(24) });
+  q = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([q.step, q.next.key, q.next.item], ['done', 'balance', '싱크대']);
+});
+
+test('품목 줄 — 같은 품목이 둘이면 이름으로 가르고(없으면 번호), 대표 승인이 걸린 품목이 있으면 그것부터', async () => {
+  const fake = fakeOf();
+  fake.db.planner_drafts.push(
+    draftRow(FACTORY, 'd-w1', { item: 'wardrobe', name: '손으로 적은 옛 이름', created_by: FACTORY_OWNER, created_at: at(10), summary: { projectId: PRJ_F1 } }),
+    draftRow(FACTORY, 'd-w2', { item: 'wardrobe', name: '예시 · 붙박이장', created_by: FACTORY_OWNER, created_at: at(11), summary: { projectId: PRJ_F1 } }),
+    draftRow(FACTORY, 'd-w3', { item: 'wardrobe', name: '예시 · 붙박이장 작은방', created_by: FACTORY_OWNER, created_at: at(12), updated_at: at(25), summary: { projectId: PRJ_F1 } })
+  );
+  let p = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual(p.items.map((x) => x.label), ['붙박이장', '붙박이장 2', '붙박이장 작은방']);
+  // 모두 「설계」 — 가장 최근에 만진 줄(작은방)이 다음 할 일
+  assert.deepEqual([p.step, p.next.go, p.next.item], ['design', 'planner?draft=d-w3', '붙박이장 작은방']);
+
+  // 첫 품목에 수주가 있고 대표 승인이 걸렸다 — 어느 품목이든 승인이 먼저다
+  const D1 = rid(181);
+  const DOC1 = rid(182);
+  const O1 = rid(183);
+  fake.db.designs.push({ id: D1, company_id: FACTORY, user_id: FACTORY_OWNER, project_id: PRJ_F1, name: '손으로 적은 옛 이름', source: 'planner-lite', source_ref: 'd-w1', created_at: at(13) });
+  fake.db.design_documents.push(quoteDoc(DOC1, D1, { created_at: at(13), decision: 'approved', decided_at: at(14) }));
+  fake.db.orders.push({ id: O1, company_id: FACTORY, project_id: PRJ_F1, design_id: D1, document_id: DOC1, order_no: 'SO-9', status: 'in_production', ordered_at: at(14), created_at: at(14) });
+  fake.db.order_events.push({ id: rid(184), company_id: FACTORY, order_id: O1, kind: 'status', state: 'pending', created_at: at(15) });
+  p = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([p.step, p.next.key, p.next.go, p.next.item], ['design', 'approve', `order:${O1}`, '붙박이장']);
+});
+
+test('품목 줄 — 예전 상세설계의 설계 둘(1안 · 2안)은 품목으로 세지 않는다 (예전 판정 그대로)', async () => {
+  const fake = fakeOf();
+  fake.db.designs.push(
+    { id: rid(191), company_id: FACTORY, user_id: FACTORY_OWNER, project_id: PRJ_F1, name: '주방 1안', source: null, source_ref: null, created_at: at(10) },
+    { id: rid(192), company_id: FACTORY, user_id: FACTORY_OWNER, project_id: PRJ_F1, name: '주방 2안', source: null, source_ref: null, created_at: at(11) }
+  );
+  const p = await rowOf(fake, FACTORY_OWNER, PRJ_F1);
+  assert.deepEqual([p.step, p.next.key, p.next.go, 'items' in p], ['design', 'quote', 'p-design', false]);
 });
 
 test('목록 — 견적: 가장 새 살아 있는 확인서로 (밀린 판 · 거둔 것 뺌) 답 기다림 → 승인이면 계약 만들기 → 그 수주가 취소됐으면 다시 못 만든다', async () => {

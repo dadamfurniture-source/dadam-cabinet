@@ -4,6 +4,8 @@
  *   GET  /admin/consult-inbox?state=pending|assigned|all   본사 상담 목록 + 지금 배정 · 거쳐 간 업체
  *   GET  /admin/consultations/:id/candidates               1~3순위(점수 내역) + 걸러진 업체와 이유
  *   POST /admin/consultations/:id/assign { company_id }    거르기 다시 확인 → 업체 사본 → 배정 기록 → 앱 알림
+ *   GET  /admin/consultations/:id/image?kind=render|room   본사 상담의 연출컷 첫 장 · 고객 현장 사진 (2026-11-23)
+ *                                                          — 그림 그대로, 버킷 경로 · 서명 주소는 내보내지 않는다
  *   GET  /admin/companies?pool=1                           업체 목록 (등급 · 서류 · 상담 설정 여부)
  *   GET  /admin/companies/:id/evaluation                   평가표 + 항목 목록 + 이력
  *   PUT  /admin/companies/:id/evaluation                   평가표 저장 (목록 밖 키는 422) — 등급은 평가표 점수로 매김
@@ -38,6 +40,7 @@ import {
   platformCompanyId,
 } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
+import { IMAGE_KINDS, imageKindOf, readStorageImage, renderRef, roomRef } from './consult-images.js';
 import { FURNITURE_LABELS } from '../consult-notify.js';
 import { buildMessage } from '../push/messages.js';
 import { notifyRoles } from '../push/outbox.js';
@@ -275,6 +278,30 @@ export async function consultInbox(env, { user, query = {} }) {
 }
 
 /** GET /admin/consultations/:id/candidates */
+/**
+ * GET /admin/consultations/:id/image?kind=render|room — 본사 상담(본사 업체 행)의 연출컷 첫 장 · 현장 사진.
+ * 본사는 고객이 연출컷을 만들며 올린 사진을 이미 가진 곳이라 동의 판과 상관없이 본다. 그 밖은 404.
+ */
+export async function readAdminConsultImage(env, { user, consultationId, kind = 'render' }) {
+  await assertAdmin(env, user);
+  const k = imageKindOf(kind);
+  if (!isUuid(consultationId)) throw new NotFoundError(IMAGE_KINDS[k]);
+  const platform = await platformCompanyId(env);
+  const consult = await selectOne(env, 'consultations', {
+    id: `eq.${consultationId}`,
+    company_id: `eq.${platform}`,
+    select: 'id,generation_id',
+  });
+  const gen =
+    consult && consult.generation_id
+      ? await selectOne(env, 'generations', { id: `eq.${consult.generation_id}`, select: 'id,images,inputs' })
+      : null;
+  const bucket = env.GENERATIONS_BUCKET || 'generations';
+  const ref = gen ? (k === 'room' ? roomRef(gen.inputs, bucket) : renderRef(gen.images, bucket)) : null;
+  if (!ref) throw new NotFoundError(IMAGE_KINDS[k]);
+  return readStorageImage(env, ref, IMAGE_KINDS[k]);
+}
+
 export async function consultCandidates(env, { user, consultationId, nowMs = Date.now() }) {
   await assertAdmin(env, user);
   const { consult } = await loadPlatformConsult(env, consultationId);

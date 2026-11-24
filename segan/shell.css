@@ -498,6 +498,14 @@ a.sg-row.ad-row::after {
   gap: 10px;
 }
 
+/* 본사 상담 — 연출컷 · 고객 현장 사진 나란히 (좁으면 한 줄에 하나) */
+.ad-pics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  max-width: 480px;
+}
+
 .ad-assign {
   margin: 0;
   font-size: 13px;
@@ -3021,6 +3029,13 @@ button.sm-num[aria-pressed='true'] {
   border: 1px solid var(--v5-line-18);
   font-size: 11px;
   color: var(--v5-ink-60);
+}
+
+/* 수주 창 설치 일정 — 고객 확인됨 (2026-11-23) */
+.od-badge--ok {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+  white-space: nowrap;
 }
 
 .od-kpi {
@@ -6257,6 +6272,49 @@ a.ch-row:focus-visible .ch-label {
   overflow-wrap: anywhere;
 }
 
+/* 품목 줄 (2026-11-23) — 프로젝트 줄의 「싱크대 제작 · 붙박이장 설계」 한 줄 · 한 건 화면의 「품목」 칸 */
+.pj-items {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+.pg-items {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pg-items li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.pg-item-main {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.pg-item-main b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pg-item-main small {
+  font-size: 12px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
 /* 단계 칸의 「올린 사진」 — 지우기는 글 단추, 올리기는 파일 고르기를 감싼 단추 (DB 0083) */
 .pg-x {
   padding: 0;
@@ -6736,6 +6794,14 @@ a.ch-row:focus-visible .ch-label {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   background: var(--v5-photo);
+}
+
+/* 고객 현장 사진 — 연출컷 아래 같은 크기, 아래에 이름 한 줄 (2026-11-23) */
+.me-cs-shotcap {
+  display: block;
+  padding-top: 4px;
+  font-size: 12px;
+  color: var(--v5-tan);
 }
 
 .me-cs-item .mk-error,
@@ -8292,4 +8358,76 @@ html:active-view-transition-type(sg-back)::view-transition-new(root) {
   .sg-ai-bar {
     display: none !important;
   }
+}
+
+/* ── 가입 동의 창 (segan/consent.js) — 가운데 작은 창 안. 가는 선 · 각진 칸 ── */
+.sgc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+}
+
+.sgc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding-top: 10px;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.sgc-row input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--v5-ink);
+}
+
+.sgc-row--all {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--v5-line-18);
+  font-weight: 400;
+}
+
+.sgc-links,
+.sgc-note {
+  margin: 0 0 0 28px;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--v5-ink-62);
+}
+
+.sgc-link {
+  color: var(--v5-ink);
+}
+
+.sgc-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--v5-ink);
+}
+
+.sgc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sgc-bar .sg-btn {
+  margin-top: 16px;
+}
+
+.sgc-agree {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.sgc-agree:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

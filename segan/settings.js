@@ -8,8 +8,8 @@
      프로필 수정 이름(필수) · 연락처 · 거주지역 시/도 · 시/군/구 (mypage.html submitEditProfile)
                  목록은 segan/regions.js — mypage.html gugunData 와 같은 목록이다 (시험이 본다)
                  auth.updateUser({ data }) 로 저장하고 profiles 도 같은 값으로 고친다 (profiles 실패는 넘긴다)
-     비밀번호    앱에서 바꾸지 않는다 — 안내 한 줄과 로그인 화면의 「비밀번호 찾기」(reset-password.html) 링크만
-                 (settings.html 에 적혀 있다, 여기서는 하는 일이 없다)
+     로그인      카카오 · 구글 — 계정의 app_metadata.providers(없으면 provider)를 「카카오 · 구글」로 적는다.
+                 2026-11-23 이메일 · 비밀번호 로그인을 없앴다 — 비밀번호 칸은 없다. 옛 이메일 가입이면 「이메일(예전 가입)」
      회원탈퇴    지우는 것 · 남는 것 안내 + 확인 문구 「탈퇴합니다」를 그대로 적어야 단추가 열린다 (mypage.html submitWithdraw)
                  account-api POST /delete (본인 토큰만 — 대상 id 를 보내지 않는다, 보내면 남의 계정을 지목할 수 있다).
                  되면 남은 세션을 지우고 앱 첫 화면으로 간다
@@ -28,6 +28,11 @@
   var ASSISTANT_MEMO = 'segan.assistant.on.'; // segan/shell.js 의 비서 탭 기억 — 로그아웃처럼 지운다
   var TEXT = {
     none: '미등록',
+    marketingOn: '{d} 받기로 했습니다.',
+    marketingOff: '{d} 받지 않기로 했습니다.',
+    marketingNever: '받지 않고 있습니다.',
+    marketingLoadFail: '설정을 불러오지 못했습니다.',
+    marketingSaveFail: '바꾸지 못했습니다. 잠시 뒤 다시 눌러 주세요.',
     nameRequired: '이름을 입력해주세요.',
     saved: '프로필이 수정되었습니다.',
     saveFail: '프로필 수정 중 오류가 발생했습니다: ',
@@ -37,6 +42,8 @@
     noApi: '탈퇴 기능을 사용할 수 없습니다.',
     withdrawFail: '탈퇴 처리에 실패했습니다.',
   };
+  // 로그인 수단 이름 — 고정 목록에서만 (모르는 값은 적지 않는다)
+  var PROVIDER_KO = { kakao: '카카오', google: '구글', email: '이메일(예전 가입)' };
 
   var S = { sb: null, session: null, user: null, saving: false };
 
@@ -67,10 +74,24 @@
     return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
+  /** 로그인 수단 — 「카카오 · 구글」, 모르면 「-」 */
+  function loginOf(user) {
+    var app = (user && user.app_metadata) || {};
+    var list =
+      Array.isArray(app.providers) && app.providers.length ? app.providers : [app.provider];
+    var names = [];
+    list.forEach(function (p) {
+      var ko = PROVIDER_KO[p];
+      if (ko && names.indexOf(ko) < 0) names.push(ko);
+    });
+    return names.join(' · ') || '-';
+  }
+
   function renderInfo(user, meta) {
     var m = meta || metaOf(user);
     $('stName').textContent = meta ? meta.name : nameOf(user);
     $('stEmail').textContent = (user && user.email) || '-';
+    $('stLogin').textContent = loginOf(user);
     $('stPhone').textContent = m.phone || TEXT.none;
     $('stPlace').textContent = placeOf(m);
     $('stJoined').textContent = joinedOf(user && user.created_at);
@@ -189,6 +210,58 @@
     $('stEditSave').disabled = false;
   }
 
+  // ── 혜택 · 새 소식 받기 (마케팅 수신) ─────────────────────
+  function dayOf(iso) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return '';
+    return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '.';
+  }
+
+  function renderMarketing(row) {
+    var on = !!(row && row.marketing_agreed_at);
+    $('stMarketing').checked = on;
+    var day = on ? dayOf(row.marketing_agreed_at) : dayOf(row && row.marketing_withdrawn_at);
+    $('stMarketingState').textContent = on
+      ? TEXT.marketingOn.replace('{d}', day)
+      : day
+        ? TEXT.marketingOff.replace('{d}', day)
+        : TEXT.marketingNever;
+  }
+
+  async function loadMarketing() {
+    try {
+      var q = await S.sb
+        .from('profiles')
+        .select('marketing_agreed_at, marketing_withdrawn_at')
+        .eq('id', S.user.id)
+        .maybeSingle();
+      if (q.error) throw q.error;
+      S.marketing = q.data || {};
+      renderMarketing(S.marketing);
+      $('stMarketing').disabled = false;
+    } catch {
+      $('stMarketingState').textContent = TEXT.marketingLoadFail;
+    }
+  }
+
+  async function saveMarketing() {
+    var box = $('stMarketing');
+    var on = box.checked;
+    var now = new Date().toISOString();
+    var patch = on ? { marketing_agreed_at: now } : { marketing_agreed_at: null, marketing_withdrawn_at: now };
+    box.disabled = true;
+    try {
+      var r = await S.sb.from('profiles').update(patch).eq('id', S.user.id).select('id');
+      if (r.error || !r.data || !r.data.length) throw new Error('no row');
+      S.marketing = Object.assign({}, S.marketing, patch);
+      renderMarketing(S.marketing);
+    } catch {
+      box.checked = !on;
+      $('stMarketingState').textContent = TEXT.marketingSaveFail;
+    }
+    box.disabled = false;
+  }
+
   // ── 회원탈퇴 ───────────────────────────────────────────
   function withdrawStatus(msg) {
     $('stWithdrawStatus').textContent = msg || '';
@@ -278,6 +351,7 @@
       $('stWithdrawBtn').disabled = $('stWithdrawInput').value.trim() !== WITHDRAW_WORD;
     });
     $('stWithdrawBtn').addEventListener('click', submitWithdraw);
+    if ($('stMarketing')) $('stMarketing').addEventListener('change', saveMarketing);
   }
 
   function start(auth) {
@@ -293,6 +367,7 @@
     S.user = auth.session.user || {};
     renderInfo(S.user);
     bind();
+    if ($('stMarketing')) return loadMarketing();
   }
 
   var api = {

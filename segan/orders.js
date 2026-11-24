@@ -34,10 +34,14 @@
                PATCH /orders/:id/payments/:pid    { paid_on: 'YYYY-MM-DD' | null }
                DELETE /orders/:id/payments/:pid
                GET   /company/schedules?from&to   items 중 source 'payment' = 아직 안 받은 수금 일정 (대표 · 실장만 실린다)
+               GET   /designs/:design_id/schedules  { items[{ id, type, status, scheduled_at, customer_confirmed_at?,
+                                                    customer_change_requested_at? }] } — 설치 일정 칸 (2026-11-23).
+                                                    설계를 보는 사람 모두 — 못 읽으면 칸째 뺀다
    화면      계약 화면 #orders        — 「대표 승인 기다림」(승인 · 반려 · 열기) + 수주 표 (번호 · 고객 · 상태 · 수주일 · 금액)
              수금 화면 #ordersCollect — 계약금액 · 받은 돈 · 미수금 합, 받을 날(지난 60일 ~ 앞으로 30일), 수주마다 표
              줄을 누르면 상세 — SeganShell.sheet kind 'sheet' (폰은 아래 시트 · PC 1100px~ 는 오른쪽 옆 패널):
-               금액 요약 · 상태 바꾸기(사유 · 대표 승인 요청) · 수주 정보(수금액 · 구분 · 거래처) ·
+               금액 요약 · 상태 바꾸기(사유 · 대표 승인 요청) · 설치 일정(고객 확인됨 · 확인 전 · 변경 요청 — 보기만) ·
+               수주 정보(수금액 · 구분 · 거래처) ·
                수금 일정(넣기 · 받음 · 되돌리기 · 삭제) · 실적 원가(넣기 · 냈음 · 삭제) · 재작업 · A/S(기록 · 삭제) ·
                설치 · A/S 완료 보고(사진 10장까지) · 설치 후 한 문항(링크 만들기 · 복사) · 상태 기록
                넣는 칸은 접어 둔다(「원가 넣기」 …). 안 바뀐 부분은 다시 그리지 않아 적던 칸이 남는다.
@@ -206,6 +210,13 @@
     fbMade: '링크를 만들었습니다. 복사해서 고객에게 문자로 보내 주세요.',
     fbCopied: '링크를 복사했습니다.',
     fbPicked: '링크를 골랐습니다. 길게 눌러(PC 는 Ctrl+C) 복사해 주세요.',
+    // 설치 일정 — 설치 날 고객 확인 (표시 · 지우기는 업무 달력 · 설치 표에서, 2026-11-23)
+    installTitle: '설치 일정',
+    installConfirmed: '고객 확인됨',
+    installBefore: '고객 확인 전',
+    installChange: '고객 변경 요청',
+    installDone: '설치 끝',
+    installHint: '고객 확인 표시는 업무 달력 · 설치 표에서 합니다.',
     eventsTitle: '상태 기록',
     eventsEmpty: '상태가 바뀐 기록이 아직 없습니다.',
     eventsFail: '상태 기록을 불러오지 못했습니다.',
@@ -1405,11 +1416,97 @@
       '</ul>'
     );
   }
+  // ── 설치 일정 · 고객 확인 (2026-11-23) ─────────────────
+  /** GET /designs/:id/schedules 의 items → 설치 일정 줄 (취소 · 날짜 없는 것 빼고, 이른 차례) */
+  function installsOf(items) {
+    return items
+      .filter(function (s) {
+        return (
+          s &&
+          typeof s === 'object' &&
+          s.type === 'installation' &&
+          s.status !== 'cancelled' &&
+          !isNaN(Date.parse(s.scheduled_at))
+        );
+      })
+      .map(function (s) {
+        return {
+          id: str(s.id),
+          at: s.scheduled_at,
+          done: s.status === 'completed',
+          // DB 0079 전 · 옛 서버면 칸이 없다 — 그때는 꼬리표를 달지 않는다
+          ready: has(s, 'customer_confirmed_at'),
+          confirmed: isNaN(Date.parse(s.customer_confirmed_at)) ? '' : s.customer_confirmed_at,
+          change: !isNaN(Date.parse(s.customer_change_requested_at)),
+        };
+      })
+      .sort(function (a, b) {
+        return Date.parse(a.at) - Date.parse(b.at);
+      });
+  }
+  /** 설치 일정 한 줄의 꼬리표 — 변경 요청 > 확인됨 > (끝나지 않았으면) 확인 전 */
+  function installTag(x) {
+    if (!x.ready) return '';
+    if (x.change)
+      return '<span class="sm-wait-tag" data-od-confirm="change">' + esc(TEXT.installChange) + '</span>';
+    if (x.confirmed)
+      return '<span class="od-badge od-badge--ok" data-od-confirm="yes">' + esc(TEXT.installConfirmed) + '</span>';
+    if (x.done) return '';
+    return '<span class="sm-wait-tag" data-od-confirm="no">' + esc(TEXT.installBefore) + '</span>';
+  }
+  /** 설치 일정 칸 — 설치 일정이 없거나 못 읽었으면 칸째 없다 (보기만) */
+  function installHtml(O) {
+    var list = O.installs;
+    if (!list || !list.length) return '';
+    var waiting = list.some(function (x) {
+      return x.ready && !x.done && (!x.confirmed || x.change);
+    });
+    return (
+      '<h3 class="me-pt-sub">' +
+      esc(TEXT.installTitle) +
+      '</h3><ul class="me-pt-list">' +
+      list
+        .map(function (x) {
+          var sub = [];
+          if (x.done) sub.push(TEXT.installDone);
+          if (x.confirmed && !x.change) sub.push('고객 확인 ' + dayKst(x.confirmed));
+          return (
+            '<li class="me-pt-row" data-install="' +
+            esc(x.id) +
+            '"><span class="me-pt-line"><span class="me-c-main"><b>' +
+            esc(whenKst(x.at)) +
+            '</b>' +
+            (sub.length ? '<small>' + esc(sub.join(' · ')) + '</small>' : '') +
+            '</span>' +
+            installTag(x) +
+            '</span></li>'
+          );
+        })
+        .join('') +
+      '</ul>' +
+      (waiting ? '<p class="mk-note">' + esc(TEXT.installHint) + '</p>' : '')
+    );
+  }
+  /** 열린 수주의 설치 일정을 한 번 읽는다 — 상세를 그린 뒤 따로 (늦어도 상세를 막지 않는다) */
+  async function loadInstalls(O) {
+    if (O.installsAsked) return;
+    O.installsAsked = true;
+    var order = O.detail && O.detail.order;
+    var designId = order && str(order.design_id);
+    if (!UUID_RE.test(designId)) return;
+    var r = await call('GET', '/designs/' + encodeURIComponent(designId) + '/schedules');
+    if (J.open !== O) return;
+    var items = r.ok && r.body && r.body.data && r.body.data.items;
+    O.installs = Array.isArray(items) ? installsOf(items) : null;
+    paintOne(O, 'install');
+  }
+
   // ── 상세 그리기 ─────────────────────────────────────
   /** 부분의 차례 — 위에서 아래로 */
   var PARTS = [
     ['summary', summaryHtml],
     ['status', statusHtml],
+    ['install', installHtml],
     ['info', infoHtml],
     ['pay', payHtml],
     ['cost', costHtml, costListHtml],
@@ -1507,6 +1604,7 @@
     var rp = got[2].ok && got[2].body.data;
     O.reports = rp && typeof rp === 'object' ? rp : null;
     O.reportsFailed = !O.reports;
+    loadInstalls(O);
     if (
       !movesOf(O).some(function (m) {
         return m.to === O.to;
@@ -1537,6 +1635,8 @@
       eventsFailed: false,
       reports: null,
       reportsFailed: false,
+      installs: null, // 설치 일정 줄 — loadInstalls 가 한 번 채운다
+      installsAsked: false,
       feedbackUrl: '',
       failed: false,
       to: '',

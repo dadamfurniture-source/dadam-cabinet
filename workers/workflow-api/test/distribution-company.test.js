@@ -180,6 +180,8 @@ function tables() {
             url: 'https://x.supabase.co/storage/v1/object/public/generations/x.png',
           },
         ],
+        // 고객이 올린 현장 사진 (generate-api uploadInputs)
+        inputs: { room: { path: `${CUSTOMER}/gen-1/room.jpg`, url: 'https://x.supabase.co/storage/v1/object/generations/r.jpg', mime: 'image/jpeg' } },
       },
     ],
   };
@@ -315,6 +317,68 @@ test('연출컷 그림 — 구성원 아님 403 · 다른 업체 · 다담 공�
   }
   assert.equal(storageReads(fake).length, 0, '그림을 읽지 않는다');
   assert.equal((await image(fake, C1, null)).status, 401);
+});
+
+// ── 고객 현장 사진 (2026-11-23) — v3 동의 상담만 ──────────────────
+
+const JPG = new Uint8Array([0xff, 0xd8, 0xff, 9, 8, 7]);
+const withRoom = (consent = 'v3') => {
+  const fake = fakeOf({
+    objects: {
+      [`generations/${CUSTOMER}/gen-1/base.png`]: { bytes: PNG, type: 'image/png' },
+      [`generations/${CUSTOMER}/gen-1/room.jpg`]: { bytes: JPG, type: 'image/jpeg' },
+    },
+  });
+  const p1 = fake.db.consultations.find((c) => c.id === P1);
+  p1.third_party_agreed_at = consent ? ago(50) : null;
+  p1.consent_version = consent;
+  return fake;
+};
+const room = (fake, id, token) => call(fake, `/company/consults/${id}/image?kind=room`, token);
+
+test('현장 사진 — 「현장 사진」을 적은 동의(v3)로 신청한 상담만: 목록 has_room_image · ?kind=room 은 inputs.room 을 service_role 로', async () => {
+  const fake = withRoom('v3');
+  const list = await call(fake, '/company/consults', OWNER_A);
+  const c1 = list.json.data.items.find((i) => i.id === C1);
+  assert.equal(c1.has_room_image, true);
+  assert.equal(c1.has_generation_image, true);
+  assert.equal(list.json.data.items.find((i) => i.id === C2).has_room_image, false, '연출컷 없는 상담');
+  assert.ok(!JSON.stringify(list.json).includes('room.jpg'), '버킷 경로 없음');
+  for (const token of [OWNER_A, STAFF_A]) {
+    const r = await room(fake, C1, token);
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.bytes, JPG);
+    assert.equal(r.headers.get('Content-Type'), 'image/jpeg');
+    assert.equal(r.headers.get('Cache-Control'), 'no-store, private');
+  }
+  // 연출컷은 그대로 (kind 없음 = render)
+  assert.deepEqual((await image(fake, C1, OWNER_A)).bytes, PNG);
+  assert.deepEqual((await call(fake, `/company/consults/${C1}/image?kind=render`, OWNER_A)).bytes, PNG);
+  assert.equal(writesOf(fake).length, 0);
+});
+
+test('현장 사진 — 옛 동의(v2) · 동의 없음은 넘기지 않는다 (버킷도 읽지 않는다), 다른 업체 · 돌려보낸 상담 · 틀린 kind 404', async () => {
+  for (const consent of ['v2', 'v1', null]) {
+    const fake = withRoom(consent);
+    const list = await call(fake, '/company/consults', OWNER_A);
+    assert.equal(list.json.data.items.find((i) => i.id === C1).has_room_image, false, String(consent));
+    const r = await room(fake, C1, OWNER_A);
+    assert.equal(r.status, 404, String(consent));
+    assert.equal(r.json.message, '현장 사진이 없습니다');
+    assert.equal(storageReads(fake).length, 0, '그림을 읽지 않는다');
+    assert.equal((await image(fake, C1, OWNER_A)).status, 200, '연출컷은 그대로');
+  }
+  const fake = withRoom('v3');
+  for (const [id, token] of [
+    [C1, OWNER_B],
+    [C4, OWNER_A],
+    [C2, OWNER_A],
+  ])
+    assert.equal((await room(fake, id, token)).status, 404, `${id} ${token}`);
+  const bad = await call(fake, `/company/consults/${C1}/image?kind=../x`, OWNER_A);
+  assert.equal(bad.status, 404);
+  assert.equal(storageReads(fake).length, 0);
+  assert.equal((await room(fake, C1, NOBODY)).status, 403);
 });
 
 test('연출컷 그림 — 버킷에 객체가 없으면 404', async () => {
